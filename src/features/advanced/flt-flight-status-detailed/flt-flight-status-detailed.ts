@@ -10,8 +10,8 @@ function onRowReady(row: HTMLTableRowElement) {
   const id = refPrunId(row);
   if (!id.value) return;
 
-  const statusCell = row.children[3] as HTMLTableCellElement;
-  if (!statusCell) return;
+  const statusCell = row.children[3] as HTMLTableCellElement | undefined;
+  if (statusCell == null) return;
 
   statusCell.style.display = 'table-cell';
   statusCell.classList.remove(C.Link.link);
@@ -22,12 +22,12 @@ function onRowReady(row: HTMLTableRowElement) {
     rowElement: row,
   }).appendTo(statusCell);
 
-  const nativeButtonCell = row.children[8] as HTMLElement;
-  if (nativeButtonCell) {
+  const nativeButtonCell = row.children[8] as HTMLElement | undefined;
+  if (nativeButtonCell != null) {
     nativeButtonCell.style.width = '1px';
     nativeButtonCell.style.whiteSpace = 'nowrap';
-    const nativeContainer = nativeButtonCell.querySelector(`.${C.Fleet.buttons}`) as HTMLElement;
-    if (nativeContainer) {
+    const nativeContainer = nativeButtonCell.querySelector<HTMLElement>(`.${C.Fleet.buttons}`);
+    if (nativeContainer != null) {
       Object.assign(nativeContainer.style, {
         display: 'flex',
         flexDirection: 'row',
