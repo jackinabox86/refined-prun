@@ -76,7 +76,7 @@ act.addMaterialGroup<Config>({
       const days = typeof data.days === 'number' ? data.days : parseFloat(data.days);
       const need = Math.ceil((matBurn.daysLeft - days) * matBurn.dailyAmount);
       if (need > 0) {
-        parsedGroup[ticker] = need;
+        parsedGroup[ticker] = need + 1;
       }
     }
     return parsedGroup;
