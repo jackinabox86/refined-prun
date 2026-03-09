@@ -3,6 +3,8 @@ import { userData } from '@src/store/user-data';
 import { ComponentPublicInstance, reactive } from 'vue';
 import MarketMenu from './MarketMenu.vue';
 
+let clickOutsideListener: ((e: MouseEvent) => void) | null = null;
+
 export const store = reactive({
   materialID: '',
   menuElement: {} as HTMLElement,
@@ -16,9 +18,19 @@ export const store = reactive({
     this.menuStyle.display = 'block';
     await nextTick();
     store.setLocation(event);
+    clickOutsideListener = (e: MouseEvent) => {
+      if (!store.menuElement.contains(e.target as Node)) {
+        store.hideMenu();
+      }
+    };
+    document.addEventListener('click', clickOutsideListener);
   },
   hideMenu() {
     this.menuStyle.display = 'none';
+    if (clickOutsideListener !== null) {
+      document.removeEventListener('click', clickOutsideListener);
+      clickOutsideListener = null;
+    }
   },
   showBuffer(cmd: string) {
     this.hideMenu();
@@ -46,20 +58,12 @@ export const store = reactive({
       this.menuStyle.top = event.clientY.toString() + 'px';
     }
   },
-  checkClickedMenu(event: MouseEvent): void {
-    if (this.menuStyle.display === 'none') return;
-    const target = event.target as Node;
-    if (!this.menuElement.contains(target)) {
-      this.hideMenu();
-    }
-  },
 });
 
 async function init() {
   const container = document.getElementById('container');
   if (container?.parentElement) {
     store.setMenuElement(createFragmentApp(MarketMenu).appendTo(container));
-    container.addEventListener('click', event => store.checkClickedMenu(event));
   }
   document.addEventListener('contextmenu', event => {
     const container = (event.target as HTMLElement).closest<HTMLElement>(
