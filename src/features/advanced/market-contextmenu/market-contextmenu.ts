@@ -1,31 +1,57 @@
 import { showBuffer } from '@src/infrastructure/prun-ui/buffers';
 import { userData } from '@src/store/user-data';
-import { ComponentPublicInstance, reactive } from 'vue';
+import { reactive } from 'vue';
 import MarketMenu from './MarketMenu.vue';
 
 let clickOutsideListener: ((e: MouseEvent) => void) | null = null;
+let isOpen = false;
+let menuElement: HTMLElement | null = null;
+let materialSelector: string;
+
+function setLocation(event: MouseEvent) {
+  if (menuElement === null) return;
+  const parentRect = menuElement.parentElement!.getBoundingClientRect();
+  const menuRect = menuElement.getBoundingClientRect();
+  if (event.clientX + menuRect.width > parentRect.right) {
+    store.menuStyle.left = (parentRect.right - menuRect.width).toString() + 'px';
+  } else {
+    store.menuStyle.left = event.clientX.toString() + 'px';
+  }
+  if (event.clientY + menuRect.height > parentRect.bottom) {
+    store.menuStyle.top = (event.clientY - menuRect.height).toString() + 'px';
+  } else {
+    store.menuStyle.top = event.clientY.toString() + 'px';
+  }
+}
 
 export const store = reactive({
   materialID: '',
-  menuElement: {} as HTMLElement,
   menuStyle: {
     display: 'none',
     left: '0px',
     top: '0px',
   },
   async showMenu(event: MouseEvent, ticker: string) {
+    // Clean up previous listener if rapid re-entry
+    if (clickOutsideListener !== null) {
+      document.removeEventListener('click', clickOutsideListener);
+      clickOutsideListener = null;
+    }
+    isOpen = true;
     this.materialID = ticker;
     this.menuStyle.display = 'block';
     await nextTick();
-    store.setLocation(event);
+    setLocation(event);
     clickOutsideListener = (e: MouseEvent) => {
-      if (!store.menuElement.contains(e.target as Node)) {
+      if (menuElement !== null && !menuElement.contains(e.target as Node)) {
         store.hideMenu();
       }
     };
     document.addEventListener('click', clickOutsideListener);
   },
   hideMenu() {
+    if (!isOpen) return;
+    isOpen = false;
     this.menuStyle.display = 'none';
     if (clickOutsideListener !== null) {
       document.removeEventListener('click', clickOutsideListener);
@@ -41,40 +67,25 @@ export const store = reactive({
     }
     return;
   },
-  setMenuElement(componentInstance: ComponentPublicInstance) {
-    this.menuElement = componentInstance.$el as HTMLElement;
-  },
-  setLocation(event: MouseEvent) {
-    const documentRect = this.menuElement.parentElement!.getBoundingClientRect();
-    const tooltipRect = this.menuElement.getBoundingClientRect();
-    if (event.clientX + tooltipRect.width > documentRect.right) {
-      this.menuStyle.left = (documentRect.right - tooltipRect.width).toString() + 'px';
-    } else {
-      this.menuStyle.left = event.clientX.toString() + 'px';
-    }
-    if (event.clientY + tooltipRect.height > documentRect.bottom) {
-      this.menuStyle.top = (event.clientY - tooltipRect.height).toString() + 'px';
-    } else {
-      this.menuStyle.top = event.clientY.toString() + 'px';
-    }
-  },
 });
 
 async function init() {
+  materialSelector = `.${C.ColoredIcon.container}`;
   const container = document.getElementById('container');
   if (container?.parentElement) {
-    store.setMenuElement(createFragmentApp(MarketMenu).appendTo(container));
+    const componentInstance = createFragmentApp(MarketMenu).appendTo(container);
+    menuElement = componentInstance.$el as HTMLElement;
   }
   document.addEventListener('contextmenu', event => {
-    const container = (event.target as HTMLElement).closest<HTMLElement>(
-      `.${C.ColoredIcon.container}`,
-    );
-    if (container !== null) {
+    const target = (event.target as HTMLElement).closest<HTMLElement>(materialSelector);
+    if (target !== null) {
       event.preventDefault();
-      store.showMenu(event, container.textContent ?? '');
+      store.showMenu(event, target.textContent ?? '');
       return;
     }
-    store.hideMenu();
+    if (isOpen) {
+      store.hideMenu();
+    }
   });
 }
 
