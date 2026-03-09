@@ -1,0 +1,44 @@
+name: Build Refined PrUn ZIP
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          lfs: true
+      
+      - name: Install pnpm
+        uses: pnpm/action-setup@v3
+        with:
+          version: 9.4.0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'pnpm'
+          
+      - name: Install Dependencies
+        run: pnpm install
+          
+      - name: Build Extension
+        run: pnpm run build
+          
+      - name: Force Valid Version in Manifest
+        run: |
+          # This goes into the built folder and manually overwrites the version to 1.0.0
+          cd dist
+          sed -i 's/"version": "0.0.0"/"version": "1.0.2"/g' manifest.json
+          sed -i 's/"version": "1"/"version": "1.0.2"/g' manifest.json
+          
+      - name: Upload Zip
+        uses: actions/upload-artifact@v4
+        with:
+          name: refined-prun-build
+          path: dist/

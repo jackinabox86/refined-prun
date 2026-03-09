@@ -79,6 +79,7 @@ export default defineConfig({
         'refined-prun': resolve(srcDir, 'refined-prun.ts'),
       },
       formats: ['es'],
+      cssFileName: 'refined-prun',
     },
     rollupOptions: {
       external: ['chrome'],
