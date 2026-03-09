@@ -1,6 +1,5 @@
 import { showBuffer } from '@src/infrastructure/prun-ui/buffers';
 import { userData } from '@src/store/user-data';
-import { refTextContent } from '@src/utils/reactive-dom';
 import { ComponentPublicInstance, reactive } from 'vue';
 import MarketMenu from './MarketMenu.vue';
 
@@ -48,6 +47,7 @@ export const store = reactive({
     }
   },
   checkClickedMenu(event: MouseEvent): void {
+    if (this.menuStyle.display === 'none') return;
     const target = event.target as Node;
     if (!this.menuElement.contains(target)) {
       this.hideMenu();
@@ -67,8 +67,7 @@ async function init() {
     );
     if (container !== null) {
       event.preventDefault();
-      const ticker = refTextContent(container);
-      store.showMenu(event, ticker.value!);
+      store.showMenu(event, container.textContent ?? '');
       return;
     }
     store.hideMenu();
