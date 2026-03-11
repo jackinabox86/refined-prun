@@ -6,15 +6,17 @@ import { getPrunId } from '@src/infrastructure/prun-ui/attributes';
 import { setBufferSize } from '@src/infrastructure/prun-ui/buffers';
 import { UI_TILES_CHANGE_COMMAND } from '@src/infrastructure/prun-api/client-messages';
 import { dispatchClientPrunMessage } from '@src/infrastructure/prun-api/prun-api-listener';
-import { clickElement } from '@src/util';
+import { clickElement, changeInputValue } from '@src/util';
 import { sleep } from '@src/utils/sleep';
-import { changeInputValue } from '@src/util';
 
 const tile = useTile();
 const inputText = ref('');
-const companionTile = ref<HTMLElement | undefined>();
-const hasSplit = ref(false);
 const activeCommand = ref<string | undefined>();
+const isProcessing = ref(false);
+
+// Check if we're already in a split window (has a companion tile).
+const isSoloBuffer = tile.container.classList.contains(C.Window.body);
+const goingToSplit = ref(false);
 
 interface CommandEntry {
   label: string;
@@ -31,33 +33,21 @@ function resolveCommand(template: string) {
   return template.replace(/\{input\}/g, inputText.value.trim());
 }
 
-async function splitAndGetCompanion() {
-  if (hasSplit.value) {
-    return;
-  }
-
-  // Widen the window to make room for the companion tile.
+// Split immediately if this is a solo buffer (like ACT does).
+if (isSoloBuffer) {
+  goingToSplit.value = true;
   const width = parseInt(tile.container.style.width.replace('px', ''), 10);
   const height = parseInt(tile.container.style.height.replace('px', ''), 10);
   setBufferSize(tile.id, width + 500, height);
-
-  // Click the split button '|' to split horizontally.
   const splitButton = _$$(tile.frame, C.TileControls.control).find(x => x.textContent === '|');
-  await clickElement(splitButton);
-  hasSplit.value = true;
-
-  // Wait for the DOM to settle, then find the companion tile.
-  await sleep(100);
-  const companion = getCompanionTile();
-  if (companion) {
-    companionTile.value = companion;
-  }
+  void clickElement(splitButton);
 }
 
 function getCompanionTile(): HTMLElement | undefined {
   const isInNodeChild = tile.container.classList.contains(C.Node.child);
   const isInNode = tile.container.parentElement?.classList.contains(C.Node.node);
-  if (!isInNodeChild || !isInNode) {
+  const isInWindow = tile.container.parentElement?.parentElement?.classList.contains(C.Window.body);
+  if (!isInNodeChild || !isInNode || !isInWindow) {
     return undefined;
   }
 
@@ -71,7 +61,7 @@ function getCompanionTile(): HTMLElement | undefined {
 
 async function changeTileCommand(tileEl: HTMLElement, command: string) {
   const id = getPrunId(tileEl)!;
-  // Clear current command first.
+  // Clear current command.
   let message = UI_TILES_CHANGE_COMMAND(id, null);
   if (!dispatchClientPrunMessage(message)) {
     const changeButton = _$$(tileEl, C.TileControls.control).find(x => x.textContent === ':');
@@ -79,7 +69,7 @@ async function changeTileCommand(tileEl: HTMLElement, command: string) {
   } else {
     await sleep(0);
   }
-  // Set the new command.
+  // Set new command.
   message = UI_TILES_CHANGE_COMMAND(id, command);
   if (!dispatchClientPrunMessage(message)) {
     const input = (await $(tileEl, C.PanelSelector.input)) as HTMLInputElement;
@@ -90,30 +80,28 @@ async function changeTileCommand(tileEl: HTMLElement, command: string) {
 }
 
 async function onCommandClick(entry: CommandEntry) {
-  if (!inputText.value.trim()) {
+  if (!inputText.value.trim() || isProcessing.value) {
     return;
   }
 
   const resolved = resolveCommand(entry.template);
   activeCommand.value = entry.template;
+  isProcessing.value = true;
 
-  if (!hasSplit.value) {
-    await splitAndGetCompanion();
-  }
-
-  // Re-find the companion in case it was recreated by the split.
-  if (!companionTile.value?.isConnected) {
-    companionTile.value = getCompanionTile();
-  }
-
-  if (companionTile.value) {
-    await changeTileCommand(companionTile.value, resolved);
+  try {
+    const companion = getCompanionTile();
+    if (companion) {
+      await changeTileCommand(companion, resolved);
+    }
+  } finally {
+    isProcessing.value = false;
   }
 }
 </script>
 
 <template>
-  <div :class="$style.root">
+  <div v-if="goingToSplit" />
+  <div v-else :class="$style.root">
     <Header>LINKED BUFFERS</Header>
     <div :class="$style.inputSection">
       <label :class="$style.label">Input</label>
