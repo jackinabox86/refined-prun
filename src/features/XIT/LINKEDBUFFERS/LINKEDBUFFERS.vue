@@ -78,10 +78,31 @@ onMounted(async () => {
 
   childTiles.value = _$$(rightSibling, C.Tile.tile) as HTMLElement[];
   gridReady.value = true;
+});
 
-  // Save the current window size so next open remembers it.
+// Save window size when the component unmounts (captures user's resize).
+onBeforeUnmount(() => {
   saveBufferSize();
 });
+
+function getWindowElement(): HTMLElement | null {
+  return tile.frame.closest(`.${C.Window.window}`) as HTMLElement | null;
+}
+
+function saveBufferSize() {
+  if (!preset.value) {
+    return;
+  }
+  const win = getWindowElement();
+  if (!win) {
+    return;
+  }
+  const width = win.offsetWidth;
+  const height = win.offsetHeight;
+  if (width > 0 && height > 0) {
+    preset.value.lastBufferSize = [width, height];
+  }
+}
 
 function getRightSibling(): HTMLElement | undefined {
   const isInNodeChild = tile.container.classList.contains(C.Node.child);
@@ -105,14 +126,6 @@ async function splitTileElement(tileEl: HTMLElement, direction: '|' | '\u2013') 
 }
 
 async function buildGrid(container: HTMLElement, count: number) {
-  // For count tiles, create a grid layout:
-  // 1: no splits needed
-  // 2: vertical split (top/bottom)
-  // 3: vertical split, then split bottom horizontally
-  // 4: vertical split, then split both horizontally (2x2)
-  // 5: vertical split, split top horizontally, split bottom vertically, split bottom-bottom horizontally
-  // 6: vertical split, split both horizontally, split bottom-right vertically... etc.
-
   if (count <= 1) {
     return;
   }
@@ -127,38 +140,16 @@ async function buildGrid(container: HTMLElement, count: number) {
     await splitTileElement(lastTile, '\u2013');
   }
 
-  // Now split rows into columns where needed.
-  // For count=2 with rows=1: split the single row into 2 columns.
-  // For count=3 with rows=2: top stays single, bottom splits into 2.
-  // For count=4 with rows=2: both rows split into 2.
-  // General: rows that need 2 columns = count - rows.
-
   if (count <= rows) {
-    // Single column, no horizontal splits needed.
     return;
   }
 
-  // Split rows that need 2 columns. Split from the last row upward.
+  // Split rows that need 2 columns, from the last row upward.
   const currentTiles = _$$(container, C.Tile.tile) as HTMLElement[];
   let splitsNeeded = count - rows;
   for (let i = currentTiles.length - 1; i >= 0 && splitsNeeded > 0; i--) {
     await splitTileElement(currentTiles[i], '|');
     splitsNeeded--;
-  }
-}
-
-function saveBufferSize() {
-  if (!preset.value) {
-    return;
-  }
-  const window = tile.frame.closest(`.${C.Window.window}`) as HTMLElement | null;
-  if (!window) {
-    return;
-  }
-  const width = window.offsetWidth;
-  const height = window.offsetHeight;
-  if (width > 0 && height > 0) {
-    preset.value.lastBufferSize = [width, height];
   }
 }
 
@@ -246,29 +237,31 @@ function onCreateClick() {
     <Header>{{ preset.name }}</Header>
     <div :class="$style.inputSection">
       <label :class="$style.label">Input</label>
-      <div :class="[C.forms.input, $style.inputWrapper]">
-        <TextInput v-model="inputText" />
-      </div>
+      <input
+        v-model="inputText"
+        type="text"
+        :class="$style.input"
+        autocomplete="off"
+        data-1p-ignore="true"
+        data-lpignore="true" />
     </div>
     <div v-if="!gridReady" :class="$style.status">Setting up grid...</div>
     <template v-if="!edit">
       <table>
         <thead>
           <tr>
-            <th>#</th>
             <th>Commands</th>
           </tr>
         </thead>
         <tbody>
           <tr v-if="preset.commands.length === 0">
-            <td colspan="2">No commands. Click EDIT to add some.</td>
+            <td>No commands. Click EDIT to add some.</td>
           </tr>
           <template v-else>
             <tr
               v-for="(cmd, index) in preset.commands"
               :key="cmd.id"
               @click="onCommandClick(cmd, index)">
-              <td :class="$style.indexCell">{{ index + 1 }}</td>
               <td :class="$style.commandCell">
                 <span :class="[C.Link.link, $style.commandLink]">
                   {{ resolveCommand(cmd.template) || cmd.template }}
@@ -324,7 +317,7 @@ function onCreateClick() {
         <PrunButton primary @click="addCommand">ADD COMMAND</PrunButton>
         <PrunButton primary @click="edit = false">DONE</PrunButton>
       </ActionBar>
-      <div :class="$style.hint"> Close and reopen buffer to apply layout changes. </div>
+      <div :class="$style.hint">Close and reopen buffer to apply layout changes.</div>
     </template>
   </div>
 </template>
@@ -335,34 +328,39 @@ function onCreateClick() {
   display: flex;
   flex-direction: column;
   padding: 4px;
+  min-width: 0;
+  overflow: hidden;
 }
 
 .inputSection {
   display: flex;
   align-items: center;
-  margin-bottom: 8px;
-  gap: 8px;
-  justify-content: flex-start;
+  margin-bottom: 4px;
+  gap: 4px;
 }
 
 .label {
   white-space: nowrap;
+  font-size: 0.9em;
 }
 
-.inputWrapper {
-  width: 100px;
+.input {
+  width: 80px;
+  max-width: 80px;
   text-transform: uppercase;
-}
-
-.indexCell {
-  width: 24px;
-  text-align: center;
-  opacity: 0.5;
+  text-align: left;
+  background: #1a1f22;
+  border: 1px solid #2b485a;
+  color: #bfbfbf;
+  padding: 2px 4px;
+  font-family: inherit;
+  font-size: inherit;
 }
 
 .commandCell {
   cursor: pointer;
-  padding: 2px 4px;
+  padding: 1px 4px;
+  white-space: nowrap;
 }
 
 .commandLink {
