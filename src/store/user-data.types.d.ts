@@ -136,6 +136,7 @@ declare namespace UserData {
     id: string;
     name: string;
     commands: LinkedBuffersCommand[];
+    lastBufferSize?: [number, number];
   }
 
   interface LinkedBuffersCommand {

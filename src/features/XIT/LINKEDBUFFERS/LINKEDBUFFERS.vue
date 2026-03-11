@@ -47,9 +47,14 @@ const goingToSplit = ref(false);
 
 if (isSoloBuffer && preset.value && preset.value.commands.length > 0) {
   goingToSplit.value = true;
-  const width = parseInt(tile.container.style.width.replace('px', ''), 10);
-  const height = parseInt(tile.container.style.height.replace('px', ''), 10);
-  setBufferSize(tile.id, width + 500, height);
+  const saved = preset.value.lastBufferSize;
+  if (saved) {
+    setBufferSize(tile.id, saved[0], saved[1]);
+  } else {
+    const width = parseInt(tile.container.style.width.replace('px', ''), 10);
+    const height = parseInt(tile.container.style.height.replace('px', ''), 10);
+    setBufferSize(tile.id, width + 500, height);
+  }
   const splitButton = _$$(tile.frame, C.TileControls.control).find(x => x.textContent === '|');
   void clickElement(splitButton);
 }
@@ -73,6 +78,9 @@ onMounted(async () => {
 
   childTiles.value = _$$(rightSibling, C.Tile.tile) as HTMLElement[];
   gridReady.value = true;
+
+  // Save the current window size so next open remembers it.
+  saveBufferSize();
 });
 
 function getRightSibling(): HTMLElement | undefined {
@@ -136,6 +144,21 @@ async function buildGrid(container: HTMLElement, count: number) {
   for (let i = currentTiles.length - 1; i >= 0 && splitsNeeded > 0; i--) {
     await splitTileElement(currentTiles[i], '|');
     splitsNeeded--;
+  }
+}
+
+function saveBufferSize() {
+  if (!preset.value) {
+    return;
+  }
+  const window = tile.frame.closest(`.${C.Window.window}`) as HTMLElement | null;
+  if (!window) {
+    return;
+  }
+  const width = window.offsetWidth;
+  const height = window.offsetHeight;
+  if (width > 0 && height > 0) {
+    preset.value.lastBufferSize = [width, height];
   }
 }
 
@@ -248,7 +271,7 @@ function onCreateClick() {
               <td :class="$style.indexCell">{{ index + 1 }}</td>
               <td :class="$style.commandCell">
                 <span :class="[C.Link.link, $style.commandLink]">
-                  {{ cmd.label }}: {{ resolveCommand(cmd.template) || cmd.template }}
+                  {{ resolveCommand(cmd.template) || cmd.template }}
                 </span>
               </td>
             </tr>
@@ -319,6 +342,7 @@ function onCreateClick() {
   align-items: center;
   margin-bottom: 8px;
   gap: 8px;
+  justify-content: flex-start;
 }
 
 .label {
@@ -326,7 +350,7 @@ function onCreateClick() {
 }
 
 .inputWrapper {
-  flex: 1;
+  width: 100px;
   text-transform: uppercase;
 }
 
