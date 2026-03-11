@@ -131,4 +131,16 @@ declare namespace UserData {
   }
 
   type ExchangeChartType = 'SMOOTH' | 'ALIGNED' | 'RAW';
+
+  interface LinkedBuffersPreset {
+    id: string;
+    name: string;
+    commands: LinkedBuffersCommand[];
+  }
+
+  interface LinkedBuffersCommand {
+    id: string;
+    label: string;
+    template: string;
+  }
 }
