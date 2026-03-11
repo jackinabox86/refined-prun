@@ -121,7 +121,7 @@ function enhanceSegmentVisibility(segments: Segment[], loadRatio: number) {
     }
   }
 
-  if (!isAlmostFull) {
+  if (!isAlmostFull && segments.length > 0) {
     const last = segments[segments.length - 1];
     last.borderClasses ??= [];
     last.borderClasses.push($style.borderRight);
