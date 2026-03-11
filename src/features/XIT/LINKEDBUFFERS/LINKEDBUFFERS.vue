@@ -36,15 +36,16 @@ const preset = computed(() => {
 });
 
 const inputText = ref('');
-const activeCommand = ref<string | undefined>();
 const isProcessing = ref(false);
 const edit = ref(false);
+const childTiles = ref<HTMLElement[]>([]);
+const gridReady = ref(false);
 
 // Split immediately if this is a solo buffer.
 const isSoloBuffer = tile.container.classList.contains(C.Window.body);
 const goingToSplit = ref(false);
 
-if (isSoloBuffer && preset.value) {
+if (isSoloBuffer && preset.value && preset.value.commands.length > 0) {
   goingToSplit.value = true;
   const width = parseInt(tile.container.style.width.replace('px', ''), 10);
   const height = parseInt(tile.container.style.height.replace('px', ''), 10);
@@ -53,11 +54,28 @@ if (isSoloBuffer && preset.value) {
   void clickElement(splitButton);
 }
 
-function resolveCommand(template: string) {
-  return template.replace(/\{input\}/g, inputText.value.trim());
-}
+// After re-mount (post-split), build the grid.
+onMounted(async () => {
+  if (goingToSplit.value || !preset.value) {
+    return;
+  }
 
-function getCompanionTile(): HTMLElement | undefined {
+  const rightSibling = getRightSibling();
+  if (!rightSibling) {
+    gridReady.value = true;
+    return;
+  }
+
+  const commandCount = preset.value.commands.length;
+  if (commandCount > 1) {
+    await buildGrid(rightSibling, commandCount);
+  }
+
+  childTiles.value = _$$(rightSibling, C.Tile.tile) as HTMLElement[];
+  gridReady.value = true;
+});
+
+function getRightSibling(): HTMLElement | undefined {
   const isInNodeChild = tile.container.classList.contains(C.Node.child);
   const isInNode = tile.container.parentElement?.classList.contains(C.Node.node);
   const isInWindow = tile.container.parentElement?.parentElement?.classList.contains(C.Window.body);
@@ -66,11 +84,63 @@ function getCompanionTile(): HTMLElement | undefined {
   }
 
   const node = tile.container.parentElement!;
-  const sibling = _$$(node, C.Node.child).find(x => x !== tile.container);
-  if (!sibling) {
-    return undefined;
+  return _$$(node, C.Node.child).find(x => x !== tile.container) as HTMLElement | undefined;
+}
+
+async function splitTileElement(tileEl: HTMLElement, direction: '|' | '\u2013') {
+  const button = _$$(tileEl, C.TileControls.control).find(x => x.textContent === direction);
+  if (!button) {
+    return;
   }
-  return _$(sibling, C.Tile.tile) as HTMLElement | undefined;
+  await clickElement(button);
+  await sleep(200);
+}
+
+async function buildGrid(container: HTMLElement, count: number) {
+  // For count tiles, create a grid layout:
+  // 1: no splits needed
+  // 2: vertical split (top/bottom)
+  // 3: vertical split, then split bottom horizontally
+  // 4: vertical split, then split both horizontally (2x2)
+  // 5: vertical split, split top horizontally, split bottom vertically, split bottom-bottom horizontally
+  // 6: vertical split, split both horizontally, split bottom-right vertically... etc.
+
+  if (count <= 1) {
+    return;
+  }
+
+  const rows = Math.ceil(count / 2);
+
+  // Create rows by splitting the last tile vertically.
+  for (let i = 1; i < rows; i++) {
+    const tiles = _$$(container, C.Tile.tile) as HTMLElement[];
+    const lastTile = tiles[tiles.length - 1];
+    // En-dash for vertical split.
+    await splitTileElement(lastTile, '\u2013');
+  }
+
+  // Now split rows into columns where needed.
+  // For count=2 with rows=1: split the single row into 2 columns.
+  // For count=3 with rows=2: top stays single, bottom splits into 2.
+  // For count=4 with rows=2: both rows split into 2.
+  // General: rows that need 2 columns = count - rows.
+
+  if (count <= rows) {
+    // Single column, no horizontal splits needed.
+    return;
+  }
+
+  // Split rows that need 2 columns. Split from the last row upward.
+  const currentTiles = _$$(container, C.Tile.tile) as HTMLElement[];
+  let splitsNeeded = count - rows;
+  for (let i = currentTiles.length - 1; i >= 0 && splitsNeeded > 0; i--) {
+    await splitTileElement(currentTiles[i], '|');
+    splitsNeeded--;
+  }
+}
+
+function resolveCommand(template: string) {
+  return template.replace(/\{input\}/g, inputText.value.trim()).toUpperCase();
 }
 
 async function changeTileCommand(tileEl: HTMLElement, command: string) {
@@ -93,19 +163,18 @@ async function changeTileCommand(tileEl: HTMLElement, command: string) {
   await $(tileEl, C.TileFrame.frame);
 }
 
-async function onCommandClick(cmd: UserData.LinkedBuffersCommand) {
+async function onCommandClick(cmd: UserData.LinkedBuffersCommand, index: number) {
   if (!inputText.value.trim() || isProcessing.value || edit.value) {
     return;
   }
 
   const resolved = resolveCommand(cmd.template);
-  activeCommand.value = cmd.template;
   isProcessing.value = true;
 
   try {
-    const companion = getCompanionTile();
-    if (companion) {
-      await changeTileCommand(companion, resolved);
+    const child = childTiles.value[index];
+    if (child?.isConnected) {
+      await changeTileCommand(child, resolved);
     }
   } finally {
     isProcessing.value = false;
@@ -158,23 +227,25 @@ function onCreateClick() {
         <TextInput v-model="inputText" />
       </div>
     </div>
+    <div v-if="!gridReady" :class="$style.status">Setting up grid...</div>
     <template v-if="!edit">
       <table>
         <thead>
           <tr>
+            <th>#</th>
             <th>Commands</th>
           </tr>
         </thead>
         <tbody>
           <tr v-if="preset.commands.length === 0">
-            <td>No commands. Click EDIT to add some.</td>
+            <td colspan="2">No commands. Click EDIT to add some.</td>
           </tr>
           <template v-else>
             <tr
-              v-for="cmd in preset.commands"
+              v-for="(cmd, index) in preset.commands"
               :key="cmd.id"
-              :class="{ [$style.activeRow]: activeCommand === cmd.template }"
-              @click="onCommandClick(cmd)">
+              @click="onCommandClick(cmd, index)">
+              <td :class="$style.indexCell">{{ index + 1 }}</td>
               <td :class="$style.commandCell">
                 <span :class="[C.Link.link, $style.commandLink]">
                   {{ cmd.label }}: {{ resolveCommand(cmd.template) || cmd.template }}
@@ -230,6 +301,7 @@ function onCreateClick() {
         <PrunButton primary @click="addCommand">ADD COMMAND</PrunButton>
         <PrunButton primary @click="edit = false">DONE</PrunButton>
       </ActionBar>
+      <div :class="$style.hint"> Close and reopen buffer to apply layout changes. </div>
     </template>
   </div>
 </template>
@@ -255,6 +327,13 @@ function onCreateClick() {
 
 .inputWrapper {
   flex: 1;
+  text-transform: uppercase;
+}
+
+.indexCell {
+  width: 24px;
+  text-align: center;
+  opacity: 0.5;
 }
 
 .commandCell {
@@ -266,8 +345,9 @@ function onCreateClick() {
   cursor: pointer;
 }
 
-.activeRow {
-  background-color: rgba(75, 150, 200, 0.2);
+.status {
+  padding: 4px;
+  opacity: 0.7;
 }
 
 .create {
@@ -285,5 +365,11 @@ function onCreateClick() {
 
 .inline {
   display: inline-block;
+}
+
+.hint {
+  padding: 4px;
+  opacity: 0.5;
+  font-size: 0.9em;
 }
 </style>
