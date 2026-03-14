@@ -3,7 +3,8 @@ import { showTileOverlay, showConfirmationOverlay } from '@src/infrastructure/pr
 import CreatePresetOverlay from './CreatePresetOverlay.vue';
 import PrunButton from '@src/components/PrunButton.vue';
 import ActionBar from '@src/components/ActionBar.vue';
-import { showBuffer } from '@src/infrastructure/prun-ui/buffers';
+import { showBuffer, setBufferSize } from '@src/infrastructure/prun-ui/buffers';
+import { useTile } from '@src/hooks/use-tile';
 import { userData } from '@src/store/user-data';
 import { vDraggable } from 'vue-draggable-plus';
 import { grip } from '@src/components/grip';
@@ -11,6 +12,12 @@ import GripCell from '@src/components/grip/GripCell.vue';
 import GripHeaderCell from '@src/components/grip/GripHeaderCell.vue';
 import PrunLink from '@src/components/PrunLink.vue';
 import { createId } from '@src/store/create-id';
+
+const tile = useTile();
+const isFloating = tile.container.classList.contains(C.Window.body);
+if (isFloating) {
+  setBufferSize(tile.id, 400, 300);
+}
 
 function createNew(ev: Event) {
   showTileOverlay(ev, CreatePresetOverlay, {
