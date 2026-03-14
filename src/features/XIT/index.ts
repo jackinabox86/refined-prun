@@ -16,6 +16,7 @@ import './GIF/GIF';
 import './HEALTH';
 import './HELP';
 import './HQUC';
+import './LINKEDBUFFERS/LINKEDBUFFERS';
 import './MATS';
 import './NOTE/NOTE';
 import './REP/REP';

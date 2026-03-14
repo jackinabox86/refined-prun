@@ -7,6 +7,12 @@ type Migration = [id: string, migration: (userData: any) => void];
 // New migrations should be added to the top of the list.
 const migrations: Migration[] = [
   [
+    '11.03.2026 Add linkedBuffersPresets',
+    userData => {
+      userData.linkedBuffersPresets = [];
+    },
+  ],
+  [
     '09.03.2026 Add contextMenuExchange setting',
     userData => {
       userData.settings.contextMenuExchange = 'AI1' as UserData.Exchange;
