@@ -69,21 +69,45 @@ Inspired by `cxpo-order-book`, the control panel is a floating overlay appended 
 
 ---
 
-## Recommended Next Steps
+## Approach 3: Independent Floating Buffers (CURRENT - branch `xit-linkedbuffers-approach-c`)
 
-1. **Revert to Approach 1** (split tile)
-2. **Improve the left panel appearance** within the split tile approach:
-   - Hide the tile frame header (`C.TileFrame.header`) via CSS or DOM manipulation after re-mount
-   - This removes the title bar and control buttons, making it look more like a frameless sidebar
-   - The content (input + commands) would be all that's visible
-3. **Alternative**: Instead of hiding the frame, observe the XIT tile after re-mount and apply CSS to make the header ultra-compact (single-line, no padding)
+The control panel is a small floating CMDL-like buffer. Each child command gets its own independent floating window, positioned in a grid next to the control panel.
+
+### How it works
+1. `XIT LB <preset>` opens as a compact floating buffer (220x400)
+2. On mount, if floating and preset has commands, spawns independent child windows via `showBuffer()` sequentially
+3. After all children are created, positions them in a grid to the right of the control panel using direct DOM `style.left`/`style.top` manipulation
+4. Each child window is sized via `setBufferSize()` (400x300)
+5. Clicking a command in the control panel resolves the `{input}` template and updates the corresponding child window via `UI_TILES_CHANGE_COMMAND`
+6. Closing the control panel automatically closes all child windows
+
+### Pros
+- Full control over individual child window size and position
+- No frame overhead on the control panel (it's its own buffer, naturally compact)
+- No split ratio issues — each buffer is independently sized
+- Children can be freely rearranged by the user after initial layout
+- Simpler component lifecycle — no split/remount dance
+
+### Cons
+- Child windows are created sequentially (showBuffer mutex), so initial spawn takes 1-2 seconds for 4-6 commands
+- Game may reposition windows on certain events (needs testing)
+- More floating windows = more dock bar entries
+
+### Key insight
+Floating windows in PrUn use inline `style="left: Xpx; top: Ypx"` for positioning (confirmed via `PmmgMigrationGuide.vue`). This means we can reposition windows after creation by setting `window.style.left`/`style.top` directly.
+
+### Key commit
+```
+(current HEAD on xit-linkedbuffers-approach-c)
+```
+
+---
 
 ## File Structure
 ```
 src/features/XIT/LINKEDBUFFERS/
 ├── LINKEDBUFFERS.ts          # XIT registration (command: LINKEDBUFFERS/LB)
 ├── LINKEDBUFFERS.vue         # Main component
-├── ControlPanel.vue          # Overlay panel (Approach 2, can be deleted if reverting)
 ├── PresetList.vue            # Preset list view (XIT LB with no params)
 └── CreatePresetOverlay.vue   # Create preset dialog
 ```
@@ -95,7 +119,6 @@ interface LinkedBuffersPreset {
   id: string;
   name: string;
   commands: LinkedBuffersCommand[];
-  lastBufferSize?: [number, number];  // saved window dimensions
 }
 
 interface LinkedBuffersCommand {
@@ -106,7 +129,9 @@ interface LinkedBuffersCommand {
 ```
 
 ## Key Patterns Used
-- **ACT tile-allocator**: `splitBuffer()` pattern for initial split, `getCompanionTile()` for finding sibling, `changeTileCommand()` for updating child tiles
+- **showBuffer()**: Creates independent floating windows programmatically
+- **setBufferSize()**: Controls child window dimensions via `UI_WINDOWS_UPDATE_SIZE`
+- **DOM positioning**: `window.style.left`/`style.top` for grid layout
+- **changeTileCommand()**: Updates child tile commands via `UI_TILES_CHANGE_COMMAND`
+- **onNodeDisconnected()**: Tracks child window lifecycle for cleanup
 - **CMDL**: Command list UI with edit mode, drag-to-reorder, add/delete
-- **Tile controls**: `|` = horizontal split, `–` (en-dash U+2013) = vertical split, `:` = change command, `x` = close
-- **Buffer sizing**: `setBufferSize(id, w, h)` via `UI_WINDOWS_UPDATE_SIZE` client message

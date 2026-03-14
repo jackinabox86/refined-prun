@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import TextInput from '@src/components/forms/TextInput.vue';
 import Header from '@src/components/Header.vue';
 import ActionBar from '@src/components/ActionBar.vue';
 import PrunButton from '@src/components/PrunButton.vue';
@@ -9,16 +8,16 @@ import { useTile } from '@src/hooks/use-tile';
 import { userData } from '@src/store/user-data';
 import { createId } from '@src/store/create-id';
 import { getPrunId } from '@src/infrastructure/prun-ui/attributes';
-import { setBufferSize } from '@src/infrastructure/prun-ui/buffers';
-import { UI_TILES_CHANGE_COMMAND } from '@src/infrastructure/prun-api/client-messages';
+import { showBuffer, setBufferSize } from '@src/infrastructure/prun-ui/buffers';
+import {
+  UI_TILES_CHANGE_COMMAND,
+  UI_WINDOWS_REQUEST_FOCUS,
+} from '@src/infrastructure/prun-api/client-messages';
 import { dispatchClientPrunMessage } from '@src/infrastructure/prun-api/prun-api-listener';
-import { clickElement, changeInputValue } from '@src/util';
+import { changeInputValue } from '@src/util';
 import { sleep } from '@src/utils/sleep';
 import { isEmpty } from 'ts-extras';
-import { vDraggable } from 'vue-draggable-plus';
-import { grip } from '@src/components/grip';
-import GripCell from '@src/components/grip/GripCell.vue';
-import GripHeaderCell from '@src/components/grip/GripHeaderCell.vue';
+import onNodeDisconnected from '@src/utils/on-node-disconnected';
 
 const tile = useTile();
 const parameters = useXitParameters();
@@ -37,148 +36,189 @@ const preset = computed(() => {
 
 const inputText = ref('');
 const isProcessing = ref(false);
-const edit = ref(false);
-const childTiles = ref<HTMLElement[]>([]);
-const gridReady = ref(false);
+const spawning = ref(false);
 
-// Split immediately if this is a solo buffer.
-const isSoloBuffer = tile.container.classList.contains(C.Window.body);
-const goingToSplit = ref(false);
-
-if (isSoloBuffer && preset.value && preset.value.commands.length > 0) {
-  goingToSplit.value = true;
-  const saved = preset.value.lastBufferSize;
-  if (saved) {
-    setBufferSize(tile.id, saved[0], saved[1]);
-  } else {
-    const width = parseInt(tile.container.style.width.replace('px', ''), 10);
-    const height = parseInt(tile.container.style.height.replace('px', ''), 10);
-    setBufferSize(tile.id, width + 500, height);
-  }
-  const splitButton = _$$(tile.frame, C.TileControls.control).find(x => x.textContent === '|');
-  void clickElement(splitButton);
+interface ChildWindow {
+  window: HTMLDivElement;
+  commandIndex: number;
+  commandId: string;
 }
+const childWindows = ref<ChildWindow[]>([]);
 
-// After re-mount (post-split), build the grid.
+const isFloating = tile.container.classList.contains(C.Window.body);
+
+const DEFAULT_CHILD_WIDTH = 400;
+const DEFAULT_CHILD_HEIGHT = 300;
+const H_GAP = 15;
+const V_GAP = 35;
+
 onMounted(async () => {
-  if (goingToSplit.value || !preset.value) {
+  if (!isFloating || !preset.value) {
     return;
   }
 
-  const rightSibling = getRightSibling();
-  if (!rightSibling) {
-    gridReady.value = true;
-    return;
+  // Position control panel near top-left.
+  const controlWindow = tile.frame.closest(`.${C.Window.window}`) as HTMLElement | null;
+  if (controlWindow) {
+    const saved = preset.value.controlPosition;
+    if (saved) {
+      controlWindow.style.left = `${saved[0]}px`;
+      controlWindow.style.top = `${saved[1]}px`;
+    } else {
+      controlWindow.style.left = '30px';
+      controlWindow.style.top = '50px';
+    }
   }
 
-  const commandCount = preset.value.commands.length;
-  if (commandCount > 1) {
-    await buildGrid(rightSibling, commandCount);
+  if (preset.value.commands.length > 0) {
+    await spawnChildWindows();
   }
-
-  childTiles.value = _$$(rightSibling, C.Tile.tile) as HTMLElement[];
-  gridReady.value = true;
 });
 
-// Save window size when the component unmounts (captures user's resize).
 onBeforeUnmount(() => {
-  saveBufferSize();
+  closeAllChildren();
 });
 
-function getWindowElement(): HTMLElement | null {
-  return tile.frame.closest(`.${C.Window.window}`) as HTMLElement | null;
+function getSavedLayout(commandId: string): UserData.LinkedBuffersChildLayout | undefined {
+  return preset.value?.childLayouts?.find(l => l.commandId === commandId);
 }
 
-function saveBufferSize() {
-  if (!preset.value) {
+function getChildSize(commandId: string): [number, number] {
+  const saved = getSavedLayout(commandId);
+  if (saved) {
+    return [saved.width, saved.height];
+  }
+  return [DEFAULT_CHILD_WIDTH, DEFAULT_CHILD_HEIGHT];
+}
+
+async function spawnChildWindows() {
+  spawning.value = true;
+  const commands = preset.value!.commands;
+  const created: ChildWindow[] = [];
+
+  for (let i = 0; i < commands.length; i++) {
+    const window = await showBuffer(' ', { force: true, autoSubmit: false });
+    const input = _$(window, C.PanelSelector.input) as HTMLInputElement | undefined;
+    if (input) {
+      changeInputValue(input, '');
+    }
+    const child: ChildWindow = {
+      window: window as HTMLDivElement,
+      commandIndex: i,
+      commandId: commands[i].id,
+    };
+    created.push(child);
+
+    onNodeDisconnected(window, () => {
+      childWindows.value = childWindows.value.filter(c => c !== child);
+    });
+  }
+
+  childWindows.value = created;
+  layoutChildren();
+
+  // Size each child window.
+  for (const child of created) {
+    const tileEl = _$(child.window, C.Tile.tile);
+    if (tileEl) {
+      const id = getPrunId(tileEl);
+      if (id) {
+        const [w, h] = getChildSize(child.commandId);
+        setBufferSize(id, w, h);
+      }
+    }
+  }
+
+  dispatchClientPrunMessage(UI_WINDOWS_REQUEST_FOCUS(tile.id));
+  spawning.value = false;
+}
+
+function layoutChildren() {
+  const controlWindow = tile.frame.closest(`.${C.Window.window}`) as HTMLElement | null;
+  if (!controlWindow) {
     return;
   }
-  const win = getWindowElement();
-  if (!win) {
-    return;
-  }
-  const width = win.offsetWidth;
-  const height = win.offsetHeight;
-  if (width > 0 && height > 0) {
-    preset.value.lastBufferSize = [width, height];
+  const rect = controlWindow.getBoundingClientRect();
+  const count = childWindows.value.length;
+  const hasSavedLayouts = preset.value?.childLayouts && preset.value.childLayouts.length > 0;
+
+  for (let i = 0; i < count; i++) {
+    const child = childWindows.value[i];
+    const saved = getSavedLayout(child.commandId);
+    const win = child.window;
+
+    if (hasSavedLayouts && saved) {
+      // Use saved position.
+      win.style.left = `${saved.left}px`;
+      win.style.top = `${saved.top}px`;
+    } else {
+      // Default grid layout: 2 columns when 3+ commands.
+      const cols = count <= 2 ? count : 2;
+      const col = i % cols;
+      const row = Math.floor(i / cols);
+      const [w, h] = getChildSize(child.commandId);
+      const left = rect.right + H_GAP + col * (w + H_GAP);
+      const top = rect.top + row * (h + V_GAP);
+      win.style.left = `${left}px`;
+      win.style.top = `${top}px`;
+    }
   }
 }
 
-function getRightSibling(): HTMLElement | undefined {
-  const isInNodeChild = tile.container.classList.contains(C.Node.child);
-  const isInNode = tile.container.parentElement?.classList.contains(C.Node.node);
-  const isInWindow = tile.container.parentElement?.parentElement?.classList.contains(C.Window.body);
-  if (!isInNodeChild || !isInNode || !isInWindow) {
-    return undefined;
+function closeAllChildren() {
+  for (const child of childWindows.value) {
+    if (child.window.isConnected) {
+      const closeButton = _$$(child.window, C.Window.button).find(x => x.textContent === 'x');
+      closeButton?.click();
+    }
   }
-
-  const node = tile.container.parentElement!;
-  return _$$(node, C.Node.child).find(x => x !== tile.container) as HTMLElement | undefined;
-}
-
-async function splitTileElement(tileEl: HTMLElement, direction: '|' | '\u2013') {
-  const button = _$$(tileEl, C.TileControls.control).find(x => x.textContent === direction);
-  if (!button) {
-    return;
-  }
-  await clickElement(button);
-  await sleep(200);
-}
-
-async function buildGrid(container: HTMLElement, count: number) {
-  if (count <= 1) {
-    return;
-  }
-
-  const rows = Math.ceil(count / 2);
-
-  // Create rows by splitting the last tile vertically.
-  for (let i = 1; i < rows; i++) {
-    const tiles = _$$(container, C.Tile.tile) as HTMLElement[];
-    const lastTile = tiles[tiles.length - 1];
-    // En-dash for vertical split.
-    await splitTileElement(lastTile, '\u2013');
-  }
-
-  if (count <= rows) {
-    return;
-  }
-
-  // Split rows that need 2 columns, from the last row upward.
-  const currentTiles = _$$(container, C.Tile.tile) as HTMLElement[];
-  let splitsNeeded = count - rows;
-  for (let i = currentTiles.length - 1; i >= 0 && splitsNeeded > 0; i--) {
-    await splitTileElement(currentTiles[i], '|');
-    splitsNeeded--;
-  }
+  childWindows.value = [];
 }
 
 function resolveCommand(template: string) {
   return template.replace(/\{input\}/g, inputText.value.trim()).toUpperCase();
 }
 
-async function changeTileCommand(tileEl: HTMLElement, command: string) {
+async function changeTileCommand(windowEl: HTMLDivElement, command: string, commandId: string) {
+  const tileEl = _$(windowEl, C.Tile.tile) as HTMLElement | undefined;
+  if (!tileEl) {
+    return;
+  }
   const id = getPrunId(tileEl)!;
-  // Clear current command.
+  const [w, h] = getChildSize(commandId);
+
+  const existingInput = _$(windowEl, C.PanelSelector.input) as HTMLInputElement | undefined;
+  if (existingInput?.form?.isConnected) {
+    changeInputValue(existingInput, command);
+    existingInput.form.requestSubmit();
+    await sleep(200);
+    setBufferSize(id, w, h);
+    return;
+  }
+
   let message = UI_TILES_CHANGE_COMMAND(id, null);
   if (!dispatchClientPrunMessage(message)) {
     const changeButton = _$$(tileEl, C.TileControls.control).find(x => x.textContent === ':');
-    await clickElement(changeButton);
+    if (changeButton) {
+      changeButton.click();
+    }
   } else {
     await sleep(0);
   }
-  // Set new command.
   message = UI_TILES_CHANGE_COMMAND(id, command);
   if (!dispatchClientPrunMessage(message)) {
-    const input = (await $(tileEl, C.PanelSelector.input)) as HTMLInputElement;
+    const input = (await $(windowEl, C.PanelSelector.input)) as HTMLInputElement;
     changeInputValue(input, command);
     input.form!.requestSubmit();
   }
-  await $(tileEl, C.TileFrame.frame);
+  await sleep(200);
+  const newTileEl = _$(windowEl, C.Tile.tile) as HTMLElement | undefined;
+  const newId = newTileEl ? getPrunId(newTileEl) : id;
+  setBufferSize(newId ?? id, w, h);
 }
 
 async function onCommandClick(cmd: UserData.LinkedBuffersCommand, index: number) {
-  if (!inputText.value.trim() || isProcessing.value || edit.value) {
+  if (!inputText.value.trim() || isProcessing.value) {
     return;
   }
 
@@ -186,31 +226,57 @@ async function onCommandClick(cmd: UserData.LinkedBuffersCommand, index: number)
   isProcessing.value = true;
 
   try {
-    const child = childTiles.value[index];
-    if (child?.isConnected) {
-      await changeTileCommand(child, resolved);
+    const child = childWindows.value.find(c => c.commandIndex === index);
+    if (child?.window.isConnected) {
+      await changeTileCommand(child.window, resolved, child.commandId);
     }
   } finally {
     isProcessing.value = false;
   }
 }
 
-function addCommand() {
+function saveLayout() {
   if (!preset.value) {
     return;
   }
-  preset.value.commands.push({
-    id: createId(),
-    label: 'CMD',
-    template: 'CMD {input}',
-  });
+
+  // Save control panel position.
+  const controlWindow = tile.frame.closest(`.${C.Window.window}`) as HTMLElement | null;
+  if (controlWindow) {
+    const rect = controlWindow.getBoundingClientRect();
+    preset.value.controlPosition = [Math.round(rect.left), Math.round(rect.top)];
+  }
+
+  // Save child window positions and sizes.
+  const layouts: UserData.LinkedBuffersChildLayout[] = [];
+  for (const child of childWindows.value) {
+    if (!child.window.isConnected) {
+      continue;
+    }
+    const rect = child.window.getBoundingClientRect();
+    layouts.push({
+      commandId: child.commandId,
+      left: Math.round(rect.left),
+      top: Math.round(rect.top),
+      width: Math.round(rect.width),
+      height: Math.round(rect.height),
+    });
+  }
+  preset.value.childLayouts = layouts;
 }
 
-function deleteCommand(cmd: UserData.LinkedBuffersCommand) {
+async function openEditor() {
   if (!preset.value) {
     return;
   }
-  preset.value.commands = preset.value.commands.filter(x => x !== cmd);
+  const window = await showBuffer(`XIT LB EDIT ${preset.value.id.substring(0, 8)}`);
+  const tileEl = _$(window, C.Tile.tile);
+  if (tileEl) {
+    const id = getPrunId(tileEl);
+    if (id) {
+      setBufferSize(id, 500, 400);
+    }
+  }
 }
 
 function onCreateClick() {
@@ -227,8 +293,7 @@ function onCreateClick() {
 </script>
 
 <template>
-  <div v-if="goingToSplit" />
-  <PresetList v-else-if="isEmpty(parameters)" />
+  <PresetList v-if="isEmpty(parameters)" />
   <div v-else-if="!preset" :class="$style.create">
     <span>Preset "{{ parameters.join(' ') }}" not found.</span>
     <PrunButton primary :class="$style.createButton" @click="onCreateClick">CREATE</PrunButton>
@@ -240,85 +305,40 @@ function onCreateClick() {
       <input
         v-model="inputText"
         type="text"
-        :class="$style.input"
+        :class="$style.gameInput"
         autocomplete="off"
         data-1p-ignore="true"
         data-lpignore="true" />
     </div>
-    <div v-if="!gridReady" :class="$style.status">Setting up grid...</div>
-    <template v-if="!edit">
-      <table>
-        <thead>
-          <tr>
-            <th>Commands</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-if="preset.commands.length === 0">
-            <td>No commands. Click EDIT to add some.</td>
-          </tr>
-          <template v-else>
-            <tr
-              v-for="(cmd, index) in preset.commands"
-              :key="cmd.id"
-              @click="onCommandClick(cmd, index)">
-              <td :class="$style.commandCell">
-                <span :class="[C.Link.link, $style.commandLink]">
-                  {{ resolveCommand(cmd.template) || cmd.template }}
-                </span>
-              </td>
-            </tr>
-          </template>
-        </tbody>
-      </table>
-      <ActionBar>
-        <PrunButton primary @click="edit = true">EDIT</PrunButton>
-      </ActionBar>
-    </template>
-    <template v-else>
-      <table>
-        <thead>
-          <tr>
-            <GripHeaderCell />
-            <th>Label</th>
-            <th>Template</th>
-            <th />
-          </tr>
-        </thead>
-        <template v-if="preset.commands.length === 0">
-          <tbody>
-            <tr>
-              <td>No commands.</td>
-            </tr>
-          </tbody>
-        </template>
+    <div v-if="spawning" :class="$style.status">Opening buffers...</div>
+    <table>
+      <thead>
+        <tr>
+          <th>Commands</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr v-if="preset.commands.length === 0">
+          <td>No commands.</td>
+        </tr>
         <template v-else>
-          <tbody v-draggable="[preset.commands, grip.draggable]">
-            <tr v-for="cmd in preset.commands" :key="cmd.id">
-              <GripCell />
-              <td>
-                <div :class="[C.forms.input, $style.inline]">
-                  <TextInput v-model="cmd.label" />
-                </div>
-              </td>
-              <td>
-                <div :class="C.forms.input">
-                  <TextInput v-model="cmd.template" />
-                </div>
-              </td>
-              <td>
-                <PrunButton danger @click="deleteCommand(cmd)">DELETE</PrunButton>
-              </td>
-            </tr>
-          </tbody>
+          <tr
+            v-for="(cmd, index) in preset.commands"
+            :key="cmd.id"
+            @click="onCommandClick(cmd, index)">
+            <td :class="$style.commandCell">
+              <span :class="[C.Link.link, $style.commandLink]">
+                {{ resolveCommand(cmd.template) || cmd.template }}
+              </span>
+            </td>
+          </tr>
         </template>
-      </table>
-      <ActionBar>
-        <PrunButton primary @click="addCommand">ADD COMMAND</PrunButton>
-        <PrunButton primary @click="edit = false">DONE</PrunButton>
-      </ActionBar>
-      <div :class="$style.hint">Close and reopen buffer to apply layout changes.</div>
-    </template>
+      </tbody>
+    </table>
+    <ActionBar>
+      <PrunButton primary @click="saveLayout">SAVE LAYOUT</PrunButton>
+      <PrunButton primary @click="openEditor">EDIT</PrunButton>
+    </ActionBar>
   </div>
 </template>
 
@@ -344,17 +364,23 @@ function onCreateClick() {
   font-size: 0.9em;
 }
 
-.input {
-  width: 80px;
-  max-width: 80px;
-  text-transform: uppercase;
-  text-align: left;
-  background: #1a1f22;
-  border: 1px solid #2b485a;
+.gameInput {
+  width: 20ch;
+  max-width: 20ch;
+  box-sizing: border-box;
+  padding: 3px 6px;
+  background: #222e31;
+  border: 1px solid #5a8a4a;
   color: #bfbfbf;
-  padding: 2px 4px;
   font-family: inherit;
   font-size: inherit;
+  text-transform: uppercase;
+  text-align: left;
+  outline: none;
+
+  &:focus {
+    border-color: #8cc63f;
+  }
 }
 
 .commandCell {
@@ -383,15 +409,5 @@ function onCreateClick() {
 
 .createButton {
   margin-top: 5px;
-}
-
-.inline {
-  display: inline-block;
-}
-
-.hint {
-  padding: 4px;
-  opacity: 0.5;
-  font-size: 0.9em;
 }
 </style>
