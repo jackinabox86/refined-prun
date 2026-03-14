@@ -4,11 +4,11 @@ import { storagesStore } from '@src/infrastructure/prun-api/data/storage';
 import { getMaterialCategoryCssClass } from '@src/infrastructure/prun-ui/item-tracker';
 import { materialCategoriesStore } from '@src/infrastructure/prun-api/data/material-categories';
 import { fixed02 } from '@src/utils/format';
+import { showBuffer } from '@src/infrastructure/prun-ui/buffers';
 import { ref, watch, computed } from 'vue';
 
-const { shipId } = defineProps<{
+const props = defineProps<{
   shipId: string | null;
-  onClick: (e: MouseEvent) => void;
 }>();
 
 const $style = useCssModule();
@@ -22,13 +22,13 @@ interface Segment {
   load?: string;
 }
 
-interface CargoBar {
+interface CargoBarData {
   segments: Segment[];
   miniMode: boolean;
 }
 
-const cargoBar = computed<CargoBar>(() => {
-  const ship = shipsStore.getById(shipId);
+const cargoBar = computed<CargoBarData>(() => {
+  const ship = shipsStore.getById(props.shipId);
   const inv = storagesStore.getById(ship?.idShipStore);
   if (!inv || inv.items.length === 0) {
     return {
@@ -98,15 +98,10 @@ const cargoBar = computed<CargoBar>(() => {
 });
 
 function enhanceSegmentVisibility(segments: Segment[], loadRatio: number) {
-  // Oh, god, here we go.
   const lowContrastCategories = new Set(['elements', 'metals', 'shipments', 'unit prefabs']);
 
   const isAlmostFull = loadRatio > 0.98;
   if (segments.length === 1 && isAlmostFull) {
-    const segment = segments[0];
-    if (lowContrastCategories.has(segment.name)) {
-      //segment.load = percent0(loadRatio);
-    }
     return;
   }
 
@@ -121,7 +116,7 @@ function enhanceSegmentVisibility(segments: Segment[], loadRatio: number) {
     }
   }
 
-  if (!isAlmostFull && segments.length > 0) {
+  if (!isAlmostFull) {
     const last = segments[segments.length - 1];
     last.borderClasses ??= [];
     last.borderClasses.push($style.borderRight);
@@ -180,7 +175,9 @@ let animationTimeout: ReturnType<typeof setTimeout> | null = null;
 watch(
   () => cargoBar.value.segments,
   () => {
-    if (animationTimeout) clearTimeout(animationTimeout);
+    if (animationTimeout) {
+      clearTimeout(animationTimeout);
+    }
 
     isAnimating.value = true;
 
@@ -192,9 +189,11 @@ watch(
 );
 
 const totalLoadRatio = computed(() => {
-  const ship = shipsStore.getById(shipId);
+  const ship = shipsStore.getById(props.shipId);
   const inv = storagesStore.getById(ship?.idShipStore);
-  if (!inv) return 0;
+  if (!inv) {
+    return 0;
+  }
   return Math.max(inv.weightLoad / inv.weightCapacity, inv.volumeLoad / inv.volumeCapacity);
 });
 
@@ -204,7 +203,9 @@ const stripeAlertColor = computed(() => {
   const start = { r: 50, g: 50, b: 50 };
   const target = { r: 100, g: 100, b: 100 };
 
-  if (ratio < 0.7) return `rgb(${start.r}, ${start.g}, ${start.b})`;
+  if (ratio < 0.7) {
+    return `rgb(${start.r}, ${start.g}, ${start.b})`;
+  }
 
   const normalized = (ratio - 0.7) / 0.3;
 
@@ -214,13 +215,16 @@ const stripeAlertColor = computed(() => {
 
   return `rgb(${r}, ${g}, ${b})`;
 });
+
 const stripeWidth = computed(() => {
   const ratio = totalLoadRatio.value;
 
   const startWidth = 10;
   const smallWidth = 2;
 
-  if (ratio < 0.7) return `${startWidth}px`;
+  if (ratio < 0.7) {
+    return `${startWidth}px`;
+  }
 
   const normalized = (ratio - 0.7) / 0.3;
 
@@ -228,6 +232,13 @@ const stripeWidth = computed(() => {
 
   return `${width}px`;
 });
+
+function onClick() {
+  const ship = shipsStore.getById(props.shipId);
+  if (ship) {
+    showBuffer(`SHPI ${ship.registration}`);
+  }
+}
 </script>
 
 <template>
@@ -257,7 +268,8 @@ const stripeWidth = computed(() => {
   display: flex;
   min-width: 30px;
   width: 100%;
-  min-height: 9px;
+  min-height: 13px;
+  height: 13px;
   align-items: flex-end;
   justify-content: flex-start;
   background-color: #2a2a2a;

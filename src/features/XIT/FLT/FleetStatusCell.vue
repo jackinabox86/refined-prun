@@ -6,6 +6,7 @@ import { displaytimeBetween, hhmm } from '@src/utils/format';
 import { timestampEachMinute } from '@src/utils/dayjs';
 import { showBuffer } from '@src/infrastructure/prun-ui/buffers';
 import { getInvStore } from '@src/core/store-id';
+import { getShipStatusIcon, stationaryShipStatusIcon } from '@src/core/ship-status-icons';
 import {
   getEntityNameFromAddress,
   getLocationLineFromAddress,
@@ -13,32 +14,21 @@ import {
 
 const props = defineProps<{
   shipId: string;
-  rowElement: HTMLTableRowElement;
 }>();
-
-const STATUS_ICONS: Record<string, string> = {
-  TAKE_OFF: '↑',
-  DEPARTURE: '↗',
-  TRANSIT: '⟶',
-  CHARGE: '±',
-  JUMP: '➾',
-  FLOAT: '↑',
-  APPROACH: '↘',
-  LANDING: '↓',
-  LOCK: '⟴',
-  DECAY: '⟴',
-  JUMP_GATEWAY: '⟴',
-};
 
 const ship = computed(() => shipsStore.getById(props.shipId));
 const flight = computed(() => flightsStore.getById(ship.value?.flightId));
 const inventory = computed(() => getInvStore(ship.value?.idShipStore));
 
 const statusIcon = computed(() => {
-  if (!ship.value) return '';
-  if (!flight.value) return '⦁';
-  const segment = flight.value.segments.at(flight.value.currentSegmentIndex);
-  return segment != null ? (STATUS_ICONS[segment.type] ?? '?') : '⦁';
+  if (!ship.value) {
+    return '';
+  }
+  if (!flight.value) {
+    return stationaryShipStatusIcon;
+  }
+  const segment = flight.value.segments[flight.value.currentSegmentIndex];
+  return segment != null ? getShipStatusIcon(segment.type) : stationaryShipStatusIcon;
 });
 
 const posData = computed(() => {
@@ -54,7 +44,9 @@ const posData = computed(() => {
 
 const timeData = computed(() => {
   const arrival = flight.value?.arrival.timestamp;
-  if (arrival == null || Number.isNaN(arrival)) return null;
+  if (arrival == null || Number.isNaN(arrival)) {
+    return null;
+  }
   return {
     relative: displaytimeBetween(timestampEachMinute.value, arrival),
     absolute: hhmm(arrival),
@@ -62,22 +54,10 @@ const timeData = computed(() => {
 });
 
 const hasItems = computed(() => (inventory.value?.items.length ?? 0) > 0);
-
-const handleUnloadAction = () => {
-  const buttons = props.rowElement.children[8]?.querySelectorAll(
-    'button, .button, [role="button"]',
-  );
-  const unloadButton = buttons?.[3] as HTMLElement | undefined;
-  if (unloadButton != null && hasItems.value) {
-    unloadButton.click();
-  } else {
-    showBuffer(`SHPI ${ship.value?.registration}`);
-  }
-};
 </script>
 
 <template>
-  <div :class="$style.mainContainer" data-rp>
+  <div :class="$style.mainContainer">
     <div :class="[$style.columnContainer, $style.alignLeft]">
       <div :class="$style.gapContainer">
         <span
@@ -109,7 +89,7 @@ const handleUnloadAction = () => {
           <span
             :class="[$style.actionBtn, hasItems ? $style.bgOrange : $style.bgBlue]"
             :style="{ paddingRight: '5px' }"
-            @click.stop="handleUnloadAction">
+            @click.stop="showBuffer(`SHPI ${ship?.registration}`)">
             {{ hasItems ? '⭱' : '⭳' }}
           </span>
           <span
