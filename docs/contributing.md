@@ -2,19 +2,7 @@
 
 ## Code Style
 
-### Braces and Control Flow
-
-Always wrap code blocks in braces, even single-line ones.
-
-```ts
-// Bad
-if (!site) return;
-
-// Good
-if (!site) {
-  return;
-}
-```
+### Control Flow
 
 Invert conditions early to reduce nesting:
 
@@ -31,24 +19,21 @@ if (sliders.length === 0) {
 // 20 lines at base indentation
 ```
 
-### Loops
-
-Don't use `.forEach`. Use `for..of`.
-
-```ts
-// Bad
-sites.forEach(site => { });
-
-// Good
-for (const site of sites) { }
-```
-
 ### Lambdas
 
 Single-param lambdas: use `x`. Saves naming time, reads clearly. Use full names only when `x` would be unclear.
 
 ```ts
 const disabled = sliders.every(x => x.classList.contains('rc-slider-disabled'));
+```
+
+**Exception — `subscribe` callbacks:** When subscribing to elements from `C.X.className`, use `className` as the parameter name. Avoids name collisions in nested subscribes and keeps the selector self-documenting.
+
+```ts
+// subscribe to C.ColoredValue.negative → param is "negative"
+subscribe($$(tile.anchor, C.ColoredValue.negative), negative => {
+  negative.classList.add($style.lowValue);
+});
 ```
 
 ### Type Annotations
@@ -63,18 +48,6 @@ contextItems: (parameters: string[]) => { }
 contextItems: parameters => { }
 ```
 
-### Template Literals
-
-Don't wrap a single variable in `${}`.
-
-```ts
-// Bad
-applyCssRule('INV', `${C.StoreView.row}`, classes.storeInfo);
-
-// Good
-applyCssRule('INV', C.StoreView.row, classes.storeInfo);
-```
-
 ### Non-null Assertions
 
 Use `!` for `parentElement` and similar DOM properties that are guaranteed to exist when we process elements at DOM-appearance time. Don't use `as HTMLDivElement` casts for this — `!` is shorter and clearer.
@@ -85,21 +58,6 @@ tile.anchor.parentElement as HTMLDivElement
 
 // Good
 tile.anchor.parentElement!
-```
-
-### Nullish Checks
-
-Don't use `||` with numbers — use explicit checks.
-
-```ts
-// Bad
-const divisor = value || 1;
-
-// Good
-let divisor = value;
-if (divisor === 0) {
-  divisor = 1;
-}
 ```
 
 ### Comments
@@ -117,7 +75,7 @@ const x = foo;
 
 ### Unicode
 
-Prefer unicode values over unicode characters — easier to search for.
+Prefer unicode escape values over characters for non-standard or font-awesome codepoints — easier to search for.
 
 ```ts
 // Bad
@@ -126,6 +84,8 @@ Prefer unicode values over unicode characters — easier to search for.
 // Good
 '\uf070'  // font-awesome eye-slash
 ```
+
+Standard unicode symbols (arrows, geometric shapes, etc.) are fine as literal characters.
 
 ### CSS Values
 

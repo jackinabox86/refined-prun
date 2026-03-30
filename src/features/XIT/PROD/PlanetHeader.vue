@@ -11,25 +11,18 @@ const { production } = defineProps<{
   onClick: () => void;
 }>();
 
-const totalOrders = computed(() =>
-  production.production.reduce((acc, line) => acc + line.orders.length, 0),
-);
+const totalOrders = computed(() => sumBy(production.production, x => x.orders.length));
 
-const totalCapacity = computed(() =>
-  production.production.reduce((acc, line) => acc + line.capacity, 0),
-);
+const totalCapacity = computed(() => sumBy(production.production, x => x.capacity));
 </script>
 
 <template>
   <tr :class="$style.row">
-    <td colspan="1" :class="$style.cell" @click="onClick">
-      <span v-if="hasMinimize" :class="$style.center">
+    <td colspan="3" :class="$style.cell" @click="onClick">
+      <span v-if="hasMinimize" :class="$style.minimize">
         {{ minimized ? '+' : '-' }}
       </span>
-      <span></span>
-    </td>
-    <td colspan="2" :class="$style.cell">
-      {{ production.planetName }}
+      <span>{{ production.planetName }}</span>
     </td>
     <FracCell :numerator="totalOrders" :denominator="totalCapacity" />
     <td>
@@ -54,8 +47,9 @@ const totalCapacity = computed(() =>
   cursor: pointer;
 }
 
-.center {
+.minimize {
   display: inline-block;
+  width: 26px;
   text-align: center;
 }
 

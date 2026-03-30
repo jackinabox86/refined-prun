@@ -1,6 +1,10 @@
 <script setup lang="ts">
 import { PlatformProduction } from '@src/core/production';
 import MaterialIcon from '@src/components/MaterialIcon.vue';
+import IconCell from './IconCell.vue';
+import { timestampEachMinute } from '@src/utils/dayjs';
+
+const $style = useCssModule();
 
 const { productionLine, headers } = defineProps<{
   productionLine: PlatformProduction;
@@ -21,26 +25,25 @@ const stackedActive = computed(() => {
   const groups: Record<string, StackedOrderGroup> = {};
   const BUCKET_MS = 10 * 60 * 1000;
 
-  // Group existing orders
-  productionLine.orders.forEach(order => {
+  // Group existing orders.
+  for (const order of productionLine.orders) {
     const output = order.outputs[0];
-    if (output === null || output === undefined) return;
+    if (output === undefined) {
+      continue;
+    }
 
     const ts = order.completion ? new Date(order.completion.timestamp).getTime() : 0;
     const bucket = Math.round(ts / BUCKET_MS);
     const key = `${order.recipeId}-${bucket}`;
 
-    if (groups[key] === undefined) {
-      groups[key] = { ticker: output.material.ticker, count: 0, amount: 0, ts };
-    }
+    groups[key] ??= { ticker: output.material.ticker, count: 0, amount: 0, ts };
     groups[key].count += 1;
     groups[key].amount += output.amount;
-  });
+  }
 
   const results = Object.values(groups);
 
-  // Unused Capacity logic
-
+  // Unused Capacity logic.
   if (productionLine.inactiveCapacity > 0) {
     results.push({
       ticker: 'N/A',
@@ -57,21 +60,21 @@ const stackedActive = computed(() => {
 const stackedQueued = computed(() => {
   const groups: Record<string, StackedOrderGroup> = {};
 
-  productionLine.queuedOrders.forEach(order => {
+  for (const order of productionLine.queuedOrders) {
     const output = order.outputs[0];
-    if (output === null || output === undefined) return;
+    if (output === undefined) {
+      continue;
+    }
 
     const key = order.recipeId;
-    if (groups[key] === undefined) {
-      groups[key] = { ticker: output.material.ticker, count: 0, amount: 0 };
-    }
+    groups[key] ??= { ticker: output.material.ticker, count: 0, amount: 0 };
     groups[key].count += 1;
     groups[key].amount += output.amount;
-  });
+  }
 
   const results = Object.values(groups);
 
-  // Missing Queue logic
+  // Missing Queue logic.
   if (productionLine.queuedOrders.length === 0) {
     results.push({
       ticker: 'N/A',
@@ -92,9 +95,24 @@ const allStackedOrders = computed(() => {
   ];
 });
 
+function statusClass(group: StackedOrderGroup) {
+  if (group.isPlaceholder) {
+    return $style.placeholderStatus;
+  }
+  return group.isQueued ? $style.queuedStatus : $style.activeStatus;
+}
+
+function groupKey(group: StackedOrderGroup, index: number) {
+  return (group.isQueued ? 'q-' : 'a-') + group.ticker + (group.ts ?? index);
+}
+
+const hasStacks = computed(() => allStackedOrders.value.some(x => x.count > 1));
+
 const formatTime = (ts: number) => {
-  const mins = Math.max(0, Math.floor((ts - Date.now()) / 60000));
-  if (mins === 0) return 'Finishing...';
+  const mins = Math.max(0, Math.floor((ts - timestampEachMinute.value) / 60000));
+  if (mins === 0) {
+    return 'Finishing...';
+  }
   return mins > 60 ? `in ${Math.floor(mins / 60)}h ${mins % 60}m` : `in ${mins}m`;
 };
 </script>
@@ -104,32 +122,22 @@ const formatTime = (ts: number) => {
     <table :class="$style.orderTable">
       <thead>
         <tr v-if="headers" :class="$style.headerRow">
-          <th colspan="2">Order</th>
-          <th :class="$style.right">Qty</th>
-          <th :class="$style.right">Status / ETA</th>
+          <th />
+          <th v-if="hasStacks" />
+          <th :class="$style.numericColumn">Qty</th>
+          <th :class="$style.numericColumn">Status / ETA</th>
         </tr>
       </thead>
       <tbody>
-        <tr
-          v-for="(group, index) in allStackedOrders"
-          :key="(group.isQueued ? 'q-' : 'a-') + group.ticker + (group.ts || index)">
-          <td :class="[$style.noPadding, $style.buildingContainer]">
+        <tr v-for="(group, index) in allStackedOrders" :key="groupKey(group, index)">
+          <IconCell>
             <MaterialIcon :ticker="group.ticker" size="inline-table" />
+          </IconCell>
+          <td v-if="hasStacks" :class="$style.stackColumn">
+            <div v-if="group.count > 1" :class="$style.stackCount">x{{ group.count }}</div>
           </td>
-          <td>
-            <span v-if="group.count > 1" :class="$style.stackCount">x{{ group.count }}</span>
-          </td>
-          <td :class="$style.right">{{ group.isPlaceholder ? '-' : group.amount }}</td>
-
-          <td
-            :class="[
-              $style.right,
-              group.isPlaceholder
-                ? $style.dangerText
-                : group.isQueued
-                  ? $style.muted
-                  : $style.activeText,
-            ]">
+          <td :class="$style.numericColumn">{{ group.isPlaceholder ? '-' : group.amount }}</td>
+          <td :class="[$style.numericColumn, statusClass(group)]">
             <template v-if="group.isPlaceholder">
               {{ group.label }}
             </template>
@@ -144,28 +152,15 @@ const formatTime = (ts: number) => {
 </template>
 
 <style module>
-.dangerText {
-  color: #d9534f; /* Standard red for warnings/missing items */
+.placeholderStatus {
+  color: var(--rp-color-red);
   font-weight: bold;
-}
-
-.noPadding {
-  padding: 0px;
-}
-
-.buildingContainer {
-  width: 32px;
-  height: 18px;
-  align-items: center;
-  justify-content: center;
-  overflow: hidden;
-  line-height: 0;
 }
 
 .orderTable {
   width: 100%;
   font-size: 11px;
-  padding: 0px;
+  padding: 0;
 }
 
 .headerRow th {
@@ -174,27 +169,27 @@ const formatTime = (ts: number) => {
   font-weight: normal;
   text-transform: uppercase;
   font-size: 9px;
-  border-bottom: 1px solid inherit;
 }
 
-.right {
+.numericColumn {
   text-align: right;
 }
 
+.stackColumn {
+  width: 32px;
+}
+
 .stackCount {
+  /* FIO primary blue. */
   color: #3faabf;
-  /* FIO Primary-ish blue */
   font-weight: bold;
-  margin-left: 4px;
 }
 
-.activeText {
-  color: #f0ad4e;
+.activeStatus {
+  color: var(--rp-color-orange);
 }
 
-/* Orange for running orders */
-.muted {
-  color: var(--font-color-disabled);
+.queuedStatus {
   opacity: 0.7;
 }
 </style>

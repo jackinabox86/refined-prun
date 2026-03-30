@@ -9,9 +9,9 @@ import FracCell from './FracCell.vue';
 import InlineFlex from '@src/components/InlineFlex.vue';
 import Tooltip from '@src/components/Tooltip.vue';
 import ProductionOrdersTable from './ProductionOrdersTable.vue';
+import IconCell from './IconCell.vue';
 
-const { alwaysVisible, productionLine, headers } = defineProps<{
-  alwaysVisible?: boolean;
+const { productionLine, headers } = defineProps<{
   productionLine: PlatformProduction;
   headers?: boolean;
 }>();
@@ -22,7 +22,7 @@ const activeOrders = computed(() => productionLine.orders.length);
 const condition = computed(() => productionLine.condition);
 const expandInfo = useTileState('expandInfo');
 const id = computed(() => productionLine.id);
-const displayInfo = computed(() => expandInfo.value.includes(id.value) || alwaysVisible);
+const displayInfo = computed(() => expandInfo.value.includes(id.value));
 
 const onHeaderClick = () => {
   if (displayInfo.value) {
@@ -32,53 +32,43 @@ const onHeaderClick = () => {
   }
 };
 
-const tooltipText = computed(() => {
+const labels: Partial<Record<PrunApi.EfficiencyFactorType, string>> = {
+  COGC_PROGRAM: 'CoGC',
+  COMPANY_HEADQUARTERS: 'HQ',
+  PRODUCTION_LINE_CONDITION: 'Condition',
+};
+
+const capitalize = (str: string) => {
+  return str
+    .split('_')
+    .map(x => x.charAt(0).toUpperCase() + x.slice(1).toLowerCase())
+    .join(' ');
+};
+
+const tooltipLines = computed(() => {
   const lines = [`Condition: ${percent0(condition.value)}`];
 
-  if (productionLine.efficiencyFactors.length in [0, NaN]) {
-    return lines.join(' ');
+  if (productionLine.efficiencyFactors.length === 0) {
+    return lines;
   }
 
-  lines.push(''); // Add a spacer
-
-  productionLine.efficiencyFactors.forEach(factor => {
-    // Only map labels that aren't a simple capitalization of the key
-    const labels: Partial<Record<PrunApi.EfficiencyFactorType, string>> = {
-      COGC_PROGRAM: 'COGC',
-      COMPANY_HEADQUARTERS: 'HQ',
-      PRODUCTION_LINE_CONDITION: 'Condition',
-    };
-
-    const capitalize = (str: string) => {
-      return str
-        .split('_')
-        .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
-        .join(' ');
-    };
-
-    // Use the mapped label if it exists; otherwise, capitalize the raw type
-    const rawLabel = labels[factor.type] || factor.type;
-    const label = capitalize(rawLabel);
-
-    // Fix capitalization for the expertise category as well
+  for (const factor of productionLine.efficiencyFactors) {
+    const label = labels[factor.type] ?? capitalize(factor.type);
     const category = factor.expertiseCategory ? ` (${capitalize(factor.expertiseCategory)})` : '';
-
     lines.push(`${label}${category}: ${percent2(factor.value)}`);
-    lines.push(''); // Add a spacer
-  });
+  }
 
-  //const fixedWidth = 22;
-  //\u00A0
-  //return lines.map(line => line.padEnd(fixedWidth, '-')).join('\n');
-  return lines.join(' ');
+  return lines;
 });
+
+const tooltipText = computed(() => tooltipLines.value.join('\n'));
 </script>
 
 <template>
-  <tr :class="[$style.row]">
-    <td :class="[$style.buildingContainer, $style.noPadding, $style.flex]">
+  <tr :class="$style.row">
+    <IconCell>
       <BuildingIcon size="inline-table" :ticker="productionLine.reactorTicker" />
-    </td>
+    </IconCell>
 
     <td :class="$style.trigger" @click="onHeaderClick">
       <span :class="[$style.caret, displayInfo && $style.expanded]">▶</span>
@@ -87,22 +77,22 @@ const tooltipText = computed(() => {
     <td>
       <InlineFlex>
         {{ percent0(efficiency) }}
-        <Tooltip position="bottom" :tooltip="tooltipText" />
+        <Tooltip position="bottom" :tooltip="tooltipText" :class="$style.multilineTooltip" />
       </InlineFlex>
     </td>
     <FracCell :numerator="activeOrders" :denominator="capacity" />
     <td>
-      <div :class="[$style.flex, $style.buttons]">
+      <div :class="$style.buttons">
         <PrunButton dark inline @click="showBuffer(`PRODCO ${productionLine.id}`)">CO</PrunButton>
         <PrunButton dark inline @click="showBuffer(`PRODQ ${productionLine.id}`)">Q</PrunButton>
       </div>
     </td>
   </tr>
   <tr v-if="displayInfo">
-    <td colspan="1">
+    <td>
       <div></div>
     </td>
-    <td colspan="4" :class="$style.noPadding">
+    <td colspan="4" :class="$style.ordersCell">
       <ProductionOrdersTable :production-line="productionLine" :headers="headers" />
     </td>
   </tr>
@@ -114,30 +104,14 @@ const tooltipText = computed(() => {
 }
 
 .buttons {
+  display: flex;
   flex-direction: row;
   flex-wrap: wrap;
   column-gap: 0.25rem;
 }
 
-.flex {
-  display: flex;
-}
-
-.noPadding {
-  padding: 0px;
-}
-
-.buildingContainer {
-  width: 32px;
-  height: 18px;
-  align-items: center;
-  justify-content: center;
-  overflow: hidden;
-  line-height: 0;
-}
-
-.spacer {
-  flex-grow: 1;
+.ordersCell {
+  padding: 0;
 }
 
 .trigger {
@@ -160,5 +134,9 @@ const tooltipText = computed(() => {
 
 .expanded {
   transform: rotate(90deg);
+}
+
+.multilineTooltip {
+  white-space: pre;
 }
 </style>

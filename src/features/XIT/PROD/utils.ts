@@ -1,12 +1,39 @@
-import { BurnValues } from '@src/core/burn';
+import { castArray } from '@src/utils/cast-array';
+import { PlatformProduction } from '@src/core/production';
 
-export function countDays(burn: BurnValues) {
-  let days = 1000;
-  for (const key of Object.keys(burn)) {
-    const mat = burn[key];
-    if (!isNaN(mat.dailyAmount) && mat.dailyAmount < 0 && mat.daysLeft < days) {
-      days = mat.daysLeft;
-    }
+interface ProductionFilters {
+  production: boolean;
+  inactive: boolean;
+  queue: boolean;
+  notQueued: boolean;
+}
+
+export function matchesProductionFilter(
+  lines: Arrayable<PlatformProduction>,
+  filters: ProductionFilters,
+) {
+  let activeCapacity = 0;
+  let inactiveCapacity = 0;
+  let queuedOrders = 0;
+
+  for (const line of castArray(lines)) {
+    activeCapacity += line.activeCapacity;
+    inactiveCapacity += line.inactiveCapacity;
+    queuedOrders += line.queuedOrders.length;
   }
-  return days;
+
+  if (activeCapacity > 0 && filters.production) {
+    return true;
+  }
+  if (inactiveCapacity > 0 && filters.inactive) {
+    return true;
+  }
+  if (queuedOrders > 0 && filters.queue) {
+    return true;
+  }
+  if (queuedOrders === 0 && filters.notQueued) {
+    return true;
+  }
+
+  return false;
 }
