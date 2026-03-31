@@ -9,7 +9,9 @@ let menuElement: HTMLElement | null = null;
 let materialSelector: string;
 
 function setLocation(event: MouseEvent) {
-  if (menuElement === null) return;
+  if (menuElement === null) {
+    return;
+  }
   const parentRect = menuElement.parentElement!.getBoundingClientRect();
   const menuRect = menuElement.getBoundingClientRect();
   if (event.clientX + menuRect.width > parentRect.right) {
@@ -50,7 +52,9 @@ export const store = reactive({
     document.addEventListener('click', clickOutsideListener);
   },
   hideMenu() {
-    if (!isOpen) return;
+    if (!isOpen) {
+      return;
+    }
     isOpen = false;
     this.menuStyle.display = 'none';
     if (clickOutsideListener !== null) {
