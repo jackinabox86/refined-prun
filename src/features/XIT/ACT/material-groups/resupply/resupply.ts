@@ -78,7 +78,7 @@ act.addMaterialGroup<Config>({
       const consumed = days * -matBurn.dailyAmount;
       const need = Math.max(0, Math.ceil(consumed - matBurn.inventory + 1));
       if (need > 0) {
-        parsedGroup[ticker] = need + 1;
+        parsedGroup[ticker] = need;
       }
     }
     return parsedGroup;
