@@ -21,8 +21,8 @@
     "verbatimModuleSyntax": false,
     "types": ["vite/client", "node", "chrome"],
     "paths": {
-      "@src/*": ["src/*"],
-      "~/*": ["src/assets/*"]
+      "@src/*": ["./src/*"],
+      "~/*": ["./src/assets/*"]
     },
     "lib": ["DOM", "WebWorker", "ESNext"]
   },
