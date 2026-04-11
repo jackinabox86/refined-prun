@@ -102,10 +102,6 @@ const buttons: [string, string][] = [
   padding-left: 0;
 }
 
-.market_contextmenu_divider {
-  border-bottom: 2px solid currentColor;
-}
-
 .prunButton {
   display: block;
   margin-left: 0 !important;

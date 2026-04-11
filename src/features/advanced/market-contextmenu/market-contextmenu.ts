@@ -1,6 +1,5 @@
 import { showBuffer } from '@src/infrastructure/prun-ui/buffers';
 import { userData } from '@src/store/user-data';
-import { reactive } from 'vue';
 import MarketMenu from './MarketMenu.vue';
 
 let clickOutsideListener: ((e: MouseEvent) => void) | null = null;
