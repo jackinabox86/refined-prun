@@ -127,7 +127,7 @@ Each entry in the `actions` array is an object with a `type` field and type-spec
 
 ### Type: `"CX Buy"`
 
-Buy materials from a commodity exchange.
+Buy materials from a commodity exchange. A single action package can contain multiple `"CX Buy"` actions, each targeting a different exchange — the `exchange` field is per-action, not global.
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
@@ -252,7 +252,7 @@ Create a buy/sell trade contract draft for a material group. Requires a material
 
 ## Complete Example
 
-A full action package that resupplies a planet by buying from CI1 and shipping:
+A full action package that resupplies a planet by buying consumables from CI1, repair materials from AI1, and shipping everything:
 
 ```json
 {
@@ -290,7 +290,7 @@ A full action package that resupplies a planet by buying from CI1 and shipping:
       "type": "CX Buy",
       "name": "buy-repair-mats",
       "group": "montem-repair",
-      "exchange": "CI1",
+      "exchange": "AI1",
       "buyPartial": true,
       "useCXInv": true
     },
