@@ -65,7 +65,7 @@ Calculates consumables needed based on a planet's burn rate.
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
 | `planet` | string | -- | Planet natural ID or name. Use `"Configure on Execution"` to prompt at runtime. |
-| `days` | number or string | -- | Number of days of supplies to buy. |
+| `days` | number or string | -- | Number of days of supplies to buy. Use `"Configure on Execution"` to prompt at runtime (defaults to XIT SET burn resupply value). |
 | `useBaseInv` | boolean | `true` | Subtract current base inventory from the bill. |
 | `consumablesOnly` | boolean | `false` | If true, only include workforce consumables (exclude production inputs). |
 | `exclusions` | string[] | `[]` | Material tickers to exclude from the bill. |
@@ -132,7 +132,7 @@ Buy materials from a commodity exchange.
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
 | `group` | string | -- | Material group name to buy. |
-| `exchange` | string | -- | Exchange code: `"AI1"`, `"CI1"`, `"CI2"`, `"IC1"`, `"NC1"`, `"NC2"`. |
+| `exchange` | string | -- | Exchange code: `"AI1"`, `"CI1"`, `"CI2"`, `"IC1"`, `"NC1"`, `"NC2"`. Use `"Configure on Execution"` to prompt at runtime. |
 | `allowUnfilled` | boolean | `false` | If true, don't fail when exchange has fewer units than needed. |
 | `buyPartial` | boolean | `false` | If true, buy whatever is available even if less than needed. |
 | `useCXInv` | boolean | `true` | Subtract materials already in CX warehouse from the buy list. |
