@@ -118,5 +118,5 @@ function formatTotals(steps: ActionStep[]) {
       totalVolume += mat.volume * amount;
     }
   }
-  return `Total Weight -${fixed02(totalWeight)}t, Total Volume: ${fixed02(totalVolume)}m³`;
+  return `Total Weight ${fixed02(totalWeight)}t, Total Volume ${fixed02(totalVolume)}m³`;
 }
