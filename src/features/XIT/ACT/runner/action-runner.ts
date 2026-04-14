@@ -4,7 +4,9 @@ import { Logger } from '@src/features/XIT/ACT/runner/logger';
 import { TileAllocator } from '@src/features/XIT/ACT/runner/tile-allocator';
 import { StepMachine } from '@src/features/XIT/ACT/runner/step-machine';
 import { StepGenerator } from '@src/features/XIT/ACT/runner/step-generator';
-import { ActionPackageConfig } from '@src/features/XIT/ACT/shared-types';
+import { ActionPackageConfig, ActionStep } from '@src/features/XIT/ACT/shared-types';
+import { materialsStore } from '@src/infrastructure/prun-api/data/materials';
+import { fixed02 } from '@src/utils/format';
 
 interface ActionRunnerOptions {
   tile: PrunTile;
@@ -45,6 +47,7 @@ export class ActionRunner {
     if (steps.length === 0) {
       return;
     }
+    this.log.info(formatTotals(steps));
     if (fail) {
       this.log.info('Generated steps for valid actions:');
     }
@@ -67,6 +70,7 @@ export class ActionRunner {
       return;
     }
     this.log.info('Action Package execution started');
+    this.log.info(formatTotals(steps));
     this.stepMachine = new StepMachine(steps, {
       ...this.options,
       tileAllocator: this.tileAllocator,
@@ -92,4 +96,27 @@ export class ActionRunner {
     this.stepMachine?.cancel();
     this.stepMachine = undefined;
   }
+}
+
+function formatTotals(steps: ActionStep[]) {
+  const aggregated: Record<string, number> = {};
+  for (const step of steps) {
+    const info = act.getActionStepInfo(step.type);
+    const mats = info.totalMaterials?.(step);
+    if (mats) {
+      for (const [ticker, amount] of Object.entries(mats)) {
+        aggregated[ticker] = (aggregated[ticker] ?? 0) + amount;
+      }
+    }
+  }
+  let totalWeight = 0;
+  let totalVolume = 0;
+  for (const [ticker, amount] of Object.entries(aggregated)) {
+    const mat = materialsStore.getByTicker(ticker);
+    if (mat) {
+      totalWeight += mat.weight * amount;
+      totalVolume += mat.volume * amount;
+    }
+  }
+  return `Total Weight -${fixed02(totalWeight)}t, Total Volume: ${fixed02(totalVolume)}m³`;
 }

@@ -22,6 +22,7 @@ interface Data {
 export const CXPO_BUY = act.addActionStep<Data>({
   type: 'CXPO_BUY',
   preProcessData: data => ({ ...data, ticker: data.ticker.toUpperCase() }),
+  totalMaterials: data => ({ [data.ticker]: data.amount }),
   description: data => {
     const { ticker, exchange } = data;
     const cxTicker = `${ticker}.${exchange}`;

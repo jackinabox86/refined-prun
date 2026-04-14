@@ -28,6 +28,8 @@ interface Data {
 
 export const CONT_TRADE = act.addActionStep<Data>({
   type: 'CONT_TRADE',
+  totalMaterials: data =>
+    Object.fromEntries(Object.entries(data.materials).filter(([, v]) => v > 0)),
   description: data => {
     const materialCount = Object.keys(data.materials).length;
     const typeLabel = data.tradeType === 'BUYING' ? 'Buy' : 'Sell';
