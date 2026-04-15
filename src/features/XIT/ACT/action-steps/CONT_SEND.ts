@@ -32,6 +32,8 @@ interface Data {
 
 export const CONT_SEND = act.addActionStep<Data>({
   type: 'CONT_SEND',
+  totalMaterials: data =>
+    Object.fromEntries(Object.entries(data.materials).filter(([, v]) => v > 0)),
   description: data => {
     const materialCount = Object.keys(data.materials).length;
     const payment = data.payment !== 0 ? ` for ${fixed0(data.payment)} ${data.currency}` : '';
