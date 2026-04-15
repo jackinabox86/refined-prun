@@ -37,7 +37,10 @@ export class StepGenerator {
       }
       const actionConfig = config.actions[action.name!] ?? {};
       const log = new Logger((tag, message) =>
-        this.log.logMessage(tag, `[${action.name}] ${message}`),
+        this.log.logMessage(
+          tag,
+          typeof message === 'string' ? `[${action.name}] ${message}` : message,
+        ),
       );
       try {
         await info.generateSteps({
@@ -138,7 +141,12 @@ export class StepGenerator {
     return await info.generateMaterialBill({
       data: group,
       config: groupConfig,
-      log: new Logger((tag, message) => this.log.logMessage(tag, `[${group.name}] ${message}`)),
+      log: new Logger((tag, message) =>
+        this.log.logMessage(
+          tag,
+          typeof message === 'string' ? `[${group.name}] ${message}` : message,
+        ),
+      ),
       setStatus: status => this.options.onStatusChanged(status),
       setPrices: prices => this.groupPrices.set(name!, prices),
     });

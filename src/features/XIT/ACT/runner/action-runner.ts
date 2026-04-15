@@ -7,6 +7,7 @@ import { StepGenerator } from '@src/features/XIT/ACT/runner/step-generator';
 import { ActionPackageConfig, ActionStep } from '@src/features/XIT/ACT/shared-types';
 import { materialsStore } from '@src/infrastructure/prun-api/data/materials';
 import { fixed02 } from '@src/utils/format';
+import { LogPart } from '@src/features/XIT/ACT/runner/logger';
 
 interface ActionRunnerOptions {
   tile: PrunTile;
@@ -98,7 +99,7 @@ export class ActionRunner {
   }
 }
 
-function formatTotals(steps: ActionStep[]) {
+function formatTotals(steps: ActionStep[]): LogPart[] {
   const aggregated: Record<string, number> = {};
   for (const step of steps) {
     const info = act.getActionStepInfo(step.type);
@@ -118,5 +119,10 @@ function formatTotals(steps: ActionStep[]) {
       totalVolume += mat.volume * amount;
     }
   }
-  return `Total Weight ${fixed02(totalWeight)}t, Total Volume ${fixed02(totalVolume)}m³`;
+  return [
+    { text: 'Total Weight ' },
+    { text: `${fixed02(totalWeight)}t`, yellow: true },
+    { text: ', Total Volume ' },
+    { text: `${fixed02(totalVolume)}m³`, yellow: true },
+  ];
 }

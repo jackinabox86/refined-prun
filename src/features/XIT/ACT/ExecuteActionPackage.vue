@@ -4,7 +4,7 @@ import PrunButton from '@src/components/PrunButton.vue';
 import Header from '@src/components/Header.vue';
 import { ActionRunner } from '@src/features/XIT/ACT/runner/action-runner';
 import { useTile } from '@src/hooks/use-tile';
-import { Logger, LogTag } from '@src/features/XIT/ACT/runner/logger';
+import { Logger, LogTag, LogContent } from '@src/features/XIT/ACT/runner/logger';
 import LogWindow from '@src/features/XIT/ACT/LogWindow.vue';
 import ConfigWindow from '@src/features/XIT/ACT/ConfigureWindow.vue';
 import { ActionPackageConfig } from '@src/features/XIT/ACT/shared-types';
@@ -20,7 +20,7 @@ const config = ref({
   actions: {},
 } as ActionPackageConfig);
 
-const log = ref([] as { tag: LogTag; message: string }[]);
+const log = ref([] as { tag: LogTag; message: LogContent }[]);
 const logScrolling = ref(true);
 const isPreviewing = ref(false);
 const isRunning = ref(false);
@@ -143,7 +143,7 @@ function onSkipClick() {
   runner.skip();
 }
 
-function logMessage(tag: LogTag, message: string) {
+function logMessage(tag: LogTag, message: LogContent) {
   return log.value.push({ tag, message });
 }
 
