@@ -18,11 +18,10 @@ const allStorages = computed(() => storagesStore.nonFuelStores.value ?? []);
 
 const originStorages = computed(() => {
   let storages = [...allStorages.value];
-  if (data.dest !== configurableValue) {
-    const destination = deserializeStorage(data.dest);
-    if (destination) {
-      storages = storages.filter(x => atSameLocation(x, destination) && x !== destination);
-    }
+  const destRef = data.dest !== configurableValue ? data.dest : config.destination;
+  const destination = deserializeStorage(destRef);
+  if (destination) {
+    storages = storages.filter(x => atSameLocation(x, destination) && x !== destination);
   }
   return storages.sort(storageSort);
 });
@@ -37,13 +36,11 @@ if (data.origin === configurableValue && !config.origin && originStorages.value.
 
 const destinationStorages = computed(() => {
   let storages = [...allStorages.value];
-  if (data.origin !== configurableValue) {
-    const origin = deserializeStorage(data.origin);
-    if (origin) {
-      storages = storages.filter(x => atSameLocation(x, origin) && x !== origin);
-    }
+  const originRef = data.origin !== configurableValue ? data.origin : config.origin;
+  const origin = deserializeStorage(originRef);
+  if (origin) {
+    storages = storages.filter(x => atSameLocation(x, origin) && x !== origin);
   }
-
   return storages.sort(storageSort);
 });
 
