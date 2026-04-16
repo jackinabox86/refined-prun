@@ -78,7 +78,7 @@ const blocks = computed(() => {
         :is="block.component"
         :data="block.data"
         :config="block.config"
-        :shipStore="block.shipStore" />
+        :ship-store="block.shipStore" />
     </template>
   </div>
 </template>

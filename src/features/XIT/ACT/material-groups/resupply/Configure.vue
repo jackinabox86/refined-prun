@@ -107,7 +107,9 @@ function fitToShip(maxWeight: number, maxVolume: number) {
 const canFit = computed(() => bill.value !== undefined);
 
 const shipFree = computed(() => {
-  if (!shipStore) return undefined;
+  if (!shipStore) {
+    return undefined;
+  }
   return {
     weight: shipStore.weightCapacity - shipStore.weightLoad,
     volume: shipStore.volumeCapacity - shipStore.volumeLoad,
@@ -115,7 +117,9 @@ const shipFree = computed(() => {
 });
 
 const shipName = computed(() => {
-  if (!shipStore) return undefined;
+  if (!shipStore) {
+    return undefined;
+  }
   const ship = shipsStore.getById(shipStore.addressableId);
   return ship?.name ?? ship?.registration;
 });
