@@ -11,9 +11,14 @@ import { comparePlanets } from '@src/util';
 import { configurableValue } from '@src/features/XIT/ACT/shared-types';
 import { userData } from '@src/store/user-data';
 import { materialsStore } from '@src/infrastructure/prun-api/data/materials';
+import { shipsStore } from '@src/infrastructure/prun-api/data/ships';
 import { fixed02 } from '@src/utils/format';
 
-const { data, config } = defineProps<{ data: UserData.MaterialGroupData; config: Config }>();
+const { data, config, shipStore } = defineProps<{
+  data: UserData.MaterialGroupData;
+  config: Config;
+  shipStore?: PrunApi.Store;
+}>();
 
 const planets = computed(() =>
   (sitesStore.all.value ?? [])
@@ -100,6 +105,20 @@ function fitToShip(maxWeight: number, maxVolume: number) {
 }
 
 const canFit = computed(() => bill.value !== undefined);
+
+const shipFree = computed(() => {
+  if (!shipStore) return undefined;
+  return {
+    weight: shipStore.weightCapacity - shipStore.weightLoad,
+    volume: shipStore.volumeCapacity - shipStore.volumeLoad,
+  };
+});
+
+const shipName = computed(() => {
+  if (!shipStore) return undefined;
+  const ship = shipsStore.getById(shipStore.addressableId);
+  return ship?.name ?? ship?.registration;
+});
 </script>
 
 <template>
@@ -135,6 +154,12 @@ const canFit = computed(() => bill.value !== undefined);
       @click="fitToShip(ship.weight, ship.volume)">
       {{ ship.label }}
     </PrunButton>
+    <template v-if="shipName && shipFree">
+      <span>Fit Selected</span>
+      <PrunButton primary :disabled="!canFit" @click="fitToShip(shipFree.weight, shipFree.volume)">
+        {{ shipName }}
+      </PrunButton>
+    </template>
   </div>
 </template>
 
