@@ -2,6 +2,7 @@ import { act } from '@src/features/XIT/ACT/act-registry';
 import Edit from '@src/features/XIT/ACT/actions/mtra/Edit.vue';
 import Configure from '@src/features/XIT/ACT/actions/mtra/Configure.vue';
 import { MTRA_TRANSFER } from '@src/features/XIT/ACT/action-steps/MTRA_TRANSFER';
+import { OPEN_SFC } from '@src/features/XIT/ACT/action-steps/OPEN_SFC';
 import { atSameLocation, deserializeStorage } from '@src/features/XIT/ACT/actions/utils';
 import { Config } from '@src/features/XIT/ACT/actions/mtra/config';
 import { AssertFn, configurableValue } from '@src/features/XIT/ACT/shared-types';
@@ -36,7 +37,7 @@ act.addAction<Config>({
     );
   },
   generateSteps: async ctx => {
-    const { data, config, getMaterialGroup, emitStep } = ctx;
+    const { data, config, getMaterialGroup, getMaterialGroupPlanet, emitStep } = ctx;
     const assert: AssertFn = ctx.assert;
 
     const materials = await getMaterialGroup(data.group);
@@ -62,6 +63,11 @@ act.addAction<Config>({
           amount: materials[ticker],
         }),
       );
+    }
+
+    if (dest.type === 'SHIP_STORE') {
+      const planet = getMaterialGroupPlanet(data.group);
+      emitStep(OPEN_SFC({ shipId: dest.addressableId, destination: planet }));
     }
   },
 });
