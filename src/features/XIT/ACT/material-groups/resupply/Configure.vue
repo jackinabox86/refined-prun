@@ -130,7 +130,6 @@ const canFit = computed(() => bill.value !== undefined);
     <PrunButton
       v-for="ship in shipSizes"
       :key="ship.label"
-      inline
       primary
       :disabled="!canFit"
       @click="fitToShip(ship.weight, ship.volume)">
