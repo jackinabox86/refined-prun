@@ -5,9 +5,8 @@ import { Config } from '@src/features/XIT/ACT/material-groups/resupply/config';
 import { sitesStore } from '@src/infrastructure/prun-api/data/sites';
 import { workforcesStore } from '@src/infrastructure/prun-api/data/workforces';
 import { productionStore } from '@src/infrastructure/prun-api/data/production';
-import { storagesStore } from '@src/infrastructure/prun-api/data/storage';
 import { configurableValue } from '@src/features/XIT/ACT/shared-types';
-import { calculatePlanetBurn } from '@src/core/burn';
+import { computeResupplyBill } from '@src/features/XIT/ACT/material-groups/resupply/bill';
 import { watchWhile } from '@src/utils/watch';
 import {
   getEntityNameFromAddress,
@@ -39,7 +38,6 @@ act.addMaterialGroup<Config>({
       log.error('Missing resupply days');
     }
 
-    const exclusions = data.exclusions ?? [];
     const planet = data.planet === configurableValue ? config.planet : data.planet;
     const days =
       data.days === configurableValue
@@ -66,29 +64,7 @@ act.addMaterialGroup<Config>({
         toRef(() => workforce.value === undefined || production.value === undefined),
       );
     }
-    const stores = storagesStore.getByAddressableId(site.siteId);
 
-    const planetBurn = calculatePlanetBurn(
-      data.consumablesOnly ? undefined : production.value,
-      workforce.value,
-      (data.useBaseInv ?? true) ? stores : undefined,
-    );
-
-    const parsedGroup = {};
-    for (const ticker of Object.keys(planetBurn)) {
-      if (exclusions.includes(ticker)) {
-        continue;
-      }
-      const matBurn = planetBurn[ticker];
-      if (matBurn.dailyAmount >= 0) {
-        continue;
-      }
-      const consumed = days * -matBurn.dailyAmount;
-      const need = Math.max(0, Math.ceil(consumed - matBurn.inventory + 1));
-      if (need > 0) {
-        parsedGroup[ticker] = need;
-      }
-    }
-    return parsedGroup;
+    return computeResupplyBill(data, planet, days);
   },
 });
