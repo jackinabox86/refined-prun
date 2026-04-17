@@ -37,8 +37,15 @@ act.addAction<Config>({
     );
   },
   generateSteps: async ctx => {
-    const { data, config, getMaterialGroup, getMaterialGroupPlanet, emitStep } = ctx;
+    const { data, config, packageName, getMaterialGroup, getMaterialGroupPlanet, emitStep } = ctx;
     const assert: AssertFn = ctx.assert;
+
+    const PRUNPLANNER_PACKAGES = [
+      'PRUNplanner Supply Cart',
+      'PRUNplanner Construct',
+      'PRUNplanner Transfer',
+      'PRUNplanner Burn Supply',
+    ];
 
     const materials = await getMaterialGroup(data.group);
     assert(materials, 'Invalid material group');
@@ -65,7 +72,7 @@ act.addAction<Config>({
       );
     }
 
-    if (dest.type === 'SHIP_STORE') {
+    if (dest.type === 'SHIP_STORE' && !PRUNPLANNER_PACKAGES.includes(packageName)) {
       const planet = getMaterialGroupPlanet(data.group);
       emitStep(OPEN_SFC({ shipId: dest.addressableId, destination: planet }));
     }
