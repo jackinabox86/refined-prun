@@ -154,4 +154,9 @@ declare namespace UserData {
     width: number;
     height: number;
   }
+
+  interface NotificationsSettings {
+    disabledPlanets: string[];
+    planetSpecificTypes: PrunApi.AlertType[];
+  }
 }

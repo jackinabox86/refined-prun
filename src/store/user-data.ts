@@ -53,6 +53,10 @@ export const initialUserData = deepFreeze({
     buffers: [] as [string, number, number][],
     contextMenuExchange: 'AI1' as UserData.Exchange,
     audioVolume: 0.4,
+    notifications: {
+      disabledPlanets: [] as string[],
+      planetSpecificTypes: [] as PrunApi.AlertType[],
+    },
   },
   sorting: {} as Record<string, UserData.StoreSortingData>,
   balanceHistory: {

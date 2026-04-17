@@ -16,6 +16,17 @@ function isCheckpoint(entry: MigrationEntry): entry is Checkpoint {
 // New migrations should be added to the top of the list.
 // The date is for reference only, and it does not affect migration order.
 const migrations: MigrationEntry[] = [
+  [
+    '17.04.2026 Add notifications settings',
+    userData => {
+      if (!userData.settings.notifications) {
+        userData.settings.notifications = {
+          disabledPlanets: [],
+          planetSpecificTypes: [],
+        };
+      }
+    },
+  ],
   ['10.03.2026 Checkpoint'],
   [
     '10.03.2026 Remove funny-rations',
