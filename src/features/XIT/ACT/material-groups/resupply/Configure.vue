@@ -3,7 +3,7 @@ import SelectInput from '@src/components/forms/SelectInput.vue';
 import Active from '@src/components/forms/Active.vue';
 import NumberInput from '@src/components/forms/NumberInput.vue';
 import PrunButton from '@src/components/PrunButton.vue';
-import { Config } from '@src/features/XIT/ACT/material-groups/resupply/config';
+import { Config, MaterialFilter } from '@src/features/XIT/ACT/material-groups/resupply/config';
 import { computeResupplyBill } from '@src/features/XIT/ACT/material-groups/resupply/bill';
 import { sitesStore } from '@src/infrastructure/prun-api/data/sites';
 import { getEntityNameFromAddress } from '@src/infrastructure/prun-api/data/addresses';
@@ -35,6 +35,15 @@ if (data.days === configurableValue && config.days === undefined) {
   config.days = userData.settings.burn.resupply ?? 10;
 }
 
+const materialFilterOptions: MaterialFilter[] = ['All', 'Workforce', 'Production'];
+const materialFilter = ref<MaterialFilter>(
+  config.materialFilter ?? (data.consumablesOnly ? 'Workforce' : 'All'),
+);
+config.materialFilter = materialFilter.value;
+watch(materialFilter, val => {
+  config.materialFilter = val;
+});
+
 const effectivePlanet = computed(() =>
   data.planet === configurableValue ? config.planet : data.planet,
 );
@@ -50,7 +59,9 @@ const effectiveDays = computed(() => {
   return isNaN(parsed) ? undefined : parsed;
 });
 
-const bill = computed(() => computeResupplyBill(data, effectivePlanet.value, effectiveDays.value));
+const bill = computed(() =>
+  computeResupplyBill(data, effectivePlanet.value, effectiveDays.value, materialFilter.value),
+);
 
 function billTotals(entries: Record<string, number>) {
   let weight = 0;
@@ -86,14 +97,14 @@ function fitToShip(maxWeight: number, maxVolume: number) {
     return;
   }
   // Quick check that burn data is loaded.
-  if (!computeResupplyBill(data, planet, 1)) {
+  if (!computeResupplyBill(data, planet, 1, materialFilter.value)) {
     return;
   }
   let lo = 0;
   let hi = 999;
   while (lo < hi) {
     const mid = lo + Math.ceil((hi - lo) / 2);
-    const entries = computeResupplyBill(data, planet, mid)!;
+    const entries = computeResupplyBill(data, planet, mid, materialFilter.value)!;
     const t = billTotals(entries);
     if (t.weight <= maxWeight && t.volume <= maxVolume) {
       lo = mid;
@@ -137,6 +148,11 @@ const shipName = computed(() => {
       <NumberInput v-model="config.days" />
     </Active>
   </form>
+  <Active
+    label="Materials"
+    tooltip="Which materials to include in the resupply group.">
+    <SelectInput v-model="materialFilter" :options="materialFilterOptions" />
+  </Active>
   <div :class="$style.totals">
     <template v-if="totals">
       <span>Total Weight </span>
