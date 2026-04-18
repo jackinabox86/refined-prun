@@ -16,7 +16,7 @@ onMounted(() => {
   const windowEl = tile.frame.closest(`.${C.Window.window}`) as HTMLElement | null;
   const bodyEl = windowEl ? (_$(windowEl, C.Window.body) as HTMLElement | null) : null;
   if (bodyEl) {
-    bodyEl.style.height = `${bodyEl.offsetHeight + 25}px`;
+    bodyEl.style.height = `${bodyEl.offsetHeight + 33}px`;
   }
 });
 
