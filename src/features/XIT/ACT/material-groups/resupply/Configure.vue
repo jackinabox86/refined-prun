@@ -148,9 +148,7 @@ const shipName = computed(() => {
       <NumberInput v-model="config.days" />
     </Active>
   </form>
-  <Active
-    label="Materials"
-    tooltip="Which materials to include in the resupply group.">
+  <Active label="Materials" tooltip="Which materials to include in the resupply group.">
     <SelectInput v-model="materialFilter" :options="materialFilterOptions" />
   </Active>
   <div :class="$style.totals">
@@ -177,7 +175,7 @@ const shipName = computed(() => {
     <template v-if="shipName && shipFree">
       <span>Fit Selected</span>
       <PrunButton primary :disabled="!canFit" @click="fitToShip(shipFree.weight, shipFree.volume)">
-        {{ shipName }}
+        {{ shipName.slice(0, 12) }}
       </PrunButton>
     </template>
   </div>
