@@ -12,11 +12,18 @@ const naturalId = parameters.join(' ');
 
 const tile = useTile();
 
-onMounted(() => {
+onMounted(async () => {
+  await nextTick();
   const windowEl = tile.frame.closest(`.${C.Window.window}`) as HTMLElement | null;
   const bodyEl = windowEl ? (_$(windowEl, C.Window.body) as HTMLElement | null) : null;
-  if (bodyEl) {
-    bodyEl.style.height = `${bodyEl.offsetHeight + 37}px`;
+  if (!bodyEl) return;
+  let overflow = 0;
+  for (const el of tile.anchor.querySelectorAll('*')) {
+    const htmlEl = el as HTMLElement;
+    overflow = Math.max(overflow, htmlEl.scrollHeight - htmlEl.clientHeight);
+  }
+  if (overflow > 0) {
+    bodyEl.style.height = `${bodyEl.offsetHeight + overflow}px`;
   }
 });
 
