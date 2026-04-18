@@ -71,6 +71,7 @@ declare namespace UserData {
 
     name?: string;
     group?: string;
+    skippable?: boolean;
 
     allowUnfilled?: boolean;
     buyPartial?: boolean;

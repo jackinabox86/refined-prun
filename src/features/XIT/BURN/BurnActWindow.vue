@@ -34,6 +34,7 @@ const pkg = computed(
           group: 'Resupply',
           exchange: configurableValue,
           useCXInv: true,
+          skippable: true,
         },
         {
           type: 'MTRA' as UserData.ActionType,
