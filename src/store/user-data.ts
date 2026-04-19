@@ -71,6 +71,7 @@ export const initialUserData = deepFreeze({
   },
   commandLists: [] as UserData.CommandList[],
   linkedBuffersPresets: [] as UserData.LinkedBuffersPreset[],
+  distrustedUsernames: ['Euu'] as string[],
 
   // Used in user-data-migrations.ts
   migrations: undefined,

@@ -16,6 +16,12 @@ function isCheckpoint(entry: MigrationEntry): entry is Checkpoint {
 // New migrations should be added to the top of the list.
 // The date is for reference only, and it does not affect migration order.
 const migrations: MigrationEntry[] = [
+  [
+    '19.04.2026 Add distrustedUsernames',
+    userData => {
+      userData.distrustedUsernames = ['Euu'];
+    },
+  ],
   ['10.03.2026 Checkpoint'],
   [
     '10.03.2026 Remove funny-rations',

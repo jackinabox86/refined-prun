@@ -1,0 +1,4 @@
+.distrusted {
+  color: var(--rp-color-red);
+  font-weight: bold;
+}
