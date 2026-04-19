@@ -3,6 +3,7 @@ import { sitesStore } from '@src/infrastructure/prun-api/data/sites';
 import { workforcesStore } from '@src/infrastructure/prun-api/data/workforces';
 import { productionStore } from '@src/infrastructure/prun-api/data/production';
 import { storagesStore } from '@src/infrastructure/prun-api/data/storage';
+import type { MaterialFilter } from './config';
 
 // Computes the resupply material bill for a given planet and day count.
 // Returns undefined when inputs are missing or when the site's burn data is
@@ -12,6 +13,7 @@ export function computeResupplyBill(
   data: UserData.MaterialGroupData,
   planet: string | undefined,
   days: number | undefined,
+  materialFilter?: MaterialFilter,
 ): Record<string, number> | undefined {
   if (!planet || days === undefined || isNaN(days)) {
     return undefined;
@@ -27,9 +29,10 @@ export function computeResupplyBill(
   }
   const stores = storagesStore.getByAddressableId(site.siteId);
 
+  const filter = materialFilter ?? (data.consumablesOnly ? 'Workforce' : 'All');
   const planetBurn = calculatePlanetBurn(
-    data.consumablesOnly ? undefined : production,
-    workforce,
+    filter === 'Workforce' ? undefined : production,
+    filter === 'Production' ? undefined : workforce,
     (data.useBaseInv ?? true) ? stores : undefined,
   );
 
