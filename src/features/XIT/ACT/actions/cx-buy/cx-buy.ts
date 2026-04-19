@@ -25,9 +25,15 @@ act.addAction<Config>({
   configureComponent: Configure,
   needsConfigure: data => data.exchange === configurableValue,
   isValidConfig: (data, config) =>
-    data.exchange !== configurableValue || config.exchange !== undefined,
+    !!(data.skippable && config.skip) ||
+    data.exchange !== configurableValue ||
+    config.exchange !== undefined,
   generateSteps: async ctx => {
     const { data, config, state, log, fail, getMaterialGroup, emitStep } = ctx;
+
+    if (data.skippable && config.skip) {
+      return;
+    }
     const assert: AssertFn = ctx.assert;
     const allowUnfilled = data.allowUnfilled ?? false;
     const buyPartial = data.buyPartial ?? false;

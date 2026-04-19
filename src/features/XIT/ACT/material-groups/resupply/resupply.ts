@@ -65,6 +65,6 @@ act.addMaterialGroup<Config>({
       );
     }
 
-    return computeResupplyBill(data, planet, days);
+    return computeResupplyBill(data, planet, days, config.materialFilter);
   },
 });
