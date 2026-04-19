@@ -16,7 +16,9 @@ onMounted(async () => {
   await nextTick();
   const windowEl = tile.frame.closest(`.${C.Window.window}`) as HTMLElement | null;
   const bodyEl = windowEl ? (_$(windowEl, C.Window.body) as HTMLElement | null) : null;
-  if (!bodyEl) return;
+  if (!bodyEl) {
+    return;
+  }
   let overflow = 0;
   for (const el of tile.anchor.querySelectorAll('*')) {
     const htmlEl = el as HTMLElement;

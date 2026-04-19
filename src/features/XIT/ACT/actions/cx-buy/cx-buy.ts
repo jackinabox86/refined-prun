@@ -25,7 +25,7 @@ act.addAction<Config>({
   configureComponent: Configure,
   needsConfigure: data => data.exchange === configurableValue,
   isValidConfig: (data, config) =>
-    (data.skippable && (config.skip ?? false)) ||
+    !!(data.skippable && config.skip) ||
     data.exchange !== configurableValue ||
     config.exchange !== undefined,
   generateSteps: async ctx => {
