@@ -16,12 +16,23 @@ export function isDistrustedCompany(code?: string | null, name?: string | null) 
   if (!code && !name) {
     return false;
   }
+  const set = distrustedSet.value;
+  // Direct match on the company code/name: a distrust entry can be a company
+  // identifier, not just a username. Lets the user catch partners when the
+  // username is unknown or the user's record is not in usersStore.
+  const upperCode = code?.toUpperCase();
+  const upperName = name?.toUpperCase();
+  if (upperCode !== undefined && set.has(upperCode)) {
+    return true;
+  }
+  if (upperName !== undefined && set.has(upperName)) {
+    return true;
+  }
+  // Reverse-lookup via usersStore for entries the user typed as usernames.
   const users = usersStore.all.value;
   if (!users) {
     return false;
   }
-  const upperCode = code?.toUpperCase();
-  const upperName = name?.toUpperCase();
   for (const user of users) {
     const companyMatches =
       (upperCode !== undefined && user.company.code.toUpperCase() === upperCode) ||

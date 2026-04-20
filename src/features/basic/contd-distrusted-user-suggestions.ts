@@ -4,17 +4,13 @@ import { refTextContent } from '@src/utils/reactive-dom';
 import { watchEffectWhileNodeAlive } from '@src/utils/watch';
 
 function onTileReady(tile: PrunTile) {
-  subscribe($$(tile.anchor, C.UserSelector.suggestion), onSuggestion);
+  subscribe($$(tile.anchor, C.UserSelector.suggestionName), onSuggestionName);
 }
 
-function onSuggestion(suggestion: HTMLElement) {
-  const nameElement = _$(suggestion, C.UserSelector.suggestionName);
-  if (!nameElement) {
-    return;
-  }
-  const username = refTextContent(nameElement);
-  watchEffectWhileNodeAlive(suggestion, () => {
-    suggestion.classList.toggle(distrust.distrusted, isDistrustedUsername(username.value));
+function onSuggestionName(suggestionName: HTMLElement) {
+  const username = refTextContent(suggestionName);
+  watchEffectWhileNodeAlive(suggestionName, () => {
+    suggestionName.classList.toggle(distrust.distrusted, isDistrustedUsername(username.value));
   });
 }
 
