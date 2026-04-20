@@ -1,3 +1,6 @@
 .distrustedAlert {
-  box-shadow: inset 3px 0 0 var(--rp-color-red);
+}
+
+.distrustedIndicator {
+  background: var(--rp-color-red);
 }

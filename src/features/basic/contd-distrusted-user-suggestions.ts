@@ -3,19 +3,22 @@ import { isDistrustedUsername } from '@src/store/distrust';
 import { refTextContent } from '@src/utils/reactive-dom';
 import { watchEffectWhileNodeAlive } from '@src/utils/watch';
 
-function onTileReady(tile: PrunTile) {
-  subscribe($$(tile.anchor, C.UserSelector.suggestionName), onSuggestionName);
-}
-
-function onSuggestionName(suggestionName: HTMLElement) {
-  const username = refTextContent(suggestionName);
-  watchEffectWhileNodeAlive(suggestionName, () => {
-    suggestionName.classList.toggle(distrust.distrusted, isDistrustedUsername(username.value));
+function onSuggestionEntry(entry: HTMLElement) {
+  const nameElement = _$(entry, C.UserSelector.suggestionName);
+  if (!nameElement) {
+    return;
+  }
+  const username = refTextContent(nameElement as HTMLElement);
+  watchEffectWhileNodeAlive(nameElement, () => {
+    nameElement.classList.toggle(distrust.distrusted, isDistrustedUsername(username.value));
   });
 }
 
 function init() {
-  tiles.observe('CONTD', onTileReady);
+  // Subscribe at document scope: the UserSelector's dropdown may render outside
+  // any single tile.anchor, and suggestionEntry/suggestionName classes are
+  // shared across all user selectors anyway.
+  subscribe($$(document, C.UserSelector.suggestionEntry), onSuggestionEntry);
 }
 
-features.add(import.meta.url, init, 'CONTD: Highlights distrusted users in recipient suggestions.');
+features.add(import.meta.url, init, 'Highlights distrusted users in user selector suggestions.');

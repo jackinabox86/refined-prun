@@ -30,6 +30,13 @@ async function processNotification(container: HTMLElement) {
 }
 
 function init() {
+  // Recolor the indicator child element so the red overrides the unseen blue
+  // bar (which otherwise paints over any container-level inset box-shadow).
+  applyCssRule(
+    'NOTS',
+    `.${$style.distrustedAlert} .${C.AlertListItem.indicator}`,
+    $style.distrustedIndicator,
+  );
   tiles.observe('NOTS', onTileReady);
 }
 
