@@ -1,13 +1,20 @@
 <script setup lang="ts">
 import PrunLink from '@src/components/PrunLink.vue';
 import PrunButton from '@src/components/PrunButton.vue';
+import DaysCell from '@src/features/XIT/BURN/DaysCell.vue';
 import { showBuffer } from '@src/infrastructure/prun-ui/buffers';
+import { getPlanetBurn } from '@src/core/burn';
+import { countDays } from '@src/features/XIT/BURN/utils';
 
-const { naturalId, planetName, storeId } = defineProps<{
+const { siteId, naturalId, planetName, storeId } = defineProps<{
+  siteId: string;
   naturalId: string;
   planetName: string;
   storeId: string;
 }>();
+
+const burn = computed(() => getPlanetBurn(siteId));
+const days = computed(() => (burn.value ? countDays(burn.value.burn) : undefined));
 </script>
 
 <template>
@@ -15,6 +22,12 @@ const { naturalId, planetName, storeId } = defineProps<{
     <td>
       <PrunLink inline :command="`PLI ${naturalId}`">{{ planetName }}</PrunLink>
     </td>
+    <DaysCell
+      v-if="days !== undefined"
+      :days="days"
+      :class="$style.burnCell"
+      @click="showBuffer(`XIT BURN ${naturalId}`)" />
+    <td v-else>-</td>
     <td>
       <div :class="$style.buttons">
         <PrunButton dark inline @click="showBuffer(`BBC ${naturalId}`)">BBC</PrunButton>
@@ -30,5 +43,9 @@ const { naturalId, planetName, storeId } = defineProps<{
   display: flex;
   flex-direction: row;
   column-gap: 0.25rem;
+}
+
+.burnCell {
+  cursor: pointer;
 }
 </style>

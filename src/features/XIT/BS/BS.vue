@@ -10,6 +10,7 @@ import {
 import { comparePlanets } from '@src/util';
 
 interface BaseEntry {
+  siteId: string;
   naturalId: string;
   planetName: string;
   storeId: string;
@@ -23,6 +24,7 @@ const bases = computed<BaseEntry[] | undefined>(() => {
 
   return sites
     .map(site => ({
+      siteId: site.siteId,
       naturalId: getEntityNaturalIdFromAddress(site.address) ?? '',
       planetName: getEntityNameFromAddress(site.address) ?? '',
       storeId: storagesStore.getByAddressableId(site.siteId)?.[0]?.id ?? '',
@@ -38,6 +40,7 @@ const bases = computed<BaseEntry[] | undefined>(() => {
     <thead>
       <tr>
         <th>Planet</th>
+        <th>Burn</th>
         <th>CMD</th>
       </tr>
     </thead>
@@ -45,6 +48,7 @@ const bases = computed<BaseEntry[] | undefined>(() => {
       <BaseRow
         v-for="base in bases"
         :key="base.naturalId"
+        :site-id="base.siteId"
         :natural-id="base.naturalId"
         :planet-name="base.planetName"
         :store-id="base.storeId" />
