@@ -16,6 +16,14 @@ function isCheckpoint(entry: MigrationEntry): entry is Checkpoint {
 // New migrations should be added to the top of the list.
 // The date is for reference only, and it does not affect migration order.
 const migrations: MigrationEntry[] = [
+  [
+    '21.04.2026 Disable oog-burn-inflight-inventory by default',
+    userData => {
+      if (!userData.settings.disabled.includes('oog-burn-inflight-inventory')) {
+        userData.settings.disabled.push('oog-burn-inflight-inventory');
+      }
+    },
+  ],
   ['10.03.2026 Checkpoint'],
   [
     '10.03.2026 Remove funny-rations',
