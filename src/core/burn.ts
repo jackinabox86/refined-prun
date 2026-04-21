@@ -66,6 +66,9 @@ const burnBySiteId = computed(() => {
 });
 
 function getInboundShipStores(planetNaturalId: string | undefined) {
+  if (!inboundShipInventoryEnabled.value) {
+    return [];
+  }
   if (!planetNaturalId) {
     return [];
   }
@@ -92,6 +95,12 @@ function getInboundShipStores(planetNaturalId: string | undefined) {
     }
   }
   return result;
+}
+
+const inboundShipInventoryEnabled = ref(false);
+
+export function setInboundShipInventoryEnabled(value: boolean) {
+  inboundShipInventoryEnabled.value = value;
 }
 
 export function getPlanetBurn(siteOrId?: PrunApi.Site | string | null) {
