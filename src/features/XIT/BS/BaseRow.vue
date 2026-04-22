@@ -1,13 +1,13 @@
 <script setup lang="ts">
 import PrunLink from '@src/components/PrunLink.vue';
 import PrunButton from '@src/components/PrunButton.vue';
-import DaysCell from '@src/features/XIT/BURN/DaysCell.vue';
 import InvBar from '@src/features/XIT/BS/InvBar.vue';
 import { showBuffer } from '@src/infrastructure/prun-ui/buffers';
 import { getPlanetBurn } from '@src/core/burn';
 import { countDays } from '@src/features/XIT/BURN/utils';
 import { warehousesStore } from '@src/infrastructure/prun-api/data/warehouses';
 import { storagesStore } from '@src/infrastructure/prun-api/data/storage';
+import { userData } from '@src/store/user-data';
 
 const { siteId, naturalId, planetName, storeId, showBurn } = defineProps<{
   siteId: string;
@@ -19,6 +19,22 @@ const { siteId, naturalId, planetName, storeId, showBurn } = defineProps<{
 
 const burn = computed(() => getPlanetBurn(siteId));
 const days = computed(() => (burn.value ? countDays(burn.value.burn) : undefined));
+
+const burnBgClass = computed(() => {
+  if (days.value === undefined) return {};
+  const d = Math.floor(days.value);
+  return {
+    [C.Workforces.daysMissing]: d <= userData.settings.burn.red,
+    [C.Workforces.daysWarning]: d <= userData.settings.burn.yellow,
+    [C.Workforces.daysSupplied]: d > userData.settings.burn.yellow,
+  };
+});
+
+const daysText = computed(() => {
+  if (days.value === undefined) return undefined;
+  const d = Math.floor(days.value);
+  return d < 500 ? String(d) : '∞';
+});
 
 const warehouse = computed(() => warehousesStore.getByEntityNaturalId(naturalId));
 const warehouseStore = computed(() =>
@@ -44,14 +60,22 @@ const warehouseStore = computed(() =>
         <PrunButton primary @click="showBuffer(`EXP ${siteId}`)">EXPERTS</PrunButton>
       </div>
     </td>
-    <template v-if="showBurn">
-      <DaysCell
-        v-if="days !== undefined"
-        :days="days"
-        :class="$style.burnCell"
-        @click="showBuffer(`XIT BURN ${naturalId}`)" />
-      <td v-else>-</td>
-    </template>
+    <td
+      v-if="showBurn"
+      :style="{ position: 'relative' }"
+      :class="$style.burnCell"
+      @click="showBuffer(`XIT BURN ${naturalId}`)">
+      <div
+        v-if="daysText !== undefined"
+        :style="{ position: 'absolute', left: 0, top: 0, width: '100%', height: '100%' }"
+        :class="burnBgClass" />
+      <div :class="$style.burnContent">
+        <PrunButton dark inline @click.stop="showBuffer(`XIT BURNACT ${naturalId}`)">
+          ACT
+        </PrunButton>
+        <span :class="$style.daysNum">{{ daysText ?? '-' }}</span>
+      </div>
+    </td>
     <td :class="$style.invCell">
       <InvBar
         :store-id="storeId"
@@ -109,6 +133,20 @@ const warehouseStore = computed(() =>
   cursor: pointer;
   width: 0;
   white-space: nowrap;
+  padding: 2px 4px;
+}
+
+.burnContent {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.daysNum {
+  display: inline-block;
+  min-width: 3ch;
+  text-align: right;
 }
 
 .invCell {
