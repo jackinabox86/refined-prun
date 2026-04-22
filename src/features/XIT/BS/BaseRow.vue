@@ -2,6 +2,7 @@
 import PrunLink from '@src/components/PrunLink.vue';
 import PrunButton from '@src/components/PrunButton.vue';
 import DaysCell from '@src/features/XIT/BURN/DaysCell.vue';
+import InvBar from '@src/features/XIT/BS/InvBar.vue';
 import { showBuffer } from '@src/infrastructure/prun-ui/buffers';
 import { getPlanetBurn } from '@src/core/burn';
 import { countDays } from '@src/features/XIT/BURN/utils';
@@ -28,10 +29,12 @@ const days = computed(() => (burn.value ? countDays(burn.value.burn) : undefined
       :class="$style.burnCell"
       @click="showBuffer(`XIT BURN ${naturalId}`)" />
     <td v-else>-</td>
+    <td :class="$style.invCell">
+      <InvBar :store-id="storeId" />
+    </td>
     <td>
       <div :class="$style.buttons">
         <PrunButton dark inline @click="showBuffer(`BBC ${naturalId}`)">BBC</PrunButton>
-        <PrunButton dark inline @click="showBuffer(`INV ${storeId.substring(0, 8)}`)">INV</PrunButton>
         <PrunButton dark inline @click="showBuffer(`BBL ${naturalId}`)">BBL</PrunButton>
       </div>
     </td>
@@ -47,5 +50,10 @@ const days = computed(() => (burn.value ? countDays(burn.value.burn) : undefined
 
 .burnCell {
   cursor: pointer;
+}
+
+.invCell {
+  min-width: 60px;
+  padding: 2px;
 }
 </style>
