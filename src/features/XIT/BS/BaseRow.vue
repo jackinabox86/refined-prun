@@ -6,19 +6,37 @@ import InvBar from '@src/features/XIT/BS/InvBar.vue';
 import { showBuffer } from '@src/infrastructure/prun-ui/buffers';
 import { getPlanetBurn } from '@src/core/burn';
 import { countDays } from '@src/features/XIT/BURN/utils';
+import { getPlanetProduction } from '@src/core/production';
 import { warehousesStore } from '@src/infrastructure/prun-api/data/warehouses';
 import { storagesStore } from '@src/infrastructure/prun-api/data/storage';
 
-const { siteId, naturalId, planetName, storeId, showBurn } = defineProps<{
+const { siteId, naturalId, planetName, storeId, showBurn, showProd } = defineProps<{
   siteId: string;
   naturalId: string;
   planetName: string;
   storeId: string;
   showBurn: boolean;
+  showProd: boolean;
 }>();
 
 const burn = computed(() => getPlanetBurn(siteId));
 const days = computed(() => (burn.value ? countDays(burn.value.burn) : undefined));
+
+const production = computed(() => getPlanetProduction(siteId));
+const prodTotals = computed(() => {
+  const prod = production.value;
+  if (!prod || prod.production.length === 0) {
+    return undefined;
+  }
+  const orders = sumBy(prod.production, x => x.orders.length);
+  const capacity = sumBy(prod.production, x => x.capacity);
+  return { orders, capacity };
+});
+const prodClass = computed(() => {
+  const totals = prodTotals.value;
+  if (!totals) return undefined;
+  return totals.orders < totals.capacity ? C.Workforces.daysMissing : C.Workforces.daysSupplied;
+});
 
 const warehouse = computed(() => warehousesStore.getByEntityNaturalId(naturalId));
 const warehouseStore = computed(() =>
@@ -50,6 +68,13 @@ const warehouseStore = computed(() =>
         :days="days"
         :class="$style.burnCell"
         @click="showBuffer(`XIT BURN ${naturalId}`)" />
+      <td v-else>-</td>
+    </template>
+    <template v-if="showProd">
+      <td v-if="prodTotals" :class="$style.prodCell">
+        <div :class="[prodClass, $style.prodOverlay]" />
+        <PrunButton dark inline @click="showBuffer(`XIT PROD ${naturalId}`)">PROD</PrunButton>
+      </td>
       <td v-else>-</td>
     </template>
     <td :class="$style.invCell">
@@ -109,6 +134,22 @@ const warehouseStore = computed(() =>
   cursor: pointer;
   width: 0;
   white-space: nowrap;
+}
+
+.prodCell {
+  position: relative;
+  width: 0;
+  white-space: nowrap;
+  text-align: center;
+}
+
+.prodOverlay {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
 }
 
 .invCell {
