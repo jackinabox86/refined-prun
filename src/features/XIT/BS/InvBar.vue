@@ -1,11 +1,18 @@
 <script setup lang="ts">
 import { storagesStore } from '@src/infrastructure/prun-api/data/storage';
+import { shipsStore } from '@src/infrastructure/prun-api/data/ships';
+import { flightsStore } from '@src/infrastructure/prun-api/data/flights';
 import { getMaterialCategoryCssClass } from '@src/infrastructure/prun-ui/item-tracker';
 import { materialCategoriesStore } from '@src/infrastructure/prun-api/data/material-categories';
+import { getEntityNaturalIdFromAddress } from '@src/infrastructure/prun-api/data/addresses';
 import { fixed02 } from '@src/utils/format';
 import { showBuffer } from '@src/infrastructure/prun-ui/buffers';
 
-const { storeId } = defineProps<{ storeId: string }>();
+const props = defineProps<{
+  storeId: string;
+  onClickCmd: string;
+  naturalId?: string;
+}>();
 
 const $style = useCssModule();
 
@@ -17,16 +24,34 @@ interface Segment {
   title: string;
 }
 
-const invBar = computed(() => {
-  const inv = storagesStore.getById(storeId);
-  if (!inv || inv.items.length === 0) {
-    return { segments: [] as Segment[], miniMode: false };
-  }
+const inboundStores = computed<PrunApi.Store[]>(() => {
+  if (!props.naturalId) return [];
+  const ships = shipsStore.all.value;
+  const allStores = storagesStore.all.value;
+  if (!ships || !allStores) return [];
 
-  const wCap = inv.weightCapacity;
-  const vCap = inv.volumeCapacity;
-  const wLoad = inv.weightLoad;
-  const vLoad = inv.volumeLoad;
+  const result: PrunApi.Store[] = [];
+  for (const ship of ships) {
+    if (!ship.flightId) continue;
+    const flight = flightsStore.getById(ship.flightId);
+    if (!flight) continue;
+    if (getEntityNaturalIdFromAddress(flight.destination) !== props.naturalId) continue;
+    const shipStore = allStores.find(x => x.id === ship.idShipStore);
+    if (shipStore) result.push(shipStore);
+  }
+  return result;
+});
+
+const invBar = computed(() => {
+  const primary = storagesStore.getById(props.storeId);
+  if (!primary) return { segments: [] as Segment[], miniMode: false };
+
+  const all = [primary, ...inboundStores.value];
+
+  const wCap = primary.weightCapacity;
+  const vCap = primary.volumeCapacity;
+  const wLoad = all.reduce((sum, s) => sum + s.weightLoad, 0);
+  const vLoad = all.reduce((sum, s) => sum + s.volumeLoad, 0);
 
   const weightRatio = wLoad / wCap;
   const volumeRatio = vLoad / vCap;
@@ -45,7 +70,7 @@ const invBar = computed(() => {
   };
 
   const segments: Segment[] = [];
-  const summary = getInventorySummary(inv);
+  const summary = getInventorySummary(all);
 
   const categories = [...summary.categories.keys()].sort((a, b) => a.name.localeCompare(b.name));
   for (const category of categories) {
@@ -102,31 +127,33 @@ interface CategorySummary {
   volume: number;
 }
 
-function getInventorySummary(store: PrunApi.Store) {
+function getInventorySummary(stores: PrunApi.Store[]) {
   const shipments: CategorySummary = { weight: 0, volume: 0 };
   const categories = new Map<PrunApi.MaterialCategory, CategorySummary>();
 
-  for (const item of store.items) {
-    if (item.type === 'SHIPMENT') {
-      shipments.weight += item.weight;
-      shipments.volume += item.volume;
-      continue;
+  for (const store of stores) {
+    for (const item of store.items) {
+      if (item.type === 'SHIPMENT') {
+        shipments.weight += item.weight;
+        shipments.volume += item.volume;
+        continue;
+      }
+
+      const material = item.quantity?.material;
+      if (!material) continue;
+
+      const category = materialCategoriesStore.getById(material.category);
+      if (!category) continue;
+
+      let categorySummary = categories.get(category);
+      if (!categorySummary) {
+        categorySummary = { weight: 0, volume: 0 };
+        categories.set(category, categorySummary);
+      }
+
+      categorySummary.weight += item.weight;
+      categorySummary.volume += item.volume;
     }
-
-    const material = item.quantity?.material;
-    if (!material) continue;
-
-    const category = materialCategoriesStore.getById(material.category);
-    if (!category) continue;
-
-    let categorySummary = categories.get(category);
-    if (!categorySummary) {
-      categorySummary = { weight: 0, volume: 0 };
-      categories.set(category, categorySummary);
-    }
-
-    categorySummary.weight += item.weight;
-    categorySummary.volume += item.volume;
   }
 
   return { shipments, categories };
@@ -152,9 +179,12 @@ watch(
 );
 
 const totalLoadRatio = computed(() => {
-  const inv = storagesStore.getById(storeId);
-  if (!inv) return 0;
-  return Math.max(inv.weightLoad / inv.weightCapacity, inv.volumeLoad / inv.volumeCapacity);
+  const primary = storagesStore.getById(props.storeId);
+  if (!primary) return 0;
+  const all = [primary, ...inboundStores.value];
+  const wLoad = all.reduce((sum, s) => sum + s.weightLoad, 0);
+  const vLoad = all.reduce((sum, s) => sum + s.volumeLoad, 0);
+  return Math.max(wLoad / primary.weightCapacity, vLoad / primary.volumeCapacity);
 });
 
 const stripeAlertColor = computed(() => {
@@ -183,7 +213,7 @@ const stripeWidth = computed(() => {
   <div
     :class="[C.ProgressBar.progress, $style.container, { [$style.isUpdating]: isAnimating }]"
     :style="{ '--stripe-color': stripeAlertColor, '--stripe-width': stripeWidth }"
-    @click="showBuffer(`INV ${storeId.substring(0, 8)}`)">
+    @click="showBuffer(onClickCmd)">
     <div :class="[$style.bar, miniBarClass]">
       <div
         v-for="segment in invBar.segments"

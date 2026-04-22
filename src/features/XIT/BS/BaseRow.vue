@@ -6,6 +6,8 @@ import InvBar from '@src/features/XIT/BS/InvBar.vue';
 import { showBuffer } from '@src/infrastructure/prun-ui/buffers';
 import { getPlanetBurn } from '@src/core/burn';
 import { countDays } from '@src/features/XIT/BURN/utils';
+import { warehousesStore } from '@src/infrastructure/prun-api/data/warehouses';
+import { storagesStore } from '@src/infrastructure/prun-api/data/storage';
 
 const { siteId, naturalId, planetName, storeId } = defineProps<{
   siteId: string;
@@ -16,6 +18,13 @@ const { siteId, naturalId, planetName, storeId } = defineProps<{
 
 const burn = computed(() => getPlanetBurn(siteId));
 const days = computed(() => (burn.value ? countDays(burn.value.burn) : undefined));
+
+const warehouse = computed(() => warehousesStore.getByEntityNaturalId(naturalId));
+const warehouseStore = computed(() =>
+  storagesStore
+    .getByAddressableId(warehouse.value?.warehouseId)
+    ?.find(x => x.type === 'WAREHOUSE_STORE'),
+);
 </script>
 
 <template>
@@ -30,7 +39,16 @@ const days = computed(() => (burn.value ? countDays(burn.value.burn) : undefined
       @click="showBuffer(`XIT BURN ${naturalId}`)" />
     <td v-else>-</td>
     <td :class="$style.invCell">
-      <InvBar :store-id="storeId" />
+      <InvBar
+        :store-id="storeId"
+        :natural-id="naturalId"
+        :on-click-cmd="`INV ${storeId.substring(0, 8)}`" />
+    </td>
+    <td :class="$style.invCell">
+      <InvBar
+        v-if="warehouseStore"
+        :store-id="warehouseStore.id"
+        :on-click-cmd="`WAR ${warehouse!.warehouseId}`" />
     </td>
     <td>
       <div :class="$style.buttons">

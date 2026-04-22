@@ -42,6 +42,7 @@ const bases = computed<BaseEntry[] | undefined>(() => {
         <th>Planet</th>
         <th>Burn</th>
         <th>Inv</th>
+        <th>War</th>
         <th>CMD</th>
       </tr>
     </thead>
