@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import PrunLink from '@src/components/PrunLink.vue';
+import PrunButton from '@src/components/PrunButton.vue';
 import DaysCell from '@src/features/XIT/BURN/DaysCell.vue';
 import InvBar from '@src/features/XIT/BS/InvBar.vue';
 import { showBuffer } from '@src/infrastructure/prun-ui/buffers';
@@ -28,22 +29,18 @@ const warehouseStore = computed(() =>
 
 <template>
   <tr>
-    <td>
-      <PrunLink inline :command="`PLI ${naturalId}`">{{ planetName }}</PrunLink>
+    <td :class="$style.planetCell">
+      <PrunLink inline :command="`PLI ${naturalId}`" :class="$style.planetLink">{{
+        planetName
+      }}</PrunLink>
     </td>
     <td :class="$style.cmdCell">
-      <div :class="$style.trigger">CMDS&#x25B6;</div>
+      <PrunButton primary inline>CMDS&#x25B6;</PrunButton>
       <div :class="$style.expandedButtons">
-        <button :class="$style.yellowBtn" @click="showBuffer(`BBL ${naturalId}`)">
-          Buildings
-        </button>
-        <button :class="$style.yellowBtn" @click="showBuffer(`BBC ${naturalId}`)">
-          Construct
-        </button>
-        <button :class="$style.yellowBtn" @click="showBuffer(`WF ${naturalId}`)">
-          Workforce
-        </button>
-        <button :class="$style.yellowBtn" @click="showBuffer(`EXP ${naturalId}`)"> Experts </button>
+        <PrunButton primary inline @click="showBuffer(`BBL ${naturalId}`)">BUILDINGS</PrunButton>
+        <PrunButton primary inline @click="showBuffer(`BBC ${naturalId}`)">CONSTRUCT</PrunButton>
+        <PrunButton primary inline @click="showBuffer(`WF ${naturalId}`)">WORKFORCE</PrunButton>
+        <PrunButton primary inline @click="showBuffer(`EXP ${naturalId}`)">EXPERTS</PrunButton>
       </div>
     </td>
     <DaysCell
@@ -68,28 +65,30 @@ const warehouseStore = computed(() =>
 </template>
 
 <style module>
+.planetCell {
+  max-width: 30ch;
+}
+
+.planetLink {
+  display: block;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
 .cmdCell {
   position: relative;
   overflow: visible;
   white-space: nowrap;
-}
-
-.trigger {
-  display: inline-block;
-  border: 1px solid #f7a600;
-  color: #f7a600;
-  padding: 1px 5px;
-  font-size: 11px;
-  cursor: default;
-  white-space: nowrap;
+  width: 0;
 }
 
 .expandedButtons {
   display: none;
   position: absolute;
-  left: 0;
-  top: 0;
-  height: 100%;
+  left: 100%;
+  top: 50%;
+  transform: translateY(-50%);
   z-index: 10;
   background: #23282b;
   flex-direction: row;
@@ -103,24 +102,10 @@ const warehouseStore = computed(() =>
   display: flex;
 }
 
-.yellowBtn {
-  background-color: transparent;
-  border: 1px solid #f7a600;
-  color: #f7a600;
-  cursor: pointer;
-  padding: 1px 5px;
-  font-size: 11px;
-  font-family: inherit;
-  white-space: nowrap;
-
-  &:hover {
-    background-color: #f7a600;
-    color: #000;
-  }
-}
-
 .burnCell {
   cursor: pointer;
+  width: 0;
+  white-space: nowrap;
 }
 
 .invCell {

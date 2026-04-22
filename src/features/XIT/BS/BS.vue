@@ -40,8 +40,8 @@ const bases = computed<BaseEntry[] | undefined>(() => {
     <thead>
       <tr>
         <th>Planet</th>
-        <th>CMD</th>
-        <th>Burn</th>
+        <th :class="$style.narrowCol">CMD</th>
+        <th :class="$style.narrowCol">Burn</th>
         <th>Inv</th>
         <th>War</th>
       </tr>
@@ -57,3 +57,10 @@ const bases = computed<BaseEntry[] | undefined>(() => {
     </tbody>
   </table>
 </template>
+
+<style module>
+.narrowCol {
+  width: 0;
+  white-space: nowrap;
+}
+</style>
