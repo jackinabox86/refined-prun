@@ -37,10 +37,10 @@ const warehouseStore = computed(() =>
     <td :class="$style.cmdCell">
       <PrunButton primary>CMDS&#x25B6;</PrunButton>
       <div :class="$style.expandedButtons">
-        <PrunButton primary @click="showBuffer(`BBL ${naturalId}`)">BUILDINGS</PrunButton>
+        <PrunButton primary @click="showBuffer(`BBL ${siteId}`)">BUILDINGS</PrunButton>
         <PrunButton primary @click="showBuffer(`BBC ${naturalId}`)">CONSTRUCT</PrunButton>
-        <PrunButton primary @click="showBuffer(`WF ${naturalId}`)">WORKFORCE</PrunButton>
-        <PrunButton primary @click="showBuffer(`EXP ${naturalId}`)">EXPERTS</PrunButton>
+        <PrunButton primary @click="showBuffer(`WF ${siteId}`)">WORKFORCE</PrunButton>
+        <PrunButton primary @click="showBuffer(`EXP ${siteId}`)">EXPERTS</PrunButton>
       </div>
     </td>
     <DaysCell
@@ -59,7 +59,7 @@ const warehouseStore = computed(() =>
       <InvBar
         v-if="warehouseStore"
         :store-id="warehouseStore.id"
-        :on-click-cmd="`WAR ${warehouse!.warehouseId}`" />
+        :on-click-cmd="`WAR ${naturalId}`" />
     </td>
   </tr>
 </template>
