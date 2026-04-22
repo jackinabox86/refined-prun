@@ -28,6 +28,15 @@ restore_font() {
   fi
 }
 
+# Revert src/assets/fonts/*.woff2 back to whatever is in the index (typically
+# LFS pointers) so we don't leave the working tree dirty after the build.
+cleanup_fonts() {
+  git checkout -- \
+    "$fonts_dst/fa-solid-900.woff2" \
+    "$fonts_dst/fa-regular-400.woff2" 2>/dev/null || true
+}
+trap cleanup_fonts EXIT
+
 restore_font "fa-solid-900.woff2"
 restore_font "fa-regular-400.woff2"
 
