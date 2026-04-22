@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import PrunLink from '@src/components/PrunLink.vue';
-import PrunButton from '@src/components/PrunButton.vue';
 import DaysCell from '@src/features/XIT/BURN/DaysCell.vue';
 import InvBar from '@src/features/XIT/BS/InvBar.vue';
 import { showBuffer } from '@src/infrastructure/prun-ui/buffers';
@@ -32,6 +31,21 @@ const warehouseStore = computed(() =>
     <td>
       <PrunLink inline :command="`PLI ${naturalId}`">{{ planetName }}</PrunLink>
     </td>
+    <td :class="$style.cmdCell">
+      <div :class="$style.trigger">CMDS&#x25B6;</div>
+      <div :class="$style.expandedButtons">
+        <button :class="$style.yellowBtn" @click="showBuffer(`BBL ${naturalId}`)">
+          Buildings
+        </button>
+        <button :class="$style.yellowBtn" @click="showBuffer(`BBC ${naturalId}`)">
+          Construct
+        </button>
+        <button :class="$style.yellowBtn" @click="showBuffer(`WF ${naturalId}`)">
+          Workforce
+        </button>
+        <button :class="$style.yellowBtn" @click="showBuffer(`EXP ${naturalId}`)"> Experts </button>
+      </div>
+    </td>
     <DaysCell
       v-if="days !== undefined"
       :days="days"
@@ -50,20 +64,59 @@ const warehouseStore = computed(() =>
         :store-id="warehouseStore.id"
         :on-click-cmd="`WAR ${warehouse!.warehouseId}`" />
     </td>
-    <td>
-      <div :class="$style.buttons">
-        <PrunButton dark inline @click="showBuffer(`BBC ${naturalId}`)">BBC</PrunButton>
-        <PrunButton dark inline @click="showBuffer(`BBL ${naturalId}`)">BBL</PrunButton>
-      </div>
-    </td>
   </tr>
 </template>
 
 <style module>
-.buttons {
-  display: flex;
+.cmdCell {
+  position: relative;
+  overflow: visible;
+  white-space: nowrap;
+}
+
+.trigger {
+  display: inline-block;
+  border: 1px solid #f7a600;
+  color: #f7a600;
+  padding: 1px 5px;
+  font-size: 11px;
+  cursor: default;
+  white-space: nowrap;
+}
+
+.expandedButtons {
+  display: none;
+  position: absolute;
+  left: 0;
+  top: 0;
+  height: 100%;
+  z-index: 10;
+  background: #23282b;
   flex-direction: row;
-  column-gap: 0.25rem;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0 4px;
+  white-space: nowrap;
+}
+
+.cmdCell:hover .expandedButtons {
+  display: flex;
+}
+
+.yellowBtn {
+  background-color: transparent;
+  border: 1px solid #f7a600;
+  color: #f7a600;
+  cursor: pointer;
+  padding: 1px 5px;
+  font-size: 11px;
+  font-family: inherit;
+  white-space: nowrap;
+
+  &:hover {
+    background-color: #f7a600;
+    color: #000;
+  }
 }
 
 .burnCell {

@@ -40,10 +40,10 @@ const bases = computed<BaseEntry[] | undefined>(() => {
     <thead>
       <tr>
         <th>Planet</th>
+        <th>CMD</th>
         <th>Burn</th>
         <th>Inv</th>
         <th>War</th>
-        <th>CMD</th>
       </tr>
     </thead>
     <tbody>
