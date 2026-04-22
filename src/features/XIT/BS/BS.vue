@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import LoadingSpinner from '@src/components/LoadingSpinner.vue';
+import RadioItem from '@src/components/forms/RadioItem.vue';
 import BaseRow from '@src/features/XIT/BS/BaseRow.vue';
 import { sitesStore } from '@src/infrastructure/prun-api/data/sites';
 import { storagesStore } from '@src/infrastructure/prun-api/data/storage';
@@ -17,6 +18,7 @@ type SortDirection = 'asc' | 'desc';
 
 const sortKey = useTileState<SortKey>('sortKey', 'burn');
 const sortDirection = useTileState<SortDirection>('sortDirection', 'asc');
+const showBurn = useTileState('showBurn', true);
 
 function setSort(key: SortKey) {
   if (sortKey.value === key) {
@@ -80,36 +82,43 @@ const bases = computed<BaseEntry[] | undefined>(() => {
 
 <template>
   <LoadingSpinner v-if="bases === undefined" />
-  <table v-else>
-    <thead>
-      <tr>
-        <th
-          :class="[$style.narrowCol, $style.sortable, { [$style.sorted]: isSorted('name') }]"
-          @click="setSort('name')">
-          Planet
-          <span :class="$style.sortIndicator">{{ getSortIndicator('name') }}</span>
-        </th>
-        <th :class="$style.narrowCol">CMD</th>
-        <th
-          :class="[$style.narrowCol, $style.sortable, { [$style.sorted]: isSorted('burn') }]"
-          @click="setSort('burn')">
-          Burn
-          <span :class="$style.sortIndicator">{{ getSortIndicator('burn') }}</span>
-        </th>
-        <th :class="$style.invCol">Inv</th>
-        <th :class="$style.warCol">War</th>
-      </tr>
-    </thead>
-    <tbody>
-      <BaseRow
-        v-for="base in bases"
-        :key="base.naturalId"
-        :site-id="base.siteId"
-        :natural-id="base.naturalId"
-        :planet-name="base.planetName"
-        :store-id="base.storeId" />
-    </tbody>
-  </table>
+  <template v-else>
+    <div :class="C.ComExOrdersPanel.filter">
+      <RadioItem v-model="showBurn" horizontal>Burn</RadioItem>
+    </div>
+    <table>
+      <thead>
+        <tr>
+          <th
+            :class="[$style.narrowCol, $style.sortable, { [$style.sorted]: isSorted('name') }]"
+            @click="setSort('name')">
+            Planet
+            <span :class="$style.sortIndicator">{{ getSortIndicator('name') }}</span>
+          </th>
+          <th :class="$style.narrowCol">CMD</th>
+          <th
+            v-if="showBurn"
+            :class="[$style.narrowCol, $style.sortable, { [$style.sorted]: isSorted('burn') }]"
+            @click="setSort('burn')">
+            Burn
+            <span :class="$style.sortIndicator">{{ getSortIndicator('burn') }}</span>
+          </th>
+          <th :class="$style.invCol">Inv</th>
+          <th :class="$style.warCol">War</th>
+        </tr>
+      </thead>
+      <tbody>
+        <BaseRow
+          v-for="base in bases"
+          :key="base.naturalId"
+          :site-id="base.siteId"
+          :natural-id="base.naturalId"
+          :planet-name="base.planetName"
+          :store-id="base.storeId"
+          :show-burn="showBurn" />
+      </tbody>
+    </table>
+  </template>
 </template>
 
 <style module>

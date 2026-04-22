@@ -9,11 +9,12 @@ import { countDays } from '@src/features/XIT/BURN/utils';
 import { warehousesStore } from '@src/infrastructure/prun-api/data/warehouses';
 import { storagesStore } from '@src/infrastructure/prun-api/data/storage';
 
-const { siteId, naturalId, planetName, storeId } = defineProps<{
+const { siteId, naturalId, planetName, storeId, showBurn } = defineProps<{
   siteId: string;
   naturalId: string;
   planetName: string;
   storeId: string;
+  showBurn: boolean;
 }>();
 
 const burn = computed(() => getPlanetBurn(siteId));
@@ -43,12 +44,14 @@ const warehouseStore = computed(() =>
         <PrunButton primary @click="showBuffer(`EXP ${siteId}`)">EXPERTS</PrunButton>
       </div>
     </td>
-    <DaysCell
-      v-if="days !== undefined"
-      :days="days"
-      :class="$style.burnCell"
-      @click="showBuffer(`XIT BURN ${naturalId}`)" />
-    <td v-else>-</td>
+    <template v-if="showBurn">
+      <DaysCell
+        v-if="days !== undefined"
+        :days="days"
+        :class="$style.burnCell"
+        @click="showBuffer(`XIT BURN ${naturalId}`)" />
+      <td v-else>-</td>
+    </template>
     <td :class="$style.invCell">
       <InvBar
         :store-id="storeId"
