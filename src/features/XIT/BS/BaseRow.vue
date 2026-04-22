@@ -35,12 +35,12 @@ const warehouseStore = computed(() =>
       }}</PrunLink>
     </td>
     <td :class="$style.cmdCell">
-      <PrunButton primary inline>CMDS&#x25B6;</PrunButton>
+      <PrunButton primary>CMDS&#x25B6;</PrunButton>
       <div :class="$style.expandedButtons">
-        <PrunButton primary inline @click="showBuffer(`BBL ${naturalId}`)">BUILDINGS</PrunButton>
-        <PrunButton primary inline @click="showBuffer(`BBC ${naturalId}`)">CONSTRUCT</PrunButton>
-        <PrunButton primary inline @click="showBuffer(`WF ${naturalId}`)">WORKFORCE</PrunButton>
-        <PrunButton primary inline @click="showBuffer(`EXP ${naturalId}`)">EXPERTS</PrunButton>
+        <PrunButton primary @click="showBuffer(`BBL ${naturalId}`)">BUILDINGS</PrunButton>
+        <PrunButton primary @click="showBuffer(`BBC ${naturalId}`)">CONSTRUCT</PrunButton>
+        <PrunButton primary @click="showBuffer(`WF ${naturalId}`)">WORKFORCE</PrunButton>
+        <PrunButton primary @click="showBuffer(`EXP ${naturalId}`)">EXPERTS</PrunButton>
       </div>
     </td>
     <DaysCell

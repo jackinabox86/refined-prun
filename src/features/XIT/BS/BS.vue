@@ -39,11 +39,11 @@ const bases = computed<BaseEntry[] | undefined>(() => {
   <table v-else>
     <thead>
       <tr>
-        <th>Planet</th>
+        <th :class="$style.narrowCol">Planet</th>
         <th :class="$style.narrowCol">CMD</th>
         <th :class="$style.narrowCol">Burn</th>
-        <th>Inv</th>
-        <th>War</th>
+        <th :class="$style.invCol">Inv</th>
+        <th :class="$style.warCol">War</th>
       </tr>
     </thead>
     <tbody>
@@ -62,5 +62,13 @@ const bases = computed<BaseEntry[] | undefined>(() => {
 .narrowCol {
   width: 0;
   white-space: nowrap;
+}
+
+.invCol {
+  width: 67%;
+}
+
+.warCol {
+  width: 33%;
 }
 </style>
