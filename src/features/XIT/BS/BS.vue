@@ -8,12 +8,40 @@ import {
   getEntityNaturalIdFromAddress,
 } from '@src/infrastructure/prun-api/data/addresses';
 import { comparePlanets } from '@src/util';
+import { useTileState } from '@src/store/user-data-tiles';
+import { getPlanetBurn } from '@src/core/burn';
+import { countDays } from '@src/features/XIT/BURN/utils';
+
+type SortKey = 'name' | 'burn';
+type SortDirection = 'asc' | 'desc';
+
+const sortKey = useTileState<SortKey>('sortKey', 'burn');
+const sortDirection = useTileState<SortDirection>('sortDirection', 'asc');
+
+function setSort(key: SortKey) {
+  if (sortKey.value === key) {
+    sortDirection.value = sortDirection.value === 'asc' ? 'desc' : 'asc';
+  } else {
+    sortKey.value = key;
+    sortDirection.value = 'asc';
+  }
+}
+
+function getSortIndicator(key: SortKey) {
+  if (sortKey.value !== key) return undefined;
+  return sortDirection.value === 'asc' ? '▲' : '▼';
+}
+
+function isSorted(key: SortKey) {
+  return sortKey.value === key;
+}
 
 interface BaseEntry {
   siteId: string;
   naturalId: string;
   planetName: string;
   storeId: string;
+  days: number | undefined;
 }
 
 const bases = computed<BaseEntry[] | undefined>(() => {
@@ -22,15 +50,31 @@ const bases = computed<BaseEntry[] | undefined>(() => {
     return undefined;
   }
 
-  return sites
-    .map(site => ({
-      siteId: site.siteId,
-      naturalId: getEntityNaturalIdFromAddress(site.address) ?? '',
-      planetName: getEntityNameFromAddress(site.address) ?? '',
-      storeId: storagesStore.getByAddressableId(site.siteId)?.[0]?.id ?? '',
-    }))
-    .filter(x => x.naturalId)
-    .sort((a, b) => comparePlanets(a.naturalId, b.naturalId));
+  const entries = sites
+    .map(site => {
+      const burn = getPlanetBurn(site.siteId);
+      return {
+        siteId: site.siteId,
+        naturalId: getEntityNaturalIdFromAddress(site.address) ?? '',
+        planetName: getEntityNameFromAddress(site.address) ?? '',
+        storeId: storagesStore.getByAddressableId(site.siteId)?.[0]?.id ?? '',
+        days: burn ? countDays(burn.burn) : undefined,
+      };
+    })
+    .filter(x => x.naturalId);
+
+  const dir = sortDirection.value === 'asc' ? 1 : -1;
+
+  entries.sort((a, b) => {
+    if (sortKey.value === 'burn') {
+      const daysA = a.days ?? Infinity;
+      const daysB = b.days ?? Infinity;
+      if (daysA !== daysB) return (daysA - daysB) * dir;
+    }
+    return comparePlanets(a.naturalId, b.naturalId) * dir;
+  });
+
+  return entries;
 });
 </script>
 
@@ -39,9 +83,19 @@ const bases = computed<BaseEntry[] | undefined>(() => {
   <table v-else>
     <thead>
       <tr>
-        <th :class="$style.narrowCol">Planet</th>
+        <th
+          :class="[$style.narrowCol, $style.sortable, { [$style.sorted]: isSorted('name') }]"
+          @click="setSort('name')">
+          Planet
+          <span :class="$style.sortIndicator">{{ getSortIndicator('name') }}</span>
+        </th>
         <th :class="$style.narrowCol">CMD</th>
-        <th :class="$style.narrowCol">Burn</th>
+        <th
+          :class="[$style.narrowCol, $style.sortable, { [$style.sorted]: isSorted('burn') }]"
+          @click="setSort('burn')">
+          Burn
+          <span :class="$style.sortIndicator">{{ getSortIndicator('burn') }}</span>
+        </th>
         <th :class="$style.invCol">Inv</th>
         <th :class="$style.warCol">War</th>
       </tr>
@@ -70,5 +124,18 @@ const bases = computed<BaseEntry[] | undefined>(() => {
 
 .warCol {
   width: 33%;
+}
+
+.sortable {
+  cursor: pointer;
+  user-select: none;
+}
+
+.sorted {
+  color: rgb(171, 198, 128);
+}
+
+.sortIndicator {
+  font-weight: bold;
 }
 </style>
