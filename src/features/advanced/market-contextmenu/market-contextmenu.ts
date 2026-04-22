@@ -83,7 +83,7 @@ async function init() {
     const target = (event.target as HTMLElement).closest<HTMLElement>(materialSelector);
     if (target !== null) {
       event.preventDefault();
-      store.showMenu(event, target.textContent ?? '');
+      store.showMenu(event, _$(target, C.ColoredIcon.label)?.textContent ?? '');
       return;
     }
     if (isOpen) {
