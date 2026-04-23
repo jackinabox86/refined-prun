@@ -1,19 +1,3 @@
 {
-  "$schema": "https://json.schemastore.org/claude-code-settings.json",
-  "hooks": {
-    "PostToolUse": [
-      {
-        "matcher": "Bash",
-        "hooks": [
-          {
-            "type": "command",
-            "if": "Bash(git commit*)",
-            "timeout": 240,
-            "statusMessage": "Rebuilding dist.zip",
-            "command": "bash -c 'set -e; cd \"$(git rev-parse --show-toplevel 2>/dev/null || echo .)\"; branch=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo); [ \"$branch\" = \"main\" ] && exit 0; last_msg=$(git log -1 --pretty=%s 2>/dev/null || echo); case \"$last_msg\" in *\"[auto-dist]\"*) exit 0;; esac; if ! ./scripts/build-dist.sh >/tmp/rprun-build-dist.log 2>&1; then echo \"build-dist.sh failed (see /tmp/rprun-build-dist.log):\" >&2; tail -20 /tmp/rprun-build-dist.log >&2; exit 1; fi; git add -f dist.zip 2>/dev/null || true; if ! git diff --cached --quiet -- dist.zip 2>/dev/null; then git commit -m \"Update dist.zip [auto-dist]\"; fi'"
-          }
-        ]
-      }
-    ]
-  }
+  "$schema": "https://json.schemastore.org/claude-code-settings.json"
 }
