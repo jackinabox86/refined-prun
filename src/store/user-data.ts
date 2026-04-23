@@ -52,6 +52,7 @@ export const initialUserData = deepFreeze({
     ] as [string, string][],
     buffers: [] as [string, number, number][],
     contextMenuExchange: 'AI1' as UserData.Exchange,
+    cxmOrder: ['AI1', 'CI1', 'CI2', 'IC1', 'NC1', 'NC2'] as UserData.Exchange[],
     audioVolume: 0.4,
   },
   sorting: {} as Record<string, UserData.StoreSortingData>,
