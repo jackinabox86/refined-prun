@@ -20,6 +20,8 @@ import Active from '@src/components/forms/Active.vue';
 import SectionHeader from '@src/components/SectionHeader.vue';
 import { useXitParameters } from '@src/hooks/use-xit-parameters';
 import PrunLink from '@src/components/PrunLink.vue';
+import PrunButton from '@src/components/PrunButton.vue';
+import { showBuffer } from '@src/infrastructure/prun-ui/buffers';
 import { objectId } from '@src/utils/object-id';
 
 const parameters = useXitParameters();
@@ -101,6 +103,7 @@ function calculateAge(lastRepair: number) {
           <th v-if="isMultiTarget">Target</th>
           <th>Age (days)</th>
           <th>Condition</th>
+          <th>CMD</th>
         </tr>
       </thead>
       <tbody>
@@ -111,12 +114,18 @@ function calculateAge(lastRepair: number) {
           </td>
           <td>{{ fixed1(calculateAge(entry.lastRepair)) }}</td>
           <td>{{ percent1(entry.condition) }}</td>
+          <td>
+            <PrunButton dark inline @click="showBuffer(`XIT REPAIRACT ${entry.naturalId}`)">
+              REP
+            </PrunButton>
+          </td>
         </tr>
         <tr v-for="entry in visibleShips" :key="objectId(entry)">
           <td>(Ship)</td>
           <td>{{ entry.target }}</td>
           <td>{{ fixed1(calculateAge(entry.lastRepair)) }}</td>
           <td>{{ percent1(entry.condition) }}</td>
+          <td />
         </tr>
       </tbody>
     </table>

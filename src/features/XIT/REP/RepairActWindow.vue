@@ -5,7 +5,6 @@ import ExecuteActionPackage from '@src/features/XIT/ACT/ExecuteActionPackage.vue
 import { sitesStore } from '@src/infrastructure/prun-api/data/sites';
 import { getEntityNameFromAddress } from '@src/infrastructure/prun-api/data/addresses';
 import { configurableValue } from '@src/features/XIT/ACT/shared-types';
-import { userData } from '@src/store/user-data';
 
 // Join all parameters in case a naturalId was split on underscores by the XIT router.
 const parameters = useXitParameters();
@@ -44,8 +43,8 @@ const pkg = computed(
           type: 'Repair' as UserData.MaterialGroupType,
           name: 'Repair',
           planet: planetName.value,
-          days: userData.settings.repair.threshold,
-          advanceDays: userData.settings.repair.offset,
+          days: configurableValue,
+          advanceDays: configurableValue,
         },
       ],
       actions: [

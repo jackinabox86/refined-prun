@@ -15,14 +15,22 @@ act.addMaterialGroup<Config>({
     }
 
     const days = data.days;
-    const daysPart = days !== undefined ? `older than ${days} day${days == 1 ? '' : 's'}` : '';
+    const daysLabel = days === configurableValue ? '?' : days;
+    const daysPart = days !== undefined ? `older than ${daysLabel} day${days == 1 ? '' : 's'}` : '';
     const advanceDays = data.advanceDays ?? 0;
-    return `Repair buildings on ${data.planet} ${daysPart} in ${advanceDays} day${advanceDays == 1 ? '' : 's'}`;
+    const advanceLabel = advanceDays === configurableValue ? '?' : advanceDays;
+    return `Repair buildings on ${data.planet} ${daysPart} in ${advanceLabel} day${advanceDays == 1 ? '' : 's'}`;
   },
   editComponent: Edit,
   configureComponent: Configure,
-  needsConfigure: data => data.planet === configurableValue,
-  isValidConfig: (data, config) => data.planet !== configurableValue || config.planet !== undefined,
+  needsConfigure: data =>
+    data.planet === configurableValue ||
+    data.days === configurableValue ||
+    data.advanceDays === configurableValue,
+  isValidConfig: (data, config) =>
+    (data.planet !== configurableValue || config.planet !== undefined) &&
+    (data.days !== configurableValue || config.days !== undefined) &&
+    (data.advanceDays !== configurableValue || config.advanceDays !== undefined),
   generateMaterialBill: async ({ data, config, log }) => {
     if (!data.planet) {
       log.error('Resupply planet is not configured');
@@ -36,9 +44,12 @@ act.addMaterialGroup<Config>({
       return undefined;
     }
 
-    const days = typeof data.days === 'number' ? data.days : parseFloat(data.days!);
+    const rawDays = data.days === configurableValue ? config.days : data.days;
+    const rawAdvanceDays =
+      data.advanceDays === configurableValue ? config.advanceDays : data.advanceDays;
+    const days = typeof rawDays === 'number' ? rawDays : parseFloat(rawDays!);
     let advanceDays =
-      typeof data.advanceDays === 'number' ? data.advanceDays : parseFloat(data.advanceDays!);
+      typeof rawAdvanceDays === 'number' ? rawAdvanceDays : parseFloat(rawAdvanceDays!);
     const threshold = isNaN(days) ? 0 : days;
     advanceDays = isNaN(advanceDays) ? 0 : advanceDays;
 
