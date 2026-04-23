@@ -30,8 +30,10 @@ function setSort(key: SortKey) {
 }
 
 function getSortIndicator(key: SortKey) {
-  if (sortKey.value !== key) return undefined;
-  return sortDirection.value === 'asc' ? '▲' : '▼';
+  if (sortKey.value === key) {
+    return sortDirection.value === 'asc' ? '▲' : '▼';
+  }
+  return '▲';
 }
 
 function isSorted(key: SortKey) {
@@ -86,22 +88,24 @@ const bases = computed<BaseEntry[] | undefined>(() => {
     <div :class="C.ComExOrdersPanel.filter">
       <RadioItem v-model="showBurn" horizontal>Burn</RadioItem>
     </div>
-    <table>
+    <table :class="$style.table">
       <thead>
         <tr>
-          <th
-            :class="[$style.narrowCol, $style.sortable, { [$style.sorted]: isSorted('name') }]"
-            @click="setSort('name')">
+          <th :class="[$style.narrowCol, $style.sortable]" @click="setSort('name')">
             Planet
-            <span :class="$style.sortIndicator">{{ getSortIndicator('name') }}</span>
+            <span :class="isSorted('name') ? $style.sortActive : $style.sortInactive">{{
+              getSortIndicator('name')
+            }}</span>
           </th>
           <th :class="$style.narrowCol">CMD</th>
           <th
             v-if="showBurn"
-            :class="[$style.narrowCol, $style.sortable, { [$style.sorted]: isSorted('burn') }]"
+            :class="[$style.narrowCol, $style.sortable, $style.burnCol]"
             @click="setSort('burn')">
             Burn
-            <span :class="$style.sortIndicator">{{ getSortIndicator('burn') }}</span>
+            <span :class="isSorted('burn') ? $style.sortActive : $style.sortInactive">{{
+              getSortIndicator('burn')
+            }}</span>
           </th>
           <th :class="$style.invCol">Inv</th>
           <th :class="$style.warCol">War</th>
@@ -122,6 +126,10 @@ const bases = computed<BaseEntry[] | undefined>(() => {
 </template>
 
 <style module>
+.table {
+  border-collapse: collapse;
+}
+
 .narrowCol {
   width: 0;
   white-space: nowrap;
@@ -140,11 +148,17 @@ const bases = computed<BaseEntry[] | undefined>(() => {
   user-select: none;
 }
 
-.sorted {
+.sortActive {
   color: rgb(171, 198, 128);
+  font-weight: bold;
 }
 
-.sortIndicator {
-  font-weight: bold;
+.sortInactive {
+  color: rgb(63, 162, 222);
+}
+
+.burnCol {
+  border-left: 2px solid #3fa2de;
+  border-right: 2px solid #3fa2de;
 }
 </style>

@@ -45,9 +45,9 @@ const warehouseStore = computed(() =>
 </script>
 
 <template>
-  <tr>
+  <tr :class="$style.row">
     <td :class="$style.planetCell">
-      <PrunLink inline :command="`PLI ${naturalId}`" :class="$style.planetLink">{{
+      <PrunLink inline :command="`BS ${naturalId}`" :class="$style.planetLink">{{
         planetName
       }}</PrunLink>
     </td>
@@ -71,7 +71,7 @@ const warehouseStore = computed(() =>
         :class="burnBgClass" />
       <div :class="$style.burnContent">
         <PrunButton dark inline @click.stop="showBuffer(`XIT BURNACT ${naturalId}`)">
-          ACT
+          RESUPPLY
         </PrunButton>
         <span :class="$style.daysNum">{{ daysText ?? '-' }}</span>
       </div>
@@ -134,6 +134,12 @@ const warehouseStore = computed(() =>
   width: 0;
   white-space: nowrap;
   padding: 2px 4px;
+  border-left: 2px solid #3fa2de;
+  border-right: 2px solid #3fa2de;
+}
+
+.row {
+  border-bottom: 1px solid #2b485a;
 }
 
 .burnContent {
