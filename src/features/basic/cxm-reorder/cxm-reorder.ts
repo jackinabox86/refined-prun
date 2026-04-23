@@ -1,6 +1,7 @@
 import GripCell from '@src/components/grip/GripCell.vue';
 import GripHeaderCell from '@src/components/grip/GripHeaderCell.vue';
 import { userData } from '@src/store/user-data';
+import { watchEffectWhileNodeAlive } from '@src/utils/watch';
 
 const exchanges: UserData.Exchange[] = ['AI1', 'CI1', 'CI2', 'IC1', 'NC1', 'NC2'];
 
@@ -25,14 +26,49 @@ function onTileReady(tile: PrunTile) {
 
     subscribe($$(table, 'tbody'), tbody => {
       setupDragAndDrop(tbody);
-      reorderTable(tbody);
+      watchEffectWhileNodeAlive(tbody, () => reorderTable(tbody));
     });
   });
 }
 
-let draggedRow: HTMLTableRowElement | null = null;
-
 function setupDragAndDrop(tbody: Element) {
+  let draggedRow: HTMLTableRowElement | null = null;
+
+  function processRow(row: HTMLTableRowElement) {
+    row.dataset.gripAdded = 'true';
+
+    createFragmentApp(GripCell).prependTo(row);
+
+    row.addEventListener('mousedown', e => {
+      const target = e.target as HTMLElement;
+      if (target.closest('td') === row.firstElementChild) {
+        row.draggable = true;
+      }
+    });
+
+    row.addEventListener('mouseup', () => {
+      row.draggable = false;
+    });
+
+    row.addEventListener('mouseleave', () => {
+      row.draggable = false;
+    });
+
+    row.addEventListener('dragstart', e => {
+      draggedRow = row;
+      setTimeout(() => {
+        if (draggedRow === row) {
+          row.style.opacity = '0.5';
+        }
+      }, 0);
+
+      if (e.dataTransfer) {
+        e.dataTransfer.effectAllowed = 'move';
+        e.dataTransfer.setData('text/plain', getExchange(row) || '');
+      }
+    });
+  }
+
   const observer = new MutationObserver(mutations => {
     let shouldReorder = false;
     for (const mutation of mutations) {
@@ -52,7 +88,7 @@ function setupDragAndDrop(tbody: Element) {
 
   observer.observe(tbody, { childList: true });
 
-  for (const row of Array.from(tbody.querySelectorAll('tr'))) {
+  for (const row of _$$(tbody, 'tr') as HTMLTableRowElement[]) {
     if (!row.dataset.gripAdded) {
       processRow(row);
     }
@@ -84,43 +120,8 @@ function setupDragAndDrop(tbody: Element) {
   });
 }
 
-function processRow(row: HTMLTableRowElement) {
-  row.dataset.gripAdded = 'true';
-
-  createFragmentApp(GripCell).prependTo(row);
-
-  row.addEventListener('mousedown', e => {
-    const target = e.target as HTMLElement;
-    if (target.closest('td') === row.firstElementChild) {
-      row.draggable = true;
-    }
-  });
-
-  row.addEventListener('mouseup', () => {
-    row.draggable = false;
-  });
-
-  row.addEventListener('mouseleave', () => {
-    row.draggable = false;
-  });
-
-  row.addEventListener('dragstart', e => {
-    draggedRow = row;
-    setTimeout(() => {
-      if (draggedRow === row) {
-        row.style.opacity = '0.5';
-      }
-    }, 0);
-
-    if (e.dataTransfer) {
-      e.dataTransfer.effectAllowed = 'move';
-      e.dataTransfer.setData('text/plain', getExchange(row) || '');
-    }
-  });
-}
-
 function getExchange(row: HTMLTableRowElement) {
-  for (const cell of Array.from(row.cells)) {
+  for (const cell of _$$(row, 'td')) {
     const text = cell.textContent?.trim();
     if (text && exchanges.includes(text as UserData.Exchange)) {
       return text;
@@ -135,7 +136,7 @@ function reorderTable(tbody: Element) {
     return;
   }
 
-  const rows = Array.from(tbody.querySelectorAll('tr'));
+  const rows = _$$(tbody, 'tr') as HTMLTableRowElement[];
 
   rows.sort((a, b) => {
     const exA = getExchange(a);
@@ -160,7 +161,7 @@ function reorderTable(tbody: Element) {
 }
 
 function saveOrder(tbody: Element) {
-  const rows = Array.from(tbody.querySelectorAll('tr'));
+  const rows = _$$(tbody, 'tr') as HTMLTableRowElement[];
   const newOrder: UserData.Exchange[] = [];
   for (const row of rows) {
     const ex = getExchange(row) as UserData.Exchange;
@@ -181,8 +182,4 @@ function saveOrder(tbody: Element) {
   }
 }
 
-features.add(
-  import.meta.url,
-  init,
-  'CXM Reordering: Drag-and-drop to reorder exchanges in the CXM buffer.',
-);
+features.add(import.meta.url, init, 'CXM: Drag-and-drop to reorder exchanges in the CXM buffer.');
