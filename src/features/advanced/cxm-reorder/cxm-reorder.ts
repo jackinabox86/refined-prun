@@ -15,20 +15,18 @@ function onTileReady(tile: PrunTile) {
     }
     table.dataset.cxmReorderProcessed = 'true';
 
-    const tbody = table.querySelector('tbody');
-    const thead = table.querySelector('thead');
-    if (!tbody || !thead) {
-      return;
-    }
+    subscribe($$(table, 'thead'), thead => {
+      const headerRow = thead.querySelector('tr');
+      if (headerRow && !headerRow.dataset.gripAdded) {
+        headerRow.dataset.gripAdded = 'true';
+        createFragmentApp(GripHeaderCell).prependTo(headerRow);
+      }
+    });
 
-    const headerRow = thead.querySelector('tr');
-    if (headerRow && !headerRow.dataset.gripAdded) {
-      headerRow.dataset.gripAdded = 'true';
-      createFragmentApp(GripHeaderCell).prependTo(headerRow);
-    }
-
-    setupDragAndDrop(tbody);
-    reorderTable(tbody);
+    subscribe($$(table, 'tbody'), tbody => {
+      setupDragAndDrop(tbody as HTMLTableSectionElement);
+      reorderTable(tbody as HTMLTableSectionElement);
+    });
   });
 }
 
