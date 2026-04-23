@@ -34,7 +34,9 @@ const prodTotals = computed(() => {
 });
 const prodClass = computed(() => {
   const totals = prodTotals.value;
-  if (!totals) return undefined;
+  if (!totals) {
+    return undefined;
+  }
   return totals.orders < totals.capacity ? C.Workforces.daysMissing : C.Workforces.daysSupplied;
 });
 

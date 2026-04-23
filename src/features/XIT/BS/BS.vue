@@ -31,7 +31,9 @@ function setSort(key: SortKey) {
 }
 
 function getSortIndicator(key: SortKey) {
-  if (sortKey.value !== key) return undefined;
+  if (sortKey.value !== key) {
+    return undefined;
+  }
   return sortDirection.value === 'asc' ? '▲' : '▼';
 }
 
@@ -72,7 +74,9 @@ const bases = computed<BaseEntry[] | undefined>(() => {
     if (sortKey.value === 'burn') {
       const daysA = a.days ?? Infinity;
       const daysB = b.days ?? Infinity;
-      if (daysA !== daysB) return (daysA - daysB) * dir;
+      if (daysA !== daysB) {
+        return (daysA - daysB) * dir;
+      }
     }
     return comparePlanets(a.naturalId, b.naturalId) * dir;
   });
