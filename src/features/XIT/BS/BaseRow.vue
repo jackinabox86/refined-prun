@@ -71,8 +71,7 @@ const warehouseStore = computed(() =>
       <td v-else>-</td>
     </template>
     <template v-if="showProd">
-      <td v-if="prodTotals" :class="$style.prodCell">
-        <div :class="[prodClass, $style.prodOverlay]" />
+      <td v-if="prodTotals" :class="[prodClass, $style.prodCell]">
         <PrunButton dark inline @click="showBuffer(`XIT PROD ${naturalId}`)">PROD</PrunButton>
       </td>
       <td v-else>-</td>
@@ -137,19 +136,16 @@ const warehouseStore = computed(() =>
 }
 
 .prodCell {
-  position: relative;
   width: 0;
   white-space: nowrap;
   text-align: center;
 }
 
-.prodOverlay {
-  position: absolute;
-  left: 0;
-  top: 0;
-  width: 100%;
-  height: 100%;
-  pointer-events: none;
+.prodCell > button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  vertical-align: middle;
 }
 
 .invCell {
