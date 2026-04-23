@@ -9,21 +9,26 @@ function init() {
 }
 
 function onTileReady(tile: PrunTile) {
-  subscribe($$(tile.anchor, C.ComExMaterialInfo.table), table => {
+  console.log('CXM Tile opened', tile);
+  subscribe($$(tile.anchor, 'table'), table => {
+    console.log('CXM table found', table);
     if (table.dataset.cxmReorderProcessed) {
       return;
     }
     table.dataset.cxmReorderProcessed = 'true';
 
     subscribe($$(table, 'thead'), thead => {
+      console.log('CXM thead found', thead);
       const headerRow = thead.querySelector('tr');
       if (headerRow && !headerRow.dataset.gripAdded) {
         headerRow.dataset.gripAdded = 'true';
         createFragmentApp(GripHeaderCell).prependTo(headerRow);
+        console.log('GripHeaderCell added');
       }
     });
 
     subscribe($$(table, 'tbody'), tbody => {
+      console.log('CXM tbody found', tbody);
       setupDragAndDrop(tbody as HTMLTableSectionElement);
       reorderTable(tbody as HTMLTableSectionElement);
     });
