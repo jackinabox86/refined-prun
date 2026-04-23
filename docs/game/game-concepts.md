@@ -60,7 +60,7 @@ Each planet has a limited number of plots. To build a base, a planet must have a
 
 ## Bases
 
-A base is the primary operational unit on a planet. Commands that accept a "Base" parameter (BBC, BBL, BRA, BS, EXP, PROD, WF, etc.) take the planet natural ID (e.g. `VH-331a`).
+A base is the primary operational unit on a planet.
 
 - Bases can be built on any planet.
 - Bases use up a base permit, and can be expanded to three permits.
