@@ -17,6 +17,12 @@ function isCheckpoint(entry: MigrationEntry): entry is Checkpoint {
 // The date is for reference only, and it does not affect migration order.
 const migrations: MigrationEntry[] = [
   [
+    '23.04.2026 Add cxmOrder setting',
+    userData => {
+      userData.settings.cxmOrder = ['AI1', 'CI1', 'CI2', 'IC1', 'NC1', 'NC2'];
+    },
+  ],
+  [
     '21.04.2026 Disable oog-burn-inflight-inventory by default',
     userData => {
       if (!userData.settings.disabled.includes('oog-burn-inflight-inventory')) {
