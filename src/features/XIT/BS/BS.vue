@@ -19,6 +19,7 @@ type SortDirection = 'asc' | 'desc';
 const sortKey = useTileState<SortKey>('sortKey', 'burn');
 const sortDirection = useTileState<SortDirection>('sortDirection', 'asc');
 const showBurn = useTileState('showBurn', true);
+const showProd = useTileState('showProd', true);
 
 function setSort(key: SortKey) {
   if (sortKey.value === key) {
@@ -73,7 +74,9 @@ const bases = computed<BaseEntry[] | undefined>(() => {
     if (sortKey.value === 'burn') {
       const daysA = a.days ?? Infinity;
       const daysB = b.days ?? Infinity;
-      if (daysA !== daysB) return (daysA - daysB) * dir;
+      if (daysA !== daysB) {
+        return (daysA - daysB) * dir;
+      }
     }
     return comparePlanets(a.naturalId, b.naturalId) * dir;
   });
@@ -87,6 +90,7 @@ const bases = computed<BaseEntry[] | undefined>(() => {
   <template v-else>
     <div :class="C.ComExOrdersPanel.filter">
       <RadioItem v-model="showBurn" horizontal>Burn</RadioItem>
+      <RadioItem v-model="showProd" horizontal>Prod</RadioItem>
     </div>
     <table :class="$style.table">
       <thead>
@@ -107,6 +111,7 @@ const bases = computed<BaseEntry[] | undefined>(() => {
               getSortIndicator('burn')
             }}</span>
           </th>
+          <th v-if="showProd" :class="$style.narrowCol">Prod</th>
           <th :class="$style.invCol">Inv</th>
           <th :class="$style.warCol">War</th>
         </tr>
@@ -119,7 +124,8 @@ const bases = computed<BaseEntry[] | undefined>(() => {
           :natural-id="base.naturalId"
           :planet-name="base.planetName"
           :store-id="base.storeId"
-          :show-burn="showBurn" />
+          :show-burn="showBurn"
+          :show-prod="showProd" />
       </tbody>
     </table>
   </template>

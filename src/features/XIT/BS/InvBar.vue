@@ -25,33 +25,47 @@ interface Segment {
 }
 
 const inboundStores = computed<PrunApi.Store[]>(() => {
-  if (!props.naturalId) return [];
+  if (!props.naturalId) {
+    return [];
+  }
   const ships = shipsStore.all.value;
   const allStores = storagesStore.all.value;
-  if (!ships || !allStores) return [];
+  if (!ships || !allStores) {
+    return [];
+  }
 
   const result: PrunApi.Store[] = [];
   for (const ship of ships) {
-    if (!ship.flightId) continue;
+    if (!ship.flightId) {
+      continue;
+    }
     const flight = flightsStore.getById(ship.flightId);
-    if (!flight) continue;
-    if (getEntityNaturalIdFromAddress(flight.destination) !== props.naturalId) continue;
+    if (!flight) {
+      continue;
+    }
+    if (getEntityNaturalIdFromAddress(flight.destination) !== props.naturalId) {
+      continue;
+    }
     const shipStore = allStores.find(x => x.id === ship.idShipStore);
-    if (shipStore) result.push(shipStore);
+    if (shipStore) {
+      result.push(shipStore);
+    }
   }
   return result;
 });
 
 const invBar = computed(() => {
   const primary = storagesStore.getById(props.storeId);
-  if (!primary) return { segments: [] as Segment[], miniMode: false };
+  if (!primary) {
+    return { segments: [] as Segment[], miniMode: false };
+  }
 
   const all = [primary, ...inboundStores.value];
 
   const wCap = primary.weightCapacity;
   const vCap = primary.volumeCapacity;
-  const wLoad = all.reduce((sum, s) => sum + s.weightLoad, 0);
-  const vLoad = all.reduce((sum, s) => sum + s.volumeLoad, 0);
+  const wLoad = sumBy(all, s => s.weightLoad);
+  const vLoad = sumBy(all, s => s.volumeLoad);
 
   const weightRatio = wLoad / wCap;
   const volumeRatio = vLoad / vCap;
@@ -62,7 +76,9 @@ const invBar = computed(() => {
   const activeLoad = useVolume ? vLoad : wLoad;
   const activeCapacity = useVolume ? vCap : wCap;
   let divisor = isMiniMode ? activeLoad : activeCapacity;
-  if (divisor === 0) divisor = 1;
+  if (divisor === 0) {
+    divisor = 1;
+  }
 
   const formatTitle = (name: string, weight: number, volume: number) => {
     const load = useVolume ? fixed02(volume) + 'm³' : fixed02(weight) + 't';
@@ -105,7 +121,9 @@ function enhanceSegmentVisibility(segments: Segment[], loadRatio: number) {
   const lowContrastCategories = new Set(['elements', 'metals', 'shipments', 'unit prefabs']);
   const isAlmostFull = loadRatio > 0.98;
 
-  if (segments.length === 1 && isAlmostFull) return;
+  if (segments.length === 1 && isAlmostFull) {
+    return;
+  }
 
   for (let i = 1; i < segments.length; i++) {
     const current = segments[i];
@@ -140,10 +158,14 @@ function getInventorySummary(stores: PrunApi.Store[]) {
       }
 
       const material = item.quantity?.material;
-      if (!material) continue;
+      if (!material) {
+        continue;
+      }
 
       const category = materialCategoriesStore.getById(material.category);
-      if (!category) continue;
+      if (!category) {
+        continue;
+      }
 
       let categorySummary = categories.get(category);
       if (!categorySummary) {
@@ -169,7 +191,9 @@ let animationTimeout: ReturnType<typeof setTimeout> | null = null;
 watch(
   () => invBar.value.segments,
   () => {
-    if (animationTimeout) clearTimeout(animationTimeout);
+    if (animationTimeout) {
+      clearTimeout(animationTimeout);
+    }
     isAnimating.value = true;
     animationTimeout = setTimeout(() => {
       isAnimating.value = false;
@@ -180,10 +204,12 @@ watch(
 
 const totalLoadRatio = computed(() => {
   const primary = storagesStore.getById(props.storeId);
-  if (!primary) return 0;
+  if (!primary) {
+    return 0;
+  }
   const all = [primary, ...inboundStores.value];
-  const wLoad = all.reduce((sum, s) => sum + s.weightLoad, 0);
-  const vLoad = all.reduce((sum, s) => sum + s.volumeLoad, 0);
+  const wLoad = sumBy(all, s => s.weightLoad);
+  const vLoad = sumBy(all, s => s.volumeLoad);
   return Math.max(wLoad / primary.weightCapacity, vLoad / primary.volumeCapacity);
 });
 
@@ -191,7 +217,9 @@ const stripeAlertColor = computed(() => {
   const ratio = totalLoadRatio.value;
   const start = { r: 50, g: 50, b: 50 };
   const target = { r: 100, g: 100, b: 100 };
-  if (ratio < 0.7) return `rgb(${start.r}, ${start.g}, ${start.b})`;
+  if (ratio < 0.7) {
+    return `rgb(${start.r}, ${start.g}, ${start.b})`;
+  }
   const normalized = (ratio - 0.7) / 0.3;
   const r = Math.round(start.r + (target.r - start.r) * normalized);
   const g = Math.round(start.g + (target.g - start.g) * normalized);
@@ -203,7 +231,9 @@ const stripeWidth = computed(() => {
   const ratio = totalLoadRatio.value;
   const startWidth = 10;
   const smallWidth = 2;
-  if (ratio < 0.7) return `${startWidth}px`;
+  if (ratio < 0.7) {
+    return `${startWidth}px`;
+  }
   const normalized = (ratio - 0.7) / 0.3;
   return `${startWidth - (startWidth - smallWidth) * normalized}px`;
 });
