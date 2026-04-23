@@ -12,14 +12,17 @@ import { comparePlanets } from '@src/util';
 import { useTileState } from '@src/store/user-data-tiles';
 import { getPlanetBurn } from '@src/core/burn';
 import { countDays } from '@src/features/XIT/BURN/utils';
+import { getPlanetRepairAge } from '@src/features/XIT/REP/entries';
+import { timestampEachMinute } from '@src/utils/dayjs';
 
-type SortKey = 'name' | 'burn';
+type SortKey = 'name' | 'burn' | 'repair';
 type SortDirection = 'asc' | 'desc';
 
 const sortKey = useTileState<SortKey>('sortKey', 'burn');
 const sortDirection = useTileState<SortDirection>('sortDirection', 'asc');
 const showBurn = useTileState('showBurn', true);
 const showProd = useTileState('showProd', true);
+const showRepair = useTileState('showRepair', true);
 
 function setSort(key: SortKey) {
   if (sortKey.value === key) {
@@ -47,6 +50,7 @@ interface BaseEntry {
   planetName: string;
   storeId: string;
   days: number | undefined;
+  repairDays: number | undefined;
 }
 
 const bases = computed<BaseEntry[] | undefined>(() => {
@@ -55,6 +59,7 @@ const bases = computed<BaseEntry[] | undefined>(() => {
     return undefined;
   }
 
+  const now = timestampEachMinute.value;
   const entries = sites
     .map(site => {
       const burn = getPlanetBurn(site.siteId);
@@ -64,6 +69,7 @@ const bases = computed<BaseEntry[] | undefined>(() => {
         planetName: getEntityNameFromAddress(site.address) ?? '',
         storeId: storagesStore.getByAddressableId(site.siteId)?.[0]?.id ?? '',
         days: burn ? countDays(burn.burn) : undefined,
+        repairDays: getPlanetRepairAge(site.siteId, now),
       };
     })
     .filter(x => x.naturalId);
@@ -76,6 +82,13 @@ const bases = computed<BaseEntry[] | undefined>(() => {
       const daysB = b.days ?? Infinity;
       if (daysA !== daysB) {
         return (daysA - daysB) * dir;
+      }
+    }
+    if (sortKey.value === 'repair') {
+      const repA = a.repairDays ?? -Infinity;
+      const repB = b.repairDays ?? -Infinity;
+      if (repA !== repB) {
+        return (repB - repA) * dir;
       }
     }
     return comparePlanets(a.naturalId, b.naturalId) * dir;
@@ -91,6 +104,7 @@ const bases = computed<BaseEntry[] | undefined>(() => {
     <div :class="C.ComExOrdersPanel.filter">
       <RadioItem v-model="showBurn" horizontal>Burn</RadioItem>
       <RadioItem v-model="showProd" horizontal>Prod</RadioItem>
+      <RadioItem v-model="showRepair" horizontal>Repair</RadioItem>
     </div>
     <table :class="$style.table">
       <thead>
@@ -112,6 +126,15 @@ const bases = computed<BaseEntry[] | undefined>(() => {
             }}</span>
           </th>
           <th v-if="showProd" :class="$style.narrowCol">Prod</th>
+          <th
+            v-if="showRepair"
+            :class="[$style.narrowCol, $style.sortable, $style.repairCol]"
+            @click="setSort('repair')">
+            Repair
+            <span :class="isSorted('repair') ? $style.sortActive : $style.sortInactive">{{
+              getSortIndicator('repair')
+            }}</span>
+          </th>
           <th :class="$style.invCol">Inv</th>
           <th :class="$style.warCol">War</th>
         </tr>
@@ -125,7 +148,8 @@ const bases = computed<BaseEntry[] | undefined>(() => {
           :planet-name="base.planetName"
           :store-id="base.storeId"
           :show-burn="showBurn"
-          :show-prod="showProd" />
+          :show-prod="showProd"
+          :show-repair="showRepair" />
       </tbody>
     </table>
   </template>
@@ -164,6 +188,11 @@ const bases = computed<BaseEntry[] | undefined>(() => {
 }
 
 .burnCol {
+  border-left: 2px solid #3fa2de;
+  border-right: 2px solid #3fa2de;
+}
+
+.repairCol {
   border-left: 2px solid #3fa2de;
   border-right: 2px solid #3fa2de;
 }
