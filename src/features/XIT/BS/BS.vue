@@ -115,20 +115,20 @@ const bases = computed<BaseEntry[] | undefined>(() => {
               getSortIndicator('name')
             }}</span>
           </th>
-          <th :class="$style.narrowCol">CMD</th>
+          <th :class="[$style.narrowCol, $style.centered]">CMD</th>
           <th
             v-if="showBurn"
-            :class="[$style.narrowCol, $style.sortable, $style.burnCol]"
+            :class="[$style.narrowCol, $style.sortable, $style.burnCol, $style.centered]"
             @click="setSort('burn')">
             Burn
             <span :class="isSorted('burn') ? $style.sortActive : $style.sortInactive">{{
               getSortIndicator('burn')
             }}</span>
           </th>
-          <th v-if="showProd" :class="$style.narrowCol">Prod</th>
+          <th v-if="showProd" :class="[$style.narrowCol, $style.centered]">Prod</th>
           <th
             v-if="showRepair"
-            :class="[$style.narrowCol, $style.sortable, $style.repairCol]"
+            :class="[$style.narrowCol, $style.sortable, $style.repairCol, $style.centered]"
             @click="setSort('repair')">
             Repair
             <span :class="isSorted('repair') ? $style.sortActive : $style.sortInactive">{{
@@ -176,6 +176,10 @@ const bases = computed<BaseEntry[] | undefined>(() => {
 .sortable {
   cursor: pointer;
   user-select: none;
+}
+
+.centered {
+  text-align: center;
 }
 
 .sortActive {
