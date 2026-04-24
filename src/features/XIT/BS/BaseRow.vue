@@ -67,6 +67,14 @@ const prodBgClass = computed(() => {
   };
 });
 
+const prodText = computed(() => {
+  const totals = prodTotals.value;
+  if (!totals) {
+    return undefined;
+  }
+  return totals.orders >= totals.capacity ? '✓' : '∅';
+});
+
 const repairAge = computed(() => getPlanetRepairAge(siteId, timestampEachMinute.value));
 
 const repairBgClass = computed(() => {
@@ -117,46 +125,41 @@ const warehouseStore = computed(() =>
     </td>
     <td
       v-if="showBurn"
-      :style="{ position: 'relative' }"
-      :class="$style.burnCell"
+      :class="[$style.indicatorCell, $style.clickable]"
       @click="showBuffer(`XIT BURN ${naturalId}`)">
-      <div
-        v-if="daysText !== undefined"
-        :style="{ position: 'absolute', left: 0, top: 0, width: '100%', height: '100%' }"
-        :class="burnBgClass" />
-      <div :class="$style.burnContent">
-        <PrunButton dark inline @click.stop="showBuffer(`XIT BURNACT ${naturalId}`)">
-          RESUPPLY
-        </PrunButton>
-        <span :class="$style.daysNum">{{ daysText ?? '-' }}</span>
-      </div>
+      <div :class="[$style.overlay, burnBgClass]" />
+      <span :class="$style.indicatorText">{{ daysText ?? '-' }}</span>
     </td>
-    <td v-if="showProd" :style="{ position: 'relative' }" :class="$style.prodCell">
-      <template v-if="prodTotals">
-        <div
-          :style="{ position: 'absolute', left: 0, top: 0, width: '100%', height: '100%' }"
-          :class="prodBgClass" />
-        <div :class="$style.prodContent">
-          <PrunButton dark inline @click="showBuffer(`XIT PROD ${naturalId}`)">PROD</PrunButton>
-        </div>
-      </template>
-      <span v-else>-</span>
+    <td v-if="showBurn" :class="$style.buttonCell">
+      <PrunButton dark inline @click="showBuffer(`XIT BURNACT ${naturalId}`)">RES</PrunButton>
+    </td>
+    <td
+      v-if="showProd"
+      :class="[
+        $style.indicatorCell,
+        $style.clickable,
+        showBurn && $style.groupSeparator,
+      ]"
+      @click="showBuffer(`XIT PROD ${naturalId}`)">
+      <div :class="[$style.overlay, prodBgClass]" />
+      <span :class="$style.indicatorText">{{ prodText ?? '-' }}</span>
+    </td>
+    <td v-if="showProd" :class="$style.buttonCell">
+      <PrunButton dark inline @click="showBuffer(`XIT PROD ${naturalId}`)">PROD</PrunButton>
     </td>
     <td
       v-if="showRepair"
-      :style="{ position: 'relative' }"
-      :class="$style.repairCell"
+      :class="[
+        $style.indicatorCell,
+        $style.clickable,
+        (showBurn || showProd) && $style.groupSeparator,
+      ]"
       @click="showBuffer(`XIT REP ${naturalId}`)">
-      <div
-        v-if="repairDaysText !== undefined"
-        :style="{ position: 'absolute', left: 0, top: 0, width: '100%', height: '100%' }"
-        :class="repairBgClass" />
-      <div :class="$style.repairContent">
-        <PrunButton dark inline @click.stop="showBuffer(`XIT REPAIRACT ${naturalId}`)">
-          REP
-        </PrunButton>
-        <span :class="$style.daysNum">{{ repairDaysText ?? '-' }}</span>
-      </div>
+      <div :class="[$style.overlay, repairBgClass]" />
+      <span :class="$style.indicatorText">{{ repairDaysText ?? '-' }}</span>
+    </td>
+    <td v-if="showRepair" :class="$style.buttonCell">
+      <PrunButton dark inline @click="showBuffer(`XIT REPAIRACT ${naturalId}`)">REP</PrunButton>
     </td>
     <td :class="$style.invCell">
       <InvBar
@@ -176,6 +179,8 @@ const warehouseStore = computed(() =>
 <style module>
 .planetCell {
   max-width: 30ch;
+  font-weight: bold;
+  font-size: 12px;
 }
 
 .planetLink {
@@ -211,60 +216,44 @@ const warehouseStore = computed(() =>
   display: flex;
 }
 
-.burnCell {
-  cursor: pointer;
-  width: 0;
-  white-space: nowrap;
-  padding: 2px 4px;
-  border-left: 2px solid #3fa2de;
-  border-right: 2px solid #3fa2de;
-}
-
 .row {
   border-bottom: 1px solid #2b485a;
 }
 
-.burnContent {
+.indicatorCell {
   position: relative;
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-
-.daysNum {
-  display: inline-block;
-  min-width: 3ch;
-  text-align: right;
-}
-
-.prodCell {
   width: 0;
   white-space: nowrap;
   padding: 2px 4px;
   text-align: center;
 }
 
-.prodContent {
-  position: relative;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+.overlay {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 100%;
 }
 
-.repairCell {
-  cursor: pointer;
+.indicatorText {
+  position: relative;
+  display: inline-block;
+  min-width: 4ch;
+}
+
+.buttonCell {
   width: 0;
   white-space: nowrap;
   padding: 2px 4px;
-  border-left: 2px solid #3fa2de;
-  border-right: 2px solid #3fa2de;
 }
 
-.repairContent {
-  position: relative;
-  display: flex;
-  align-items: center;
-  gap: 4px;
+.clickable {
+  cursor: pointer;
+}
+
+.groupSeparator {
+  border-left: 1px solid #2b485a;
 }
 
 .invCell {
