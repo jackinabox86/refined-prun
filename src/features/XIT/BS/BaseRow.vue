@@ -118,12 +118,13 @@ const warehouseStore = computed(() =>
       }}</PrunLink>
     </td>
     <td v-if="showCmds" :class="$style.cmdCell">
-      <PrunButton primary>CMDS&#x25B6;</PrunButton>
+      <PrunButton dark inline>CMDS&#x25B6;</PrunButton>
+      <div :class="$style.rowOverlay" />
       <div :class="$style.expandedButtons">
-        <PrunButton primary @click="showBuffer(`BBL ${siteId}`)">BUILDINGS</PrunButton>
-        <PrunButton primary @click="showBuffer(`BBC ${naturalId}`)">CONSTRUCT</PrunButton>
-        <PrunButton primary @click="showBuffer(`WF ${siteId}`)">WORKFORCE</PrunButton>
-        <PrunButton primary @click="showBuffer(`EXP ${siteId}`)">EXPERTS</PrunButton>
+        <PrunButton dark inline @click="showBuffer(`BBL ${siteId}`)">BUILDINGS</PrunButton>
+        <PrunButton dark inline @click="showBuffer(`BBC ${naturalId}`)">CONSTRUCT</PrunButton>
+        <PrunButton dark inline @click="showBuffer(`WF ${siteId}`)">WORKFORCE</PrunButton>
+        <PrunButton dark inline @click="showBuffer(`EXP ${siteId}`)">EXPERTS</PrunButton>
       </div>
     </td>
     <td
@@ -200,6 +201,21 @@ const warehouseStore = computed(() =>
   width: 0;
 }
 
+.rowOverlay {
+  display: none;
+  position: absolute;
+  top: 0;
+  left: -500px;
+  right: -500px;
+  height: 100%;
+  background: black;
+  z-index: 9;
+}
+
+.cmdCell:hover .rowOverlay {
+  display: block;
+}
+
 .expandedButtons {
   display: none;
   position: absolute;
@@ -207,7 +223,6 @@ const warehouseStore = computed(() =>
   top: 50%;
   transform: translateY(-50%);
   z-index: 10;
-  background: #23282b;
   flex-direction: row;
   align-items: center;
   gap: 0.25rem;
