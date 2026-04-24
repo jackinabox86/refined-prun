@@ -20,9 +20,12 @@ type SortDirection = 'asc' | 'desc';
 
 const sortKey = useTileState<SortKey>('sortKey', 'burn');
 const sortDirection = useTileState<SortDirection>('sortDirection', 'asc');
+const showCmds = useTileState('showCmds', true);
 const showBurn = useTileState('showBurn', true);
 const showProd = useTileState('showProd', true);
 const showRepair = useTileState('showRepair', true);
+const showInv = useTileState('showInv', true);
+const showWar = useTileState('showWar', true);
 
 function setSort(key: SortKey) {
   if (sortKey.value === key) {
@@ -102,9 +105,12 @@ const bases = computed<BaseEntry[] | undefined>(() => {
   <LoadingSpinner v-if="bases === undefined" />
   <template v-else>
     <div :class="C.ComExOrdersPanel.filter">
+      <RadioItem v-model="showCmds" horizontal>Cmds</RadioItem>
       <RadioItem v-model="showBurn" horizontal>Burn</RadioItem>
       <RadioItem v-model="showProd" horizontal>Prod</RadioItem>
       <RadioItem v-model="showRepair" horizontal>Repair</RadioItem>
+      <RadioItem v-model="showInv" horizontal>Inv</RadioItem>
+      <RadioItem v-model="showWar" horizontal>War</RadioItem>
     </div>
     <table :class="$style.table">
       <thead>
@@ -115,7 +121,7 @@ const bases = computed<BaseEntry[] | undefined>(() => {
               getSortIndicator('name')
             }}</span>
           </th>
-          <th :class="[$style.narrowCol, $style.centered]">CMD</th>
+          <th v-if="showCmds" :class="[$style.narrowCol, $style.centered]">CMD</th>
           <th
             v-if="showBurn"
             colspan="2"
@@ -147,8 +153,8 @@ const bases = computed<BaseEntry[] | undefined>(() => {
               getSortIndicator('repair')
             }}</span>
           </th>
-          <th :class="$style.invCol">Inv</th>
-          <th :class="$style.warCol">War</th>
+          <th v-if="showInv" :class="$style.invCol">Inv</th>
+          <th v-if="showWar" :class="$style.warCol">War</th>
         </tr>
       </thead>
       <tbody>
@@ -159,9 +165,12 @@ const bases = computed<BaseEntry[] | undefined>(() => {
           :natural-id="base.naturalId"
           :planet-name="base.planetName"
           :store-id="base.storeId"
+          :show-cmds="showCmds"
           :show-burn="showBurn"
           :show-prod="showProd"
-          :show-repair="showRepair" />
+          :show-repair="showRepair"
+          :show-inv="showInv"
+          :show-war="showWar" />
       </tbody>
     </table>
   </template>

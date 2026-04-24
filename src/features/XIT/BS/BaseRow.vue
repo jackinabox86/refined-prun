@@ -12,14 +12,17 @@ import { userData } from '@src/store/user-data';
 import { getPlanetRepairAge } from '@src/features/XIT/REP/entries';
 import { timestampEachMinute } from '@src/utils/dayjs';
 
-const { siteId, naturalId, planetName, storeId, showBurn, showProd, showRepair } = defineProps<{
+const { siteId, naturalId, planetName, storeId, showCmds, showBurn, showProd, showRepair, showInv, showWar } = defineProps<{
   siteId: string;
   naturalId: string;
   planetName: string;
   storeId: string;
+  showCmds: boolean;
   showBurn: boolean;
   showProd: boolean;
   showRepair: boolean;
+  showInv: boolean;
+  showWar: boolean;
 }>();
 
 const burn = computed(() => getPlanetBurn(siteId));
@@ -114,7 +117,7 @@ const warehouseStore = computed(() =>
         planetName
       }}</PrunLink>
     </td>
-    <td :class="$style.cmdCell">
+    <td v-if="showCmds" :class="$style.cmdCell">
       <PrunButton primary>CMDS&#x25B6;</PrunButton>
       <div :class="$style.expandedButtons">
         <PrunButton primary @click="showBuffer(`BBL ${siteId}`)">BUILDINGS</PrunButton>
@@ -161,13 +164,13 @@ const warehouseStore = computed(() =>
     <td v-if="showRepair" :class="$style.buttonCell">
       <PrunButton dark inline @click="showBuffer(`XIT REPAIRACT ${naturalId}`)">REP</PrunButton>
     </td>
-    <td :class="$style.invCell">
+    <td v-if="showInv" :class="$style.invCell">
       <InvBar
         :store-id="storeId"
         :natural-id="naturalId"
         :on-click-cmd="`INV ${storeId.substring(0, 8)}`" />
     </td>
-    <td :class="$style.invCell">
+    <td v-if="showWar" :class="$style.invCell">
       <InvBar
         v-if="warehouseStore"
         :store-id="warehouseStore.id"
@@ -239,7 +242,7 @@ const warehouseStore = computed(() =>
 .indicatorText {
   position: relative;
   display: inline-block;
-  min-width: 4ch;
+  min-width: 3ch;
 }
 
 .buttonCell {
