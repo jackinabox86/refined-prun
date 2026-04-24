@@ -1,4 +1,4 @@
-# Action Package JSON Format
+# Action Package JSON Format - random
 
 This document describes the JSON structure used by the XIT ACT feature for importing/exporting action packages. External tools can generate these JSONs for import into Refined PrUn.
 
