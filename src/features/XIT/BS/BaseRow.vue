@@ -9,14 +9,17 @@ import { getPlanetProduction } from '@src/core/production';
 import { warehousesStore } from '@src/infrastructure/prun-api/data/warehouses';
 import { storagesStore } from '@src/infrastructure/prun-api/data/storage';
 import { userData } from '@src/store/user-data';
+import { getPlanetRepairAge } from '@src/features/XIT/REP/entries';
+import { timestampEachMinute } from '@src/utils/dayjs';
 
-const { siteId, naturalId, planetName, storeId, showBurn, showProd } = defineProps<{
+const { siteId, naturalId, planetName, storeId, showBurn, showProd, showRepair } = defineProps<{
   siteId: string;
   naturalId: string;
   planetName: string;
   storeId: string;
   showBurn: boolean;
   showProd: boolean;
+  showRepair: boolean;
 }>();
 
 const burn = computed(() => getPlanetBurn(siteId));
@@ -62,6 +65,30 @@ const prodBgClass = computed(() => {
     [C.Workforces.daysMissing]: totals.orders < totals.capacity,
     [C.Workforces.daysSupplied]: totals.orders >= totals.capacity,
   };
+});
+
+const repairAge = computed(() => getPlanetRepairAge(siteId, timestampEachMinute.value));
+
+const repairBgClass = computed(() => {
+  const age = repairAge.value;
+  if (age === undefined) {
+    return {};
+  }
+  const { threshold, offset } = userData.settings.repair;
+  const d = Math.floor(age);
+  return {
+    [C.Workforces.daysMissing]: d >= threshold,
+    [C.Workforces.daysWarning]: d >= threshold - offset,
+    [C.Workforces.daysSupplied]: d < threshold - offset,
+  };
+});
+
+const repairDaysText = computed(() => {
+  const age = repairAge.value;
+  if (age === undefined) {
+    return undefined;
+  }
+  return String(Math.floor(age));
 });
 
 const warehouse = computed(() => warehousesStore.getByEntityNaturalId(naturalId));
@@ -114,6 +141,22 @@ const warehouseStore = computed(() =>
         </div>
       </template>
       <span v-else>-</span>
+    </td>
+    <td
+      v-if="showRepair"
+      :style="{ position: 'relative' }"
+      :class="$style.repairCell"
+      @click="showBuffer(`XIT REP ${naturalId}`)">
+      <div
+        v-if="repairDaysText !== undefined"
+        :style="{ position: 'absolute', left: 0, top: 0, width: '100%', height: '100%' }"
+        :class="repairBgClass" />
+      <div :class="$style.repairContent">
+        <PrunButton dark inline @click.stop="showBuffer(`XIT REPAIRACT ${naturalId}`)">
+          REP
+        </PrunButton>
+        <span :class="$style.daysNum">{{ repairDaysText ?? '-' }}</span>
+      </div>
     </td>
     <td :class="$style.invCell">
       <InvBar
@@ -206,6 +249,22 @@ const warehouseStore = computed(() =>
   display: flex;
   align-items: center;
   justify-content: center;
+}
+
+.repairCell {
+  cursor: pointer;
+  width: 0;
+  white-space: nowrap;
+  padding: 2px 4px;
+  border-left: 2px solid #3fa2de;
+  border-right: 2px solid #3fa2de;
+}
+
+.repairContent {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 4px;
 }
 
 .invCell {
