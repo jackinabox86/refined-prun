@@ -125,8 +125,9 @@ const warehouseStore = computed(() =>
     </td>
     <td
       v-if="showBurn"
-      :class="[$style.indicatorCell, $style.clickable, burnBgClass]"
+      :class="[$style.indicatorCell, $style.clickable]"
       @click="showBuffer(`XIT BURN ${naturalId}`)">
+      <div :class="[$style.overlay, burnBgClass]" />
       <span :class="$style.indicatorText">{{ daysText ?? '-' }}</span>
     </td>
     <td v-if="showBurn" :class="$style.buttonCell">
@@ -134,7 +135,13 @@ const warehouseStore = computed(() =>
     </td>
     <td
       v-if="showProd"
-      :class="[$style.indicatorCell, prodBgClass, showBurn && $style.groupSeparator]">
+      :class="[
+        $style.indicatorCell,
+        $style.clickable,
+        showBurn && $style.groupSeparator,
+      ]"
+      @click="showBuffer(`XIT PROD ${naturalId}`)">
+      <div :class="[$style.overlay, prodBgClass]" />
       <span :class="$style.indicatorText">{{ prodText ?? '-' }}</span>
     </td>
     <td v-if="showProd" :class="$style.buttonCell">
@@ -145,10 +152,10 @@ const warehouseStore = computed(() =>
       :class="[
         $style.indicatorCell,
         $style.clickable,
-        repairBgClass,
         (showBurn || showProd) && $style.groupSeparator,
       ]"
       @click="showBuffer(`XIT REP ${naturalId}`)">
+      <div :class="[$style.overlay, repairBgClass]" />
       <span :class="$style.indicatorText">{{ repairDaysText ?? '-' }}</span>
     </td>
     <td v-if="showRepair" :class="$style.buttonCell">
@@ -172,6 +179,8 @@ const warehouseStore = computed(() =>
 <style module>
 .planetCell {
   max-width: 30ch;
+  font-weight: bold;
+  font-size: 12px;
 }
 
 .planetLink {
@@ -212,13 +221,23 @@ const warehouseStore = computed(() =>
 }
 
 .indicatorCell {
+  position: relative;
   width: 0;
   white-space: nowrap;
   padding: 2px 4px;
   text-align: center;
 }
 
+.overlay {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 100%;
+}
+
 .indicatorText {
+  position: relative;
   display: inline-block;
   min-width: 4ch;
 }
