@@ -123,8 +123,14 @@ function setupDragAndDrop(tbody: Element) {
 function getExchange(row: HTMLTableRowElement) {
   for (const cell of _$$(row, 'td')) {
     const text = cell.textContent?.trim();
-    if (text && exchanges.includes(text as UserData.Exchange)) {
-      return text;
+    if (!text) {
+      continue;
+    }
+    const match = exchanges.find(
+      ex => text === ex || text.startsWith(ex + '\n') || text.startsWith(ex + ' '),
+    );
+    if (match) {
+      return match;
     }
   }
   return '';
