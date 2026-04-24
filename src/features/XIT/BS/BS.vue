@@ -125,15 +125,7 @@ const bases = computed<BaseEntry[] | undefined>(() => {
           <th
             v-if="showBurn"
             colspan="2"
-            :class="[
-              $style.narrowCol,
-              $style.sortable,
-              $style.centered,
-              $style.sectionTop,
-              $style.sectionBottom,
-              $style.sectionLeft,
-              !showProd && !showRepair && $style.sectionRight,
-            ]"
+            :class="[$style.narrowCol, $style.sortable, $style.centered, $style.sectionBottom]"
             @click="setSort('burn')">
             Burn
             <span :class="isSorted('burn') ? $style.sortActive : $style.sortInactive">{{
@@ -143,28 +135,13 @@ const bases = computed<BaseEntry[] | undefined>(() => {
           <th
             v-if="showProd"
             colspan="2"
-            :class="[
-              $style.narrowCol,
-              $style.centered,
-              $style.sectionTop,
-              $style.sectionBottom,
-              $style.sectionLeft,
-              !showRepair && $style.sectionRight,
-            ]">
+            :class="[$style.narrowCol, $style.centered, $style.sectionBottom]">
             Prod
           </th>
           <th
             v-if="showRepair"
             colspan="2"
-            :class="[
-              $style.narrowCol,
-              $style.sortable,
-              $style.centered,
-              $style.sectionTop,
-              $style.sectionBottom,
-              $style.sectionLeft,
-              $style.sectionRight,
-            ]"
+            :class="[$style.narrowCol, $style.sortable, $style.centered, $style.sectionBottom]"
             @click="setSort('repair')">
             Repair
             <span :class="isSorted('repair') ? $style.sortActive : $style.sortInactive">{{
@@ -230,19 +207,7 @@ const bases = computed<BaseEntry[] | undefined>(() => {
   color: rgb(63, 162, 222);
 }
 
-.sectionTop {
-  border-top: 1px solid #ffc856;
-}
-
 .sectionBottom {
   border-bottom: 1px solid #ffc856;
-}
-
-.sectionLeft {
-  border-left: 1px solid #ffc856;
-}
-
-.sectionRight {
-  border-right: 1px solid #ffc856;
 }
 </style>
