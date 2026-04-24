@@ -125,7 +125,15 @@ const bases = computed<BaseEntry[] | undefined>(() => {
           <th
             v-if="showBurn"
             colspan="2"
-            :class="[$style.narrowCol, $style.sortable, $style.centered]"
+            :class="[
+              $style.narrowCol,
+              $style.sortable,
+              $style.centered,
+              $style.sectionTop,
+              $style.sectionBottom,
+              $style.sectionLeft,
+              !showProd && !showRepair && $style.sectionRight,
+            ]"
             @click="setSort('burn')">
             Burn
             <span :class="isSorted('burn') ? $style.sortActive : $style.sortInactive">{{
@@ -135,7 +143,14 @@ const bases = computed<BaseEntry[] | undefined>(() => {
           <th
             v-if="showProd"
             colspan="2"
-            :class="[$style.narrowCol, $style.centered, showBurn && $style.groupSeparator]">
+            :class="[
+              $style.narrowCol,
+              $style.centered,
+              $style.sectionTop,
+              $style.sectionBottom,
+              $style.sectionLeft,
+              !showRepair && $style.sectionRight,
+            ]">
             Prod
           </th>
           <th
@@ -145,7 +160,10 @@ const bases = computed<BaseEntry[] | undefined>(() => {
               $style.narrowCol,
               $style.sortable,
               $style.centered,
-              (showBurn || showProd) && $style.groupSeparator,
+              $style.sectionTop,
+              $style.sectionBottom,
+              $style.sectionLeft,
+              $style.sectionRight,
             ]"
             @click="setSort('repair')">
             Repair
@@ -212,7 +230,19 @@ const bases = computed<BaseEntry[] | undefined>(() => {
   color: rgb(63, 162, 222);
 }
 
-.groupSeparator {
-  border-left: 1px solid #2b485a;
+.sectionTop {
+  border-top: 1px solid #ffc856;
+}
+
+.sectionBottom {
+  border-bottom: 1px solid #ffc856;
+}
+
+.sectionLeft {
+  border-left: 1px solid #ffc856;
+}
+
+.sectionRight {
+  border-right: 1px solid #ffc856;
 }
 </style>

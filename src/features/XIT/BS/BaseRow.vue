@@ -129,40 +129,44 @@ const warehouseStore = computed(() =>
     </td>
     <td
       v-if="showBurn"
-      :class="[$style.indicatorCell, $style.clickable]"
+      :class="[$style.indicatorCell, $style.clickable, $style.sectionLeft, $style.sectionBottom]"
       @click="showBuffer(`XIT BURN ${naturalId}`)">
       <div :class="[$style.overlay, burnBgClass]" />
       <span :class="$style.indicatorText">{{ daysText ?? '-' }}</span>
     </td>
-    <td v-if="showBurn" :class="$style.buttonCell">
+    <td
+      v-if="showBurn"
+      :class="[
+        $style.buttonCell,
+        $style.sectionBottom,
+        !showProd && !showRepair && $style.sectionRight,
+      ]">
       <PrunButton dark inline @click="showBuffer(`XIT BURNACT ${naturalId}`)">RES</PrunButton>
     </td>
     <td
       v-if="showProd"
-      :class="[
-        $style.indicatorCell,
-        $style.clickable,
-        showBurn && $style.groupSeparator,
-      ]"
+      :class="[$style.indicatorCell, $style.clickable, $style.sectionLeft, $style.sectionBottom]"
       @click="showBuffer(`XIT PROD ${naturalId}`)">
       <div :class="[$style.overlay, prodBgClass]" />
       <span :class="$style.indicatorText">{{ prodText ?? '-' }}</span>
     </td>
-    <td v-if="showProd" :class="$style.buttonCell">
+    <td
+      v-if="showProd"
+      :class="[
+        $style.buttonCell,
+        $style.sectionBottom,
+        !showRepair && $style.sectionRight,
+      ]">
       <PrunButton dark inline @click="showBuffer(`XIT PROD ${naturalId}`)">PROD</PrunButton>
     </td>
     <td
       v-if="showRepair"
-      :class="[
-        $style.indicatorCell,
-        $style.clickable,
-        (showBurn || showProd) && $style.groupSeparator,
-      ]"
+      :class="[$style.indicatorCell, $style.clickable, $style.sectionLeft, $style.sectionBottom]"
       @click="showBuffer(`XIT REP ${naturalId}`)">
       <div :class="[$style.overlay, repairBgClass]" />
       <span :class="$style.indicatorText">{{ repairDaysText ?? '-' }}</span>
     </td>
-    <td v-if="showRepair" :class="$style.buttonCell">
+    <td v-if="showRepair" :class="[$style.buttonCell, $style.sectionBottom, $style.sectionRight]">
       <PrunButton dark inline @click="showBuffer(`XIT REPAIRACT ${naturalId}`)">REP</PrunButton>
     </td>
     <td v-if="showInv" :class="$style.invCell">
@@ -192,6 +196,7 @@ const warehouseStore = computed(() =>
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
+  color: inherit;
 }
 
 .cmdCell {
@@ -270,8 +275,16 @@ const warehouseStore = computed(() =>
   cursor: pointer;
 }
 
-.groupSeparator {
-  border-left: 1px solid #2b485a;
+.sectionLeft {
+  border-left: 1px solid #ffc856;
+}
+
+.sectionRight {
+  border-right: 1px solid #ffc856;
+}
+
+.sectionBottom {
+  border-bottom: 1px solid #ffc856;
 }
 
 .invCell {
