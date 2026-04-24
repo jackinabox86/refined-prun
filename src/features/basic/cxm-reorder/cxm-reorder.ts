@@ -126,9 +126,7 @@ function getExchange(row: HTMLTableRowElement) {
     if (!text) {
       continue;
     }
-    const match = exchanges.find(
-      ex => text === ex || text.startsWith(ex + '\n') || text.startsWith(ex + ' '),
-    );
+    const match = exchanges.find(ex => text.startsWith(ex));
     if (match) {
       return match;
     }
