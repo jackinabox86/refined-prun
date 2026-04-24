@@ -6,12 +6,17 @@ import { store } from './planet-context-menu';
 <template>
   <div id="planet_contextmenu" :class="$style.contextMenu" :style="store.menuStyle">
     <div v-if="store.naturalId">
+      <PrunButton dark :class="$style.prunButton" @click="store.showBuffer('PLI')">PLI</PrunButton>
+      <PrunButton dark :class="$style.prunButton" @click="store.showBuffer('COGC')"
+        >COGC</PrunButton
+      >
       <PrunButton dark :class="$style.prunButton" @click="store.showBuffer('POPR')"
         >POPR</PrunButton
       >
       <PrunButton dark :class="$style.prunButton" @click="store.showBuffer('POPI')"
         >POPI</PrunButton
       >
+      <PrunButton dark :class="$style.prunButton" @click="store.showBuffer('ADM')">ADM</PrunButton>
     </div>
   </div>
 </template>

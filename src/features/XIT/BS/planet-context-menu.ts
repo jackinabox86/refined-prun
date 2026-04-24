@@ -16,11 +16,7 @@ function setLocation(event: MouseEvent) {
   } else {
     store.menuStyle.left = event.clientX.toString() + 'px';
   }
-  if (event.clientY + menuRect.height > parentRect.bottom) {
-    store.menuStyle.top = (event.clientY - menuRect.height).toString() + 'px';
-  } else {
-    store.menuStyle.top = event.clientY.toString() + 'px';
-  }
+  store.menuStyle.top = (event.clientY - menuRect.height).toString() + 'px';
 }
 
 export const store = reactive({
@@ -72,4 +68,8 @@ async function init() {
   }
 }
 
-features.add(import.meta.url, init, 'BS: Right-click planet cell to open POPR or POPI.');
+features.add(
+  import.meta.url,
+  init,
+  'BS: Right-click planet cell to open PLI, COGC, POPR, POPI, or ADM.',
+);
