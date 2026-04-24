@@ -125,10 +125,10 @@ const warehouseStore = computed(() =>
         :style="{ position: 'absolute', left: 0, top: 0, width: '100%', height: '100%' }"
         :class="burnBgClass" />
       <div :class="$style.burnContent">
+        <span :class="$style.daysNum">{{ daysText ?? '-' }}</span>
         <PrunButton dark inline @click.stop="showBuffer(`XIT BURNACT ${naturalId}`)">
           RESUPPLY
         </PrunButton>
-        <span :class="$style.daysNum">{{ daysText ?? '-' }}</span>
       </div>
     </td>
     <td v-if="showProd" :style="{ position: 'relative' }" :class="$style.prodCell">
@@ -152,10 +152,10 @@ const warehouseStore = computed(() =>
         :style="{ position: 'absolute', left: 0, top: 0, width: '100%', height: '100%' }"
         :class="repairBgClass" />
       <div :class="$style.repairContent">
+        <span :class="$style.daysNum">{{ repairDaysText ?? '-' }}</span>
         <PrunButton dark inline @click.stop="showBuffer(`XIT REPAIRACT ${naturalId}`)">
           REP
         </PrunButton>
-        <span :class="$style.daysNum">{{ repairDaysText ?? '-' }}</span>
       </div>
     </td>
     <td :class="$style.invCell">
