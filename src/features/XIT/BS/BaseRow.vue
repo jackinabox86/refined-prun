@@ -125,47 +125,34 @@ const warehouseStore = computed(() =>
     </td>
     <td
       v-if="showBurn"
-      :style="{ position: 'relative' }"
-      :class="$style.burnCell"
+      :class="[$style.indicatorCell, $style.clickable, burnBgClass]"
       @click="showBuffer(`XIT BURN ${naturalId}`)">
-      <div
-        v-if="daysText !== undefined"
-        :style="{ position: 'absolute', left: 0, top: 0, width: '100%', height: '100%' }"
-        :class="burnBgClass" />
-      <div :class="$style.burnContent">
-        <span :class="$style.daysNum">{{ daysText ?? '-' }}</span>
-        <PrunButton dark inline @click.stop="showBuffer(`XIT BURNACT ${naturalId}`)">
-          RESUPPLY
-        </PrunButton>
-      </div>
+      <span :class="$style.indicatorText">{{ daysText ?? '-' }}</span>
     </td>
-    <td v-if="showProd" :style="{ position: 'relative' }" :class="$style.prodCell">
-      <template v-if="prodTotals">
-        <div
-          :style="{ position: 'absolute', left: 0, top: 0, width: '100%', height: '100%' }"
-          :class="prodBgClass" />
-        <div :class="$style.prodContent">
-          <span :class="$style.daysNum">{{ prodText }}</span>
-          <PrunButton dark inline @click="showBuffer(`XIT PROD ${naturalId}`)">PROD</PrunButton>
-        </div>
-      </template>
-      <span v-else>-</span>
+    <td v-if="showBurn" :class="$style.buttonCell">
+      <PrunButton dark inline @click="showBuffer(`XIT BURNACT ${naturalId}`)">RES</PrunButton>
+    </td>
+    <td
+      v-if="showProd"
+      :class="[$style.indicatorCell, prodBgClass, showBurn && $style.groupSeparator]">
+      <span :class="$style.indicatorText">{{ prodText ?? '-' }}</span>
+    </td>
+    <td v-if="showProd" :class="$style.buttonCell">
+      <PrunButton dark inline @click="showBuffer(`XIT PROD ${naturalId}`)">PROD</PrunButton>
     </td>
     <td
       v-if="showRepair"
-      :style="{ position: 'relative' }"
-      :class="$style.repairCell"
+      :class="[
+        $style.indicatorCell,
+        $style.clickable,
+        repairBgClass,
+        (showBurn || showProd) && $style.groupSeparator,
+      ]"
       @click="showBuffer(`XIT REP ${naturalId}`)">
-      <div
-        v-if="repairDaysText !== undefined"
-        :style="{ position: 'absolute', left: 0, top: 0, width: '100%', height: '100%' }"
-        :class="repairBgClass" />
-      <div :class="$style.repairContent">
-        <span :class="$style.daysNum">{{ repairDaysText ?? '-' }}</span>
-        <PrunButton dark inline @click.stop="showBuffer(`XIT REPAIRACT ${naturalId}`)">
-          REP
-        </PrunButton>
-      </div>
+      <span :class="$style.indicatorText">{{ repairDaysText ?? '-' }}</span>
+    </td>
+    <td v-if="showRepair" :class="$style.buttonCell">
+      <PrunButton dark inline @click="showBuffer(`XIT REPAIRACT ${naturalId}`)">REP</PrunButton>
     </td>
     <td :class="$style.invCell">
       <InvBar
@@ -220,61 +207,34 @@ const warehouseStore = computed(() =>
   display: flex;
 }
 
-.burnCell {
-  cursor: pointer;
-  width: 0;
-  white-space: nowrap;
-  padding: 2px 4px;
-  border-left: 2px solid #3fa2de;
-  border-right: 2px solid #3fa2de;
-}
-
 .row {
   border-bottom: 1px solid #2b485a;
 }
 
-.burnContent {
-  position: relative;
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-
-.daysNum {
-  display: inline-block;
-  min-width: 3ch;
-  text-align: right;
-}
-
-.prodCell {
+.indicatorCell {
   width: 0;
   white-space: nowrap;
   padding: 2px 4px;
   text-align: center;
 }
 
-.prodContent {
-  position: relative;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 4px;
+.indicatorText {
+  display: inline-block;
+  min-width: 4ch;
 }
 
-.repairCell {
-  cursor: pointer;
+.buttonCell {
   width: 0;
   white-space: nowrap;
   padding: 2px 4px;
-  border-left: 2px solid #3fa2de;
-  border-right: 2px solid #3fa2de;
 }
 
-.repairContent {
-  position: relative;
-  display: flex;
-  align-items: center;
-  gap: 4px;
+.clickable {
+  cursor: pointer;
+}
+
+.groupSeparator {
+  border-left: 1px solid #2b485a;
 }
 
 .invCell {

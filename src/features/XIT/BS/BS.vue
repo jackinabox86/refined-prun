@@ -118,17 +118,29 @@ const bases = computed<BaseEntry[] | undefined>(() => {
           <th :class="[$style.narrowCol, $style.centered]">CMD</th>
           <th
             v-if="showBurn"
-            :class="[$style.narrowCol, $style.sortable, $style.burnCol, $style.centered]"
+            colspan="2"
+            :class="[$style.narrowCol, $style.sortable, $style.centered]"
             @click="setSort('burn')">
             Burn
             <span :class="isSorted('burn') ? $style.sortActive : $style.sortInactive">{{
               getSortIndicator('burn')
             }}</span>
           </th>
-          <th v-if="showProd" :class="[$style.narrowCol, $style.centered]">Prod</th>
+          <th
+            v-if="showProd"
+            colspan="2"
+            :class="[$style.narrowCol, $style.centered, showBurn && $style.groupSeparator]">
+            Prod
+          </th>
           <th
             v-if="showRepair"
-            :class="[$style.narrowCol, $style.sortable, $style.repairCol, $style.centered]"
+            colspan="2"
+            :class="[
+              $style.narrowCol,
+              $style.sortable,
+              $style.centered,
+              (showBurn || showProd) && $style.groupSeparator,
+            ]"
             @click="setSort('repair')">
             Repair
             <span :class="isSorted('repair') ? $style.sortActive : $style.sortInactive">{{
@@ -191,13 +203,7 @@ const bases = computed<BaseEntry[] | undefined>(() => {
   color: rgb(63, 162, 222);
 }
 
-.burnCol {
-  border-left: 2px solid #3fa2de;
-  border-right: 2px solid #3fa2de;
-}
-
-.repairCol {
-  border-left: 2px solid #3fa2de;
-  border-right: 2px solid #3fa2de;
+.groupSeparator {
+  border-left: 1px solid #2b485a;
 }
 </style>
