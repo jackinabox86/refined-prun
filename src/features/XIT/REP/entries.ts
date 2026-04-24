@@ -92,13 +92,19 @@ export function calculateShipEntries(ships?: PrunApi.Ship[]) {
 
 export function getPlanetRepairAge(siteId: string, now: number) {
   const site = sitesStore.getById(siteId);
-  if (!site) return undefined;
+  if (!site) {
+    return undefined;
+  }
   const buildings = site.platforms.filter(isRepairableBuilding);
-  if (buildings.length === 0) return undefined;
+  if (buildings.length === 0) {
+    return undefined;
+  }
   let maxAge = 0;
   for (const building of buildings) {
     const age = diffDays(getBuildingLastRepair(building), now, true);
-    if (age > maxAge) maxAge = age;
+    if (age > maxAge) {
+      maxAge = age;
+    }
   }
   return maxAge;
 }

@@ -71,7 +71,9 @@ const repairAge = computed(() => getPlanetRepairAge(siteId, timestampEachMinute.
 
 const repairBgClass = computed(() => {
   const age = repairAge.value;
-  if (age === undefined) return {};
+  if (age === undefined) {
+    return {};
+  }
   const { threshold, offset } = userData.settings.repair;
   const d = Math.floor(age);
   return {
@@ -83,7 +85,9 @@ const repairBgClass = computed(() => {
 
 const repairDaysText = computed(() => {
   const age = repairAge.value;
-  if (age === undefined) return undefined;
+  if (age === undefined) {
+    return undefined;
+  }
   return String(Math.floor(age));
 });
 
