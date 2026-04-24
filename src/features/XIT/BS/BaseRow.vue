@@ -232,9 +232,10 @@ const warehouseStore = computed(() =>
 }
 
 .statusContent {
-  display: flex;
+  display: inline-flex;
   align-items: center;
   cursor: pointer;
+  vertical-align: middle;
 }
 
 .statusNum {
