@@ -1,9 +1,8 @@
 name: PR Documentation Standards Review
 
-# Disabled - this action was failing and needs investigation
-# on:
-#   pull_request:
-#     types: [opened, synchronize, reopened]
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
 
 permissions:
   contents: read
@@ -12,6 +11,7 @@ permissions:
 
 jobs:
   review:
+    if: false
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
