@@ -67,6 +67,14 @@ const prodBgClass = computed(() => {
   };
 });
 
+const prodText = computed(() => {
+  const totals = prodTotals.value;
+  if (!totals) {
+    return undefined;
+  }
+  return totals.orders >= totals.capacity ? '✓' : '∅';
+});
+
 const repairAge = computed(() => getPlanetRepairAge(siteId, timestampEachMinute.value));
 
 const repairBgClass = computed(() => {
@@ -137,6 +145,7 @@ const warehouseStore = computed(() =>
           :style="{ position: 'absolute', left: 0, top: 0, width: '100%', height: '100%' }"
           :class="prodBgClass" />
         <div :class="$style.prodContent">
+          <span :class="$style.daysNum">{{ prodText }}</span>
           <PrunButton dark inline @click="showBuffer(`XIT PROD ${naturalId}`)">PROD</PrunButton>
         </div>
       </template>
@@ -249,6 +258,7 @@ const warehouseStore = computed(() =>
   display: flex;
   align-items: center;
   justify-content: center;
+  gap: 4px;
 }
 
 .repairCell {
