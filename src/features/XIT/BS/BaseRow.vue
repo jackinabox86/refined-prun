@@ -11,15 +11,30 @@ import { storagesStore } from '@src/infrastructure/prun-api/data/storage';
 import { userData } from '@src/store/user-data';
 import { getPlanetRepairAge } from '@src/features/XIT/REP/entries';
 import { timestampEachMinute } from '@src/utils/dayjs';
+import { store as planetContextMenu } from './planet-context-menu';
 
-const { siteId, naturalId, planetName, storeId, showBurn, showProd, showRepair } = defineProps<{
+const {
+  siteId,
+  naturalId,
+  planetName,
+  storeId,
+  showCmds,
+  showBurn,
+  showProd,
+  showRepair,
+  showInv,
+  showWar,
+} = defineProps<{
   siteId: string;
   naturalId: string;
   planetName: string;
   storeId: string;
+  showCmds: boolean;
   showBurn: boolean;
   showProd: boolean;
   showRepair: boolean;
+  showInv: boolean;
+  showWar: boolean;
 }>();
 
 const burn = computed(() => getPlanetBurn(siteId));
@@ -109,65 +124,54 @@ const warehouseStore = computed(() =>
 
 <template>
   <tr :class="$style.row">
-    <td :class="$style.planetCell">
+    <td
+      :class="$style.planetCell"
+      @contextmenu.prevent="planetContextMenu.showMenu($event, naturalId)">
       <PrunLink inline :command="`BS ${naturalId}`" :class="$style.planetLink">{{
         planetName
       }}</PrunLink>
     </td>
-    <td :class="$style.cmdCell">
-      <PrunButton primary>CMDS&#x25B6;</PrunButton>
+    <td v-if="showCmds" :class="$style.cmdCell">
+      <PrunButton dark inline>CMDS&#x25B6;</PrunButton>
+      <div :class="$style.rowOverlay" />
       <div :class="$style.expandedButtons">
-        <PrunButton primary @click="showBuffer(`BBL ${siteId}`)">BUILDINGS</PrunButton>
-        <PrunButton primary @click="showBuffer(`BBC ${naturalId}`)">CONSTRUCT</PrunButton>
-        <PrunButton primary @click="showBuffer(`WF ${siteId}`)">WORKFORCE</PrunButton>
-        <PrunButton primary @click="showBuffer(`EXP ${siteId}`)">EXPERTS</PrunButton>
+        <PrunButton dark inline @click="showBuffer(`BBL ${siteId}`)">BUILDINGS</PrunButton>
+        <PrunButton dark inline @click="showBuffer(`BBC ${naturalId}`)">CONSTRUCT</PrunButton>
+        <PrunButton dark inline @click="showBuffer(`WF ${siteId}`)">WORKFORCE</PrunButton>
+        <PrunButton dark inline @click="showBuffer(`EXP ${siteId}`)">EXPERTS</PrunButton>
       </div>
     </td>
-    <td
-      v-if="showBurn"
-      :class="[$style.indicatorCell, $style.clickable]"
-      @click="showBuffer(`XIT BURN ${naturalId}`)">
-      <div :class="[$style.overlay, burnBgClass]" />
-      <span :class="$style.indicatorText">{{ daysText ?? '-' }}</span>
+    <td v-if="showBurn" :class="$style.statusCell">
+      <div :class="[$style.statusContent, burnBgClass]">
+        <span :class="$style.statusNum" @click="showBuffer(`XIT BURN ${naturalId}`)">{{
+          daysText ?? '-'
+        }}</span>
+        <PrunButton dark inline @click="showBuffer(`XIT BURNACT ${naturalId}`)">RES</PrunButton>
+      </div>
     </td>
-    <td v-if="showBurn" :class="$style.buttonCell">
-      <PrunButton dark inline @click="showBuffer(`XIT BURNACT ${naturalId}`)">RES</PrunButton>
+    <td v-if="showProd" :class="$style.statusCell">
+      <div :class="[$style.statusContent, prodBgClass]">
+        <span :class="$style.statusNum" @click="showBuffer(`XIT PROD ${naturalId}`)">{{
+          prodText ?? '-'
+        }}</span>
+        <PrunButton dark inline @click="showBuffer(`XIT PROD ${naturalId}`)">PROD</PrunButton>
+      </div>
     </td>
-    <td
-      v-if="showProd"
-      :class="[
-        $style.indicatorCell,
-        $style.clickable,
-        showBurn && $style.groupSeparator,
-      ]"
-      @click="showBuffer(`XIT PROD ${naturalId}`)">
-      <div :class="[$style.overlay, prodBgClass]" />
-      <span :class="$style.indicatorText">{{ prodText ?? '-' }}</span>
+    <td v-if="showRepair" :class="$style.statusCell">
+      <div :class="[$style.statusContent, repairBgClass]">
+        <span :class="$style.statusNum" @click="showBuffer(`XIT REP ${naturalId}`)">{{
+          repairDaysText ?? '-'
+        }}</span>
+        <PrunButton dark inline @click="showBuffer(`XIT REPAIRACT ${naturalId}`)">REP</PrunButton>
+      </div>
     </td>
-    <td v-if="showProd" :class="$style.buttonCell">
-      <PrunButton dark inline @click="showBuffer(`XIT PROD ${naturalId}`)">PROD</PrunButton>
-    </td>
-    <td
-      v-if="showRepair"
-      :class="[
-        $style.indicatorCell,
-        $style.clickable,
-        (showBurn || showProd) && $style.groupSeparator,
-      ]"
-      @click="showBuffer(`XIT REP ${naturalId}`)">
-      <div :class="[$style.overlay, repairBgClass]" />
-      <span :class="$style.indicatorText">{{ repairDaysText ?? '-' }}</span>
-    </td>
-    <td v-if="showRepair" :class="$style.buttonCell">
-      <PrunButton dark inline @click="showBuffer(`XIT REPAIRACT ${naturalId}`)">REP</PrunButton>
-    </td>
-    <td :class="$style.invCell">
+    <td v-if="showInv" :class="$style.invCell">
       <InvBar
         :store-id="storeId"
         :natural-id="naturalId"
         :on-click-cmd="`INV ${storeId.substring(0, 8)}`" />
     </td>
-    <td :class="$style.invCell">
+    <td v-if="showWar" :class="$style.invCell">
       <InvBar
         v-if="warehouseStore"
         :store-id="warehouseStore.id"
@@ -188,6 +192,7 @@ const warehouseStore = computed(() =>
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
+  color: inherit;
 }
 
 .cmdCell {
@@ -197,6 +202,21 @@ const warehouseStore = computed(() =>
   width: 0;
 }
 
+.rowOverlay {
+  display: none;
+  position: absolute;
+  top: 0;
+  left: -500px;
+  right: -500px;
+  height: 100%;
+  background: black;
+  z-index: 9;
+}
+
+.cmdCell:hover .rowOverlay {
+  display: block;
+}
+
 .expandedButtons {
   display: none;
   position: absolute;
@@ -204,7 +224,6 @@ const warehouseStore = computed(() =>
   top: 50%;
   transform: translateY(-50%);
   z-index: 10;
-  background: #23282b;
   flex-direction: row;
   align-items: center;
   gap: 0.25rem;
@@ -220,40 +239,24 @@ const warehouseStore = computed(() =>
   border-bottom: 1px solid #2b485a;
 }
 
-.indicatorCell {
-  position: relative;
+.statusCell {
   width: 0;
   white-space: nowrap;
-  padding: 2px 4px;
-  text-align: center;
+  padding: 2px;
 }
 
-.overlay {
-  position: absolute;
-  left: 0;
-  top: 0;
-  width: 100%;
-  height: 100%;
-}
-
-.indicatorText {
-  position: relative;
-  display: inline-block;
-  min-width: 4ch;
-}
-
-.buttonCell {
-  width: 0;
-  white-space: nowrap;
-  padding: 2px 4px;
-}
-
-.clickable {
+.statusContent {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
   cursor: pointer;
+  vertical-align: middle;
+  padding: 2px 4px;
 }
 
-.groupSeparator {
-  border-left: 1px solid #2b485a;
+.statusNum {
+  min-width: 3ch;
+  text-align: center;
 }
 
 .invCell {

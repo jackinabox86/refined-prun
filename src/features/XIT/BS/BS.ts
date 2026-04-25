@@ -5,4 +5,5 @@ xit.add({
   name: 'BASE OVERVIEW',
   description: 'Lists all player bases with links to key base commands.',
   component: () => BS,
+  bufferSize: [660, 300],
 });
