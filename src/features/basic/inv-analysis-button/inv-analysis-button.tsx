@@ -48,7 +48,6 @@ function showPanel(tile: PrunTile, naturalId: string) {
   tile.anchor.style.flexDirection = 'column';
   storeContainer.style.flex = '1';
   storeContainer.style.minHeight = '0';
-  storeContainer.style.overflowY = 'auto';
 
   const panelWrapper = document.createElement('div');
   panelWrapper.style.flexShrink = '0';
