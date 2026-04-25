@@ -141,43 +141,29 @@ const warehouseStore = computed(() =>
         <PrunButton dark inline @click="showBuffer(`EXP ${siteId}`)">EXPERTS</PrunButton>
       </div>
     </td>
-    <td
-      v-if="showBurn"
-      :class="[$style.indicatorCell, $style.clickable, $style.sectionLeft, $style.sectionBottom]"
-      @click="showBuffer(`XIT BURN ${naturalId}`)">
-      <div :class="[$style.overlay, burnBgClass]" />
-      <span :class="$style.indicatorText">{{ daysText ?? '-' }}</span>
+    <td v-if="showBurn" :class="$style.statusCell">
+      <div :class="[$style.statusContent, burnBgClass]">
+        <span :class="$style.statusNum" @click="showBuffer(`XIT BURN ${naturalId}`)">{{
+          daysText ?? '-'
+        }}</span>
+        <PrunButton dark inline @click="showBuffer(`XIT BURNACT ${naturalId}`)">RES</PrunButton>
+      </div>
     </td>
-    <td
-      v-if="showBurn"
-      :class="[
-        $style.buttonCell,
-        $style.sectionBottom,
-        !showProd && !showRepair && $style.sectionRight,
-      ]">
-      <PrunButton dark inline @click="showBuffer(`XIT BURNACT ${naturalId}`)">RES</PrunButton>
+    <td v-if="showProd" :class="$style.statusCell">
+      <div :class="[$style.statusContent, prodBgClass]">
+        <span :class="$style.statusNum" @click="showBuffer(`XIT PROD ${naturalId}`)">{{
+          prodText ?? '-'
+        }}</span>
+        <PrunButton dark inline @click="showBuffer(`XIT PROD ${naturalId}`)">PROD</PrunButton>
+      </div>
     </td>
-    <td
-      v-if="showProd"
-      :class="[$style.indicatorCell, $style.clickable, $style.sectionLeft, $style.sectionBottom]"
-      @click="showBuffer(`XIT PROD ${naturalId}`)">
-      <div :class="[$style.overlay, prodBgClass]" />
-      <span :class="$style.indicatorText">{{ prodText ?? '-' }}</span>
-    </td>
-    <td
-      v-if="showProd"
-      :class="[$style.buttonCell, $style.sectionBottom, !showRepair && $style.sectionRight]">
-      <PrunButton dark inline @click="showBuffer(`XIT PROD ${naturalId}`)">PROD</PrunButton>
-    </td>
-    <td
-      v-if="showRepair"
-      :class="[$style.indicatorCell, $style.clickable, $style.sectionLeft, $style.sectionBottom]"
-      @click="showBuffer(`XIT REP ${naturalId}`)">
-      <div :class="[$style.overlay, repairBgClass]" />
-      <span :class="$style.indicatorText">{{ repairDaysText ?? '-' }}</span>
-    </td>
-    <td v-if="showRepair" :class="[$style.buttonCell, $style.sectionBottom, $style.sectionRight]">
-      <PrunButton dark inline @click="showBuffer(`XIT REPAIRACT ${naturalId}`)">REP</PrunButton>
+    <td v-if="showRepair" :class="$style.statusCell">
+      <div :class="[$style.statusContent, repairBgClass]">
+        <span :class="$style.statusNum" @click="showBuffer(`XIT REP ${naturalId}`)">{{
+          repairDaysText ?? '-'
+        }}</span>
+        <PrunButton dark inline @click="showBuffer(`XIT REPAIRACT ${naturalId}`)">REP</PrunButton>
+      </div>
     </td>
     <td v-if="showInv" :class="$style.invCell">
       <InvBar
@@ -253,49 +239,26 @@ const warehouseStore = computed(() =>
   border-bottom: 1px solid #2b485a;
 }
 
-.indicatorCell {
-  position: relative;
+.statusCell {
   width: 0;
   white-space: nowrap;
+  padding: 2px;
+}
+
+.statusContent {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  cursor: pointer;
+  vertical-align: middle;
   padding: 2px 4px;
+}
+
+.statusNum {
+  min-width: 3ch;
   text-align: center;
 }
 
-.overlay {
-  position: absolute;
-  left: 0;
-  top: 0;
-  width: 100%;
-  height: 100%;
-}
-
-.indicatorText {
-  position: relative;
-  display: inline-block;
-  min-width: 3ch;
-}
-
-.buttonCell {
-  width: 0;
-  white-space: nowrap;
-  padding: 2px 4px;
-}
-
-.clickable {
-  cursor: pointer;
-}
-
-.sectionLeft {
-  border-left: 1px solid #ffc856;
-}
-
-.sectionRight {
-  border-right: 1px solid #ffc856;
-}
-
-.sectionBottom {
-  border-bottom: 1px solid #ffc856;
-}
 
 .invCell {
   min-width: 60px;
