@@ -237,6 +237,18 @@ const filteredBases = computed(() => {
   align-items: center;
 }
 
+.searchContainer input {
+  background-color: #42361d;
+  border-width: 0 0 1px;
+  border-bottom: 1px solid #8d6411;
+  color: #cccccc;
+  padding: 0 5px;
+
+  &:focus {
+    outline: none;
+  }
+}
+
 .clearButton {
   display: flex;
   justify-content: center;
