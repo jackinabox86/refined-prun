@@ -1,0 +1,16 @@
+services:
+  browser:
+    build:
+      context: docker
+    ports:
+      - "6080:6080"
+    volumes:
+      - ./dist:/ext/dist:ro
+      - chrome-profile:/chrome-profile
+    environment:
+      - VNC_PASSWORD=changeme
+    restart: unless-stopped
+    shm_size: "2gb"
+
+volumes:
+  chrome-profile:

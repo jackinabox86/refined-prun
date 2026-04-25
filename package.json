@@ -16,7 +16,8 @@
     "fix": "pnpm exec eslint ./ --fix --concurrency auto",
     "lint": "pnpm exec eslint --concurrency auto",
     "prepare": "husky",
-    "prettier": "prettier . --write --ignore-path .prettierignore"
+    "prettier": "prettier . --write --ignore-path .prettierignore",
+    "open": "scripts\\open-local.bat"
   },
   "type": "module",
   "dependencies": {
