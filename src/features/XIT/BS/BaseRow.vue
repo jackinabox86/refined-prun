@@ -9,6 +9,7 @@ import { getPlanetProduction } from '@src/core/production';
 import { warehousesStore } from '@src/infrastructure/prun-api/data/warehouses';
 import { storagesStore } from '@src/infrastructure/prun-api/data/storage';
 import { userData } from '@src/store/user-data';
+import { getRepairOffset, getRepairThreshold } from '@src/core/buildings';
 import { getPlanetRepairAge } from '@src/features/XIT/REP/entries';
 import { timestampEachMinute } from '@src/utils/dayjs';
 
@@ -82,7 +83,8 @@ const repairBgClass = computed(() => {
   if (age === undefined) {
     return {};
   }
-  const { threshold, offset } = userData.settings.repair;
+  const threshold = getRepairThreshold(naturalId);
+  const offset = getRepairOffset(naturalId);
   const d = Math.floor(age);
   return {
     [C.Workforces.daysMissing]: d >= threshold,
@@ -135,11 +137,7 @@ const warehouseStore = computed(() =>
     </td>
     <td
       v-if="showProd"
-      :class="[
-        $style.indicatorCell,
-        $style.clickable,
-        showBurn && $style.groupSeparator,
-      ]"
+      :class="[$style.indicatorCell, $style.clickable, showBurn && $style.groupSeparator]"
       @click="showBuffer(`XIT PROD ${naturalId}`)">
       <div :class="[$style.overlay, prodBgClass]" />
       <span :class="$style.indicatorText">{{ prodText ?? '-' }}</span>

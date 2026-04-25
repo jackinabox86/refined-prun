@@ -7,12 +7,11 @@ import {
   getParameterSites,
 } from '@src/features/XIT/REP/entries';
 import { timestampEachMinute } from '@src/utils/dayjs';
-import { binarySearch } from '@src/utils/binary-search';
 import dayjs from 'dayjs';
 import { fixed1, percent1 } from '@src/utils/format';
 import MaterialPurchaseTable from '@src/components/MaterialPurchaseTable.vue';
 import LoadingSpinner from '@src/components/LoadingSpinner.vue';
-import { calcBuildingCondition } from '@src/core/buildings';
+import { calcBuildingCondition, getRepairOffset, getRepairThreshold } from '@src/core/buildings';
 import { diffDays } from '@src/utils/time-diff';
 import { userData } from '@src/store/user-data';
 import { mergeMaterialAmounts } from '@src/core/sort-materials';
@@ -39,18 +38,17 @@ const shipEntries = computed(() => calculateShipEntries(ships.value));
 
 const msInADay = dayjs.duration(1, 'day').asMilliseconds();
 
-const currentSplitIndex = computed(() => {
+const visibleBuildings = computed(() => {
   if (buildingEntries.value === undefined) {
     return undefined;
   }
-  const settings = userData.settings.repair;
-  const currentSplitDate =
-    timestampEachMinute.value - settings.threshold * msInADay + settings.offset * msInADay;
-  return binarySearch(currentSplitDate, buildingEntries.value, x => x.lastRepair);
-});
-
-const visibleBuildings = computed(() => {
-  return buildingEntries.value?.slice(0, currentSplitIndex.value);
+  const time = timestampEachMinute.value;
+  return buildingEntries.value.filter(entry => {
+    const threshold = getRepairThreshold(entry.naturalId);
+    const offset = getRepairOffset(entry.naturalId);
+    const splitDate = time - threshold * msInADay + offset * msInADay;
+    return entry.lastRepair < splitDate;
+  });
 });
 
 const visibleShips = computed(() => shipEntries.value?.filter(x => x.condition <= 0.85));
@@ -63,7 +61,7 @@ const materials = computed(() => {
   const time = timestampEachMinute.value;
   for (const building of visibleBuildings.value) {
     const plannedRepairDate =
-      (time - building.lastRepair) / msInADay + userData.settings.repair.offset;
+      (time - building.lastRepair) / msInADay + getRepairOffset(building.naturalId);
     for (const { material, amount } of building.fullMaterials) {
       materials.push({
         material,

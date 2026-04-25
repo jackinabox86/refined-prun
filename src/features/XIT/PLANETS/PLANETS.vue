@@ -37,17 +37,47 @@ const rows = computed<Row[] | undefined>(() => {
 });
 
 const defaultResupply = computed(() => userData.settings.burn.resupply);
+const defaultThreshold = computed(() => userData.settings.repair.threshold);
+const defaultOffset = computed(() => userData.settings.repair.offset);
 
-function getOverride(naturalId: string) {
+function getResupplyOverride(naturalId: string) {
   return userData.settings.burn.planetResupply[naturalId];
 }
 
-function setOverride(naturalId: string, value: number | undefined) {
+function setResupplyOverride(naturalId: string, value: number | undefined) {
   const map = userData.settings.burn.planetResupply;
   if (value === undefined || isNaN(value)) {
     delete map[naturalId];
   } else {
     map[naturalId] = value;
+  }
+}
+
+function getRepairOverride(naturalId: string) {
+  return userData.settings.repair.planetOverrides[naturalId];
+}
+
+function setRepairField(
+  naturalId: string,
+  field: 'threshold' | 'offset',
+  value: number | undefined,
+) {
+  const map = userData.settings.repair.planetOverrides;
+  const entry = map[naturalId];
+  if (value === undefined || isNaN(value)) {
+    if (!entry) {
+      return;
+    }
+    delete entry[field];
+    if (entry.threshold === undefined && entry.offset === undefined) {
+      delete map[naturalId];
+    }
+  } else {
+    if (!entry) {
+      map[naturalId] = { [field]: value };
+    } else {
+      entry[field] = value;
+    }
   }
 }
 </script>
@@ -64,7 +94,23 @@ function setOverride(naturalId: string, value: number | undefined) {
             Resupply Days
             <Tooltip
               position="bottom"
-              :tooltip="`Per-planet override for the resupply target. Leave empty to use the default (${defaultResupply} days) from XIT SET.`" />
+              :tooltip="`Per-planet override. Leave empty to use the default (${defaultResupply} days) from XIT SET.`" />
+          </InlineFlex>
+        </th>
+        <th>
+          <InlineFlex>
+            Repair Threshold
+            <Tooltip
+              position="bottom"
+              :tooltip="`Per-planet override. Leave empty to use the default (${defaultThreshold} days) from XIT REP.`" />
+          </InlineFlex>
+        </th>
+        <th>
+          <InlineFlex>
+            Repair Offset
+            <Tooltip
+              position="bottom"
+              :tooltip="`Per-planet override. Leave empty to use the default (${defaultOffset} days) from XIT REP.`" />
           </InlineFlex>
         </th>
         <th>CMD</th>
@@ -75,22 +121,28 @@ function setOverride(naturalId: string, value: number | undefined) {
         <td :class="$style.planet">{{ row.planetName }}</td>
         <td :class="$style.input">
           <NumberInput
-            :model-value="getOverride(row.naturalId)"
+            :model-value="getResupplyOverride(row.naturalId)"
             optional
-            @update:model-value="setOverride(row.naturalId, $event)" />
+            @update:model-value="setResupplyOverride(row.naturalId, $event)" />
+        </td>
+        <td :class="$style.input">
+          <NumberInput
+            :model-value="getRepairOverride(row.naturalId)?.threshold"
+            optional
+            @update:model-value="setRepairField(row.naturalId, 'threshold', $event)" />
+        </td>
+        <td :class="$style.input">
+          <NumberInput
+            :model-value="getRepairOverride(row.naturalId)?.offset"
+            optional
+            @update:model-value="setRepairField(row.naturalId, 'offset', $event)" />
         </td>
         <td>
           <div :class="$style.buttons">
-            <PrunButton
-              dark
-              inline
-              :disabled="getOverride(row.naturalId) === undefined"
-              @click="setOverride(row.naturalId, undefined)">
-              RESET
-            </PrunButton>
             <PrunButton dark inline @click="showBuffer(`BS ${row.naturalId}`)">BS</PrunButton>
             <PrunButton dark inline @click="showBuffer(`BURN ${row.naturalId}`)">BURN</PrunButton>
             <PrunButton dark inline @click="showBuffer(`STO ${row.naturalId}`)">STO</PrunButton>
+            <PrunButton dark inline @click="showBuffer(`REP ${row.naturalId}`)">REP</PrunButton>
           </div>
         </td>
       </tr>
@@ -116,7 +168,7 @@ function setOverride(naturalId: string, value: number | undefined) {
 }
 
 .input {
-  width: 100px;
+  width: 80px;
 }
 
 .input input {
