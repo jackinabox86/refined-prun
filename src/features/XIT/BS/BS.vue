@@ -1,7 +1,10 @@
 <script setup lang="ts">
 import LoadingSpinner from '@src/components/LoadingSpinner.vue';
 import RadioItem from '@src/components/forms/RadioItem.vue';
+import TextInput from '@src/components/forms/TextInput.vue';
+import PrunButton from '@src/components/PrunButton.vue';
 import BaseRow from '@src/features/XIT/BS/BaseRow.vue';
+import fa from '@src/utils/font-awesome.module.css';
 import { sitesStore } from '@src/infrastructure/prun-api/data/sites';
 import { storagesStore } from '@src/infrastructure/prun-api/data/storage';
 import {
@@ -26,6 +29,7 @@ const showProd = useTileState('showProd', true);
 const showRepair = useTileState('showRepair', true);
 const showInv = useTileState('showInv', true);
 const showWar = useTileState('showWar', true);
+const planetFilter = ref('');
 
 function setSort(key: SortKey) {
   if (sortKey.value === key) {
@@ -99,6 +103,20 @@ const bases = computed<BaseEntry[] | undefined>(() => {
 
   return entries;
 });
+
+const filteredBases = computed(() => {
+  const all = bases.value;
+  if (!all) {
+    return undefined;
+  }
+  const filter = planetFilter.value.trim().toUpperCase();
+  if (!filter) {
+    return all;
+  }
+  return all.filter(
+    x => x.naturalId.toUpperCase().includes(filter) || x.planetName.toUpperCase().includes(filter),
+  );
+});
 </script>
 
 <template>
@@ -111,6 +129,18 @@ const bases = computed<BaseEntry[] | undefined>(() => {
       <RadioItem v-model="showRepair" horizontal>Repair</RadioItem>
       <RadioItem v-model="showInv" horizontal>Inv</RadioItem>
       <RadioItem v-model="showWar" horizontal>War</RadioItem>
+      <div :class="$style.spacer" />
+      <div :class="$style.searchContainer">
+        Planet:&nbsp;
+        <TextInput v-model="planetFilter" />
+        <PrunButton
+          v-if="planetFilter"
+          dark
+          :class="[fa.solid, $style.clearButton]"
+          @click="planetFilter = ''">
+          {{ '' }}
+        </PrunButton>
+      </div>
     </div>
     <table :class="$style.table">
       <thead>
@@ -147,7 +177,7 @@ const bases = computed<BaseEntry[] | undefined>(() => {
       </thead>
       <tbody>
         <BaseRow
-          v-for="base in bases"
+          v-for="base in filteredBases"
           :key="base.naturalId"
           :site-id="base.siteId"
           :natural-id="base.naturalId"
@@ -198,5 +228,36 @@ const bases = computed<BaseEntry[] | undefined>(() => {
 
 .sortInactive {
   color: rgb(63, 162, 222);
+}
+
+.spacer {
+  flex: 1;
+}
+
+.searchContainer {
+  display: flex;
+  align-items: center;
+}
+
+.searchContainer input {
+  background-color: #42361d;
+  border-width: 0 0 1px;
+  border-bottom: 1px solid #8d6411;
+  color: #cccccc;
+  padding: 0 5px;
+
+  &:focus {
+    outline: none;
+  }
+}
+
+.clearButton {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin-left: 2px;
+  width: 18px;
+  height: 18px;
+  font-size: 11px;
 }
 </style>

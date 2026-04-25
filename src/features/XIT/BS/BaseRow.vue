@@ -259,7 +259,6 @@ const warehouseStore = computed(() =>
   text-align: center;
 }
 
-
 .invCell {
   min-width: 60px;
   padding: 2px;
