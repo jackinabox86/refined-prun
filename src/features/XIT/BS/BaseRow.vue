@@ -11,8 +11,20 @@ import { storagesStore } from '@src/infrastructure/prun-api/data/storage';
 import { userData } from '@src/store/user-data';
 import { getPlanetRepairAge } from '@src/features/XIT/REP/entries';
 import { timestampEachMinute } from '@src/utils/dayjs';
+import { store as planetContextMenu } from './planet-context-menu';
 
-const { siteId, naturalId, planetName, storeId, showCmds, showBurn, showProd, showRepair, showInv, showWar } = defineProps<{
+const {
+  siteId,
+  naturalId,
+  planetName,
+  storeId,
+  showCmds,
+  showBurn,
+  showProd,
+  showRepair,
+  showInv,
+  showWar,
+} = defineProps<{
   siteId: string;
   naturalId: string;
   planetName: string;
@@ -112,7 +124,9 @@ const warehouseStore = computed(() =>
 
 <template>
   <tr :class="$style.row">
-    <td :class="$style.planetCell">
+    <td
+      :class="$style.planetCell"
+      @contextmenu.prevent="planetContextMenu.showMenu($event, naturalId)">
       <PrunLink inline :command="`BS ${naturalId}`" :class="$style.planetLink">{{
         planetName
       }}</PrunLink>
