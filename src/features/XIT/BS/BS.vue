@@ -106,13 +106,15 @@ const bases = computed<BaseEntry[] | undefined>(() => {
 
 const filteredBases = computed(() => {
   const all = bases.value;
-  if (!all) return undefined;
+  if (!all) {
+    return undefined;
+  }
   const filter = planetFilter.value.trim().toUpperCase();
-  if (!filter) return all;
+  if (!filter) {
+    return all;
+  }
   return all.filter(
-    x =>
-      x.naturalId.toUpperCase().includes(filter) ||
-      x.planetName.toUpperCase().includes(filter),
+    x => x.naturalId.toUpperCase().includes(filter) || x.planetName.toUpperCase().includes(filter),
   );
 });
 </script>
