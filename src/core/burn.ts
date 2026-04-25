@@ -9,6 +9,7 @@ import {
   getEntityNaturalIdFromAddress,
 } from '@src/infrastructure/prun-api/data/addresses';
 import { getRecurringOrders } from '@src/core/orders';
+import { userData } from '@src/store/user-data';
 
 export interface MaterialBurn {
   input: number;
@@ -207,6 +208,16 @@ export function calculatePlanetBurn(
   }
 
   return burnValues;
+}
+
+export function getResupplyDays(planetNaturalId?: string | null) {
+  if (planetNaturalId) {
+    const override = userData.settings.burn.planetResupply?.[planetNaturalId];
+    if (override !== undefined) {
+      return override;
+    }
+  }
+  return userData.settings.burn.resupply;
 }
 
 export function computeNeed(mat: MaterialBurn, resupplyDays: number) {

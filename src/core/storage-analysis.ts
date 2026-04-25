@@ -1,4 +1,4 @@
-import { computeNeed, getPlanetBurn } from '@src/core/burn';
+import { computeNeed, getPlanetBurn, getResupplyDays } from '@src/core/burn';
 import { storagesStore } from '@src/infrastructure/prun-api/data/storage';
 import { sitesStore } from '@src/infrastructure/prun-api/data/sites';
 import { materialsStore } from '@src/infrastructure/prun-api/data/materials';
@@ -6,7 +6,6 @@ import {
   getEntityNameFromAddress,
   getEntityNaturalIdFromAddress,
 } from '@src/infrastructure/prun-api/data/addresses';
-import { userData } from '@src/store/user-data';
 
 export interface BaseStorageAnalysis {
   siteId: string;
@@ -78,7 +77,7 @@ function computeAnalysis(site: PrunApi.Site): BaseStorageAnalysis | undefined {
   }
 
   const planetBurn = getPlanetBurn(site);
-  const resupplyDays = userData.settings.burn.resupply;
+  const resupplyDays = getResupplyDays(getEntityNaturalIdFromAddress(site.address));
 
   let importWeight = 0;
   let importVolume = 0;
@@ -252,7 +251,7 @@ export function buildProjectedStore(
   }
 
   const planetBurn = getPlanetBurn(site);
-  const resupplyDays = userData.settings.burn.resupply;
+  const resupplyDays = getResupplyDays(getEntityNaturalIdFromAddress(site.address));
 
   const items: PrunApi.StoreItem[] = [];
   let weightLoad = 0;
