@@ -1,0 +1,81 @@
+import { getInvStore } from '@src/core/store-id';
+import { sitesStore } from '@src/infrastructure/prun-api/data/sites';
+import { getEntityNaturalIdFromAddress } from '@src/infrastructure/prun-api/data/addresses';
+import { setBufferSize } from '@src/infrastructure/prun-ui/buffers';
+import { clickElement, changeInputValue } from '@src/util';
+import { getPrunId } from '@src/infrastructure/prun-ui/attributes';
+import { UI_TILES_CHANGE_COMMAND } from '@src/infrastructure/prun-api/client-messages';
+import { dispatchClientPrunMessage } from '@src/infrastructure/prun-api/prun-api-listener';
+
+async function onTileReady(tile: PrunTile) {
+  const store = computed(() => getInvStore(tile.parameter));
+  const site = computed(() => (store.value ? sitesStore.getById(store.value.addressableId) : undefined));
+  const naturalId = computed(() =>
+    site.value ? getEntityNaturalIdFromAddress(site.value.address) : undefined,
+  );
+
+  const contextBar = await $(tile.frame, C.ContextControls.container);
+
+  createFragmentApp(() => {
+    if (!naturalId.value) return null;
+    return (
+      <div
+        class={[C.ContextControls.item, C.fonts.fontRegular, C.type.typeSmall]}
+        onClick={() => void openAnalysis(tile, naturalId.value!)}>
+        <span>
+          <span class={C.ContextControls.cmd}>Analysis</span>
+          {' - XIT STO'}
+        </span>
+      </div>
+    );
+  }).prependTo(contextBar);
+}
+
+async function openAnalysis(tile: PrunTile, naturalId: string) {
+  const command = `XIT STO ${naturalId}`;
+  const windowEl = tile.frame.closest(`.${C.Window.window}`) as HTMLElement | null;
+
+  if (tile.container.classList.contains(C.Window.body)) {
+    // Solo floating buffer: resize taller and split vertically.
+    const w = parseInt(tile.container.style.width, 10) || 600;
+    const h = parseInt(tile.container.style.height, 10) || 400;
+    setBufferSize(tile.id, w, h + 450);
+
+    const splitButton = _$$(tile.frame, C.TileControls.control).find(x => x.textContent === '–');
+    await clickElement(splitButton);
+
+    if (!windowEl) return;
+
+    const node = await $(windowEl, C.Node.node);
+    const companion = _$$(node, C.Node.child)[1] as HTMLElement | undefined;
+    if (companion) {
+      await setChildCommand(companion, command);
+    }
+  } else if (tile.container.classList.contains(C.Node.child)) {
+    // Already in a split: find the sibling and change its command.
+    const node = tile.container.parentElement!;
+    const sibling = _$$(node, C.Node.child).find(x => x !== tile.container);
+    if (sibling) {
+      await setChildCommand(sibling, command);
+    }
+  }
+}
+
+async function setChildCommand(child: Element, command: string) {
+  const tileEl = _$(child, C.Tile.tile) as HTMLElement | null;
+  if (!tileEl) return;
+
+  const id = getPrunId(tileEl)!;
+  const message = UI_TILES_CHANGE_COMMAND(id, command);
+  if (!dispatchClientPrunMessage(message)) {
+    const input = (await $(child, C.PanelSelector.input)) as HTMLInputElement;
+    changeInputValue(input, command);
+    input.form!.requestSubmit();
+  }
+}
+
+function init() {
+  tiles.observe('INV', onTileReady);
+}
+
+features.add(import.meta.url, init, 'INV: Adds an Analysis button to open XIT STO in a vertical companion pane.');
