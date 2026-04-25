@@ -13,6 +13,7 @@ const { analysis } = defineProps<{
   hasMinimize?: boolean;
   minimized?: boolean;
   onClick: () => void;
+  tooltipPosition?: string;
 }>();
 
 const currentStore = computed(() => storagesStore.getById(analysis.storeId));
@@ -69,13 +70,13 @@ const supplyClass = computed(() => {
       <span>{{ analysis.planetName }}</span>
     </td>
     <td :class="$style.clickable" @click="onClick">
-      <span :data-tooltip="limitTooltip" data-tooltip-position="bottom">
+      <span :data-tooltip="limitTooltip" :data-tooltip-position="tooltipPosition ?? 'bottom'">
         {{ formatDays(analysis.daysUntilFull) }}
       </span>
     </td>
     <td :class="[$style.clickable, $style.supplyCell]" @click="onClick">
       <div v-if="supplyClass" :class="[$style.supplyBg, supplyClass]" />
-      <span :data-tooltip="supplyTooltip" data-tooltip-position="bottom">
+      <span :data-tooltip="supplyTooltip" :data-tooltip-position="tooltipPosition ?? 'bottom'">
         {{ formatDaysCompact(analysis.daysOfSuppliesFit) }}
       </span>
     </td>
