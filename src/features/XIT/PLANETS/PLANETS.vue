@@ -85,69 +85,74 @@ function setRepairField(
 <template>
   <LoadingSpinner v-if="rows === undefined" />
   <div v-else-if="rows.length === 0" :class="$style.empty">No bases yet</div>
-  <table v-else :class="$style.table">
-    <thead>
-      <tr>
-        <th :class="$style.planet">Planet</th>
-        <th>
-          <InlineFlex>
-            Resupply Days
-            <Tooltip
-              position="bottom"
-              :tooltip="`Per-planet override. Leave empty to use the default (${defaultResupply} days) from XIT SET.`" />
-          </InlineFlex>
-        </th>
-        <th>
-          <InlineFlex>
-            Repair Threshold
-            <Tooltip
-              position="bottom"
-              :tooltip="`Per-planet override. Leave empty to use the default (${defaultThreshold} days) from XIT REP.`" />
-          </InlineFlex>
-        </th>
-        <th>
-          <InlineFlex>
-            Repair Offset
-            <Tooltip
-              position="bottom"
-              :tooltip="`Per-planet override. Leave empty to use the default (${defaultOffset} days) from XIT REP.`" />
-          </InlineFlex>
-        </th>
-        <th>CMD</th>
-      </tr>
-    </thead>
-    <tbody>
-      <tr v-for="row in rows" :key="row.siteId" :class="$style.row">
-        <td :class="$style.planet">{{ row.planetName }}</td>
-        <td :class="$style.input">
-          <NumberInput
-            :model-value="getResupplyOverride(row.naturalId)"
-            optional
-            @update:model-value="setResupplyOverride(row.naturalId, $event)" />
-        </td>
-        <td :class="$style.input">
-          <NumberInput
-            :model-value="getRepairOverride(row.naturalId)?.threshold"
-            optional
-            @update:model-value="setRepairField(row.naturalId, 'threshold', $event)" />
-        </td>
-        <td :class="$style.input">
-          <NumberInput
-            :model-value="getRepairOverride(row.naturalId)?.offset"
-            optional
-            @update:model-value="setRepairField(row.naturalId, 'offset', $event)" />
-        </td>
-        <td>
-          <div :class="$style.buttons">
-            <PrunButton dark inline @click="showBuffer(`BS ${row.naturalId}`)">BS</PrunButton>
-            <PrunButton dark inline @click="showBuffer(`BURN ${row.naturalId}`)">BURN</PrunButton>
-            <PrunButton dark inline @click="showBuffer(`STO ${row.naturalId}`)">STO</PrunButton>
-            <PrunButton dark inline @click="showBuffer(`REP ${row.naturalId}`)">REP</PrunButton>
-          </div>
-        </td>
-      </tr>
-    </tbody>
-  </table>
+  <template v-else>
+    <div :class="$style.note">
+      Clear any field to remove its override and use the default value (from XIT SET / XIT REP).
+    </div>
+    <table :class="$style.table">
+      <thead>
+        <tr>
+          <th :class="$style.planet">Planet</th>
+          <th>
+            <InlineFlex>
+              Resupply Days
+              <Tooltip
+                position="bottom"
+                :tooltip="`Per-planet override. Leave empty to use the default (${defaultResupply} days) from XIT SET.`" />
+            </InlineFlex>
+          </th>
+          <th>
+            <InlineFlex>
+              Repair Threshold
+              <Tooltip
+                position="bottom"
+                :tooltip="`Per-planet override. Leave empty to use the default (${defaultThreshold} days) from XIT REP.`" />
+            </InlineFlex>
+          </th>
+          <th>
+            <InlineFlex>
+              Repair Offset
+              <Tooltip
+                position="bottom"
+                :tooltip="`Per-planet override. Leave empty to use the default (${defaultOffset} days) from XIT REP.`" />
+            </InlineFlex>
+          </th>
+          <th>CMD</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr v-for="row in rows" :key="row.siteId" :class="$style.row">
+          <td :class="$style.planet">{{ row.planetName }}</td>
+          <td :class="$style.input">
+            <NumberInput
+              :model-value="getResupplyOverride(row.naturalId)"
+              optional
+              @update:model-value="setResupplyOverride(row.naturalId, $event)" />
+          </td>
+          <td :class="$style.input">
+            <NumberInput
+              :model-value="getRepairOverride(row.naturalId)?.threshold"
+              optional
+              @update:model-value="setRepairField(row.naturalId, 'threshold', $event)" />
+          </td>
+          <td :class="$style.input">
+            <NumberInput
+              :model-value="getRepairOverride(row.naturalId)?.offset"
+              optional
+              @update:model-value="setRepairField(row.naturalId, 'offset', $event)" />
+          </td>
+          <td>
+            <div :class="$style.buttons">
+              <PrunButton dark inline @click="showBuffer(`BS ${row.naturalId}`)">BS</PrunButton>
+              <PrunButton dark inline @click="showBuffer(`BURN ${row.naturalId}`)">BURN</PrunButton>
+              <PrunButton dark inline @click="showBuffer(`STO ${row.naturalId}`)">STO</PrunButton>
+              <PrunButton dark inline @click="showBuffer(`REP ${row.naturalId}`)">REP</PrunButton>
+            </div>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </template>
 </template>
 
 <style module>
@@ -187,5 +192,13 @@ function setRepairField(
   font-style: italic;
   opacity: 0.7;
   text-align: center;
+}
+
+.note {
+  padding: 6px 8px;
+  font-size: 12px;
+  opacity: 0.85;
+  background-color: rgba(100, 149, 237, 0.08);
+  border-left: 3px solid #6495ed;
 }
 </style>

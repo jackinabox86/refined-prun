@@ -23,6 +23,10 @@ import PrunButton from '@src/components/PrunButton.vue';
 import { showBuffer } from '@src/infrastructure/prun-ui/buffers';
 import { repairButtonEnabled } from '@src/features/XIT/REP/repair-button';
 import { objectId } from '@src/utils/object-id';
+import {
+  getEntityNameFromAddress,
+  getEntityNaturalIdFromAddress,
+} from '@src/infrastructure/prun-api/data/addresses';
 
 const parameters = useXitParameters();
 
@@ -76,12 +80,47 @@ const materials = computed(() => {
 function calculateAge(lastRepair: number) {
   return diffDays(lastRepair, timestampEachMinute.value, true);
 }
+
+const singleSite = computed(() => {
+  if (sites.value?.length === 1 && (ships.value?.length ?? 0) === 0) {
+    return sites.value[0];
+  }
+  return undefined;
+});
+
+const singleSiteInfo = computed(() => {
+  const site = singleSite.value;
+  if (!site) {
+    return undefined;
+  }
+  const naturalId = getEntityNaturalIdFromAddress(site.address);
+  if (!naturalId) {
+    return undefined;
+  }
+  const override = userData.settings.repair.planetOverrides[naturalId];
+  if (!override || (override.threshold === undefined && override.offset === undefined)) {
+    return undefined;
+  }
+  return {
+    naturalId,
+    planetName: getEntityNameFromAddress(site.address) ?? naturalId,
+    threshold: getRepairThreshold(naturalId),
+    offset: getRepairOffset(naturalId),
+  };
+});
 </script>
 
 <template>
   <LoadingSpinner v-if="materials === undefined" />
   <template v-else>
-    <form>
+    <div v-if="singleSiteInfo" :class="$style.overrideNotice">
+      Using XIT PLANETS override for <b>{{ singleSiteInfo.planetName }}</b
+      >: threshold <b>{{ singleSiteInfo.threshold }}</b
+      >, offset <b>{{ singleSiteInfo.offset }}</b
+      >.
+      <PrunButton dark inline @click="showBuffer('XIT PLANETS')"> Edit in XIT PLANETS </PrunButton>
+    </div>
+    <form v-else>
       <Active label="Age Threshold">
         <NumberInput v-model="userData.settings.repair.threshold" />
       </Active>
@@ -130,3 +169,16 @@ function calculateAge(lastRepair: number) {
     </table>
   </template>
 </template>
+
+<style module>
+.overrideNotice {
+  padding: 6px 8px;
+  font-size: 12px;
+  background-color: rgba(100, 149, 237, 0.08);
+  border-left: 3px solid #6495ed;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+</style>
