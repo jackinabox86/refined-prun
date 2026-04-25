@@ -6,6 +6,7 @@ import { clickElement, changeInputValue } from '@src/util';
 import { getPrunId } from '@src/infrastructure/prun-ui/attributes';
 import { UI_TILES_CHANGE_COMMAND } from '@src/infrastructure/prun-api/client-messages';
 import { dispatchClientPrunMessage } from '@src/infrastructure/prun-api/prun-api-listener';
+import StoSummaryPanel from './StoSummaryPanel.vue';
 
 async function onTileReady(tile: PrunTile) {
   const store = computed(() => getInvStore(tile.parameter));
@@ -16,12 +17,19 @@ async function onTileReady(tile: PrunTile) {
 
   const contextBar = await $(tile.frame, C.ContextControls.container);
 
+  let panelShown = false;
+
   createFragmentApp(() => {
     if (!naturalId.value) return null;
     return (
       <div
         class={[C.ContextControls.item, C.fonts.fontRegular, C.type.typeSmall]}
-        onClick={() => void openAnalysis(tile, naturalId.value!)}>
+        onClick={() => {
+          if (!panelShown) {
+            showPanel(tile, naturalId.value!);
+            panelShown = true;
+          }
+        }}>
         <span>
           <span class={C.ContextControls.cmd}>Analysis</span>
           {' - XIT STO'}
@@ -29,6 +37,30 @@ async function onTileReady(tile: PrunTile) {
       </div>
     );
   }).prependTo(contextBar);
+}
+
+function showPanel(tile: PrunTile, naturalId: string) {
+  const storeContainer = _$(tile.anchor, C.StoreView.container) as HTMLElement | null;
+  if (!storeContainer) return;
+
+  // Make anchor a flex column so the panel sits below the store view.
+  tile.anchor.style.display = 'flex';
+  tile.anchor.style.flexDirection = 'column';
+  storeContainer.style.flex = '1';
+  storeContainer.style.minHeight = '0';
+  storeContainer.style.overflowY = 'auto';
+
+  const panelWrapper = document.createElement('div');
+  panelWrapper.style.flexShrink = '0';
+  tile.anchor.appendChild(panelWrapper);
+
+  createFragmentApp(StoSummaryPanel, {
+    naturalId,
+    onExpand: () => {
+      panelWrapper.remove();
+      void openAnalysis(tile, naturalId);
+    },
+  }).appendTo(panelWrapper);
 }
 
 async function openAnalysis(tile: PrunTile, naturalId: string) {
@@ -78,4 +110,4 @@ function init() {
   tiles.observe('INV', onTileReady);
 }
 
-features.add(import.meta.url, init, 'INV: Adds an Analysis button to open XIT STO in a vertical companion pane.');
+features.add(import.meta.url, init, 'INV: Adds an Analysis button that shows an XIT STO summary pane, expandable to a full companion buffer.');
