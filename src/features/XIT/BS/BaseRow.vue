@@ -228,20 +228,21 @@ const warehouseStore = computed(() =>
 .statusCell {
   width: 0;
   white-space: nowrap;
-  padding: 2px 3px;
+  padding: 2px;
 }
 
 .statusContent {
   display: inline-flex;
   align-items: center;
+  gap: 2px;
   cursor: pointer;
   vertical-align: middle;
+  padding: 2px 4px;
 }
 
 .statusNum {
   min-width: 3ch;
   text-align: center;
-  padding: 2px 4px;
 }
 
 
