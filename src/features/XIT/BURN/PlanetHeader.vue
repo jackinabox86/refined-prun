@@ -4,6 +4,7 @@ import { showBuffer } from '@src/infrastructure/prun-ui/buffers';
 import PrunButton from '@src/components/PrunButton.vue';
 import { PlanetBurn } from '@src/core/burn';
 import { countDays } from '@src/features/XIT/BURN/utils';
+import { store as planetContextMenu } from '@src/features/XIT/planet-context-menu';
 
 const { burn } = defineProps<{
   burn: PlanetBurn;
@@ -17,7 +18,11 @@ const days = computed(() => countDays(burn.burn));
 
 <template>
   <tr :class="$style.row">
-    <td colspan="4" :class="$style.cell" @click="onClick">
+    <td
+      colspan="4"
+      :class="$style.cell"
+      @click="onClick"
+      @contextmenu.prevent="burn.naturalId && planetContextMenu.showMenu($event, burn.naturalId)">
       <span v-if="hasMinimize" :class="$style.minimize">
         {{ minimized ? '+' : '-' }}
       </span>

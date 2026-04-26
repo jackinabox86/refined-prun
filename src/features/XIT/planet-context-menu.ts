@@ -71,5 +71,5 @@ async function init() {
 features.add(
   import.meta.url,
   init,
-  'BS: Right-click planet cell to open PLI, COGC, POPR, POPI, or ADM.',
+  'Right-click planet cell in XIT BS/BURN to open PLI, COGC, POPR, POPI, or ADM.',
 );

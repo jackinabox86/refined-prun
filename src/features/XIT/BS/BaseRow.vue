@@ -11,7 +11,7 @@ import { storagesStore } from '@src/infrastructure/prun-api/data/storage';
 import { userData } from '@src/store/user-data';
 import { getPlanetRepairAge } from '@src/features/XIT/REP/entries';
 import { timestampEachMinute } from '@src/utils/dayjs';
-import { store as planetContextMenu } from './planet-context-menu';
+import { store as planetContextMenu } from '../planet-context-menu';
 
 const {
   siteId,
