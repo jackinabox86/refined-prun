@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import LoadingSpinner from '@src/components/LoadingSpinner.vue';
-import PrunButton from '@src/components/PrunButton.vue';
 import NumberInput from '@src/components/forms/NumberInput.vue';
 import Tooltip from '@src/components/Tooltip.vue';
 import InlineFlex from '@src/components/InlineFlex.vue';
@@ -9,7 +8,6 @@ import {
   getEntityNameFromAddress,
   getEntityNaturalIdFromAddress,
 } from '@src/infrastructure/prun-api/data/addresses';
-import { showBuffer } from '@src/infrastructure/prun-ui/buffers';
 import { userData } from '@src/store/user-data';
 import { comparePlanets } from '@src/util';
 
@@ -117,7 +115,6 @@ function setRepairField(
                 :tooltip="`Per-planet override. Leave empty to use the default (${defaultOffset} days) from XIT REP.`" />
             </InlineFlex>
           </th>
-          <th>CMD</th>
         </tr>
       </thead>
       <tbody>
@@ -140,14 +137,6 @@ function setRepairField(
               :model-value="getRepairOverride(row.naturalId)?.offset"
               optional
               @update:model-value="setRepairField(row.naturalId, 'offset', $event)" />
-          </td>
-          <td>
-            <div :class="$style.buttons">
-              <PrunButton dark inline @click="showBuffer(`BS ${row.naturalId}`)">BS</PrunButton>
-              <PrunButton dark inline @click="showBuffer(`BURN ${row.naturalId}`)">BURN</PrunButton>
-              <PrunButton dark inline @click="showBuffer(`STO ${row.naturalId}`)">STO</PrunButton>
-              <PrunButton dark inline @click="showBuffer(`REP ${row.naturalId}`)">REP</PrunButton>
-            </div>
           </td>
         </tr>
       </tbody>
@@ -178,13 +167,15 @@ function setRepairField(
 
 .input input {
   width: 100%;
-}
+  padding: 0 5px;
+  background-color: #42361d;
+  border-width: 0;
+  border-bottom: 1px solid #8d6411;
+  color: #cccccc;
 
-.buttons {
-  display: flex;
-  flex-direction: row;
-  flex-wrap: wrap;
-  column-gap: 0.25rem;
+  &:focus {
+    outline: none;
+  }
 }
 
 .empty {
