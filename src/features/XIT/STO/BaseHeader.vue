@@ -14,6 +14,7 @@ const { analysis } = defineProps<{
   minimized?: boolean;
   onClick: () => void;
   tooltipPosition?: string;
+  hideButtons?: boolean;
 }>();
 
 const currentStore = computed(() => storagesStore.getById(analysis.storeId));
@@ -86,7 +87,7 @@ const supplyClass = computed(() => {
     <td :class="[$style.clickable, $style.barCell]" @click="onClick">
       <CargoBar :store="projectedStore" disable-mini-mode />
     </td>
-    <td>
+    <td v-if="!hideButtons">
       <div :class="$style.buttons">
         <PrunButton dark inline @click="showBuffer(`BS ${analysis.naturalId}`)">BS</PrunButton>
         <PrunButton dark inline @click="showBuffer(`INV ${analysis.storeId.substring(0, 8)}`)">
