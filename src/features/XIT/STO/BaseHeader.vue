@@ -15,7 +15,13 @@ const { analysis } = defineProps<{
   onClick: () => void;
   tooltipPosition?: string;
   hideButtons?: boolean;
+  showColumnTooltips?: boolean;
 }>();
+
+const COLUMN_LIMIT_TOOLTIP =
+  'Days until storage is full at the current net production rate — when a ship visit is forced.';
+const COLUMN_SUPPLY_TOOLTIP =
+  'Total days of consumables the base could hold when storage is filled to its threshold after ship-out (80% when filling, 95% when draining). Colors match XIT BURN: red below your red threshold, yellow below your yellow threshold.';
 
 const currentStore = computed(() => storagesStore.getById(analysis.storeId));
 const projectedStore = computed(() => buildProjectedStore(analysis.siteId));
@@ -70,12 +76,20 @@ const supplyClass = computed(() => {
       </span>
       <span>{{ analysis.planetName }}</span>
     </td>
-    <td :class="$style.clickable" @click="onClick">
+    <td
+      :class="$style.clickable"
+      :data-tooltip="showColumnTooltips ? COLUMN_LIMIT_TOOLTIP : undefined"
+      :data-tooltip-position="showColumnTooltips ? (tooltipPosition ?? 'bottom') : undefined"
+      @click="onClick">
       <span :data-tooltip="limitTooltip" :data-tooltip-position="tooltipPosition ?? 'bottom'">
         {{ formatDays(analysis.daysUntilFull) }}
       </span>
     </td>
-    <td :class="[$style.clickable, $style.supplyCell]" @click="onClick">
+    <td
+      :class="[$style.clickable, $style.supplyCell]"
+      :data-tooltip="showColumnTooltips ? COLUMN_SUPPLY_TOOLTIP : undefined"
+      :data-tooltip-position="showColumnTooltips ? (tooltipPosition ?? 'bottom') : undefined"
+      @click="onClick">
       <div v-if="supplyClass" :class="[$style.supplyBg, supplyClass]" />
       <span :data-tooltip="supplyTooltip" :data-tooltip-position="tooltipPosition ?? 'bottom'">
         {{ formatDaysCompact(analysis.daysOfSuppliesFit) }}
