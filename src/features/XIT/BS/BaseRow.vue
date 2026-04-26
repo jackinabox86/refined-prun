@@ -12,6 +12,8 @@ import { userData } from '@src/store/user-data';
 import { getRepairOffset, getRepairThreshold } from '@src/core/buildings';
 import { getPlanetRepairAge } from '@src/features/XIT/REP/entries';
 import { timestampEachMinute } from '@src/utils/dayjs';
+import { findShipsAtNaturalId } from '@src/core/ships';
+import { flightsStore } from '@src/infrastructure/prun-api/data/flights';
 import { store as planetContextMenu } from '../planet-context-menu';
 
 const {
@@ -25,6 +27,7 @@ const {
   showRepair,
   showInv,
   showWar,
+  showShips,
 } = defineProps<{
   siteId: string;
   naturalId: string;
@@ -36,6 +39,7 @@ const {
   showRepair: boolean;
   showInv: boolean;
   showWar: boolean;
+  showShips: boolean;
 }>();
 
 const burn = computed(() => getPlanetBurn(siteId));
@@ -122,6 +126,44 @@ const warehouseStore = computed(() =>
     .getByAddressableId(warehouse.value?.warehouseId)
     ?.find(x => x.type === 'WAREHOUSE_STORE'),
 );
+
+interface ShipEntry {
+  ship: PrunApi.Ship;
+  displayName: string;
+  truncatedName: string;
+  arrived: boolean;
+}
+
+const shipEntries = computed<ShipEntry[]>(() => {
+  const ships = findShipsAtNaturalId(naturalId);
+  if (!ships || ships.length === 0) {
+    return [];
+  }
+  const entries = ships.map<ShipEntry>(ship => {
+    const displayName = ship.name || ship.registration;
+    return {
+      ship,
+      displayName,
+      truncatedName: displayName.length > 10 ? displayName.slice(0, 10) : displayName,
+      arrived: !ship.flightId,
+    };
+  });
+  entries.sort((a, b) => {
+    if (a.arrived !== b.arrived) {
+      return a.arrived ? -1 : 1;
+    }
+    if (a.arrived) {
+      return a.displayName.localeCompare(b.displayName);
+    }
+    const arrivalA = flightsStore.getById(a.ship.flightId)?.arrival.timestamp ?? Infinity;
+    const arrivalB = flightsStore.getById(b.ship.flightId)?.arrival.timestamp ?? Infinity;
+    return arrivalA - arrivalB;
+  });
+  return entries;
+});
+
+const primaryShip = computed(() => shipEntries.value[0]);
+const additionalShips = computed(() => shipEntries.value.slice(1));
 </script>
 
 <template>
@@ -179,6 +221,36 @@ const warehouseStore = computed(() =>
         :store-id="warehouseStore.id"
         :on-click-cmd="`WAR ${naturalId}`" />
     </td>
+    <template v-if="showShips">
+      <td :class="$style.shipPrimaryCell">
+        <template v-if="primaryShip">
+          <span
+            :class="C.Link.link"
+            :style="primaryShip.arrived ? undefined : { color: '#888' }"
+            :data-tooltip="primaryShip.displayName"
+            @click="showBuffer(`SFC ${primaryShip.ship.registration}`)">
+            {{ primaryShip.truncatedName }}
+          </span>
+          <div :class="$style.shipInvBar">
+            <InvBar
+              :store-id="primaryShip.ship.idShipStore"
+              :on-click-cmd="`SHPI ${primaryShip.ship.registration}`" />
+          </div>
+        </template>
+      </td>
+      <td :class="$style.shipExtraCell">
+        <template v-for="(entry, index) in additionalShips" :key="entry.ship.id">
+          <span
+            :class="C.Link.link"
+            :style="entry.arrived ? undefined : { color: '#888' }"
+            :data-tooltip="entry.displayName"
+            @click="showBuffer(`SFC ${entry.ship.registration}`)">
+            {{ entry.truncatedName }}
+          </span>
+          <span v-if="index < additionalShips.length - 1">, </span>
+        </template>
+      </td>
+    </template>
   </tr>
 </template>
 
@@ -265,5 +337,25 @@ const warehouseStore = computed(() =>
 .invCell {
   min-width: 60px;
   padding: 2px;
+}
+
+.shipPrimaryCell {
+  width: 0;
+  white-space: nowrap;
+  padding: 2px;
+  vertical-align: top;
+}
+
+.shipExtraCell {
+  padding: 2px;
+  vertical-align: top;
+  font-size: 11px;
+  white-space: normal;
+  word-break: break-word;
+}
+
+.shipInvBar {
+  width: 30px;
+  margin-top: 2px;
 }
 </style>

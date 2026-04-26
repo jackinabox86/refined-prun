@@ -44,3 +44,10 @@ export function findShipsByDestination(destination?: PrunApi.Address) {
 
   return shipsByDestination.value.get(key);
 }
+
+export function findShipsAtNaturalId(naturalId?: string) {
+  if (!naturalId) {
+    return undefined;
+  }
+  return shipsByDestination.value.get(naturalId);
+}
