@@ -61,4 +61,4 @@ jobs:
 
           $dist = Join-Path $env:GITHUB_WORKSPACE "dist"
           $profile = "$env:LOCALAPPDATA\rprun-test-profile"
-          Start-Process $chrome "--load-extension=`"$dist`" --user-data-dir=`"$profile`" https://apex.prosperousuniverse.com"
+          Start-Process $chrome -ArgumentList "--load-extension=$dist", "--user-data-dir=$profile", "https://apex.prosperousuniverse.com"
