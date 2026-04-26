@@ -10,20 +10,20 @@ if %ERRORLEVEL% neq 0 (
     exit /b 1
 )
 
-set "CHROME="
-if exist "%LOCALAPPDATA%\Google\Chrome\Application\chrome.exe" set "CHROME=%LOCALAPPDATA%\Google\Chrome\Application\chrome.exe"
-if "%CHROME%"=="" if exist "%PROGRAMFILES%\Google\Chrome\Application\chrome.exe" set "CHROME=%PROGRAMFILES%\Google\Chrome\Application\chrome.exe"
-if "%CHROME%"=="" if exist "%PROGRAMFILES(X86)%\Google\Chrome\Application\chrome.exe" set "CHROME=%PROGRAMFILES(X86)%\Google\Chrome\Application\chrome.exe"
+set "EDGE="
+if exist "%PROGRAMFILES(X86)%\Microsoft\Edge\Application\msedge.exe" set "EDGE=%PROGRAMFILES(X86)%\Microsoft\Edge\Application\msedge.exe"
+if "%EDGE%"=="" if exist "%PROGRAMFILES%\Microsoft\Edge\Application\msedge.exe" set "EDGE=%PROGRAMFILES%\Microsoft\Edge\Application\msedge.exe"
 
-if "%CHROME%"=="" (
+if "%EDGE%"=="" (
     echo.
-    echo Chrome not found in standard locations.
-    echo Set CHROME manually at the top of this script.
+    echo Edge not found. It should be pre-installed on Windows 10/11.
     pause
     exit /b 1
 )
 
 for %%I in ("%~dp0..\dist") do set "EXT=%%~fI"
+set "PROFILE=%LOCALAPPDATA%\rprun-edge-profile"
+del /f /q "%PROFILE%\SingletonLock" 2>nul
 
-echo Opening Chrome with extension...
-start "" "%CHROME%" --load-extension="%EXT%" https://apex.prosperousuniverse.com
+echo Opening Edge with extension...
+start "" "%EDGE%" --load-extension="%EXT%" --user-data-dir="%PROFILE%" https://apex.prosperousuniverse.com
