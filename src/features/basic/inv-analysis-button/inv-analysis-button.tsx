@@ -54,13 +54,31 @@ function showPanel(tile: PrunTile, naturalId: string) {
   panelWrapper.style.flexShrink = '0';
   tile.anchor.appendChild(panelWrapper);
 
+  let ro: ResizeObserver | undefined;
+
   createFragmentApp(StoSummaryPanel, {
     naturalId,
     onExpand: () => {
+      ro?.disconnect();
       panelWrapper.remove();
       void openAnalysis(tile, naturalId);
     },
   }).appendTo(panelWrapper);
+
+  // Grow a solo floating buffer so the panel doesn't cover existing content.
+  if (tile.container.classList.contains(C.Window.body)) {
+    const w = parseInt(tile.container.style.width, 10) || 600;
+    const h = parseInt(tile.container.style.height, 10) || 400;
+    let prevPanelHeight = 0;
+    ro = new ResizeObserver(() => {
+      const panelHeight = panelWrapper.offsetHeight;
+      if (panelHeight !== prevPanelHeight) {
+        prevPanelHeight = panelHeight;
+        setBufferSize(tile.id, w, h + panelHeight);
+      }
+    });
+    ro.observe(panelWrapper);
+  }
 }
 
 async function openAnalysis(tile: PrunTile, naturalId: string) {
