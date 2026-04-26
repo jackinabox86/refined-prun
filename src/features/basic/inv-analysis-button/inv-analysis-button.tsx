@@ -22,19 +22,16 @@ async function onTileReady(tile: PrunTile) {
   createFragmentApp(() => {
     if (!naturalId.value) return null;
     return (
-      <div
-        class={[C.ContextControls.item, C.fonts.fontRegular, C.type.typeSmall]}
+      <button
+        class={[C.Button.btn, C.Button.primary]}
         onClick={() => {
           if (!panelShown) {
             showPanel(tile, naturalId.value!);
             panelShown = true;
           }
         }}>
-        <span>
-          <span class={C.ContextControls.cmd}>Analysis</span>
-          {' - XIT STO'}
-        </span>
-      </div>
+        Analysis - XIT STO
+      </button>
     );
   }).prependTo(contextBar);
 }

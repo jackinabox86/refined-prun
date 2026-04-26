@@ -24,7 +24,8 @@ const ready = computed(() => !!sitesStore.fetched.value);
           :minimized="true"
           :on-click="onExpand"
           tooltip-position="top"
-          hide-buttons />
+          hide-buttons
+          show-tooltip-icons />
       </tbody>
     </table>
     <LoadingSpinner v-else-if="!ready" />
