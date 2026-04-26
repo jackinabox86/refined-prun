@@ -63,7 +63,7 @@ function setRepairField(
   const map = userData.settings.repair.planetOverrides;
   const entry = map[naturalId];
   if (value === undefined || isNaN(value)) {
-    if (!entry) {
+    if (entry === undefined) {
       return;
     }
     delete entry[field];
@@ -71,7 +71,7 @@ function setRepairField(
       delete map[naturalId];
     }
   } else {
-    if (!entry) {
+    if (entry === undefined) {
       map[naturalId] = { [field]: value };
     } else {
       entry[field] = value;

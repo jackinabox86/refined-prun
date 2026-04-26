@@ -98,7 +98,10 @@ const singleSiteInfo = computed(() => {
     return undefined;
   }
   const override = userData.settings.repair.planetOverrides[naturalId];
-  if (!override || (override.threshold === undefined && override.offset === undefined)) {
+  if (
+    override === undefined ||
+    (override.threshold === undefined && override.offset === undefined)
+  ) {
     return undefined;
   }
   return {
