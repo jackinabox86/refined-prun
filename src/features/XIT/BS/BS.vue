@@ -166,7 +166,7 @@ const filteredBases = computed(() => {
             v-if="showRepair"
             :class="[$style.narrowCol, $style.sortable, $style.centered]"
             @click="setSort('repair')">
-            Repair
+            Rep
             <span :class="isSorted('repair') ? $style.sortActive : $style.sortInactive">{{
               getSortIndicator('repair')
             }}</span>
