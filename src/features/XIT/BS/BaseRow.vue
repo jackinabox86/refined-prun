@@ -243,6 +243,7 @@ const warehouseStore = computed(() =>
   width: 0;
   white-space: nowrap;
   padding: 2px;
+  text-align: center;
 }
 
 .statusContent {
