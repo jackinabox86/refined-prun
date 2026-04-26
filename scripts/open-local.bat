@@ -24,7 +24,6 @@ if "%CHROME%"=="" (
 )
 
 for %%I in ("%~dp0..\dist") do set "EXT=%%~fI"
-set "PROFILE=%LOCALAPPDATA%\rprun-test-profile"
 
 echo Opening Chrome with extension...
-start "" "%CHROME%" --load-extension="%EXT%" --user-data-dir="%PROFILE%" https://apex.prosperousuniverse.com
+start "" "%CHROME%" --load-extension="%EXT%" https://apex.prosperousuniverse.com
