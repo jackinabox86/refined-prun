@@ -81,23 +81,21 @@ const supplyClass = computed(() => {
       <span>{{ analysis.planetName }}</span>
     </td>
     <td
-      :class="[$style.clickable, $style.noWrap]"
+      :class="[!planetOnlyClick && $style.clickable, $style.noWrap]"
       v-on="planetOnlyClick ? {} : { click: onClick }">
       <div
         v-if="showColumnTooltips"
         :class="$style.colBg"
         :data-tooltip="COLUMN_LIMIT_TOOLTIP"
         :data-tooltip-position="tooltipPosition ?? 'bottom'">
-        <span :data-tooltip="limitTooltip" :data-tooltip-position="tooltipPosition ?? 'bottom'">
-          {{ formatDays(analysis.daysUntilFull) }}
-        </span>
+        {{ formatDays(analysis.daysUntilFull) }}
       </div>
       <span v-else :data-tooltip="limitTooltip" :data-tooltip-position="tooltipPosition ?? 'bottom'">
         {{ formatDays(analysis.daysUntilFull) }}
       </span>
     </td>
     <td
-      :class="[$style.clickable, $style.supplyCell, $style.noWrap]"
+      :class="[!planetOnlyClick && $style.clickable, $style.supplyCell, $style.noWrap]"
       v-on="planetOnlyClick ? {} : { click: onClick }">
       <div v-if="supplyClass" :class="[$style.supplyBg, supplyClass]" />
       <div
@@ -105,16 +103,14 @@ const supplyClass = computed(() => {
         :class="$style.colBg"
         :data-tooltip="COLUMN_SUPPLY_TOOLTIP"
         :data-tooltip-position="tooltipPosition ?? 'bottom'">
-        <span :data-tooltip="supplyTooltip" :data-tooltip-position="tooltipPosition ?? 'bottom'">
-          {{ formatDaysCompact(analysis.daysOfSuppliesFit) }}
-        </span>
+        {{ formatDaysCompact(analysis.daysOfSuppliesFit) }}
       </div>
       <span v-else :data-tooltip="supplyTooltip" :data-tooltip-position="tooltipPosition ?? 'bottom'">
         {{ formatDaysCompact(analysis.daysOfSuppliesFit) }}
       </span>
     </td>
     <td
-      :class="[$style.clickable, $style.barCell]"
+      :class="[!planetOnlyClick && $style.clickable, $style.barCell]"
       v-on="planetOnlyClick ? {} : { click: onClick }">
       <div
         v-if="showColumnTooltips"
@@ -126,7 +122,7 @@ const supplyClass = computed(() => {
       <CargoBar v-else :store="currentStore" disable-mini-mode />
     </td>
     <td
-      :class="[$style.clickable, $style.barCell]"
+      :class="[!planetOnlyClick && $style.clickable, $style.barCell]"
       v-on="planetOnlyClick ? {} : { click: onClick }">
       <div
         v-if="showColumnTooltips"
