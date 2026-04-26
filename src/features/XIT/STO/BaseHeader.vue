@@ -4,8 +4,6 @@ import { storagesStore } from '@src/infrastructure/prun-api/data/storage';
 import { userData } from '@src/store/user-data';
 import PrunButton from '@src/components/PrunButton.vue';
 import CargoBar from '@src/components/CargoBar.vue';
-import InlineFlex from '@src/components/InlineFlex.vue';
-import Tooltip, { TooltipPosition } from '@src/components/Tooltip.vue';
 import { showBuffer } from '@src/infrastructure/prun-ui/buffers';
 import { fillRatioClass, formatDays, formatDaysCompact } from '@src/features/XIT/STO/utils';
 import { fixed01 } from '@src/utils/format';
@@ -15,9 +13,8 @@ const { analysis } = defineProps<{
   hasMinimize?: boolean;
   minimized?: boolean;
   onClick: () => void;
-  tooltipPosition?: TooltipPosition;
+  tooltipPosition?: string;
   hideButtons?: boolean;
-  showTooltipIcons?: boolean;
 }>();
 
 const currentStore = computed(() => storagesStore.getById(analysis.storeId));
@@ -74,21 +71,13 @@ const supplyClass = computed(() => {
       <span>{{ analysis.planetName }}</span>
     </td>
     <td :class="$style.clickable" @click="onClick">
-      <InlineFlex v-if="showTooltipIcons">
-        <span>{{ formatDays(analysis.daysUntilFull) }}</span>
-        <Tooltip :position="tooltipPosition ?? 'bottom'" :tooltip="limitTooltip" />
-      </InlineFlex>
-      <span v-else :data-tooltip="limitTooltip" :data-tooltip-position="tooltipPosition ?? 'bottom'">
+      <span :data-tooltip="limitTooltip" :data-tooltip-position="tooltipPosition ?? 'bottom'">
         {{ formatDays(analysis.daysUntilFull) }}
       </span>
     </td>
     <td :class="[$style.clickable, $style.supplyCell]" @click="onClick">
       <div v-if="supplyClass" :class="[$style.supplyBg, supplyClass]" />
-      <InlineFlex v-if="showTooltipIcons">
-        <span>{{ formatDaysCompact(analysis.daysOfSuppliesFit) }}</span>
-        <Tooltip :position="tooltipPosition ?? 'bottom'" :tooltip="supplyTooltip" />
-      </InlineFlex>
-      <span v-else :data-tooltip="supplyTooltip" :data-tooltip-position="tooltipPosition ?? 'bottom'">
+      <span :data-tooltip="supplyTooltip" :data-tooltip-position="tooltipPosition ?? 'bottom'">
         {{ formatDaysCompact(analysis.daysOfSuppliesFit) }}
       </span>
     </td>
