@@ -6,10 +6,13 @@ import PrunButton from '@src/components/PrunButton.vue';
 import { Config, MaterialFilter } from '@src/features/XIT/ACT/material-groups/resupply/config';
 import { computeResupplyBill } from '@src/features/XIT/ACT/material-groups/resupply/bill';
 import { sitesStore } from '@src/infrastructure/prun-api/data/sites';
-import { getEntityNameFromAddress } from '@src/infrastructure/prun-api/data/addresses';
+import {
+  getEntityNameFromAddress,
+  getEntityNaturalIdFromAddress,
+} from '@src/infrastructure/prun-api/data/addresses';
 import { comparePlanets } from '@src/util';
 import { configurableValue } from '@src/features/XIT/ACT/shared-types';
-import { userData } from '@src/store/user-data';
+import { getResupplyDays } from '@src/core/burn';
 import { materialsStore } from '@src/infrastructure/prun-api/data/materials';
 import { shipsStore } from '@src/infrastructure/prun-api/data/ships';
 import { fixed02 } from '@src/utils/format';
@@ -32,7 +35,10 @@ if (data.planet === configurableValue && !config.planet) {
 }
 
 if (data.days === configurableValue && config.days === undefined) {
-  config.days = userData.settings.burn.resupply ?? 10;
+  const seedPlanet = data.planet === configurableValue ? config.planet : data.planet;
+  const seedSite = seedPlanet ? sitesStore.getByPlanetNaturalIdOrName(seedPlanet) : undefined;
+  const seedNaturalId = seedSite ? getEntityNaturalIdFromAddress(seedSite.address) : undefined;
+  config.days = getResupplyDays(seedNaturalId) ?? 10;
 }
 
 const materialFilterOptions: MaterialFilter[] = ['All', 'Workforce', 'Production'];

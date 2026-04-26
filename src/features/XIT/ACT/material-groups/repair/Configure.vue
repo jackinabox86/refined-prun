@@ -4,10 +4,13 @@ import NumberInput from '@src/components/forms/NumberInput.vue';
 import Active from '@src/components/forms/Active.vue';
 import { Config } from '@src/features/XIT/ACT/material-groups/repair/config';
 import { sitesStore } from '@src/infrastructure/prun-api/data/sites';
-import { getEntityNameFromAddress } from '@src/infrastructure/prun-api/data/addresses';
+import {
+  getEntityNameFromAddress,
+  getEntityNaturalIdFromAddress,
+} from '@src/infrastructure/prun-api/data/addresses';
 import { comparePlanets } from '@src/util';
 import { configurableValue } from '@src/features/XIT/ACT/shared-types';
-import { userData } from '@src/store/user-data';
+import { getRepairOffset, getRepairThreshold } from '@src/core/buildings';
 
 const { data, config } = defineProps<{ data: UserData.MaterialGroupData; config: Config }>();
 
@@ -23,7 +26,10 @@ if (data.planet === configurableValue && !config.planet) {
 }
 
 if (data.days === configurableValue && config.days === undefined) {
-  config.days = userData.settings.repair.threshold;
+  const seedPlanet = data.planet === configurableValue ? config.planet : data.planet;
+  const seedSite = seedPlanet ? sitesStore.getByPlanetNaturalIdOrName(seedPlanet) : undefined;
+  const seedNaturalId = seedSite ? getEntityNaturalIdFromAddress(seedSite.address) : undefined;
+  config.days = getRepairThreshold(seedNaturalId) - getRepairOffset(seedNaturalId);
 }
 
 // REPAIRACT uses a 1-day time offset by default, not the user's XIT REP offset.

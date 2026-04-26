@@ -9,6 +9,7 @@ import { getPlanetProduction } from '@src/core/production';
 import { warehousesStore } from '@src/infrastructure/prun-api/data/warehouses';
 import { storagesStore } from '@src/infrastructure/prun-api/data/storage';
 import { userData } from '@src/store/user-data';
+import { getRepairOffset, getRepairThreshold } from '@src/core/buildings';
 import { getPlanetRepairAge } from '@src/features/XIT/REP/entries';
 import { timestampEachMinute } from '@src/utils/dayjs';
 import { store as planetContextMenu } from '../planet-context-menu';
@@ -97,7 +98,8 @@ const repairBgClass = computed(() => {
   if (age === undefined) {
     return {};
   }
-  const { threshold, offset } = userData.settings.repair;
+  const threshold = getRepairThreshold(naturalId);
+  const offset = getRepairOffset(naturalId);
   const d = Math.floor(age);
   return {
     [C.Workforces.daysMissing]: d >= threshold,
