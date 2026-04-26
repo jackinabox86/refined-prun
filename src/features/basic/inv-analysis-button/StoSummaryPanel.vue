@@ -16,7 +16,7 @@ const ready = computed(() => !!sitesStore.fetched.value);
 
 <template>
   <div :class="$style.panel">
-    <table v-if="analysis">
+    <table v-if="analysis" :class="$style.table">
       <tbody>
         <BaseHeader
           :analysis="analysis"
@@ -25,7 +25,8 @@ const ready = computed(() => !!sitesStore.fetched.value);
           :on-click="onExpand"
           tooltip-position="top"
           hide-buttons
-          show-column-tooltips />
+          show-column-tooltips
+          planet-only-click />
       </tbody>
     </table>
     <LoadingSpinner v-else-if="!ready" />
@@ -37,6 +38,10 @@ const ready = computed(() => !!sitesStore.fetched.value);
 .panel {
   border-top: 1px solid #2b485a;
   flex-shrink: 0;
+}
+
+.table {
+  width: 100%;
 }
 
 .empty {
