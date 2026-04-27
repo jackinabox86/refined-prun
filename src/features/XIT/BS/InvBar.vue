@@ -118,6 +118,9 @@ const invBar = computed(() => {
 });
 
 function enhanceSegmentVisibility(segments: Segment[], loadRatio: number) {
+  if (segments.length === 0) {
+    return;
+  }
   const lowContrastCategories = new Set(['elements', 'metals', 'shipments', 'unit prefabs']);
   const isAlmostFull = loadRatio > 0.98;
 

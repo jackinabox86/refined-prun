@@ -221,17 +221,17 @@ const shipEntries = computed<ShipEntry[]>(() => {
     <td v-if="showShips" :class="$style.shipsCell">
       <div :class="$style.shipsContent">
         <div v-for="entry in shipEntries" :key="entry.ship.id" :class="$style.shipBlock">
+          <div :class="$style.shipInvBar">
+            <InvBar
+              :store-id="entry.ship.idShipStore"
+              :on-click-cmd="`SHPI ${entry.ship.registration}`" />
+          </div>
           <span
             :class="[C.Link.link, $style.shipName, { [$style.shipNameFlying]: !entry.arrived }]"
             :style="entry.arrived ? undefined : { color: '#f7a600' }"
             @click="showBuffer(`SHPI ${entry.ship.registration}`)">
             {{ entry.truncatedName }}
           </span>
-          <div :class="$style.shipInvBar">
-            <InvBar
-              :store-id="entry.ship.idShipStore"
-              :on-click-cmd="`SHPI ${entry.ship.registration}`" />
-          </div>
         </div>
       </div>
     </td>
@@ -325,32 +325,44 @@ const shipEntries = computed<ShipEntry[]>(() => {
 
 .shipsCell {
   padding: 2px;
-  vertical-align: top;
+  vertical-align: middle;
 }
 
 .shipsContent {
   display: flex;
-  gap: 4px 6px;
+  align-items: center;
+  gap: 6px;
 }
 
 .shipBlock {
-  display: flex;
-  flex-direction: column;
-  align-items: stretch;
-  white-space: nowrap;
-  font-size: 11px;
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 13px;
+}
+
+.shipInvBar {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 30px;
+  height: 13px;
+  z-index: 0;
 }
 
 .shipName {
+  position: relative;
+  z-index: 1;
   cursor: pointer;
+  font-size: 11px;
+  line-height: 13px;
+  padding: 0 3px;
+  white-space: nowrap;
 }
 
 .shipNameFlying {
   font-style: italic;
-}
-
-.shipInvBar {
-  width: 30px;
-  margin-top: 2px;
 }
 </style>
