@@ -23,12 +23,20 @@ const COLUMN_LIMIT_TOOLTIP =
   'Days until storage is full at the current net production rate — when a ship visit is forced.';
 const COLUMN_SUPPLY_TOOLTIP =
   'Total days of consumables the base could hold when storage is filled to its threshold after ship-out (80% when filling, 95% when draining). Colors match XIT BURN: red below your red threshold, yellow below your yellow threshold.';
-const COLUMN_CURRENT_FILL_TOOLTIP = "What's in base storage right now. Colored by material category.";
+const COLUMN_CURRENT_FILL_TOOLTIP =
+  "What's in base storage right now. Colored by material category.";
 const COLUMN_AFTER_RESUPPLY_TOOLTIP =
   'Projected storage if all produced goods were shipped out and all consumables delivered up to their XIT BURN Need amount. Red hatching shows overflow past capacity.';
 
 const currentStore = computed(() => storagesStore.getById(analysis.storeId));
 const projectedStore = computed(() => buildProjectedStore(analysis.siteId));
+
+// The after-resupply bar is the rightmost column. When column tooltips are
+// shown with 'top' position (panel context), center-above overflows the right
+// buffer edge. 'left' keeps the tooltip within the buffer.
+const afterResupplyTooltipPos = computed(() =>
+  showColumnTooltips && tooltipPosition === 'top' ? 'left' : (tooltipPosition ?? 'bottom'),
+);
 
 const stripeClass = computed(() => {
   if (analysis.needFillRatio === 0) {
@@ -90,7 +98,10 @@ const supplyClass = computed(() => {
         :data-tooltip-position="tooltipPosition ?? 'bottom'">
         {{ formatDays(analysis.daysUntilFull) }}
       </span>
-      <span v-else :data-tooltip="limitTooltip" :data-tooltip-position="tooltipPosition ?? 'bottom'">
+      <span
+        v-else
+        :data-tooltip="limitTooltip"
+        :data-tooltip-position="tooltipPosition ?? 'bottom'">
         {{ formatDays(analysis.daysUntilFull) }}
       </span>
     </td>
@@ -105,7 +116,10 @@ const supplyClass = computed(() => {
         :data-tooltip-position="tooltipPosition ?? 'bottom'">
         {{ formatDaysCompact(analysis.daysOfSuppliesFit) }}
       </span>
-      <span v-else :data-tooltip="supplyTooltip" :data-tooltip-position="tooltipPosition ?? 'bottom'">
+      <span
+        v-else
+        :data-tooltip="supplyTooltip"
+        :data-tooltip-position="tooltipPosition ?? 'bottom'">
         {{ formatDaysCompact(analysis.daysOfSuppliesFit) }}
       </span>
     </td>
@@ -128,7 +142,7 @@ const supplyClass = computed(() => {
         v-if="showColumnTooltips"
         :class="$style.colBg"
         :data-tooltip="COLUMN_AFTER_RESUPPLY_TOOLTIP"
-        :data-tooltip-position="tooltipPosition ?? 'bottom'">
+        :data-tooltip-position="afterResupplyTooltipPos">
         <CargoBar :store="projectedStore" disable-mini-mode />
       </div>
       <CargoBar v-else :store="projectedStore" disable-mini-mode />
