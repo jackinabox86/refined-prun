@@ -326,10 +326,11 @@ const shipEntries = computed<ShipEntry[]>(() => {
 .shipsCell {
   padding: 2px 6px;
   vertical-align: middle;
+  white-space: nowrap;
 }
 
 .shipsContent {
-  display: flex;
+  display: inline-flex;
   align-items: center;
   gap: 4px;
 }
