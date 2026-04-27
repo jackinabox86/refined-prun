@@ -219,21 +219,19 @@ const shipEntries = computed<ShipEntry[]>(() => {
         :on-click-cmd="`WAR ${naturalId}`" />
     </td>
     <td v-if="showShips" :class="$style.shipsCell">
-      <div :class="$style.shipsContent">
-        <div v-for="entry in shipEntries" :key="entry.ship.id" :class="$style.shipBlock">
-          <div :class="$style.shipInvBar">
-            <InvBar
-              :store-id="entry.ship.idShipStore"
-              :on-click-cmd="`SHPI ${entry.ship.registration}`" />
-          </div>
-          <span
-            :class="[C.Link.link, $style.shipName, { [$style.shipNameFlying]: !entry.arrived }]"
-            :style="entry.arrived ? { color: '#f7a600' } : undefined"
-            @click="showBuffer(`SHPI ${entry.ship.registration}`)">
-            {{ entry.truncatedName }}
-          </span>
-        </div>
-      </div>
+      <span v-for="entry in shipEntries" :key="entry.ship.id" :class="$style.shipBlock">
+        <span :class="$style.shipInvBar">
+          <InvBar
+            :store-id="entry.ship.idShipStore"
+            :on-click-cmd="`SHPI ${entry.ship.registration}`" />
+        </span>
+        <span
+          :class="[C.Link.link, $style.shipName, { [$style.shipNameFlying]: !entry.arrived }]"
+          :style="entry.arrived ? { color: '#f7a600' } : undefined"
+          @click="showBuffer(`SHPI ${entry.ship.registration}`)">
+          {{ entry.truncatedName }}
+        </span>
+      </span>
     </td>
   </tr>
 </template>
@@ -329,18 +327,16 @@ const shipEntries = computed<ShipEntry[]>(() => {
   white-space: nowrap;
 }
 
-.shipsContent {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-}
-
 .shipBlock {
   position: relative;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
+  display: inline-block;
   height: 13px;
+  vertical-align: middle;
+  margin-right: 4px;
+}
+
+.shipBlock:last-child {
+  margin-right: 0;
 }
 
 .shipInvBar {
