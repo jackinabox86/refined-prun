@@ -209,6 +209,7 @@ onMounted(() => {
 
 .cmdCell {
   position: relative;
+  z-index: 1;
   overflow: visible;
   white-space: nowrap;
   width: 0;
