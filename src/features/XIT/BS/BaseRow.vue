@@ -122,10 +122,20 @@ const warehouseStore = computed(() =>
     .getByAddressableId(warehouse.value?.warehouseId)
     ?.find(x => x.type === 'WAREHOUSE_STORE'),
 );
+
+const rowEl = ref<HTMLElement | null>(null);
+const overlayBg = ref('transparent');
+
+onMounted(() => {
+  const tileBody = rowEl.value?.closest(`.${C.TileFrame.body}`);
+  if (tileBody) {
+    overlayBg.value = getComputedStyle(tileBody).backgroundColor;
+  }
+});
 </script>
 
 <template>
-  <tr :class="$style.row">
+  <tr :class="$style.row" ref="rowEl">
     <td
       :class="$style.planetCell"
       @contextmenu.prevent="planetContextMenu.showMenu($event, naturalId)">
@@ -135,7 +145,7 @@ const warehouseStore = computed(() =>
     </td>
     <td v-if="showCmds" :class="$style.cmdCell">
       <PrunButton dark inline>CMDS&#x25B6;</PrunButton>
-      <div :class="$style.rowOverlay" />
+      <div :class="$style.rowOverlay" :style="{ background: overlayBg }" />
       <div :class="$style.expandedButtons">
         <PrunButton dark inline @click="showBuffer(`BBL ${siteId}`)">BUILDINGS</PrunButton>
         <PrunButton dark inline @click="showBuffer(`BBC ${naturalId}`)">CONSTRUCT</PrunButton>
@@ -211,7 +221,6 @@ const warehouseStore = computed(() =>
   left: 0;
   right: -9999px;
   height: 100%;
-  background: #222e31;
   z-index: 9;
 }
 
