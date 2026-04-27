@@ -209,11 +209,11 @@ const filteredBases = computed(() => {
 }
 
 .invCol {
-  width: 67%;
+  width: 50%;
 }
 
 .warCol {
-  width: 33%;
+  width: 25%;
 }
 
 .shipsCol {
