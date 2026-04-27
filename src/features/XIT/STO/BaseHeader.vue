@@ -23,7 +23,8 @@ const COLUMN_LIMIT_TOOLTIP =
   'Days until storage is full at the current net production rate — when a ship visit is forced.';
 const COLUMN_SUPPLY_TOOLTIP =
   'Total days of consumables the base could hold when storage is filled to its threshold after ship-out (80% when filling, 95% when draining). Colors match XIT BURN: red below your red threshold, yellow below your yellow threshold.';
-const COLUMN_CURRENT_FILL_TOOLTIP = "What's in base storage right now. Colored by material category.";
+const COLUMN_CURRENT_FILL_TOOLTIP =
+  "What's in base storage right now. Colored by material category.";
 const COLUMN_AFTER_RESUPPLY_TOOLTIP =
   'Projected storage if all produced goods were shipped out and all consumables delivered up to their XIT BURN Need amount. Red hatching shows overflow past capacity.';
 
@@ -90,7 +91,10 @@ const supplyClass = computed(() => {
         :data-tooltip-position="tooltipPosition ?? 'bottom'">
         {{ formatDays(analysis.daysUntilFull) }}
       </span>
-      <span v-else :data-tooltip="limitTooltip" :data-tooltip-position="tooltipPosition ?? 'bottom'">
+      <span
+        v-else
+        :data-tooltip="limitTooltip"
+        :data-tooltip-position="tooltipPosition ?? 'bottom'">
         {{ formatDays(analysis.daysUntilFull) }}
       </span>
     </td>
@@ -105,7 +109,10 @@ const supplyClass = computed(() => {
         :data-tooltip-position="tooltipPosition ?? 'bottom'">
         {{ formatDaysCompact(analysis.daysOfSuppliesFit) }}
       </span>
-      <span v-else :data-tooltip="supplyTooltip" :data-tooltip-position="tooltipPosition ?? 'bottom'">
+      <span
+        v-else
+        :data-tooltip="supplyTooltip"
+        :data-tooltip-position="tooltipPosition ?? 'bottom'">
         {{ formatDaysCompact(analysis.daysOfSuppliesFit) }}
       </span>
     </td>
@@ -126,7 +133,7 @@ const supplyClass = computed(() => {
       v-on="planetOnlyClick ? {} : { click: onClick }">
       <div
         v-if="showColumnTooltips"
-        :class="$style.colBg"
+        :class="[$style.colBg, $style.rightAlignedTooltip]"
         :data-tooltip="COLUMN_AFTER_RESUPPLY_TOOLTIP"
         :data-tooltip-position="tooltipPosition ?? 'bottom'">
         <CargoBar :store="projectedStore" disable-mini-mode />
@@ -218,5 +225,16 @@ const supplyClass = computed(() => {
   display: block;
   position: relative;
   z-index: 1;
+}
+
+/* Right-aligns the tooltip box so it doesn't overflow the right buffer edge.
+   The game centers 'top' tooltips via left:50%+translateX(-50%); overriding
+   to right:0 anchors the box's right edge to the element's right edge. */
+.rightAlignedTooltip {
+  &::before {
+    left: auto;
+    right: 0;
+    transform: translateX(0);
+  }
 }
 </style>

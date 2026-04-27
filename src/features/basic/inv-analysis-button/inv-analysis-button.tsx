@@ -10,7 +10,9 @@ import StoSummaryPanel from './StoSummaryPanel.vue';
 
 async function onTileReady(tile: PrunTile) {
   const store = computed(() => getInvStore(tile.parameter));
-  const site = computed(() => (store.value ? sitesStore.getById(store.value.addressableId) : undefined));
+  const site = computed(() =>
+    store.value ? sitesStore.getById(store.value.addressableId) : undefined,
+  );
   const naturalId = computed(() =>
     site.value ? getEntityNaturalIdFromAddress(site.value.address) : undefined,
   );
@@ -20,7 +22,9 @@ async function onTileReady(tile: PrunTile) {
   let panelShown = false;
 
   createFragmentApp(() => {
-    if (!naturalId.value) return null;
+    if (!naturalId.value) {
+      return null;
+    }
     return (
       <button
         class={[C.Button.btn, C.Button.primary]}
@@ -38,7 +42,9 @@ async function onTileReady(tile: PrunTile) {
 
 function showPanel(tile: PrunTile, naturalId: string) {
   const storeContainer = _$(tile.anchor, C.StoreView.container) as HTMLElement | null;
-  if (!storeContainer) return;
+  if (!storeContainer) {
+    return;
+  }
 
   // Make anchor a flex column so the panel sits below the store view.
   tile.anchor.style.display = 'flex';
@@ -64,8 +70,10 @@ function showPanel(tile: PrunTile, naturalId: string) {
 
   // Grow a solo floating buffer so the panel doesn't cover existing content.
   if (tile.container.classList.contains(C.Window.body)) {
-    const w = parseInt(tile.container.style.width, 10) || 600;
-    const h = parseInt(tile.container.style.height, 10) || 400;
+    const parsedW = parseInt(tile.container.style.width, 10);
+    const parsedH = parseInt(tile.container.style.height, 10);
+    const w = Number.isNaN(parsedW) ? 600 : parsedW;
+    const h = Number.isNaN(parsedH) ? 400 : parsedH;
     let prevPanelHeight = 0;
     ro = new ResizeObserver(() => {
       const panelHeight = panelWrapper.offsetHeight;
@@ -84,14 +92,18 @@ async function openAnalysis(tile: PrunTile, naturalId: string) {
 
   if (tile.container.classList.contains(C.Window.body)) {
     // Solo floating buffer: resize taller and split vertically.
-    const w = parseInt(tile.container.style.width, 10) || 600;
-    const h = parseInt(tile.container.style.height, 10) || 400;
+    const parsedW = parseInt(tile.container.style.width, 10);
+    const parsedH = parseInt(tile.container.style.height, 10);
+    const w = Number.isNaN(parsedW) ? 600 : parsedW;
+    const h = Number.isNaN(parsedH) ? 400 : parsedH;
     setBufferSize(tile.id, w, h + 450);
 
     const splitButton = _$$(tile.frame, C.TileControls.control).find(x => x.textContent === '–');
     await clickElement(splitButton);
 
-    if (!windowEl) return;
+    if (!windowEl) {
+      return;
+    }
 
     const node = await $(windowEl, C.Node.node);
     const companion = _$$(node, C.Node.child)[1] as HTMLElement | undefined;
@@ -110,7 +122,9 @@ async function openAnalysis(tile: PrunTile, naturalId: string) {
 
 async function setChildCommand(child: Element, command: string) {
   const tileEl = _$(child, C.Tile.tile) as HTMLElement | null;
-  if (!tileEl) return;
+  if (!tileEl) {
+    return;
+  }
 
   const id = getPrunId(tileEl)!;
   const message = UI_TILES_CHANGE_COMMAND(id, command);
@@ -125,4 +139,8 @@ function init() {
   tiles.observe('INV', onTileReady);
 }
 
-features.add(import.meta.url, init, 'INV: Adds an Analysis button that shows an XIT STO summary pane, expandable to a full companion buffer.');
+features.add(
+  import.meta.url,
+  init,
+  'INV: Adds an Analysis button that shows an XIT STO summary pane, expandable to a full companion buffer.',
+);
