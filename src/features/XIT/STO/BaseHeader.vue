@@ -85,7 +85,7 @@ const supplyClass = computed(() => {
       v-on="planetOnlyClick ? {} : { click: onClick }">
       <span
         v-if="showColumnTooltips"
-        :class="C.Tooltip.container"
+        :class="[C.Tooltip.container, $style.tooltipSpan]"
         :data-tooltip="COLUMN_LIMIT_TOOLTIP"
         :data-tooltip-position="tooltipPosition ?? 'bottom'">
         {{ formatDays(analysis.daysUntilFull) }}
@@ -100,7 +100,7 @@ const supplyClass = computed(() => {
       <div v-if="supplyClass" :class="[$style.supplyBg, supplyClass]" />
       <span
         v-if="showColumnTooltips"
-        :class="C.Tooltip.container"
+        :class="[C.Tooltip.container, $style.tooltipSpan]"
         :data-tooltip="COLUMN_SUPPLY_TOOLTIP"
         :data-tooltip-position="tooltipPosition ?? 'bottom'">
         {{ formatDaysCompact(analysis.daysOfSuppliesFit) }}
@@ -171,6 +171,13 @@ const supplyClass = computed(() => {
 
 .noWrap {
   white-space: nowrap;
+}
+
+/* Tooltip ::before inherits white-space from its element. When the parent td
+   has noWrap, the inherited nowrap prevents tooltip text from wrapping inside
+   the tooltip box. Reset it here so the tooltip renders correctly. */
+.tooltipSpan {
+  white-space: normal;
 }
 
 .minimize {
