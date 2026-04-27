@@ -161,9 +161,6 @@ const shipEntries = computed<ShipEntry[]>(() => {
   });
   return entries;
 });
-
-const primaryShip = computed(() => shipEntries.value[0]);
-const additionalShips = computed(() => shipEntries.value.slice(1));
 </script>
 
 <template>
@@ -222,30 +219,19 @@ const additionalShips = computed(() => shipEntries.value.slice(1));
         :on-click-cmd="`WAR ${naturalId}`" />
     </td>
     <td v-if="showShips" :class="$style.shipsCell">
-      <div v-if="primaryShip" :class="$style.shipsContent">
-        <div :class="$style.shipPrimary">
+      <div :class="$style.shipsContent">
+        <div v-for="entry in shipEntries" :key="entry.ship.id" :class="$style.shipBlock">
           <span
-            :class="C.Link.link"
-            :style="primaryShip.arrived ? undefined : { color: '#888' }"
-            @click="showBuffer(`SFC ${primaryShip.ship.registration}`)">
-            {{ primaryShip.truncatedName }}
+            :class="[C.Link.link, $style.shipName, { [$style.shipNameFlying]: !entry.arrived }]"
+            :style="entry.arrived ? undefined : { color: '#f7a600' }"
+            @click="showBuffer(`SHPI ${entry.ship.registration}`)">
+            {{ entry.truncatedName }}
           </span>
           <div :class="$style.shipInvBar">
             <InvBar
-              :store-id="primaryShip.ship.idShipStore"
-              :on-click-cmd="`SHPI ${primaryShip.ship.registration}`" />
+              :store-id="entry.ship.idShipStore"
+              :on-click-cmd="`SHPI ${entry.ship.registration}`" />
           </div>
-        </div>
-        <div v-if="additionalShips.length" :class="$style.shipExtras">
-          <template v-for="(entry, index) in additionalShips" :key="entry.ship.id">
-            <span
-              :class="C.Link.link"
-              :style="entry.arrived ? undefined : { color: '#888' }"
-              @click="showBuffer(`SFC ${entry.ship.registration}`)">
-              {{ entry.truncatedName }}
-            </span>
-            <span v-if="index < additionalShips.length - 1">,&nbsp;</span>
-          </template>
         </div>
       </div>
     </td>
@@ -344,18 +330,24 @@ const additionalShips = computed(() => shipEntries.value.slice(1));
 
 .shipsContent {
   display: flex;
-  align-items: flex-start;
-  gap: 6px;
+  flex-wrap: wrap;
+  gap: 4px 6px;
 }
 
-.shipPrimary {
-  flex: none;
+.shipBlock {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
   white-space: nowrap;
+  font-size: 11px;
 }
 
-.shipExtras {
-  font-size: 11px;
-  line-height: 1.3;
+.shipName {
+  cursor: pointer;
+}
+
+.shipNameFlying {
+  font-style: italic;
 }
 
 .shipInvBar {
