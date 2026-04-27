@@ -228,7 +228,7 @@ const shipEntries = computed<ShipEntry[]>(() => {
           </div>
           <span
             :class="[C.Link.link, $style.shipName, { [$style.shipNameFlying]: !entry.arrived }]"
-            :style="entry.arrived ? undefined : { color: '#f7a600' }"
+            :style="entry.arrived ? { color: '#f7a600' } : undefined"
             @click="showBuffer(`SHPI ${entry.ship.registration}`)">
             {{ entry.truncatedName }}
           </span>
@@ -324,14 +324,14 @@ const shipEntries = computed<ShipEntry[]>(() => {
 }
 
 .shipsCell {
-  padding: 2px;
+  padding: 2px 6px;
   vertical-align: middle;
 }
 
 .shipsContent {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 4px;
 }
 
 .shipBlock {
@@ -347,7 +347,7 @@ const shipEntries = computed<ShipEntry[]>(() => {
   top: 0;
   left: 50%;
   transform: translateX(-50%);
-  width: 30px;
+  width: 40px;
   height: 13px;
   z-index: 0;
 }
@@ -357,6 +357,7 @@ const shipEntries = computed<ShipEntry[]>(() => {
   z-index: 1;
   cursor: pointer;
   font-size: 11px;
+  font-weight: bold;
   line-height: 13px;
   padding: 0 3px;
   white-space: nowrap;
