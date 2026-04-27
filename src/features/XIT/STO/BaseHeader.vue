@@ -31,13 +31,6 @@ const COLUMN_AFTER_RESUPPLY_TOOLTIP =
 const currentStore = computed(() => storagesStore.getById(analysis.storeId));
 const projectedStore = computed(() => buildProjectedStore(analysis.siteId));
 
-// The after-resupply bar is the rightmost column. When column tooltips are
-// shown with 'top' position (panel context), center-above overflows the right
-// buffer edge. 'left' keeps the tooltip within the buffer.
-const afterResupplyTooltipPos = computed(() =>
-  showColumnTooltips && tooltipPosition === 'top' ? 'left' : (tooltipPosition ?? 'bottom'),
-);
-
 const stripeClass = computed(() => {
   if (analysis.needFillRatio === 0) {
     return undefined;
@@ -140,9 +133,9 @@ const supplyClass = computed(() => {
       v-on="planetOnlyClick ? {} : { click: onClick }">
       <div
         v-if="showColumnTooltips"
-        :class="$style.colBg"
+        :class="[$style.colBg, $style.rightAlignedTooltip]"
         :data-tooltip="COLUMN_AFTER_RESUPPLY_TOOLTIP"
-        :data-tooltip-position="afterResupplyTooltipPos">
+        :data-tooltip-position="tooltipPosition ?? 'bottom'">
         <CargoBar :store="projectedStore" disable-mini-mode />
       </div>
       <CargoBar v-else :store="projectedStore" disable-mini-mode />
@@ -232,5 +225,16 @@ const supplyClass = computed(() => {
   display: block;
   position: relative;
   z-index: 1;
+}
+
+/* Right-aligns the tooltip box so it doesn't overflow the right buffer edge.
+   The game centers 'top' tooltips via left:50%+translateX(-50%); overriding
+   to right:0 anchors the box's right edge to the element's right edge. */
+.rightAlignedTooltip {
+  &::before {
+    left: auto;
+    right: 0;
+    transform: translateX(0);
+  }
 }
 </style>
