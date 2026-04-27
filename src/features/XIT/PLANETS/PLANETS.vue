@@ -104,6 +104,7 @@ function setRepairField(
               Repair Threshold
               <Tooltip
                 position="bottom"
+                :class="$style.rightAlignedTooltip"
                 :tooltip="`Per-planet override. Leave empty to use the default (${defaultThreshold} days) from XIT REP.`" />
             </InlineFlex>
           </th>
@@ -112,6 +113,7 @@ function setRepairField(
               Repair Offset
               <Tooltip
                 position="bottom"
+                :class="$style.rightAlignedTooltip"
                 :tooltip="`Per-planet override. Leave empty to use the default (${defaultOffset} days) from XIT REP.`" />
             </InlineFlex>
           </th>
@@ -191,5 +193,21 @@ function setRepairField(
   opacity: 0.85;
   background-color: rgba(100, 149, 237, 0.08);
   border-left: 3px solid #6495ed;
+}
+
+.rightAlignedTooltip {
+  &[data-tooltip-position='bottom']::before {
+    left: auto;
+    right: 0;
+    transform: none;
+    max-width: 250px;
+    white-space: normal;
+    text-align: right;
+  }
+  &[data-tooltip-position='bottom']::after {
+    left: auto;
+    right: 4px;
+    transform: none;
+  }
 }
 </style>
