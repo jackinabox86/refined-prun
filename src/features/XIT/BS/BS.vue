@@ -175,7 +175,7 @@ const filteredBases = computed(() => {
           </th>
           <th v-if="showInv" :class="$style.invCol">Inv</th>
           <th v-if="showWar" :class="$style.warCol">War</th>
-          <th v-if="showShips" :class="$style.shipsCol" colspan="2">Ships</th>
+          <th v-if="showShips" :class="$style.shipsCol">Ships</th>
         </tr>
       </thead>
       <tbody>

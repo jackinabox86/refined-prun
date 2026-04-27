@@ -221,9 +221,9 @@ const additionalShips = computed(() => shipEntries.value.slice(1));
         :store-id="warehouseStore.id"
         :on-click-cmd="`WAR ${naturalId}`" />
     </td>
-    <template v-if="showShips">
-      <td :class="$style.shipPrimaryCell">
-        <template v-if="primaryShip">
+    <td v-if="showShips" :class="$style.shipsCell">
+      <div v-if="primaryShip" :class="$style.shipsContent">
+        <div :class="$style.shipPrimary">
           <span
             :class="C.Link.link"
             :style="primaryShip.arrived ? undefined : { color: '#888' }"
@@ -236,21 +236,21 @@ const additionalShips = computed(() => shipEntries.value.slice(1));
               :store-id="primaryShip.ship.idShipStore"
               :on-click-cmd="`SHPI ${primaryShip.ship.registration}`" />
           </div>
-        </template>
-      </td>
-      <td :class="$style.shipExtraCell">
-        <template v-for="(entry, index) in additionalShips" :key="entry.ship.id">
-          <span
-            :class="C.Link.link"
-            :style="entry.arrived ? undefined : { color: '#888' }"
-            :data-tooltip="entry.displayName"
-            @click="showBuffer(`SFC ${entry.ship.registration}`)">
-            {{ entry.truncatedName }}
-          </span>
-          <span v-if="index < additionalShips.length - 1">, </span>
-        </template>
-      </td>
-    </template>
+        </div>
+        <div v-if="additionalShips.length" :class="$style.shipExtras">
+          <template v-for="(entry, index) in additionalShips" :key="entry.ship.id">
+            <span
+              :class="C.Link.link"
+              :style="entry.arrived ? undefined : { color: '#888' }"
+              :data-tooltip="entry.displayName"
+              @click="showBuffer(`SFC ${entry.ship.registration}`)">
+              {{ entry.truncatedName }}
+            </span>
+            <span v-if="index < additionalShips.length - 1">,&nbsp;</span>
+          </template>
+        </div>
+      </div>
+    </td>
   </tr>
 </template>
 
@@ -339,18 +339,25 @@ const additionalShips = computed(() => shipEntries.value.slice(1));
   padding: 2px;
 }
 
-.shipPrimaryCell {
-  width: 0;
-  white-space: nowrap;
+.shipsCell {
   padding: 2px;
   vertical-align: top;
 }
 
-.shipExtraCell {
-  padding: 2px;
-  vertical-align: top;
+.shipsContent {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+}
+
+.shipPrimary {
+  flex: none;
+  white-space: nowrap;
+}
+
+.shipExtras {
   font-size: 11px;
-  white-space: normal;
+  line-height: 1.3;
   word-break: break-word;
 }
 
