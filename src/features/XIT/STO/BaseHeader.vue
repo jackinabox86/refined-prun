@@ -83,13 +83,13 @@ const supplyClass = computed(() => {
     <td
       :class="[!planetOnlyClick && $style.clickable, $style.noWrap]"
       v-on="planetOnlyClick ? {} : { click: onClick }">
-      <div
+      <span
         v-if="showColumnTooltips"
-        :class="[$style.colBg, C.Tooltip.container]"
+        :class="C.Tooltip.container"
         :data-tooltip="COLUMN_LIMIT_TOOLTIP"
         :data-tooltip-position="tooltipPosition ?? 'bottom'">
         {{ formatDays(analysis.daysUntilFull) }}
-      </div>
+      </span>
       <span v-else :data-tooltip="limitTooltip" :data-tooltip-position="tooltipPosition ?? 'bottom'">
         {{ formatDays(analysis.daysUntilFull) }}
       </span>
@@ -98,13 +98,13 @@ const supplyClass = computed(() => {
       :class="[!planetOnlyClick && $style.clickable, $style.supplyCell, $style.noWrap]"
       v-on="planetOnlyClick ? {} : { click: onClick }">
       <div v-if="supplyClass" :class="[$style.supplyBg, supplyClass]" />
-      <div
+      <span
         v-if="showColumnTooltips"
-        :class="[$style.colBg, C.Tooltip.container]"
+        :class="C.Tooltip.container"
         :data-tooltip="COLUMN_SUPPLY_TOOLTIP"
         :data-tooltip-position="tooltipPosition ?? 'bottom'">
         {{ formatDaysCompact(analysis.daysOfSuppliesFit) }}
-      </div>
+      </span>
       <span v-else :data-tooltip="supplyTooltip" :data-tooltip-position="tooltipPosition ?? 'bottom'">
         {{ formatDaysCompact(analysis.daysOfSuppliesFit) }}
       </span>
@@ -114,7 +114,7 @@ const supplyClass = computed(() => {
       v-on="planetOnlyClick ? {} : { click: onClick }">
       <div
         v-if="showColumnTooltips"
-        :class="[$style.colBg, C.Tooltip.container]"
+        :class="$style.colBg"
         :data-tooltip="COLUMN_CURRENT_FILL_TOOLTIP"
         :data-tooltip-position="tooltipPosition ?? 'bottom'">
         <CargoBar :store="currentStore" disable-mini-mode />
@@ -126,7 +126,7 @@ const supplyClass = computed(() => {
       v-on="planetOnlyClick ? {} : { click: onClick }">
       <div
         v-if="showColumnTooltips"
-        :class="[$style.colBg, C.Tooltip.container]"
+        :class="$style.colBg"
         :data-tooltip="COLUMN_AFTER_RESUPPLY_TOOLTIP"
         :data-tooltip-position="tooltipPosition ?? 'bottom'">
         <CargoBar :store="projectedStore" disable-mini-mode />
