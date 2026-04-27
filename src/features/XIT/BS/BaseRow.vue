@@ -122,20 +122,10 @@ const warehouseStore = computed(() =>
     .getByAddressableId(warehouse.value?.warehouseId)
     ?.find(x => x.type === 'WAREHOUSE_STORE'),
 );
-
-const rowEl = ref<HTMLElement | null>(null);
-const overlayBg = ref('transparent');
-
-onMounted(() => {
-  const tileBody = rowEl.value?.closest(`.${C.TileFrame.body}`);
-  if (tileBody) {
-    overlayBg.value = getComputedStyle(tileBody).backgroundColor;
-  }
-});
 </script>
 
 <template>
-  <tr :class="$style.row" ref="rowEl">
+  <tr :class="$style.row">
     <td
       :class="$style.planetCell"
       @contextmenu.prevent="planetContextMenu.showMenu($event, naturalId)">
@@ -145,7 +135,6 @@ onMounted(() => {
     </td>
     <td v-if="showCmds" :class="$style.cmdCell">
       <PrunButton dark inline>CMDS&#x25B6;</PrunButton>
-      <div :class="$style.rowOverlay" :style="{ background: overlayBg }" />
       <div :class="$style.expandedButtons">
         <PrunButton dark inline @click="showBuffer(`BBL ${siteId}`)">BUILDINGS</PrunButton>
         <PrunButton dark inline @click="showBuffer(`BBC ${naturalId}`)">CONSTRUCT</PrunButton>
@@ -209,24 +198,9 @@ onMounted(() => {
 
 .cmdCell {
   position: relative;
-  z-index: 1;
   overflow: visible;
   white-space: nowrap;
   width: 0;
-}
-
-.rowOverlay {
-  display: none;
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: -9999px;
-  height: 100%;
-  z-index: 9;
-}
-
-.cmdCell:hover .rowOverlay {
-  display: block;
 }
 
 .expandedButtons {
@@ -245,6 +219,11 @@ onMounted(() => {
 
 .cmdCell:hover .expandedButtons {
   display: flex;
+}
+
+.row:has(.cmdCell:hover) .statusCell > *,
+.row:has(.cmdCell:hover) .invCell > * {
+  visibility: hidden;
 }
 
 .row {
