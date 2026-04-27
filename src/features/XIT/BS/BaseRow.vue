@@ -208,10 +208,10 @@ const warehouseStore = computed(() =>
   display: none;
   position: absolute;
   top: 0;
-  left: -500px;
-  right: -500px;
+  left: 0;
+  right: -9999px;
   height: 100%;
-  background: black;
+  background: #222e31;
   z-index: 9;
 }
 
