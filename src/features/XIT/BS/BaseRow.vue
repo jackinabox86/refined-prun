@@ -330,7 +330,6 @@ const shipEntries = computed<ShipEntry[]>(() => {
 
 .shipsContent {
   display: flex;
-  flex-wrap: wrap;
   gap: 4px 6px;
 }
 
