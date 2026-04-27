@@ -227,7 +227,6 @@ const additionalShips = computed(() => shipEntries.value.slice(1));
           <span
             :class="C.Link.link"
             :style="primaryShip.arrived ? undefined : { color: '#888' }"
-            :data-tooltip="primaryShip.displayName"
             @click="showBuffer(`SFC ${primaryShip.ship.registration}`)">
             {{ primaryShip.truncatedName }}
           </span>
@@ -242,7 +241,6 @@ const additionalShips = computed(() => shipEntries.value.slice(1));
             <span
               :class="C.Link.link"
               :style="entry.arrived ? undefined : { color: '#888' }"
-              :data-tooltip="entry.displayName"
               @click="showBuffer(`SFC ${entry.ship.registration}`)">
               {{ entry.truncatedName }}
             </span>
@@ -358,7 +356,6 @@ const additionalShips = computed(() => shipEntries.value.slice(1));
 .shipExtras {
   font-size: 11px;
   line-height: 1.3;
-  word-break: break-word;
 }
 
 .shipInvBar {
