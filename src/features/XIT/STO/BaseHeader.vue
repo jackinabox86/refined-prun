@@ -13,7 +13,20 @@ const { analysis } = defineProps<{
   hasMinimize?: boolean;
   minimized?: boolean;
   onClick: () => void;
+  tooltipPosition?: string;
+  hideButtons?: boolean;
+  showColumnTooltips?: boolean;
+  planetOnlyClick?: boolean;
 }>();
+
+const COLUMN_LIMIT_TOOLTIP =
+  'Days until storage is full at the current net production rate — when a ship visit is forced.';
+const COLUMN_SUPPLY_TOOLTIP =
+  'Total days of consumables the base could hold when storage is filled to its threshold after ship-out (80% when filling, 95% when draining). Colors match XIT BURN: red below your red threshold, yellow below your yellow threshold.';
+const COLUMN_CURRENT_FILL_TOOLTIP =
+  "What's in base storage right now. Colored by material category.";
+const COLUMN_AFTER_RESUPPLY_TOOLTIP =
+  'Projected storage if all produced goods were shipped out and all consumables delivered up to their XIT BURN Need amount. Red hatching shows overflow past capacity.';
 
 const currentStore = computed(() => storagesStore.getById(analysis.storeId));
 const projectedStore = computed(() => buildProjectedStore(analysis.siteId));
@@ -68,24 +81,66 @@ const supplyClass = computed(() => {
       </span>
       <span>{{ analysis.planetName }}</span>
     </td>
-    <td :class="$style.clickable" @click="onClick">
-      <span :data-tooltip="limitTooltip" data-tooltip-position="bottom">
+    <td
+      :class="[!planetOnlyClick && $style.clickable, $style.noWrap]"
+      v-on="planetOnlyClick ? {} : { click: onClick }">
+      <span
+        v-if="showColumnTooltips"
+        :class="[C.Tooltip.container, $style.tooltipSpan]"
+        :data-tooltip="COLUMN_LIMIT_TOOLTIP"
+        :data-tooltip-position="tooltipPosition ?? 'bottom'">
+        {{ formatDays(analysis.daysUntilFull) }}
+      </span>
+      <span
+        v-else
+        :data-tooltip="limitTooltip"
+        :data-tooltip-position="tooltipPosition ?? 'bottom'">
         {{ formatDays(analysis.daysUntilFull) }}
       </span>
     </td>
-    <td :class="[$style.clickable, $style.supplyCell]" @click="onClick">
+    <td
+      :class="[!planetOnlyClick && $style.clickable, $style.supplyCell, $style.noWrap]"
+      v-on="planetOnlyClick ? {} : { click: onClick }">
       <div v-if="supplyClass" :class="[$style.supplyBg, supplyClass]" />
-      <span :data-tooltip="supplyTooltip" data-tooltip-position="bottom">
+      <span
+        v-if="showColumnTooltips"
+        :class="[C.Tooltip.container, $style.tooltipSpan]"
+        :data-tooltip="COLUMN_SUPPLY_TOOLTIP"
+        :data-tooltip-position="tooltipPosition ?? 'bottom'">
+        {{ formatDaysCompact(analysis.daysOfSuppliesFit) }}
+      </span>
+      <span
+        v-else
+        :data-tooltip="supplyTooltip"
+        :data-tooltip-position="tooltipPosition ?? 'bottom'">
         {{ formatDaysCompact(analysis.daysOfSuppliesFit) }}
       </span>
     </td>
-    <td :class="[$style.clickable, $style.barCell]" @click="onClick">
-      <CargoBar :store="currentStore" disable-mini-mode />
+    <td
+      :class="[!planetOnlyClick && $style.clickable, $style.barCell]"
+      v-on="planetOnlyClick ? {} : { click: onClick }">
+      <div
+        v-if="showColumnTooltips"
+        :class="$style.colBg"
+        :data-tooltip="COLUMN_CURRENT_FILL_TOOLTIP"
+        :data-tooltip-position="tooltipPosition ?? 'bottom'">
+        <CargoBar :store="currentStore" disable-mini-mode />
+      </div>
+      <CargoBar v-else :store="currentStore" disable-mini-mode />
     </td>
-    <td :class="[$style.clickable, $style.barCell]" @click="onClick">
-      <CargoBar :store="projectedStore" disable-mini-mode />
+    <td
+      :class="[!planetOnlyClick && $style.clickable, $style.barCell]"
+      v-on="planetOnlyClick ? {} : { click: onClick }">
+      <div
+        v-if="showColumnTooltips"
+        :class="[$style.colBg, $style.rightAlignedTooltip]"
+        :data-tooltip="COLUMN_AFTER_RESUPPLY_TOOLTIP"
+        :data-tooltip-position="tooltipPosition ?? 'bottom'">
+        <CargoBar :store="projectedStore" disable-mini-mode />
+      </div>
+      <CargoBar v-else :store="projectedStore" disable-mini-mode />
     </td>
-    <td>
+    <td v-if="!hideButtons">
       <div :class="$style.buttons">
         <PrunButton dark inline @click="showBuffer(`BS ${analysis.naturalId}`)">BS</PrunButton>
         <PrunButton dark inline @click="showBuffer(`INV ${analysis.storeId.substring(0, 8)}`)">
@@ -121,6 +176,17 @@ const supplyClass = computed(() => {
   cursor: pointer;
 }
 
+.noWrap {
+  white-space: nowrap;
+}
+
+/* Tooltip ::before inherits white-space from its element. When the parent td
+   has noWrap, the inherited nowrap prevents tooltip text from wrapping inside
+   the tooltip box. Reset it here so the tooltip renders correctly. */
+.tooltipSpan {
+  white-space: normal;
+}
+
 .minimize {
   display: inline-block;
   width: 20px;
@@ -152,5 +218,23 @@ const supplyClass = computed(() => {
   top: 0;
   width: 100%;
   height: 100%;
+}
+
+/* Fills the td so background hover area covers empty space around the value. */
+.colBg {
+  display: block;
+  position: relative;
+  z-index: 1;
+}
+
+/* Right-aligns the tooltip box so it doesn't overflow the right buffer edge.
+   The game centers 'top' tooltips via left:50%+translateX(-50%); overriding
+   to right:0 anchors the box's right edge to the element's right edge. */
+.rightAlignedTooltip {
+  &::before {
+    left: auto;
+    right: 0;
+    transform: translateX(0);
+  }
 }
 </style>

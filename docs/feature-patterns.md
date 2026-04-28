@@ -387,6 +387,93 @@ import { showBuffer } from '@src/infrastructure/prun-ui/buffers';
 showBuffer('CXM AI1.RAT');  // opens a buffer with the given command
 ```
 
+### Companion Buffers (Splitting)
+
+To split a tile and set a companion command, click the tile's split button then wait for the node and change the companion's command.
+
+Split button characters (found via `C.TileControls.control`):
+- `'–'` (en-dash) = vertical split (top / bottom)
+- `'|'` = horizontal split (left / right)
+
+**Important:** `tile.frame` may be destroyed after a split. Capture `windowEl` and read `tile.container` / `tile.id` *before* clicking.
+
+```ts
+import { setBufferSize } from '@src/infrastructure/prun-ui/buffers';
+import { clickElement, changeInputValue } from '@src/util';
+import { getPrunId } from '@src/infrastructure/prun-ui/attributes';
+import { UI_TILES_CHANGE_COMMAND } from '@src/infrastructure/prun-api/client-messages';
+import { dispatchClientPrunMessage } from '@src/infrastructure/prun-api/prun-api-listener';
+
+async function splitVertically(tile: PrunTile, companionCommand: string) {
+  // Capture window reference before the split destroys tile.frame.
+  const windowEl = tile.frame.closest(`.${C.Window.window}`) as HTMLElement;
+
+  if (tile.container.classList.contains(C.Window.body)) {
+    // Solo floating buffer: make taller, then split.
+    const w = parseInt(tile.container.style.width, 10) || 600;
+    const h = parseInt(tile.container.style.height, 10) || 400;
+    setBufferSize(tile.id, w, h + 450);
+
+    const splitBtn = _$$(tile.frame, C.TileControls.control).find(x => x.textContent === '–');
+    await clickElement(splitBtn);
+
+    // MutationObserver waits for the Node to appear after the split.
+    const node = await $(windowEl, C.Node.node);
+    const companion = _$$(node, C.Node.child)[1]; // new tile is always the second child
+    if (companion) await setTileCommand(companion, companionCommand);
+  } else if (tile.container.classList.contains(C.Node.child)) {
+    // Already in a split: reuse the sibling.
+    const node = tile.container.parentElement!;
+    const sibling = _$$(node, C.Node.child).find(x => x !== tile.container);
+    if (sibling) await setTileCommand(sibling, companionCommand);
+  }
+}
+
+async function setTileCommand(child: Element, command: string) {
+  const tileEl = _$(child, C.Tile.tile) as HTMLElement | null;
+  if (!tileEl) return;
+  const id = getPrunId(tileEl)!;
+  if (!dispatchClientPrunMessage(UI_TILES_CHANGE_COMMAND(id, command))) {
+    const input = (await $(child, C.PanelSelector.input)) as HTMLInputElement;
+    changeInputValue(input, command);
+    input.form!.requestSubmit();
+  }
+}
+```
+
+See also `src/features/XIT/ACT/runner/tile-allocator.ts` for the full horizontal-split companion pattern used by ACT.
+
+---
+
+## Context Controls
+
+All tiles have a `C.ContextControls.container` element. Add items to it via `$(tile.frame, C.ContextControls.container)`.
+
+For items that simply open a buffer, use the existing `ContextControlsItem` component:
+
+```ts
+import ContextControlsItem from '@src/components/ContextControlsItem.vue';
+
+const contextBar = await $(tile.frame, C.ContextControls.container);
+createFragmentApp(ContextControlsItem, { cmd: 'XIT BURN OT-580b' }).prependTo(contextBar);
+```
+
+For items with custom `onClick` behavior, use inline TSX with the same CSS classes:
+
+```tsx
+const contextBar = await $(tile.frame, C.ContextControls.container);
+createFragmentApp(() => (
+  <div
+    class={[C.ContextControls.item, C.fonts.fontRegular, C.type.typeSmall]}
+    onClick={() => doSomething()}>
+    <span>
+      <span class={C.ContextControls.cmd}>Label</span>
+      {' - subtitle'}
+    </span>
+  </div>
+)).prependTo(contextBar);
+```
+
 ---
 
 ## CSS
