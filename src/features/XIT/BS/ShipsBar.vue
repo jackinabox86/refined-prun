@@ -257,6 +257,7 @@ watch(
   display: flex;
   flex-direction: row;
   gap: 2px;
+  width: max-content;
 }
 
 .barWrapper {

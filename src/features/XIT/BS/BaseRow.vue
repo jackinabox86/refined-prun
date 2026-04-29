@@ -181,7 +181,7 @@ const warehouseStore = computed(() =>
         :store-id="warehouseStore.id"
         :on-click-cmd="`WAR ${naturalId}`" />
     </td>
-    <td v-if="showShips" :class="$style.invCell">
+    <td v-if="showShips" :class="$style.shipsCell">
       <ShipsBar :natural-id="naturalId" />
     </td>
   </tr>
@@ -259,6 +259,10 @@ const warehouseStore = computed(() =>
 
 .invCell {
   min-width: 60px;
+  padding: 2px;
+}
+
+.shipsCell {
   padding: 2px;
 }
 </style>
