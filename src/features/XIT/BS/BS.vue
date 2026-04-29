@@ -29,6 +29,7 @@ const showProd = useTileState('showProd', true);
 const showRepair = useTileState('showRepair', true);
 const showInv = useTileState('showInv', true);
 const showWar = useTileState('showWar', true);
+const showShips = useTileState('showShips', true);
 const planetFilter = ref('');
 
 function setSort(key: SortKey) {
@@ -129,6 +130,7 @@ const filteredBases = computed(() => {
       <RadioItem v-model="showRepair" horizontal>Repair</RadioItem>
       <RadioItem v-model="showInv" horizontal>Inv</RadioItem>
       <RadioItem v-model="showWar" horizontal>War</RadioItem>
+      <RadioItem v-model="showShips" horizontal>Ships</RadioItem>
       <div :class="$style.spacer" />
       <div :class="$style.searchContainer">
         Planet:&nbsp;
@@ -173,6 +175,7 @@ const filteredBases = computed(() => {
           </th>
           <th v-if="showInv" :class="$style.invCol">Inv</th>
           <th v-if="showWar" :class="$style.warCol">War</th>
+          <th v-if="showShips" :class="$style.shipsCol">Ships</th>
         </tr>
       </thead>
       <tbody>
@@ -188,7 +191,8 @@ const filteredBases = computed(() => {
           :show-prod="showProd"
           :show-repair="showRepair"
           :show-inv="showInv"
-          :show-war="showWar" />
+          :show-war="showWar"
+          :show-ships="showShips" />
       </tbody>
     </table>
   </template>
@@ -210,6 +214,10 @@ const filteredBases = computed(() => {
 
 .warCol {
   width: 33%;
+}
+
+.shipsCol {
+  padding: 2px;
 }
 
 .sortable {

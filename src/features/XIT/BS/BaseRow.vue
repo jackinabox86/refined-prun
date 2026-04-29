@@ -2,6 +2,7 @@
 import PrunLink from '@src/components/PrunLink.vue';
 import PrunButton from '@src/components/PrunButton.vue';
 import InvBar from '@src/features/XIT/BS/InvBar.vue';
+import ShipsBar from '@src/features/XIT/BS/ShipsBar.vue';
 import { showBuffer } from '@src/infrastructure/prun-ui/buffers';
 import { getPlanetBurn } from '@src/core/burn';
 import { countDays } from '@src/features/XIT/BURN/utils';
@@ -25,6 +26,7 @@ const {
   showRepair,
   showInv,
   showWar,
+  showShips,
 } = defineProps<{
   siteId: string;
   naturalId: string;
@@ -36,6 +38,7 @@ const {
   showRepair: boolean;
   showInv: boolean;
   showWar: boolean;
+  showShips: boolean;
 }>();
 
 const burn = computed(() => getPlanetBurn(siteId));
@@ -177,6 +180,9 @@ const warehouseStore = computed(() =>
         v-if="warehouseStore"
         :store-id="warehouseStore.id"
         :on-click-cmd="`WAR ${naturalId}`" />
+    </td>
+    <td v-if="showShips" :class="$style.invCell">
+      <ShipsBar :natural-id="naturalId" />
     </td>
   </tr>
 </template>
