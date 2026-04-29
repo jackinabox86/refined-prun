@@ -234,7 +234,7 @@ watch(
       :key="bar.id"
       :class="$style.barWrapper"
       :data-tooltip="bar.displayName"
-      data-tooltip-position="right"
+      data-tooltip-position="top"
       @click="showBuffer(bar.storeCmd)">
       <div
         :class="[C.ProgressBar.progress, $style.bar, { [$style.isUpdating]: isAnimating }]"
@@ -257,18 +257,22 @@ watch(
   display: flex;
   flex-direction: row;
   gap: 2px;
-  width: 100%;
 }
 
 .barWrapper {
-  flex: 1;
-  min-width: 30px;
+  width: 30px;
+  flex-shrink: 0;
   cursor: pointer;
+
+  &::before {
+    text-align: right;
+  }
 }
 
 .bar {
   width: 100%;
-  height: 30px;
+  min-height: 13px;
+  height: 13px;
   display: flex;
   align-items: flex-end;
   justify-content: flex-start;
