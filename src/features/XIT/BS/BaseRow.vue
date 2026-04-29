@@ -140,6 +140,8 @@ const warehouseStore = computed(() =>
         <PrunButton dark inline @click="showBuffer(`BBC ${naturalId}`)">CONSTRUCT</PrunButton>
         <PrunButton dark inline @click="showBuffer(`WF ${siteId}`)">WORKFORCE</PrunButton>
         <PrunButton dark inline @click="showBuffer(`EXP ${siteId}`)">EXPERTS</PrunButton>
+        <PrunButton dark inline @click="showBuffer(`BRA ${naturalId}`)">BRA</PrunButton>
+        <PrunButton dark inline @click="showBuffer('HQ')">HQ</PrunButton>
       </div>
     </td>
     <td v-if="showBurn" :class="$style.statusCell">
