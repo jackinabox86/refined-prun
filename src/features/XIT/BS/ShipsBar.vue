@@ -22,14 +22,24 @@ interface Segment {
   title: string;
 }
 
-const shipStores = computed<PrunApi.Store[]>(() => {
+interface ShipBarData {
+  id: string;
+  displayName: string;
+  storeCmd: string;
+  segments: Segment[];
+  miniMode: boolean;
+  stripeColor: string;
+  stripeWidth: string;
+}
+
+const shipBars = computed<ShipBarData[]>(() => {
   const ships = shipsStore.all.value;
   const allStores = storagesStore.all.value;
   if (!ships || !allStores) {
     return [];
   }
 
-  const result: PrunApi.Store[] = [];
+  const result: ShipBarData[] = [];
   for (const ship of ships) {
     let isRelevant = false;
     if (ship.flightId) {
@@ -37,86 +47,81 @@ const shipStores = computed<PrunApi.Store[]>(() => {
       if (flight && getEntityNaturalIdFromAddress(flight.destination) === props.naturalId) {
         isRelevant = true;
       }
-    } else if (ship.address) {
-      if (getEntityNaturalIdFromAddress(ship.address) === props.naturalId) {
-        isRelevant = true;
-      }
+    } else if (ship.address && getEntityNaturalIdFromAddress(ship.address) === props.naturalId) {
+      isRelevant = true;
     }
     if (!isRelevant) {
       continue;
     }
+
     const store = allStores.find(x => x.id === ship.idShipStore);
-    if (store) {
-      result.push(store);
+    if (!store) {
+      continue;
     }
+
+    const wCap = store.weightCapacity;
+    const vCap = store.volumeCapacity;
+    const wLoad = store.weightLoad;
+    const vLoad = store.volumeLoad;
+
+    const weightRatio = wCap > 0 ? wLoad / wCap : 0;
+    const volumeRatio = vCap > 0 ? vLoad / vCap : 0;
+    const maxRatio = Math.max(weightRatio, volumeRatio);
+    const useVolume = volumeRatio > weightRatio;
+
+    const isMiniMode = maxRatio <= 0.05 && maxRatio > 0;
+    const activeLoad = useVolume ? vLoad : wLoad;
+    const activeCapacity = useVolume ? vCap : wCap;
+    let divisor = isMiniMode ? activeLoad : activeCapacity;
+    if (divisor === 0) {
+      divisor = 1;
+    }
+
+    const formatTitle = (name: string, weight: number, volume: number) => {
+      const load = useVolume ? fixed02(volume) + 'm³' : fixed02(weight) + 't';
+      return `${name}: ${load}`;
+    };
+
+    const segments: Segment[] = [];
+    const summary = getInventorySummary(store);
+
+    const categories = [...summary.categories.keys()].sort((a, b) => a.name.localeCompare(b.name));
+    for (const category of categories) {
+      const categorySummary = summary.categories.get(category)!;
+      const value = useVolume ? categorySummary.volume : categorySummary.weight;
+      segments.push({
+        name: category.name,
+        class: getMaterialCategoryCssClass(category),
+        width: `${(value * 100) / divisor}%`,
+        title: formatTitle(category.name, categorySummary.weight, categorySummary.volume),
+      });
+    }
+
+    if (summary.shipments.weight > 0 || summary.shipments.volume > 0) {
+      const value = useVolume ? summary.shipments.volume : summary.shipments.weight;
+      segments.push({
+        name: 'shipments',
+        class: 'rp-category-none',
+        width: `${(value * 100) / divisor}%`,
+        title: formatTitle('shipments', summary.shipments.weight, summary.shipments.volume),
+      });
+    }
+
+    if (!isMiniMode) {
+      enhanceSegmentVisibility(segments, maxRatio);
+    }
+
+    result.push({
+      id: ship.id,
+      displayName: ship.name.substring(0, 10),
+      storeCmd: `INV ${store.id.substring(0, 8)}`,
+      segments,
+      miniMode: isMiniMode,
+      stripeColor: computeStripeColor(maxRatio),
+      stripeWidth: computeStripeWidth(maxRatio),
+    });
   }
   return result;
-});
-
-interface BarData {
-  segments: Segment[];
-  miniMode: boolean;
-}
-
-const invBar = computed<BarData>(() => {
-  const stores = shipStores.value;
-  if (stores.length === 0) {
-    return { segments: [], miniMode: false };
-  }
-
-  const wCap = sumBy(stores, s => s.weightCapacity);
-  const vCap = sumBy(stores, s => s.volumeCapacity);
-  const wLoad = sumBy(stores, s => s.weightLoad);
-  const vLoad = sumBy(stores, s => s.volumeLoad);
-
-  const weightRatio = wCap > 0 ? wLoad / wCap : 0;
-  const volumeRatio = vCap > 0 ? vLoad / vCap : 0;
-  const maxRatio = Math.max(weightRatio, volumeRatio);
-  const useVolume = volumeRatio > weightRatio;
-
-  const isMiniMode = maxRatio <= 0.05 && maxRatio > 0;
-  const activeLoad = useVolume ? vLoad : wLoad;
-  const activeCapacity = useVolume ? vCap : wCap;
-  let divisor = isMiniMode ? activeLoad : activeCapacity;
-  if (divisor === 0) {
-    divisor = 1;
-  }
-
-  const formatTitle = (name: string, weight: number, volume: number) => {
-    const load = useVolume ? fixed02(volume) + 'm³' : fixed02(weight) + 't';
-    return `${name}: ${load}`;
-  };
-
-  const segments: Segment[] = [];
-  const summary = getInventorySummary(stores);
-
-  const categories = [...summary.categories.keys()].sort((a, b) => a.name.localeCompare(b.name));
-  for (const category of categories) {
-    const categorySummary = summary.categories.get(category)!;
-    const value = useVolume ? categorySummary.volume : categorySummary.weight;
-    segments.push({
-      name: category.name,
-      class: getMaterialCategoryCssClass(category),
-      width: `${(value * 100) / divisor}%`,
-      title: formatTitle(category.name, categorySummary.weight, categorySummary.volume),
-    });
-  }
-
-  if (summary.shipments.weight > 0 || summary.shipments.volume > 0) {
-    const value = useVolume ? summary.shipments.volume : summary.shipments.weight;
-    segments.push({
-      name: 'shipments',
-      class: 'rp-category-none',
-      width: `${(value * 100) / divisor}%`,
-      title: formatTitle('shipments', summary.shipments.weight, summary.shipments.volume),
-    });
-  }
-
-  if (!isMiniMode) {
-    enhanceSegmentVisibility(segments, maxRatio);
-  }
-
-  return { segments, miniMode: isMiniMode };
 });
 
 function enhanceSegmentVisibility(segments: Segment[], loadRatio: number) {
@@ -147,51 +152,68 @@ interface CategorySummary {
   volume: number;
 }
 
-function getInventorySummary(stores: PrunApi.Store[]) {
+function getInventorySummary(store: PrunApi.Store) {
   const shipments: CategorySummary = { weight: 0, volume: 0 };
   const categories = new Map<PrunApi.MaterialCategory, CategorySummary>();
 
-  for (const store of stores) {
-    for (const item of store.items) {
-      if (item.type === 'SHIPMENT') {
-        shipments.weight += item.weight;
-        shipments.volume += item.volume;
-        continue;
-      }
-
-      const material = item.quantity?.material;
-      if (!material) {
-        continue;
-      }
-
-      const category = materialCategoriesStore.getById(material.category);
-      if (!category) {
-        continue;
-      }
-
-      let categorySummary = categories.get(category);
-      if (!categorySummary) {
-        categorySummary = { weight: 0, volume: 0 };
-        categories.set(category, categorySummary);
-      }
-
-      categorySummary.weight += item.weight;
-      categorySummary.volume += item.volume;
+  for (const item of store.items) {
+    if (item.type === 'SHIPMENT') {
+      shipments.weight += item.weight;
+      shipments.volume += item.volume;
+      continue;
     }
+
+    const material = item.quantity?.material;
+    if (!material) {
+      continue;
+    }
+
+    const category = materialCategoriesStore.getById(material.category);
+    if (!category) {
+      continue;
+    }
+
+    let categorySummary = categories.get(category);
+    if (!categorySummary) {
+      categorySummary = { weight: 0, volume: 0 };
+      categories.set(category, categorySummary);
+    }
+
+    categorySummary.weight += item.weight;
+    categorySummary.volume += item.volume;
   }
 
   return { shipments, categories };
 }
 
-const miniBarClass = computed(() => ({
-  [$style.miniBar]: invBar.value.miniMode,
-}));
+function computeStripeColor(ratio: number) {
+  const start = { r: 50, g: 50, b: 50 };
+  const target = { r: 100, g: 100, b: 100 };
+  if (ratio < 0.7) {
+    return `rgb(${start.r}, ${start.g}, ${start.b})`;
+  }
+  const normalized = (ratio - 0.7) / 0.3;
+  const r = Math.round(start.r + (target.r - start.r) * normalized);
+  const g = Math.round(start.g + (target.g - start.g) * normalized);
+  const b = Math.round(start.b + (target.b - start.b) * normalized);
+  return `rgb(${r}, ${g}, ${b})`;
+}
+
+function computeStripeWidth(ratio: number) {
+  const startWidth = 10;
+  const smallWidth = 2;
+  if (ratio < 0.7) {
+    return `${startWidth}px`;
+  }
+  const normalized = (ratio - 0.7) / 0.3;
+  return `${startWidth - (startWidth - smallWidth) * normalized}px`;
+}
 
 const isAnimating = ref(false);
 let animationTimeout: ReturnType<typeof setTimeout> | null = null;
 
 watch(
-  () => invBar.value.segments,
+  () => shipBars.value,
   () => {
     if (animationTimeout) {
       clearTimeout(animationTimeout);
@@ -203,71 +225,51 @@ watch(
   },
   { deep: true },
 );
-
-const totalLoadRatio = computed(() => {
-  const stores = shipStores.value;
-  if (stores.length === 0) {
-    return 0;
-  }
-  const wCap = sumBy(stores, s => s.weightCapacity);
-  const vCap = sumBy(stores, s => s.volumeCapacity);
-  const wLoad = sumBy(stores, s => s.weightLoad);
-  const vLoad = sumBy(stores, s => s.volumeLoad);
-  return Math.max(wCap > 0 ? wLoad / wCap : 0, vCap > 0 ? vLoad / vCap : 0);
-});
-
-const stripeAlertColor = computed(() => {
-  const ratio = totalLoadRatio.value;
-  const start = { r: 50, g: 50, b: 50 };
-  const target = { r: 100, g: 100, b: 100 };
-  if (ratio < 0.7) {
-    return `rgb(${start.r}, ${start.g}, ${start.b})`;
-  }
-  const normalized = (ratio - 0.7) / 0.3;
-  const r = Math.round(start.r + (target.r - start.r) * normalized);
-  const g = Math.round(start.g + (target.g - start.g) * normalized);
-  const b = Math.round(start.b + (target.b - start.b) * normalized);
-  return `rgb(${r}, ${g}, ${b})`;
-});
-
-const stripeWidth = computed(() => {
-  const ratio = totalLoadRatio.value;
-  const startWidth = 10;
-  const smallWidth = 2;
-  if (ratio < 0.7) {
-    return `${startWidth}px`;
-  }
-  const normalized = (ratio - 0.7) / 0.3;
-  return `${startWidth - (startWidth - smallWidth) * normalized}px`;
-});
 </script>
 
 <template>
-  <div
-    v-if="shipStores.length > 0"
-    :class="[C.ProgressBar.progress, $style.container, { [$style.isUpdating]: isAnimating }]"
-    :style="{ '--stripe-color': stripeAlertColor, '--stripe-width': stripeWidth }"
-    @click="showBuffer('FLT')">
-    <div :class="[$style.bar, miniBarClass]">
+  <div v-if="shipBars.length > 0" :class="$style.container">
+    <div
+      v-for="bar in shipBars"
+      :key="bar.id"
+      :class="$style.barWrapper"
+      :data-tooltip="bar.displayName"
+      data-tooltip-position="right"
+      @click="showBuffer(bar.storeCmd)">
       <div
-        v-for="segment in invBar.segments"
-        :key="segment.name"
-        :class="[segment.class, segment.borderClasses]"
-        :style="{ width: segment.width }"
-        :title="segment.title" />
+        :class="[C.ProgressBar.progress, $style.bar, { [$style.isUpdating]: isAnimating }]"
+        :style="{ '--stripe-color': bar.stripeColor, '--stripe-width': bar.stripeWidth }">
+        <div :class="[$style.innerBar, { [$style.miniBar]: bar.miniMode }]">
+          <div
+            v-for="segment in bar.segments"
+            :key="segment.name"
+            :class="[segment.class, segment.borderClasses]"
+            :style="{ width: segment.width }"
+            :title="segment.title" />
+        </div>
+      </div>
     </div>
   </div>
 </template>
 
 <style module>
 .container {
-  margin: 0;
-  cursor: pointer;
   display: flex;
-  min-width: 30px;
+  flex-direction: row;
+  gap: 2px;
   width: 100%;
-  min-height: 13px;
-  height: 13px;
+}
+
+.barWrapper {
+  flex: 1;
+  min-width: 30px;
+  cursor: pointer;
+}
+
+.bar {
+  width: 100%;
+  height: 30px;
+  display: flex;
   align-items: flex-end;
   justify-content: flex-start;
   background-color: #2a2a2a;
@@ -297,7 +299,7 @@ const stripeWidth = computed(() => {
   }
 }
 
-.bar {
+.innerBar {
   width: 100%;
   height: 100%;
   display: flex;
