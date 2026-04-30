@@ -178,7 +178,7 @@ const warehouseStore = computed(() =>
       <InvBar
         v-if="warehouseStore"
         :store-id="warehouseStore.id"
-        :on-click-cmd="`WAR ${warehouseStore.id.substring(0, 8)}`" />
+        :on-click-cmd="`INV ${warehouseStore.id.substring(0, 8)}`" />
     </td>
   </tr>
 </template>
