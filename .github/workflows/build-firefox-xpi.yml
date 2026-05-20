@@ -1,0 +1,35 @@
+name: Build Firefox XPI
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          lfs: true
+
+      - uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: ".nvmrc"
+          cache: 'pnpm'
+
+      - name: Install Dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build Firefox XPI
+        run: pnpm run build:firefox
+
+      - name: Upload Firefox XPI
+        uses: actions/upload-artifact@v4
+        with:
+          name: firefox-xpi
+          path: "*.xpi"

@@ -38,7 +38,8 @@ restore_font "fa-regular-400.woff2"
 echo "build-firefox: running pnpm build"
 pnpm build
 
-version="$(node -e "const m=require('./dist/manifest.json');process.stdout.write(m.version)")"
+version="$(cat VERSION)"
+npx dot-json@1 dist/manifest.json version "$version"
 xpi_name="refined-prun-${version}.xpi"
 
 echo "build-firefox: packaging dist -> ${xpi_name}"
