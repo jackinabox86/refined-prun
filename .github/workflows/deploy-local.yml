@@ -35,6 +35,32 @@ jobs:
       - name: Build extension
         run: pnpm run build:fast
 
+      - name: Write commit info
+        shell: powershell
+        run: |
+          $sha = $env:GITHUB_SHA
+          $shortSha = $sha.Substring(0, 8)
+          $commitMsg = git log -1 --format="%s"
+          $author = git log -1 --format="%an"
+          $commitTimestamp = git log -1 --format="%aI"
+          $dt = [DateTimeOffset]::Parse($commitTimestamp).UtcDateTime
+          $fileTimestamp = $dt.ToString("yyyyMMdd-HHmmss")
+
+          $outDir = "C:\Users\cyrus\Codex\refined-prun-commits"
+          New-Item -ItemType Directory -Force -Path $outDir | Out-Null
+
+          $json = [ordered]@{
+            sha           = $sha
+            shortSha      = $shortSha
+            branch        = $env:GITHUB_REF_NAME
+            message       = $commitMsg
+            author        = $author
+            timestamp     = $commitTimestamp
+            runId         = $env:GITHUB_RUN_ID
+          } | ConvertTo-Json
+
+          $json | Set-Content -Path "$outDir\${fileTimestamp}_${shortSha}.json" -Encoding UTF8
+
       - name: Restart Edge with new build
         shell: powershell
         run: |
