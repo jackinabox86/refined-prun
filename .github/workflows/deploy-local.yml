@@ -79,4 +79,16 @@ jobs:
           $profile = "$env:LOCALAPPDATA\rprun-edge-profile"
           Remove-Item "$profile\SingletonLock" -Force -ErrorAction SilentlyContinue
           $dist = Join-Path $env:GITHUB_WORKSPACE "dist"
-          Start-Process $edge -ArgumentList "--load-extension=$dist", "--user-data-dir=$profile", "https://apex.prosperousuniverse.com"
+
+          # Launch via Scheduled Task so Edge runs in the interactive desktop session,
+          # not the runner's hidden window station.
+          $taskName = "rprun-launch-edge"
+          $args = "--load-extension=`"$dist`" --user-data-dir=`"$profile`" https://apex.prosperousuniverse.com"
+          $action = New-ScheduledTaskAction -Execute $edge -Argument $args
+          $trigger = New-ScheduledTaskTrigger -Once -At (Get-Date).AddSeconds(3)
+          $trigger.EndBoundary = (Get-Date).AddMinutes(5).ToString('s')
+          $principal = New-ScheduledTaskPrincipal -UserId $env:USERNAME -LogonType Interactive -RunLevel Limited
+          $settings = New-ScheduledTaskSettingsSet -DeleteExpiredTaskAfter (New-TimeSpan -Minutes 2)
+          Register-ScheduledTask -TaskName $taskName -Action $action -Trigger $trigger -Principal $principal -Settings $settings -Force | Out-Null
+          Start-ScheduledTask -TaskName $taskName
+          Write-Output "Scheduled Edge launch in interactive session"
