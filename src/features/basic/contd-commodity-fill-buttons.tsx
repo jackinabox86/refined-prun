@@ -7,6 +7,7 @@ function getFieldInput(group: Element, fieldLabel: string): HTMLInputElement | u
     const dynamic = _$(container, C.DynamicInput.dynamic);
     return dynamic?.querySelector('input') as HTMLInputElement | undefined;
   }
+  return undefined;
 }
 
 function fillAllGroups(tile: PrunTile, fieldLabel: string) {
