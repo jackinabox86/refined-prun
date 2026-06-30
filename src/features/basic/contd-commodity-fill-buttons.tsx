@@ -1,11 +1,9 @@
 import { changeInputValue } from '@src/util';
 
 function getFieldInput(group: Element, fieldLabel: string): HTMLInputElement | undefined {
-  for (const container of _$$(group, C.FormComponent.containerActive)) {
-    const label = _$(container, 'label');
-    if (label?.textContent?.trim().toLowerCase() !== fieldLabel) continue;
-    const dynamic = _$(container, C.DynamicInput.dynamic);
-    return dynamic?.querySelector('input') as HTMLInputElement | undefined;
+  for (const label of _$$(group, 'label')) {
+    if (label.textContent?.trim().toLowerCase() !== fieldLabel) continue;
+    return label.parentElement?.querySelector('input') as HTMLInputElement | undefined;
   }
   return undefined;
 }
@@ -34,10 +32,12 @@ function onTileReady(tile: PrunTile) {
   subscribe($$(tile.anchor, C.TemplateSelection.group), async group => {
     if (_$$(tile.anchor, C.TemplateSelection.group)[0] !== group) return;
 
-    subscribe($$(group, C.FormComponent.containerActive), async container => {
-      const label = await $(container, 'label');
+    subscribe($$(group, 'label'), label => {
       const labelText = label.textContent?.trim().toLowerCase();
       if (labelText !== 'price per unit' && labelText !== 'amount') return;
+
+      const container = label.parentElement;
+      if (!container) return;
 
       const inputWrapper = _$(container, C.FormComponent.input);
       if (!inputWrapper) return;
@@ -48,8 +48,11 @@ function onTileReady(tile: PrunTile) {
       allBtn.className = getAddBtnClass(tile);
       allBtn.addEventListener('click', () => fillAllGroups(tile, labelText));
 
-      const dynamicDiv = _$(inputWrapper, C.DynamicInput.dynamic);
-      if (dynamicDiv) dynamicDiv.before(allBtn);
+      // Place the button to the left of the input content.
+      const insertBefore =
+        _$(inputWrapper, C.DynamicInput.dynamic) ?? inputWrapper.firstElementChild;
+      if (insertBefore) insertBefore.before(allBtn);
+      else inputWrapper.prepend(allBtn);
     });
   });
 }
