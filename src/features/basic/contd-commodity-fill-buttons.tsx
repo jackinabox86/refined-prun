@@ -47,11 +47,9 @@ function onTileReady(tile: PrunTile) {
       allBtn.className = getAddBtnClass(tile);
       allBtn.addEventListener('click', () => fillAllGroups(tile, labelText));
 
-      // Place the button to the left of the input content.
-      const insertBefore =
-        _$(inputWrapper, C.DynamicInput.dynamic) ?? inputWrapper.firstElementChild;
-      if (insertBefore) insertBefore.before(allBtn);
-      else inputWrapper.prepend(allBtn);
+      // containerActive is flex-row: inserting before the input wrapper
+      // places the button to its left.
+      inputWrapper.before(allBtn);
     });
   });
 }
