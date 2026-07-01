@@ -45,10 +45,12 @@ function onTileReady(tile: PrunTile) {
       allBtn.textContent = 'all';
       allBtn.type = 'button';
       allBtn.className = getAddBtnClass(tile);
+      allBtn.style.marginLeft = 'auto';
       allBtn.addEventListener('click', () => fillAllGroups(tile, labelText));
 
       // containerActive is flex-row: inserting before the input wrapper
-      // places the button to its left.
+      // places the button to its left. margin-left:auto pushes it flush
+      // against the input wrapper.
       inputWrapper.before(allBtn);
     });
   });
