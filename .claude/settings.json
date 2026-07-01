@@ -5,14 +5,10 @@
       "Bash(node scripts/local-browser-test.mjs)",
       "Bash(node scripts/pw-close.mjs)",
       "Bash(node scripts/pw-screenshot.mjs *)",
-      "Bash(node scripts/pw-act.mjs click *)",
-      "Bash(node scripts/pw-act.mjs click-force *)",
-      "Bash(node scripts/pw-act.mjs click-nth *)",
-      "Bash(node scripts/pw-act.mjs type *)",
-      "Bash(node scripts/pw-act.mjs fill-nth *)",
-      "Bash(node scripts/pw-act.mjs press *)",
-      "Bash(node scripts/pw-act.mjs press-on *)",
-      "Bash(node scripts/pw-act.mjs eval *)"
+      "Bash(node scripts/pw-act.mjs *)",
+      "Bash(pnpm run *)",
+      "Bash(pnpm install)",
+      "Bash(npx eslint *)"
     ]
   }
 }

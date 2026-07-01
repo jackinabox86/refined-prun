@@ -113,6 +113,9 @@ The command should be short. Refer to `docs/game/commands.csv` for an example of
 | `config` | `@src/infrastructure/shell/config` |
 | `createFragmentApp` | `@src/utils/vue-fragment-app` |
 | `applyCssRule` | `@src/infrastructure/prun-ui/refined-prun-css` |
+| `sumBy` | `@src/utils/sum-by` |
+
+ESLint bans `.reduce()` for summation (`no-restricted-syntax`) — use `sumBy(array, x => x.value)` instead.
 
 ---
 
