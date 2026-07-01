@@ -91,7 +91,15 @@ node scripts/pw-act.mjs fill-nth '<selector>' <index> <text>
 node scripts/pw-act.mjs click-nth '<selector>' <index>
 node scripts/pw-act.mjs press '<key>'                       # keyboard.press, global focus
 node scripts/pw-act.mjs press-on '<selector>' '<key>'        # press targeted at one element
-node scripts/pw-act.mjs eval "() => { ...; return x; }"      # see gotcha #1 below
+node scripts/pw-act.mjs list-windows                         # index + leading text of every
+                                                             # open window/buffer — use this
+                                                             # instead of an eval that does
+                                                             # querySelectorAll('[class*=Window__window]')
+node scripts/pw-act.mjs styles '<selector>' 'prop1,prop2'    # computed style values off the
+                                                             # first match — use this instead
+                                                             # of an eval getComputedStyle snippet
+node scripts/pw-act.mjs eval "() => { ...; return x; }"      # see gotcha #1 and #10 below —
+                                                             # last resort, not first reach
 node scripts/pw-act.mjs screenshot '<absolute-output-path>'
 node scripts/pw-act.mjs open-contd-template ['<draft name substring>']
   # CONTD-specific, built on open-buffer: also opens a draft (View) and
@@ -116,9 +124,10 @@ a shorthand that also prints the current URL and title.
 narrate progress — take one to confirm the feature you're testing actually succeeded or
 failed, or when you're stuck and need to see what's actually on screen. Routine
 navigation (logging in, opening a buffer, submitting a command) doesn't need a
-screenshot; use `eval` return values to confirm state cheaply instead. Floating buffers
-don't persist across a reload, so if test clutter builds up, `eval "() =>
-location.reload()"` resets to a clean screen instead of manually closing each one.
+screenshot; use a targeted `styles`/`list-windows` call to confirm state cheaply instead
+of a screenshot or a bespoke `eval`. Floating buffers don't persist across a reload, so if
+test clutter builds up, `node scripts/pw-act.mjs reload` resets to a clean screen instead
+of manually closing each one.
 
 **Never call `browser.close()` in an observe/act script.** Over `connectOverCDP`,
 `browser.close()` terminates the real browser process (unlike `chromium.connect()` to a
@@ -199,24 +208,27 @@ process for this profile, then retry.
    "Submit" / "Send" effect is not — ask the user to click it themselves.
 
 7. **Scope every query to the specific floating buffer before clicking, once more than
-   one is open.** `document.querySelectorAll('button')` (or any unscoped selector) matches
-   elements across every open tile/buffer on screen, not just the one you're testing —
-   clicking result `[0]` can land on a background contract-view tile instead of the CONTD
-   draft you meant to drive. Find the target window first (`Array.from(document
-   .querySelectorAll('[class*=Window__window]'))`, matched by its `textContent` or by
-   index against a just-logged list of window titles), then run the button/element query
-   scoped to that window element, not `document`.
+   one is open.** An unscoped selector (`button`, `'button:has-text(\"View\")'` with no
+   window prefix) matches elements across every open tile/buffer on screen, not just the
+   one you're testing — clicking result `[0]` can land on a background contract-view tile
+   instead of the CONTD draft you meant to drive. Playwright's `:has-text()` composes
+   directly in a plain `click`/`click-nth` selector string, no `eval` needed: run
+   `list-windows` first to see what's open and find distinguishing text (e.g. a draft's
+   natural ID), then target with something like
+   `click '[class*="Window__window"]:has-text("CD-1234") button:has-text("Select Template")'`.
 
-8. **Prefer the codified actions (`open-buffer`, `open-contd-template`, etc.) over
-   rediscovering navigation by hand.** Every ad-hoc exploratory `eval` call is a command
-   the user has to approve; ten rounds of "find the button, check its rect, try clicking,
-   screenshot, adjust" is ten approvals for one navigation step that only needs to be
-   figured out once. When you learn a fix or pattern that applies to *any* feature test
-   (like the Escape-before-Enter fix in gotcha #4), put it in the shared `openBuffer()`
-   helper, not inside a feature-specific action — otherwise the next session testing a
-   different tile hits the same bug again with no way to know it's already solved. Only
-   build a feature-specific compound action (like `open-contd-template`) on top of that
-   shared primitive for navigation steps that are genuinely specific to one tile.
+8. **Prefer the codified actions (`open-buffer`, `open-contd-template`, `list-windows`,
+   `styles`, etc.) over rediscovering navigation by hand with `eval`.** Every ad-hoc
+   exploratory `eval` call is a command the user has to approve, and unlike the other
+   actions it passes *arbitrary JS* as its argument rather than plain data — see gotcha
+   #10. Ten rounds of "find the button, check its rect, try clicking, screenshot, adjust"
+   is ten approvals for one navigation step that only needs to be figured out once. When
+   you learn a fix or pattern that applies to *any* feature test (like the
+   Escape-before-Enter fix in gotcha #4), put it in the shared `openBuffer()` helper, not
+   inside a feature-specific action — otherwise the next session testing a different tile
+   hits the same bug again with no way to know it's already solved. Only build a
+   feature-specific compound action (like `open-contd-template`) on top of that shared
+   primitive for navigation steps that are genuinely specific to one tile.
 
 9. **`pw-close.mjs` reporting "Browser closed" doesn't guarantee the profile lock is
    released.** A prior session's `msedge.exe` process tree can survive an abnormal exit
@@ -236,6 +248,22 @@ process for this profile, then retry.
    (relaunch + possible re-login). Closing the test browser is not a routine "cleanup"
    step; only do it when the user asks or a rebuilt extension genuinely needs a fresh
    load, and confirm first even then.
+
+10. **`eval` is fundamentally different from every other action, and defaulting to it is
+    what causes approval fatigue.** `click`, `type`, `screenshot`, `list-windows`,
+    `styles`, etc. take plain data (a selector string, a file path, a list of CSS property
+    names) — the JS logic is fixed inside `pw-act.mjs` itself, so a single allowlist entry
+    covers every call regardless of the specific argument. `eval`'s argument *is* the code
+    to run against a live, logged-in game session, so every call is a genuinely new,
+    unreviewed piece of JS — one session drove ~20 fresh approvals in a single turn this
+    way, almost all of which were really "find this element by its text and click it" or
+    "read this element's computed style," both already covered by `click`/`click-nth` with
+    a `:has-text()` selector, or by the `styles` action. Before reaching for `eval`, check:
+    can this be a selector string instead? Is this "list what windows are open" (→
+    `list-windows`) or "read computed style" (→ `styles`)? If a *pattern* of eval snippet
+    keeps recurring (not just this once), add it as a new fixed-argument action in
+    `pw-act.mjs` rather than writing the JS inline again — that turns N future approvals
+    into one. Reserve `eval` for genuinely one-off logic that doesn't fit any of the above.
 
 ## Files
 
