@@ -131,7 +131,7 @@ function insertPasteBox(container: Element, anchor: Element) {
   createFragmentApp(() => (
     <div class={$style.container}>
       <textarea
-        class={$style.textarea}
+        class={[C.TextareaInput.textarea, $style.textarea]}
         placeholder="Paste PRUNplanner supply cart JSON (parsing only, for now)"
         value={jsonText.value}
         onInput={(e: Event) => (jsonText.value = (e.target as HTMLTextAreaElement).value)}
