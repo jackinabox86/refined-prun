@@ -9,6 +9,13 @@
   font-family: monospace;
 }
 
-.status {
+.row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   margin-top: 2px;
+}
+
+.status {
+  flex: 1;
 }
