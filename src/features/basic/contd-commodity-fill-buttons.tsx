@@ -54,6 +54,10 @@ function onTileReady(tile: PrunTile) {
       (inputWrapper as HTMLElement).style.flexDirection = 'row';
       (inputWrapper as HTMLElement).style.alignItems = 'center';
       inputWrapper.prepend(allBtn);
+      // Let the original content keep filling the remaining width so the
+      // input stays right-aligned as before.
+      const inputContent = allBtn.nextElementSibling as HTMLElement | null;
+      if (inputContent) inputContent.style.flex = '1';
     });
   });
 }
