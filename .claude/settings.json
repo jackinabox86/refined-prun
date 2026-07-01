@@ -4,11 +4,14 @@
     "allow": [
       "Bash(node scripts/local-browser-test.mjs)",
       "Bash(node scripts/pw-close.mjs)",
+      "Bash(node scripts/pw-kill.mjs)",
       "Bash(node scripts/pw-screenshot.mjs *)",
       "Bash(node scripts/pw-act.mjs *)",
       "Bash(pnpm run *)",
       "Bash(pnpm install)",
-      "Bash(npx eslint *)"
+      "Bash(npx eslint *)",
+      "Bash(pnpm exec eslint *)",
+      "Bash(tasklist *)"
     ]
   }
 }

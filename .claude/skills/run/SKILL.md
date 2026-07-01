@@ -127,12 +127,17 @@ only when you actually intend to shut the browser down.
 
 ### 4. Cleanup
 
+**Ask before closing the browser** — see gotcha #9. It's not a routine end-of-task step;
+only do this when the user asks or a rebuilt extension needs a fresh load.
+
 ```
 node scripts/pw-close.mjs
 ```
 then stop the backgrounded launcher process (`TaskStop` on its task id, or Ctrl+C if
 running in a foreground terminal — the launcher also has a SIGINT handler that closes
-the context cleanly).
+the context cleanly). If a later launch fails with "Opening in existing browser
+session" (see gotcha #9), run `node scripts/pw-kill.mjs` to force-kill any leftover
+process for this profile, then retry.
 
 ## Gotchas learned the hard way
 
@@ -213,6 +218,25 @@ the context cleanly).
    build a feature-specific compound action (like `open-contd-template`) on top of that
    shared primitive for navigation steps that are genuinely specific to one tile.
 
+9. **`pw-close.mjs` reporting "Browser closed" doesn't guarantee the profile lock is
+   released.** A prior session's `msedge.exe` process tree can survive an abnormal exit
+   (killed shell, crashed script), or even outlive a clean `pw-close.mjs` call some other
+   way, and keep holding `--user-data-dir=.local/browser-profile` — so the next
+   `local-browser-test.mjs` launch fails with `browserType.launchPersistentContext:
+   Opening in existing browser session`. Fix: run `node scripts/pw-kill.mjs` — it finds
+   every `msedge.exe` process whose command line references this profile's
+   `.local/browser-profile` path and force-kills the tree, then reports how many it
+   killed (or that none were found). Prefer this over hand-rolling
+   `tasklist`/`wmic process`/`taskkill` — it's scoped to this tool's own profile so it
+   can't touch an unrelated Edge window, and it's a single allowlisted command instead of
+   a three-step manual dance.
+
+   **Never call this without asking first if the browser might still be in active use** —
+   killing it discards the open windows/buffers and the next relaunch takes real time
+   (relaunch + possible re-login). Closing the test browser is not a routine "cleanup"
+   step; only do it when the user asks or a rebuilt extension genuinely needs a fresh
+   load, and confirm first even then.
+
 ## Files
 
 - `scripts/pw-helper.mjs` — shared constants (paths, CDP port, APEX URL) and the
@@ -221,6 +245,9 @@ the context cleanly).
   `node_modules` lookup chain from `scripts/`).
 - `scripts/local-browser-test.mjs` — the long-running launcher.
 - `scripts/pw-close.mjs` — clean shutdown (flushes the profile).
+- `scripts/pw-kill.mjs` — force-kills leftover `msedge.exe` processes for this profile
+  only (see gotcha #9); use when a relaunch fails with "Opening in existing browser
+  session" even after `pw-close.mjs`.
 - `scripts/pw-screenshot.mjs` — quick one-off screenshot + URL/title.
 - `scripts/pw-act.mjs` — generic action runner, plus the shared `openBuffer()` helper
   (used by every tile via `open-buffer`) and feature-specific compound actions built on
