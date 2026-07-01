@@ -29,32 +29,16 @@ function getAddBtnClass(tile: PrunTile): string {
 }
 
 function onTileReady(tile: PrunTile) {
-  console.log('[contd-fill] onTileReady called');
-
   subscribe($$(tile.anchor, C.TemplateSelection.group), async group => {
-    const groups = _$$(tile.anchor, C.TemplateSelection.group);
-    console.log('[contd-fill] group appeared, total groups:', groups.length, 'is first:', groups[0] === group);
-
-    if (groups[0] !== group) return;
-
-    // Log all label texts in this group so we can see what's actually there.
-    setTimeout(() => {
-      const labels = _$$(group, 'label');
-      console.log('[contd-fill] labels in first group after 500ms:', labels.map(l => JSON.stringify(l.textContent?.trim())));
-      console.log('[contd-fill] first group innerHTML preview:', group.innerHTML.slice(0, 500));
-    }, 500);
+    if (_$$(tile.anchor, C.TemplateSelection.group)[0] !== group) return;
 
     subscribe($$(group, 'label'), label => {
       const labelText = label.textContent?.trim().toLowerCase();
-      console.log('[contd-fill] label found:', JSON.stringify(label.textContent?.trim()), '→ parentElement tag:', label.parentElement?.tagName, 'class:', label.parentElement?.className?.slice(0, 60));
-
       if (labelText !== 'price per unit' && labelText !== 'amount') return;
 
-      const container = label.parentElement;
-      if (!container) return;
-
-      const inputWrapper = _$(container, C.FormComponent.input);
-      console.log('[contd-fill] inputWrapper for', labelText, ':', inputWrapper?.className?.slice(0, 60) ?? 'NOT FOUND');
+      // The input wrapper is always the sibling after the label, regardless
+      // of its CSS class hash (which is duplicated in this game context).
+      const inputWrapper = label.nextElementSibling;
       if (!inputWrapper) return;
 
       const allBtn = document.createElement('button');
@@ -68,7 +52,6 @@ function onTileReady(tile: PrunTile) {
         _$(inputWrapper, C.DynamicInput.dynamic) ?? inputWrapper.firstElementChild;
       if (insertBefore) insertBefore.before(allBtn);
       else inputWrapper.prepend(allBtn);
-      console.log('[contd-fill] button added for', labelText);
     });
   });
 }
