@@ -98,6 +98,9 @@ node scripts/pw-act.mjs list-windows                         # index + leading t
 node scripts/pw-act.mjs styles '<selector>' 'prop1,prop2'    # computed style values off the
                                                              # first match — use this instead
                                                              # of an eval getComputedStyle snippet
+node scripts/pw-act.mjs local-storage-get '<key>'            # reads one localStorage key — use
+                                                             # this instead of an eval
+                                                             # localStorage.getItem snippet
 node scripts/pw-act.mjs eval "() => { ...; return x; }"      # see gotcha #1 and #10 below —
                                                              # last resort, not first reach
 node scripts/pw-act.mjs screenshot '<absolute-output-path>'
@@ -257,19 +260,39 @@ process for this profile, then retry.
 
 10. **`eval` is fundamentally different from every other action, and defaulting to it is
     what causes approval fatigue.** `click`, `type`, `screenshot`, `list-windows`,
-    `styles`, etc. take plain data (a selector string, a file path, a list of CSS property
-    names) — the JS logic is fixed inside `pw-act.mjs` itself, so a single allowlist entry
-    covers every call regardless of the specific argument. `eval`'s argument *is* the code
-    to run against a live, logged-in game session, so every call is a genuinely new,
-    unreviewed piece of JS — one session drove ~20 fresh approvals in a single turn this
-    way, almost all of which were really "find this element by its text and click it" or
-    "read this element's computed style," both already covered by `click`/`click-nth` with
-    a `:has-text()` selector, or by the `styles` action. Before reaching for `eval`, check:
-    can this be a selector string instead? Is this "list what windows are open" (→
-    `list-windows`) or "read computed style" (→ `styles`)? If a *pattern* of eval snippet
-    keeps recurring (not just this once), add it as a new fixed-argument action in
-    `pw-act.mjs` rather than writing the JS inline again — that turns N future approvals
-    into one. Reserve `eval` for genuinely one-off logic that doesn't fit any of the above.
+    `styles`, `local-storage-get`, etc. take plain data (a selector string, a file path, a
+    list of CSS property names, a storage key) — the JS logic is fixed inside `pw-act.mjs`
+    itself, so a single allowlist entry covers every call regardless of the specific
+    argument. `eval`'s argument *is* the code to run against a live, logged-in game
+    session, so every call is a genuinely new, unreviewed piece of JS — one session drove
+    ~20 fresh approvals in a single turn this way, almost all of which were really "find
+    this element by its text and click it" or "read this element's computed style," both
+    already covered by `click`/`click-nth` with a `:has-text()` selector, or by the
+    `styles` action. Before reaching for `eval`, check: can this be a selector string
+    instead? Is this "list what windows are open" (→ `list-windows`), "read computed
+    style" (→ `styles`), or "read a stored value" (→ `local-storage-get`)? If a *pattern*
+    of eval snippet keeps recurring (not just this once), add it as a new fixed-argument
+    action in `pw-act.mjs` rather than writing the JS inline again — that turns N future
+    approvals into one. Reserve `eval` for genuinely one-off logic that doesn't fit any of
+    the above.
+
+    **This mistake recurred in the very next testing round after this gotcha was
+    written** — `eval "() => localStorage.getItem(...)"` got used instead of adding
+    `local-storage-get`, because the check wasn't "is there an action for this" but
+    "have I already built tooling to avoid eval" (which had just happened, for a
+    different need). Treat the question as a checklist to run *every time*, not
+    something already handled because a prior gap got fixed.
+
+11. **Every separate Bash tool call is an approval-eligible event on its own, even when
+    every command in it is individually allowlisted — so batch, don't drip-feed.** A
+    verification round that could be "rebuild, reload, open the screen, do the thing,
+    confirm the result" as a handful of calls instead turned into a long back-and-forth of
+    one action + one screenshot at a time. Chain steps that don't need to inspect
+    intermediate state with `&&` in a single Bash call (e.g. `node scripts/pw-act.mjs
+    reload && node scripts/pw-act.mjs open-contd-template`), and only take a screenshot
+    at a genuine decision point (does this look right? did it fail?) — not after every
+    click as a running commentary. Fewer, more purposeful round-trips beats more, smaller
+    ones even when nothing in them is individually risky.
 
 ## Files
 

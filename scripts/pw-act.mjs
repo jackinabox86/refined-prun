@@ -1,17 +1,19 @@
 // Attaches to the already-running browser via CDP and runs one action, then
 // takes a screenshot. Actions: click <selector>, type <selector> <text>,
 // press <key>, screenshot <path>, list-windows, styles <selector> <props-csv>,
-// eval <js-expression>
+// local-storage-get <key>, reload, eval <js-expression>
 //
-// Prefer click/click-nth/type/fill-nth/list-windows/styles over eval whenever
-// possible. Playwright selectors support :has-text("...") directly, so most
-// "find this button/row by its text and click it" or "which window has X"
-// tasks don't need a bespoke eval at all — e.g.
+// Prefer click/click-nth/type/fill-nth/list-windows/styles/local-storage-get
+// over eval whenever possible. Playwright selectors support :has-text("...")
+// directly, so most "find this button/row by its text and click it" or
+// "which window has X" tasks don't need a bespoke eval at all — e.g.
 //   click '[class*="Window__window"]:has-text("CD-1234") button:has-text("Select Template")'
 // Every eval call passes a *different* piece of arbitrary JS to run against a
 // live logged-in session, which is a fundamentally different (and pricier,
 // approval-wise) thing than a fixed action taking plain string arguments —
-// see gotcha #8/#10 in .claude/skills/run/SKILL.md.
+// see gotcha #8/#10 in .claude/skills/run/SKILL.md. If you catch yourself
+// reaching for eval to read/check *anything*, stop and add a fixed action for
+// it instead — that mistake has already happened once (see gotcha #10).
 import { readFileSync } from 'node:fs';
 import { playwright, CDP_ENDPOINT } from './pw-helper.mjs';
 
@@ -174,6 +176,14 @@ switch (action) {
       return out;
     }, props);
     console.log(JSON.stringify(result, null, 2));
+    break;
+  }
+  case 'local-storage-get': {
+    // Reads one localStorage key. Data-only (just a key name), so it's safe
+    // to allowlist broadly — use this instead of a bespoke
+    // `eval "() => localStorage.getItem(...)"` snippet.
+    const [key] = rest;
+    console.log(await page.evaluate(k => localStorage.getItem(k), key));
     break;
   }
   case 'eval': {
