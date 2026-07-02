@@ -2,6 +2,13 @@
   margin-bottom: 8px;
 }
 
+.tabRow {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-bottom: 4px;
+}
+
 .textarea {
   width: 100%;
   min-height: 48px;

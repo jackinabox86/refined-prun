@@ -108,7 +108,21 @@ async function importMaterials(anchor: Element, materials: MaterialEntry[]) {
   }
 }
 
+// One tab per supported paste format. Add an entry here (and a matching
+// textarea/parser) when a second import source is supported.
+const parsers = [{ id: 'prunplanner', label: 'Prunplanner' }] as const;
+
+const activeParserStorageKey = 'rprun-contd-json-paste-active';
+
 function insertPasteBox(container: Element, anchor: Element) {
+  // Storage returns null only when the key was never set (first-ever use) —
+  // that's the one case that should default to open. A hidden state is stored
+  // as '' rather than removed, so it round-trips instead of getting read back
+  // as null and falling through to the default.
+  const activeParser = ref(localStorage.getItem(activeParserStorageKey) ?? 'prunplanner');
+  watch(activeParser, value => localStorage.setItem(activeParserStorageKey, value));
+  const isOpen = computed(() => activeParser.value === 'prunplanner');
+
   const jsonText = ref('');
   const parsed = computed(() => parseSupplyCart(jsonText.value));
   const status = computed(() => summarize(parsed.value));
@@ -130,24 +144,45 @@ function insertPasteBox(container: Element, anchor: Element) {
 
   createFragmentApp(() => (
     <div class={$style.container}>
-      <textarea
-        class={[C.TextareaInput.textarea, $style.textarea]}
-        placeholder="Paste PRUNplanner supply cart JSON (parsing only, for now)"
-        value={jsonText.value}
-        onInput={(e: Event) => (jsonText.value = (e.target as HTMLTextAreaElement).value)}
-      />
-      <div class={$style.row}>
-        {status.value && (
-          <div class={[$style.status, C.type.typeSmall, isInvalid.value && C.colors.textDanger]}>
-            {status.value}
-          </div>
-        )}
-        {canImport.value && (
-          <PrunButton dark inline onClick={onImport}>
-            Import
+      <div class={$style.tabRow}>
+        {parsers.map(parser => (
+          <PrunButton
+            dark={activeParser.value !== parser.id}
+            primary={activeParser.value === parser.id}
+            inline
+            onClick={() => (activeParser.value = parser.id)}>
+            {parser.label}
+          </PrunButton>
+        ))}
+        {isOpen.value && (
+          <PrunButton neutral inline onClick={() => (activeParser.value = '')}>
+            Hide
           </PrunButton>
         )}
       </div>
+      {isOpen.value && (
+        <>
+          <textarea
+            class={[C.TextareaInput.textarea, $style.textarea]}
+            placeholder="Paste PRUNplanner supply cart JSON (parsing only, for now)"
+            value={jsonText.value}
+            onInput={(e: Event) => (jsonText.value = (e.target as HTMLTextAreaElement).value)}
+          />
+          <div class={$style.row}>
+            {status.value && (
+              <div
+                class={[$style.status, C.type.typeSmall, isInvalid.value && C.colors.textDanger]}>
+                {status.value}
+              </div>
+            )}
+            {canImport.value && (
+              <PrunButton dark inline onClick={onImport}>
+                Import
+              </PrunButton>
+            )}
+          </div>
+        </>
+      )}
     </div>
   )).before(container);
 }
