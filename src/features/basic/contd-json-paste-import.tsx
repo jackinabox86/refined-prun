@@ -15,6 +15,7 @@ interface SupplyCartJson {
 interface MaterialEntry {
   ticker: string;
   amount: number;
+  price?: number;
 }
 
 interface ParseResult {
@@ -58,8 +59,7 @@ function summarizeSupplyCart(result: ParseResult): string {
   return `Parsed ${groupCount} group${groupCount === 1 ? '' : 's'}, ${materials.length} material${materials.length === 1 ? '' : 's'}.`;
 }
 
-// Sheets/Excel rows paste as tab-separated columns: amount, ticker, then
-// whatever else the user's sheet has (price, etc.) — only the first two matter.
+// Sheets/Excel rows paste as tab-separated columns: amount, ticker, price.
 function parseSheetsExcel(text: string): ParseResult {
   if (text.trim() === '') {
     return { materials: [] };
@@ -71,13 +71,23 @@ function parseSheetsExcel(text: string): ParseResult {
       continue;
     }
 
-    const [amountCol, tickerCol] = line.split('\t');
+    const [amountCol, tickerCol, priceCol] = line.split('\t');
     const amount = Number(amountCol?.trim());
     const ticker = tickerCol?.trim().toUpperCase();
     if (!ticker || !Number.isFinite(amount)) {
       return { error: `Invalid row: "${line.trim()}".`, materials: [] };
     }
-    materials.push({ ticker, amount });
+
+    let price: number | undefined;
+    const priceText = priceCol?.trim();
+    if (priceText) {
+      price = Number(priceText);
+      if (!Number.isFinite(price)) {
+        return { error: `Invalid row: "${line.trim()}".`, materials: [] };
+      }
+    }
+
+    materials.push({ ticker, amount, price });
   }
 
   if (materials.length === 0) {
@@ -131,7 +141,7 @@ async function importMaterials(anchor: Element, materials: MaterialEntry[]) {
       continue;
     }
     const group = groups[i];
-    const { ticker, amount } = materials[i];
+    const { ticker, amount, price } = materials[i];
 
     const amountInput = group.querySelector(
       'input[inputmode="numeric"]',
@@ -139,6 +149,16 @@ async function importMaterials(anchor: Element, materials: MaterialEntry[]) {
     if (amountInput) {
       focusElement(amountInput);
       changeInputValue(amountInput, String(amount));
+    }
+
+    if (price !== undefined) {
+      const priceInput = group.querySelector(
+        'input[inputmode="decimal"]',
+      ) as HTMLInputElement | null;
+      if (priceInput) {
+        focusElement(priceInput);
+        changeInputValue(priceInput, String(price));
+      }
     }
 
     const materialSelectorContainer = _$(group, C.MaterialSelector.container);
@@ -169,7 +189,7 @@ const parsers: ParserConfig[] = [
   {
     id: 'sheets',
     label: 'Sheets/Excel',
-    placeholder: 'Paste rows copied from Sheets/Excel: amount, ticker (tab-separated)',
+    placeholder: 'Paste rows copied from Sheets/Excel: amount, ticker, price (tab-separated)',
     parse: parseSheetsExcel,
     summarize: summarizeSheetsExcel,
   },
