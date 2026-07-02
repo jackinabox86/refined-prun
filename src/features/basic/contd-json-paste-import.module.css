@@ -15,6 +15,66 @@
   resize: vertical;
 }
 
+.dropZone {
+  position: relative;
+  min-height: 48px;
+  width: 100%;
+  border: 1px dashed rgb(141, 100, 17);
+  background: rgba(66, 54, 29, 0.4);
+  padding: 4px;
+}
+
+.dropZoneHover {
+  border-color: rgb(247, 166, 0);
+}
+
+.dropZoneHint {
+  padding: 12px 4px;
+  text-align: center;
+  color: rgb(136, 136, 136);
+}
+
+.materialRow {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 0;
+}
+
+.materialTicker {
+  width: 40px;
+}
+
+.amountInput {
+  width: 80px;
+  background: rgb(66, 54, 29);
+  color: rgb(187, 187, 187);
+  border: none;
+  border-bottom: 1px solid rgb(141, 100, 17);
+  font-family: monospace;
+  padding: 1px 4px 2px;
+}
+
+.amountInput:focus {
+  border-bottom-color: rgb(247, 166, 0);
+  outline: none;
+}
+
+.dropOverlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-wrap: wrap;
+}
+
+.overlayItem {
+  flex: 1 0 33%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 48px;
+}
+
 .row {
   display: flex;
   align-items: center;

@@ -172,6 +172,79 @@ async function importMaterials(anchor: Element, materials: MaterialEntry[]) {
   }
 }
 
+// --- Drag tab: dragging a material stack icon from another inventory in and
+// dropping it here, mimicking the game's own inventory-transfer quantity picker.
+//
+// The game uses native HTML5 drag-and-drop (draggable="true" on the stack icon),
+// but its dataTransfer payload isn't usable (the game calls setData with an
+// unstringified object, so getData just returns "[object Object]"). So instead
+// of reading the drag payload, a page-wide dragstart listener remembers which
+// element started the drag — same technique prun-bugs.ts already uses to fix a
+// text-selection bug during drag — and ticker/quantity are read directly off
+// that element's own icon markup (C.ColoredIcon.label / C.MaterialIcon.indicator)
+// once it's dropped here.
+//
+// Known limitation: the game supports ctrl-click-selecting multiple stacks and
+// dragging them together; only one source element fires dragstart per gesture,
+// so multi-stack-in-one-drag isn't recoverable here. Dropping stacks one at a
+// time accumulates them in the list below instead.
+let lastDragSource: Element | undefined;
+
+function trackDragSource() {
+  document.addEventListener(
+    'dragstart',
+    e => {
+      lastDragSource = (e.target as Element).closest('[draggable="true"]') ?? undefined;
+    },
+    true,
+  );
+}
+
+interface DraggedStack {
+  ticker: string;
+  quantity: number;
+}
+
+function getDraggedStack(): DraggedStack | undefined {
+  const source = lastDragSource;
+  if (!source) {
+    return undefined;
+  }
+  const ticker = _$(source, C.ColoredIcon.label)?.textContent?.trim();
+  const quantityText = _$(source, C.MaterialIcon.indicator)?.textContent?.trim();
+  if (!ticker || !quantityText) {
+    return undefined;
+  }
+  const quantity = Number(quantityText.replace(/,/g, ''));
+  return Number.isFinite(quantity) ? { ticker, quantity } : undefined;
+}
+
+interface QuickAmount {
+  label: string;
+  amount: number;
+}
+
+// Mirrors the game's own AMT/1/10/100/HLF/ALL quick-transfer boxes — 10/100 only
+// appear when the stack actually has that many units. AMT here defaults to the
+// full stack; unlike the game's version it can't accept typed input mid-drag
+// (a native drag blocks keyboard focus until it ends), so every dropped row's
+// amount stays editable afterward in the list instead.
+function quickAmounts(quantity: number): QuickAmount[] {
+  const options: QuickAmount[] = [
+    { label: 'AMT', amount: quantity },
+    { label: '1', amount: 1 },
+  ];
+  if (quantity >= 10) {
+    options.push({ label: '10', amount: 10 });
+  }
+  if (quantity >= 100) {
+    options.push({ label: '100', amount: 100 });
+  }
+  options.push({ label: 'HLF', amount: Math.floor(quantity / 2) });
+  options.push({ label: 'ALL', amount: quantity });
+  return options;
+}
+
 interface ParserConfig {
   id: string;
   label: string;
@@ -180,12 +253,13 @@ interface ParserConfig {
   summarize: (result: ParseResult) => string;
 }
 
-// One tab per supported paste format. Add an entry here to support a new source —
-// each gets its own tab, textarea, and pasted-text state.
+// One tab per supported paste format. Add an entry here to support a new
+// text-pasted source — each gets its own tab, textarea, and pasted-text state.
+// The Drag tab (below) isn't text-driven, so it's wired up separately.
 const parsers: ParserConfig[] = [
   {
     id: 'prunplanner',
-    label: 'Prunplanner',
+    label: 'Prun Planner',
     placeholder: 'Paste PRUNplanner supply cart JSON (parsing only, for now)',
     parse: parseSupplyCart,
     summarize: summarizeSupplyCart,
@@ -199,6 +273,7 @@ const parsers: ParserConfig[] = [
   },
 ];
 
+const dragTabId = 'drag';
 const activeParserStorageKey = 'rprun-contd-json-paste-active';
 
 function insertPasteBox(container: Element, anchor: Element) {
@@ -209,16 +284,66 @@ function insertPasteBox(container: Element, anchor: Element) {
   const activeParser = ref(localStorage.getItem(activeParserStorageKey) ?? parsers[0].id);
   watch(activeParser, value => localStorage.setItem(activeParserStorageKey, value));
 
-  const instances = parsers.map(parser => {
+  const textInstances = parsers.map(parser => {
     const text = ref('');
     const parsed = computed(() => parser.parse(text.value));
     const status = computed(() => parser.summarize(parsed.value));
     const isInvalid = computed(() => parsed.value.error !== undefined);
     const canImport = computed(() => !parsed.value.error && parsed.value.materials.length > 0);
-    return { ...parser, text, parsed, status, isInvalid, canImport };
+    const materials = computed(() => parsed.value.materials);
+    return { kind: 'text' as const, ...parser, text, materials, status, isInvalid, canImport };
   });
 
-  const active = computed(() => instances.find(instance => instance.id === activeParser.value));
+  const dragMaterials = ref<MaterialEntry[]>([]);
+  const dragHover = ref<DraggedStack | undefined>();
+  const dragStatus = computed(() =>
+    dragMaterials.value.length > 0
+      ? `${dragMaterials.value.length} material${dragMaterials.value.length === 1 ? '' : 's'} ready.`
+      : '',
+  );
+  const dragInstance = {
+    kind: 'drag' as const,
+    id: dragTabId,
+    label: 'Drag',
+    materials: computed(() => dragMaterials.value),
+    status: dragStatus,
+    isInvalid: computed(() => false),
+    canImport: computed(() => dragMaterials.value.length > 0),
+  };
+
+  let dragDepth = 0;
+  const onZoneDragEnter = (e: DragEvent) => {
+    e.preventDefault();
+    dragDepth++;
+    dragHover.value ??= getDraggedStack();
+  };
+  const onZoneDragOver = (e: DragEvent) => e.preventDefault();
+  const onZoneDragLeave = (e: DragEvent) => {
+    e.preventDefault();
+    dragDepth = Math.max(0, dragDepth - 1);
+    if (dragDepth === 0) {
+      dragHover.value = undefined;
+    }
+  };
+  const onZoneDrop = (e: DragEvent) => {
+    e.preventDefault();
+    dragDepth = 0;
+    dragHover.value = undefined;
+  };
+  const onOptionDrop = (e: DragEvent, option: QuickAmount) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dragDepth = 0;
+    const stack = dragHover.value;
+    dragHover.value = undefined;
+    if (!stack || option.amount <= 0) {
+      return;
+    }
+    dragMaterials.value.push({ ticker: stack.ticker, amount: option.amount });
+  };
+
+  const tabs = [...textInstances, dragInstance];
+  const active = computed(() => tabs.find(tab => tab.id === activeParser.value));
 
   let importing = false;
   const onImport = async () => {
@@ -228,7 +353,7 @@ function insertPasteBox(container: Element, anchor: Element) {
     }
     importing = true;
     try {
-      await importMaterials(anchor, instance.parsed.value.materials);
+      await importMaterials(anchor, instance.materials.value);
     } finally {
       importing = false;
     }
@@ -239,49 +364,89 @@ function insertPasteBox(container: Element, anchor: Element) {
     return (
       <div class={$style.container}>
         <div class={$style.tabRow}>
-          {parsers.map(parser => (
+          {tabs.map(tab => (
             <PrunButton
-              dark={activeParser.value !== parser.id}
-              primary={activeParser.value === parser.id}
+              dark={activeParser.value !== tab.id}
+              primary={activeParser.value === tab.id}
               inline
-              onClick={() => (activeParser.value = parser.id)}>
-              {parser.label}
+              onClick={() => (activeParser.value = tab.id)}>
+              {tab.label}
             </PrunButton>
           ))}
           {instance && (
-            <PrunButton neutral inline onClick={() => (activeParser.value = '')}>
+            <PrunButton dark inline onClick={() => (activeParser.value = '')}>
               Hide
             </PrunButton>
           )}
         </div>
-        {instance && (
-          <>
-            <textarea
-              class={[C.TextareaInput.textarea, $style.textarea]}
-              placeholder={instance.placeholder}
-              value={instance.text.value}
-              onInput={(e: Event) =>
-                (instance.text.value = (e.target as HTMLTextAreaElement).value)
-              }
-            />
-            <div class={$style.row}>
-              {instance.status.value && (
-                <div
-                  class={[
-                    $style.status,
-                    C.type.typeSmall,
-                    instance.isInvalid.value && C.colors.textDanger,
-                  ]}>
-                  {instance.status.value}
-                </div>
-              )}
-              {instance.canImport.value && (
-                <PrunButton dark inline onClick={onImport}>
-                  Import
+        {instance?.kind === 'text' && (
+          <textarea
+            class={[C.TextareaInput.textarea, $style.textarea]}
+            placeholder={instance.placeholder}
+            value={instance.text.value}
+            onInput={(e: Event) => (instance.text.value = (e.target as HTMLTextAreaElement).value)}
+          />
+        )}
+        {instance?.kind === 'drag' && (
+          <div
+            class={[$style.dropZone, dragHover.value && $style.dropZoneHover]}
+            onDragenter={onZoneDragEnter}
+            onDragover={onZoneDragOver}
+            onDragleave={onZoneDragLeave}
+            onDrop={onZoneDrop}>
+            {dragMaterials.value.length === 0 && !dragHover.value && (
+              <div class={[$style.dropZoneHint, C.type.typeSmall]}>
+                Drag a material stack here from another inventory
+              </div>
+            )}
+            {dragMaterials.value.map((material, index) => (
+              <div class={$style.materialRow}>
+                <span class={[$style.materialTicker, C.type.typeSmall]}>{material.ticker}</span>
+                <input
+                  type="number"
+                  class={$style.amountInput}
+                  value={material.amount}
+                  onInput={(e: Event) =>
+                    (material.amount = Number((e.target as HTMLInputElement).value))
+                  }
+                />
+                <PrunButton dark inline onClick={() => dragMaterials.value.splice(index, 1)}>
+                  x
                 </PrunButton>
-              )}
-            </div>
-          </>
+              </div>
+            ))}
+            {dragHover.value && (
+              <div class={$style.dropOverlay}>
+                {quickAmounts(dragHover.value.quantity).map(option => (
+                  <div
+                    class={[C.DropTargetView.item, $style.overlayItem]}
+                    onDragover={(e: DragEvent) => e.preventDefault()}
+                    onDrop={(e: DragEvent) => onOptionDrop(e, option)}>
+                    {option.label}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+        {instance && (
+          <div class={$style.row}>
+            {instance.status.value && (
+              <div
+                class={[
+                  $style.status,
+                  C.type.typeSmall,
+                  instance.isInvalid.value && C.colors.textDanger,
+                ]}>
+                {instance.status.value}
+              </div>
+            )}
+            {instance.canImport.value && (
+              <PrunButton dark inline onClick={onImport}>
+                Import
+              </PrunButton>
+            )}
+          </div>
         )}
       </div>
     );
@@ -300,11 +465,12 @@ function onTileReady(tile: PrunTile) {
 }
 
 function init() {
+  trackDragSource();
   tiles.observe('CONTD', onTileReady);
 }
 
 features.add(
   import.meta.url,
   init,
-  'CONTD: Adds a paste box at the top of the commodity template screen to import materials/amounts from PRUNplanner JSON or Sheets/Excel rows.',
+  'CONTD: Adds a paste box at the top of the commodity template screen to import materials/amounts from PRUNplanner JSON, Sheets/Excel rows, or dragged material stacks.',
 );
