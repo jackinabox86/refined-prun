@@ -205,7 +205,13 @@ process for this profile, then retry.
    draft, placing an order, etc.) — per `docs/contributing.md`, every server-affecting
    action needs an explicit user click. Navigation, opening screens, filling local form
    fields, and screenshotting are all safe for you to drive; anything with a "Save" /
-   "Submit" / "Send" effect is not — ask the user to click it themselves.
+   "Submit" / "Send" effect is not — ask the user to click it themselves. This includes
+   **"Create New" on the CONTD drafts list** — it looks like navigation but actually
+   creates a real new contract draft on the account, same as Save/Submit/Send. This
+   happened once already (scripting a click to reach an unconfigured draft's preamble
+   screen for CSS inspection created a stray real draft) — if you need to see a screen
+   that only exists on a fresh draft, ask the user to click "Create New" themselves, or
+   use an existing draft that's already in that state instead.
 
 7. **Scope every query to the specific floating buffer before clicking, once more than
    one is open.** An unscoped selector (`button`, `'button:has-text(\"View\")'` with no
