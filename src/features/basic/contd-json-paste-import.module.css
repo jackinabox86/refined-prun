@@ -22,6 +22,7 @@
   border: 1px dashed rgb(141, 100, 17);
   background: rgba(66, 54, 29, 0.4);
   padding: 4px;
+  container-type: inline-size;
 }
 
 .dropZoneHover {
@@ -65,14 +66,33 @@
   inset: 0;
   display: flex;
   flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  gap: 4px;
 }
 
 .overlayItem {
-  flex: 1 0 33%;
+  flex: 0 0 56px;
+  height: 56px;
   display: flex;
   align-items: center;
   justify-content: center;
-  min-width: 48px;
+}
+
+/* Not enough width for a single centered row of fixed-size boxes (sized for
+   the largest case — AMT/1/10/100/HLF/ALL, 6 boxes) — fall back to stretching
+   them to divide up whatever space is available, so every box stays
+   reachable even on a small buffer. */
+@container (max-width: 400px) {
+  .dropOverlay {
+    align-items: stretch;
+    gap: 0;
+  }
+
+  .overlayItem {
+    flex: 1 0 33%;
+    height: auto;
+  }
 }
 
 .row {
