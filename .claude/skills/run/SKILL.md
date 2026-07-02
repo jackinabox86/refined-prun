@@ -294,6 +294,40 @@ process for this profile, then retry.
     click as a running commentary. Fewer, more purposeful round-trips beats more, smaller
     ones even when nothing in them is individually risky.
 
+12. **To resize a floating buffer, drag its real bottom-right resize handle with
+    `mouse-drag` — don't set `style.width`/`style.height` on `Window__window`.** The
+    outer window div's inline style can be overridden freely for *position*
+    (`style.left`/`style.top` — safe, used throughout this doc), but overriding its
+    *size* directly desyncs the outer frame from the inner content: the framework
+    re-renders internal layout (drop zones, form fields, everything) from its own state,
+    which a raw CSS override on the wrapper never touches. The actual resize handle is an
+    unclassed `<div>` near the bottom-right corner with `cursor: se-resize` — find it via
+    `Array.from(el.querySelectorAll('*')).find(e => getComputedStyle(e).cursor ===
+    'se-resize')` — then drag it with `node scripts/pw-act.mjs mouse-drag <x1> <y1> <x2>
+    <y2>`. This one isn't native HTML5 drag-and-drop (its `draggable` property is
+    `false`), so a `mouse-drag` (real mousedown/mousemove/mouseup) is correct here, unlike
+    material stacks (gotcha for those: dispatch `DragEvent`s instead).
+
+    **The handle's own `getBoundingClientRect()` can lie about where it's actually
+    clickable** — sibling elements (scrollbar tracks, adjacent resize strips for the
+    other edges) can overlap most of its box. Verify with `document.elementFromPoint(x,
+    y) === handle` at a few points inside the rect before trusting the center; usually
+    only a corner of the box is genuinely on top. Also make sure the handle's target
+    position is inside the viewport (`window.innerWidth`/`innerHeight`) before dragging —
+    a window whose bottom-right corner has drifted off-screen has an unreachable handle,
+    so reposition with `style.left`/`style.top` first if needed.
+
+13. **Position every buffer you'll need before starting a multi-buffer interaction (like
+    a drag test), and verify the layout with one screenshot before touching anything
+    else.** Stacking buffers on top of each other and hunting for the right one afterward
+    wastes calls and risks grabbing the wrong window — text-based identification is
+    especially fragile when the same string can appear in two places (e.g. a draft's ID
+    shows up both in its own detail window *and* as a row in the drafts list — matching
+    on the ID alone can silently grab the list instead of the detail view). Identify each
+    target buffer by something unique to *that specific view* (a tab label, a heading
+    only the detail screen has), position them side by side with non-overlapping
+    `style.left`/`style.top`, confirm with a screenshot, and only then proceed.
+
 ## Files
 
 - `scripts/pw-helper.mjs` — shared constants (paths, CDP port, APEX URL) and the

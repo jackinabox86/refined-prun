@@ -1,7 +1,8 @@
 // Attaches to the already-running browser via CDP and runs one action, then
 // takes a screenshot. Actions: click <selector>, type <selector> <text>,
 // press <key>, screenshot <path>, list-windows, styles <selector> <props-csv>,
-// local-storage-get <key>, reload, eval <js-expression>
+// local-storage-get <key>, mouse-drag <x1> <y1> <x2> <y2> [steps], reload,
+// eval <js-expression>
 //
 // Prefer click/click-nth/type/fill-nth/list-windows/styles/local-storage-get
 // over eval whenever possible. Playwright selectors support :has-text("...")
@@ -184,6 +185,23 @@ switch (action) {
     // `eval "() => localStorage.getItem(...)"` snippet.
     const [key] = rest;
     console.log(await page.evaluate(k => localStorage.getItem(k), key));
+    break;
+  }
+  case 'mouse-drag': {
+    // Genuine mouse down/move/up sequence from (x1,y1) to (x2,y2) — the real
+    // interaction a player performs, unlike setting an element's style.width
+    // directly. Needed for anything driven by mousedown+mousemove+mouseup
+    // rather than a click or native HTML5 drag: resize handles (e.g. a
+    // buffer's bottom-right se-resize corner), tile-split dividers, etc.
+    // Resizing a floating buffer this way — instead of overwriting
+    // Window__window's style.width — is what actually keeps the inner
+    // content in sync with the outer frame, since buffer size lives in
+    // framework state that the resize handle updates, not raw CSS.
+    const [x1, y1, x2, y2, steps] = rest.map(Number);
+    await page.mouse.move(x1, y1);
+    await page.mouse.down();
+    await page.mouse.move(x2, y2, { steps: steps || 10 });
+    await page.mouse.up();
     break;
   }
   case 'eval': {
