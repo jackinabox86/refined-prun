@@ -21,6 +21,7 @@ interface MaterialEntry {
 interface ParseResult {
   error?: string;
   groupCount?: number;
+  skipped?: number;
   materials: MaterialEntry[];
 }
 
@@ -60,12 +61,15 @@ function summarizeSupplyCart(result: ParseResult): string {
 }
 
 // Sheets/Excel rows paste as tab-separated columns: amount, ticker, price.
+// Rows that don't parse (e.g. a pasted header row like "Amount Material Price")
+// are skipped rather than failing the whole paste.
 function parseSheetsExcel(text: string): ParseResult {
   if (text.trim() === '') {
     return { materials: [] };
   }
 
   const materials: MaterialEntry[] = [];
+  let skipped = 0;
   for (const line of text.split('\n')) {
     if (line.trim() === '') {
       continue;
@@ -75,17 +79,13 @@ function parseSheetsExcel(text: string): ParseResult {
     const amount = Number(amountCol?.trim());
     const ticker = tickerCol?.trim().toUpperCase();
     if (!ticker || !Number.isFinite(amount)) {
-      return { error: `Invalid row: "${line.trim()}".`, materials: [] };
+      skipped++;
+      continue;
     }
 
-    let price: number | undefined;
     const priceText = priceCol?.trim();
-    if (priceText) {
-      price = Number(priceText);
-      if (!Number.isFinite(price)) {
-        return { error: `Invalid row: "${line.trim()}".`, materials: [] };
-      }
-    }
+    const parsedPrice = priceText ? Number(priceText) : undefined;
+    const price = Number.isFinite(parsedPrice) ? parsedPrice : undefined;
 
     materials.push({ ticker, amount, price });
   }
@@ -94,7 +94,7 @@ function parseSheetsExcel(text: string): ParseResult {
     return { error: 'No material rows found.', materials: [] };
   }
 
-  return { materials };
+  return { materials, skipped };
 }
 
 function summarizeSheetsExcel(result: ParseResult): string {
@@ -104,8 +104,12 @@ function summarizeSheetsExcel(result: ParseResult): string {
   if (result.materials.length === 0) {
     return '';
   }
-  const { materials } = result;
-  return `Parsed ${materials.length} material${materials.length === 1 ? '' : 's'}.`;
+  const { materials, skipped } = result;
+  const skippedText =
+    skipped !== undefined && skipped > 0
+      ? ` (${skipped} row${skipped === 1 ? '' : 's'} skipped)`
+      : '';
+  return `Parsed ${materials.length} material${materials.length === 1 ? '' : 's'}${skippedText}.`;
 }
 
 function findAddCommodityButton(anchor: Element) {
