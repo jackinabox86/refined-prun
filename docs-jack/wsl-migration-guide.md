@@ -31,11 +31,11 @@ reusing the Windows checkout. Nothing here has been executed — do this at your
    ```
    nvm install --lts
    ```
-2. Install pnpm at the version pinned in the project (check
-   `package.json`'s `packageManager` field on the Windows checkout first — see
+2. Install pnpm at the version pinned in `package.json`'s `packageManager` field
+   (currently `10.32.1` — re-check after pulling if this has drifted; see
    `.claude/skills/run/SKILL.md` prerequisites for context):
    ```
-   npm install -g pnpm@<pinned-version>
+   npm install -g pnpm@10.32.1
    ```
 3. Verify: `node --version`, `pnpm --version`.
 
