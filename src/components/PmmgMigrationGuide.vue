@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { showBuffer } from '@src/infrastructure/prun-ui/buffers.js';
+import { showBuffer } from '@src/infrastructure/prun-ui/buffers';
 </script>
 
 <template>
