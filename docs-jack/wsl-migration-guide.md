@@ -105,13 +105,18 @@ are committed, so those *do* come along automatically):
    `~/.claude/projects/<project-key>/memory/`) — these are keyed by a sanitized version
    of the project's full path, so the WSL2 clone gets a *different* project key than the
    Windows one. Run `claude` once inside the new clone first so it creates its own
-   project folder, then copy the memory files in:
+   project folder, then copy the memory files in. For a clone at `~/code/refined-prun`
+   the folder is confirmed to be `-home-<user>-code-refined-prun` (e.g.
+   `-home-cyrus-code-refined-prun`) — run the `ls` first to get your exact name rather
+   than assuming, and don't leave the angle brackets in when you substitute it (bash
+   reads `<name>` as input redirection, not a placeholder, and fails with "No such file
+   or directory"):
    ```
    cd ~/code/refined-prun && claude --version   # registers the project
-   ls ~/.claude/projects/                        # find the new folder for this path
-   mkdir -p ~/.claude/projects/<new-folder-name>/memory
+   ls ~/.claude/projects/                        # confirms the exact folder name
+   mkdir -p ~/.claude/projects/-home-cyrus-code-refined-prun/memory
    cp /mnt/c/Users/cyrus/.claude/projects/C--Users-cyrus-Codex-refined-prun/memory/*.md \
-      ~/.claude/projects/<new-folder-name>/memory/
+      ~/.claude/projects/-home-cyrus-code-refined-prun/memory/
    ```
 
 **`.local/pw-tools` and `.local/browser-profile`** (the Playwright install and the
