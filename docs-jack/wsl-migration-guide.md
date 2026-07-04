@@ -85,18 +85,38 @@ pnpm install
 
 ## 7. Re-create local-only setup (not tracked in git)
 
-These exist on the Windows checkout but won't carry over to a fresh clone:
+WSL2 can read the Windows drive directly at `/mnt/c/...`, so this is just file copies —
+no network transfer needed. These three things exist on the Windows checkout but won't
+carry over via `git clone` (the project's `.claude/settings.json` and `.claude/skills/*`
+are committed, so those *do* come along automatically):
 
-- **`.claude/settings.local.json`** — your personal permission allowlist. Either let it
-  rebuild naturally as you approve commands again, or manually copy over entries worth
-  keeping from the Windows copy.
-- **`.local/pw-tools`** — the isolated Playwright install for the browser test harness.
-  Follow the "Isolated Playwright install" steps in `.claude/skills/run/SKILL.md`
-  prerequisites, adjusted for Linux (the harness launches `msedge.exe` directly today,
-  which is Windows-only — see the open question below before redoing this step).
-- **`.local/browser-profile`** — the persistent browser profile with your game login.
-  This one can't be copied over usefully if the browser itself ends up staying on the
-  Windows side (see below); you'd log into the game again either way.
+1. **`.claude/settings.local.json`** — your personal permission allowlist (gitignored):
+   ```
+   cp "/mnt/c/Users/cyrus/Codex/refined-prun/.claude/settings.local.json" \
+      ~/code/refined-prun/.claude/settings.local.json
+   ```
+2. **`~/.claude/settings.json`** — user-level Claude Code settings (separate from the
+   project one above; currently just `{"agentPushNotifEnabled": true}`):
+   ```
+   mkdir -p ~/.claude
+   cp "/mnt/c/Users/cyrus/.claude/settings.json" ~/.claude/settings.json
+   ```
+3. **Memory files** (`MEMORY.md` + the feedback/project notes under
+   `~/.claude/projects/<project-key>/memory/`) — these are keyed by a sanitized version
+   of the project's full path, so the WSL2 clone gets a *different* project key than the
+   Windows one. Run `claude` once inside the new clone first so it creates its own
+   project folder, then copy the memory files in:
+   ```
+   cd ~/code/refined-prun && claude --version   # registers the project
+   ls ~/.claude/projects/                        # find the new folder for this path
+   mkdir -p ~/.claude/projects/<new-folder-name>/memory
+   cp /mnt/c/Users/cyrus/.claude/projects/C--Users-cyrus-Codex-refined-prun/memory/*.md \
+      ~/.claude/projects/<new-folder-name>/memory/
+   ```
+
+**`.local/pw-tools` and `.local/browser-profile`** (the Playwright install and the
+persistent game-login browser profile) are handled separately in step 10 below, since
+they depend on which browser ends up running the test harness.
 
 ## 8. Enable the Bash sandbox
 
@@ -106,9 +126,10 @@ These exist on the Windows checkout but won't carry over to a fresh clone:
    don't prompt: add `127.0.0.1` to `sandbox.allowedDomains` in `.claude/settings.json`
    (or approve it once when first prompted — from Claude Code v2.1.191+, approving a
    host holds for the rest of the session).
-4. Add whatever launches the browser to `sandbox.excludedCommands` — sandboxed WSL2
-   commands can't launch Windows binaries at all, so this is required, not optional, if
-   the browser stays native-Windows (see the open question below).
+4. If the browser ends up being a Linux-native Chromium (step 10 below), it's a normal
+   Linux process — no `excludedCommands` entry needed, and no "sandboxed commands can't
+   launch Windows binaries" problem either, since nothing launches a Windows binary
+   anymore.
 
 ## 9. Verify
 
@@ -120,16 +141,47 @@ git commit --allow-empty -m "wsl setup check"   # then delete/reset it — just 
                                                   # credentials + identity work
 ```
 
-## Open question this guide doesn't resolve
+## 10. Browser test harness: switch to a Linux-native Chromium
 
-**Where does the actual test browser run?** `scripts/local-browser-test.mjs` launches
-`msedge.exe` — a native Windows process. From WSL2 that either means:
-- (a) keep launching the browser from a Windows-side terminal/script while Claude Code
-  itself runs in WSL2 and drives it — the two sides would need to agree on the CDP port
-  and either share the repo path or run the harness scripts from both sides, or
-- (b) find a Linux-native browser + extension-loading path instead (untested — Playwright
-  can launch Linux Chromium/Edge inside WSL2 directly, but this project's harness is
-  currently written around `channel: 'msedge'`).
+`scripts/local-browser-test.mjs` currently launches `msedge.exe` — a native Windows
+process, which a sandboxed WSL2 command can't do at all (see step 8). The resolution:
+run a Linux-native Chromium-based browser directly inside WSL2 instead. Confirmed via
+research (not yet tested against this project specifically): Windows 11's **WSLg**
+(GUI app support for WSL2, on by default) renders Linux GUI apps as normal, visible
+Windows-desktop windows — taskbar entry, Alt+Tab, clipboard, GPU acceleration, no
+headless mode or extra config required. So watching/screenshotting the browser should
+work the same way it does today with `msedge.exe`. Requirement: a GPU driver from mid-2021
+or later (DirectX 12 paravirtualization support) — check this first if the machine is old.
 
-Worth resolving before investing in the rest of this migration, since it's the part most
-likely to not "just work."
+1. **Sanity-check WSLg itself** before touching the harness, so a failure later is
+   clearly the harness's fault and not WSLg's:
+   ```
+   sudo apt install -y x11-apps
+   xeyes
+   ```
+   A small window (a pair of eyes that follow your cursor) should appear on the Windows
+   desktop. If it doesn't, troubleshoot WSLg first — nothing browser-related will show up
+   either until this works.
+
+2. **Get a Chromium binary.** Either works; pick one:
+   - Let Playwright download its own (closer to a fresh install, simplest to reason
+     about): inside `.local/pw-tools`, run `npx playwright install chromium` — note this
+     is the opposite of the Windows setup, which passed
+     `PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1` specifically because it reused the system Edge.
+   - Or install a system Chromium: `sudo apt install -y chromium-browser`.
+
+3. **Update the launch code** (an actual code change, not just config — do this when you
+   get there, not blindly ahead of time): `scripts/pw-helper.mjs`/
+   `scripts/local-browser-test.mjs` currently pass `channel: 'msedge'` to
+   `launchPersistentContext`. Swap this for either `channel: 'chromium'` (system install)
+   or drop `channel` entirely and let Playwright use its own downloaded browser. The
+   `--load-extension=<dist>` / `--disable-extensions-except=<dist>` launch args are plain
+   Chromium flags and should carry over unchanged.
+
+4. **Everything downstream should be unaffected**: `pw-act.mjs`/`pw-screenshot.mjs` only
+   talk to the browser over CDP (`connectOverCDP`), which doesn't care whether the
+   browser is Windows or Linux — no changes expected there.
+
+5. `.local/browser-profile` (the persistent game login) can't be copied over from
+   Windows either way — it's tied to a specific browser install — so plan on logging into
+   the game again once, same as any fresh profile.
