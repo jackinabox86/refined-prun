@@ -88,8 +88,11 @@ the CDP port open at `http://127.0.0.1:9333`. Killing the process kills the brow
 **Run every pw script unsandboxed.** The Bash sandbox kills the launch (Chromium's
 crashpad needs `~/.config`, its process singleton needs a unix socket — `Read-only file
 system` / `socket() failed: Operation not permitted`) and blocks every `pw-act.mjs` call
-too (CDP to `127.0.0.1:9333` isn't an allowlisted host, so it fails with
-`ECONNREFUSED`). Worse, a sandbox-killed launch leaves a partial process tree holding
+too: the sandbox gives commands an isolated loopback, so its `127.0.0.1` is not the
+host's — connecting to the browser's CDP port fails with `ECONNREFUSED` even when
+`127.0.0.1` is in the sandbox network allowlist (verified: sandboxed curl to :9333
+refused while unsandboxed got HTTP 200 at the same moment). Allowlisting the host
+cannot fix this. Worse, a sandbox-killed launch leaves a partial process tree holding
 the profile lock, so the next launch fails with "Opening in existing browser session"
 (gotcha #9) — run `node scripts/pw-kill.mjs` before retrying.
 
