@@ -308,9 +308,8 @@ process for this profile, then retry.
    can't touch an unrelated Edge window, and it's a single allowlisted command instead of
    a three-step manual dance.
 
-   **Linux/WSL2 caveat:** `pw-kill.mjs` is still Windows-only (PowerShell + `taskkill`)
-   and will just error here. Until it's ported, use
-   `pkill -f '\-\-user-data-dir=.*\.local/browser-profile'` — same profile-scoped idea.
+   `pw-kill.mjs` is platform-branched: PowerShell + `taskkill` on Windows,
+   `pgrep -f` on the profile path + SIGKILL on Linux/WSL2.
 
    **Never call this without asking first if the browser might still be in active use** —
    killing it discards the open windows/buffers and the next relaunch takes real time
@@ -426,8 +425,8 @@ process for this profile, then retry.
 - `scripts/pw-close.mjs` — clean shutdown (flushes the profile).
 - `scripts/pw-kill.mjs` — force-kills leftover browser processes for this profile
   only (see gotcha #9); use when a relaunch fails with "Opening in existing browser
-  session" even after `pw-close.mjs`. **Windows-only for now** (PowerShell/taskkill) —
-  see the Linux caveat in gotcha #9.
+  session" even after `pw-close.mjs`. Platform-branched (Windows PowerShell/taskkill,
+  Linux pgrep/SIGKILL).
 - `scripts/pw-screenshot.mjs` — quick one-off screenshot + URL/title.
 - `scripts/pw-act.mjs` — generic action runner, plus the shared `openBuffer()` helper
   (used by every tile via `open-buffer`) and feature-specific compound actions built on
