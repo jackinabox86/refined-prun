@@ -1,9 +1,16 @@
 ---
 name: run
-description: Launch a real Chromium browser with the refined-prun extension loaded via a persistent profile, so you can log into Prosperous Universe once and then drive/observe the live game UI (navigate, click, screenshot) across many tool calls. Triggers on "run the app", "test this in the browser", "verify this feature", "take a screenshot of the game". Do NOT use for pure unit/type checks (use `pnpm run compile`) — this is for visual/behavioral verification against the real game.
+description: Launch a real Chromium browser with the refined-prun extension loaded via a persistent profile, so you can log into Prosperous Universe once and then drive/observe the live game UI (navigate, click, screenshot) across many tool calls. Triggers on "run the app", "test this in the browser", "verify this feature", "take a screenshot of the game". Do NOT use for pure unit/type checks (use `pnpm run compile`) — this is for visual/behavioral verification against the real game. ONLY works in the local WSL2 checkout (needs WSLg + .local/pw-tools); in any other environment (Claude Code on the web, cloud agents, CI) do NOT attempt it or report its absence — just note once that browser verification needs the local WSL2 session, and move on.
 ---
 
 # Run: Local Browser Test Harness
+
+**Environment gate: this skill only works in the local WSL2 checkout** (the one with
+WSLg and the gitignored `.local/` directory). Quick check: `/mnt/wslg` and
+`.local/pw-tools/node_modules/playwright` both exist. If either is missing — Claude Code
+on the web, a cloud agent, CI, a fresh clone — do not launch anything, do not retry, and
+do not pepper the user with failure messages: say once that browser verification needs
+the local WSL2 session, then continue with whatever else the task allows.
 
 This is a Manifest V3 browser extension (see `docs/architecture.md`) — it intercepts
 the game's WebSocket and injects a page-level `<script>` at `document_start`, so it
