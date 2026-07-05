@@ -10,5 +10,6 @@ The project is a browser extension for the game. Throughout the chat and the doc
 - **Game concepts:** `docs/game/game-concepts.md`. Factions, materials, planets, bases, production, trading, shipping.
 - **Game UI:** `docs/game/ui-concepts.md`. APEX terminal interface, tiles, screens, data display conventions.
 - **Game commands:** `docs/game/commands.csv`. Columns: Command, Description, Mandatory parameters, Optional parameters.
+- **Game screens:** `docs/game/sidebar-screens.md`. Left-sidebar shortcuts, screen connection map, server-action buttons to avoid in tests; per-area details in `docs/game/screens-*.md` (bases, production, inventory, fleet, trade, contracts, company, comms).
 - **Browser testing / visual verification:** `.claude/skills/run/SKILL.md`. Launch harness, pw-act actions, hard-won gotchas. Use it for anything that must be verified against the live game.
 - **Planetary governance:** `docs/game/planetary-governance.md`. Population, happiness, governors, CoGC, POPI.

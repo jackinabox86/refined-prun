@@ -162,6 +162,32 @@ switch (action) {
     console.log(JSON.stringify(result, null, 2));
     break;
   }
+  case 'dump-windows': {
+    // Structured dump of every open floating buffer (or one, by 0-based index
+    // passed as the optional argument): command, context-bar items, table
+    // columns, buttons, links, form labels. Use this to study what a screen
+    // contains and how it links to other commands instead of a bespoke eval —
+    // data-only arguments, so it's safe to allowlist broadly.
+    const index = rest[0] === undefined ? -1 : Number(rest[0]);
+    const result = await page.evaluate(index => {
+      const wins = Array.from(document.querySelectorAll('[class*="Window__window"]'));
+      const picked = index >= 0 ? wins.slice(index, index + 1) : wins;
+      const texts = (el, sel) =>
+        [...new Set(Array.from(el.querySelectorAll(sel)).map(e => e.textContent.trim()))]
+          .filter(t => t && !'–|x:'.includes(t));
+      return picked.map(w => ({
+        index: wins.indexOf(w),
+        cmd: w.querySelector('[class*="TileFrame__cmd"]')?.textContent.trim(),
+        ctx: texts(w, '[class*="ContextControls__item"]'),
+        cols: texts(w, 'thead th').slice(0, 20),
+        buttons: texts(w, 'button').slice(0, 20),
+        labels: texts(w, 'label, [class*="FormComponent__label"]').slice(0, 20),
+        links: texts(w, '[class*="Link__link"]').slice(0, 25),
+      }));
+    }, index);
+    console.log(JSON.stringify(result, null, 2));
+    break;
+  }
   case 'styles': {
     // Reads computed style properties off the first element matching a
     // selector. Takes plain data (selector + prop names) as arguments, not

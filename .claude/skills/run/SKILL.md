@@ -85,6 +85,14 @@ Run this with a **backgrounded/non-blocking** shell call — the process blocks 
 purpose (`await new Promise(() => {})`) to keep the browser subprocess alive and to hold
 the CDP port open at `http://127.0.0.1:9333`. Killing the process kills the browser.
 
+**Run every pw script unsandboxed.** The Bash sandbox kills the launch (Chromium's
+crashpad needs `~/.config`, its process singleton needs a unix socket — `Read-only file
+system` / `socket() failed: Operation not permitted`) and blocks every `pw-act.mjs` call
+too (CDP to `127.0.0.1:9333` isn't an allowlisted host, so it fails with
+`ECONNREFUSED`). Worse, a sandbox-killed launch leaves a partial process tree holding
+the profile lock, so the next launch fails with "Opening in existing browser session"
+(gotcha #9) — run `node scripts/pw-kill.mjs` before retrying.
+
 First time ever: tell the user the window is open at `apex.prosperousuniverse.com` and
 **wait for them to log in manually** — do not attempt this yourself. After that, the
 profile at `.local/browser-profile` persists the session; **you will not need to log in
@@ -118,6 +126,13 @@ node scripts/pw-act.mjs list-windows                         # index + leading t
                                                              # open window/buffer — use this
                                                              # instead of an eval that does
                                                              # querySelectorAll('[class*=Window__window]')
+node scripts/pw-act.mjs dump-windows [index]                 # structured dump of open
+                                                             # floating buffers (command,
+                                                             # context-bar items, columns,
+                                                             # buttons, labels, links) — use
+                                                             # this to study a screen's
+                                                             # content/connections instead
+                                                             # of a bespoke eval
 node scripts/pw-act.mjs styles '<selector>' 'prop1,prop2'    # computed style values off the
                                                              # first match — use this instead
                                                              # of an eval getComputedStyle snippet

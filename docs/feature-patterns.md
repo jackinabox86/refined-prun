@@ -487,6 +487,10 @@ See also `src/features/XIT/ACT/runner/tile-allocator.ts` for the full horizontal
 
 ---
 
+## Left Sidebar Replacement
+
+The `custom-left-sidebar` feature hides the base-game sidebar buttons (`#TOUR_TARGET_SIDEBAR_LEFT_02`) and renders its own configurable set from `userData.settings.sidebar` (label → command pairs, drag-reorderable). Defaults remap several labels to XIT buffers (CONT → `XIT CONTS`, FIN → `XIT FIN`, MAP → `MU`) and append extension-only entries (ACT, BURN, REP, SET, HELP → `XIT *`). Consequence for testing: sidebar clicks in the harness hit extension buttons, not base-game ones — the base mapping is documented in `docs/game/sidebar-screens.md`.
+
 ## Context Controls
 
 All tiles have a `C.ContextControls.container` element. Add items to it via `$(tile.frame, C.ContextControls.container)`.

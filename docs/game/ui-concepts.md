@@ -19,6 +19,7 @@ Core principle: Everything is a **command** (all-caps 2–6 letter codes). Comma
 - **Docked tiles**: Embedded in screen grid. Resize by dragging dividers (horizontal/vertical splits).
 - **Floating buffers**: Detached windows that float above screen. Can be popped out/docked any time.
 - Each tile has header (command name), control buttons (minimize, pop-out, close), and content area.
+- **Context-command bar**: tile headers list related commands as clickable links with labels (e.g. `CONTD: Contract Drafts`) — the primary lateral navigation between related screens.
 - Tiles auto-expand if adjacent tile closes.
 
 ### NEW BFR Button
@@ -29,12 +30,14 @@ Core principle: Everything is a **command** (all-caps 2–6 letter codes). Comma
 1. **Shortcut link**: if a left-sidebar shortcut or in-tile link for the target command already exists, click it directly.
 2. **Command entry**: otherwise, click **NEW BFR** (bottom-left) to open an empty floating buffer, type the command code (e.g. `CONTD`) into its input box, and hit Enter to load that buffer.
 
+Opening a buffer that is already open (same command + params) re-focuses the existing window instead of creating a new one.
+
 ## UI Layout
 
 ### Left Sidebar
 - Always visible.
-- SDBR button toggles right sidebar visibility.
-- Shortcut buttons open buffers (not tied to specific screen): MAP, BS, FLT, CXL, CMDS, FIN, CORP
+- Top toggles: SCRNS (screen selector), SDBR (right sidebar visibility), BFRS (buffer list).
+- 12 shortcut buttons open buffers (not tied to specific screen): BS, CONT (opens CONTS), COM, CORP, CXL, FIN, FLT, INV, MAP (opens MU), PROD, LEAD, CMDS. Per-screen details: `docs/game/sidebar-screens.md`.
 
 ### Top Navigation Bar (SCRNS / Screen Selector)
 - **SCRN: [NAME]** — Current screen (click to rename)
