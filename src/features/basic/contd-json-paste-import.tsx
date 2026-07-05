@@ -224,25 +224,24 @@ interface QuickAmount {
   amount: number;
 }
 
-// Mirrors the game's own AMT/1/10/100/HLF/ALL quick-transfer boxes — 10/100 only
-// appear when the stack actually has that many units. AMT here defaults to the
-// full stack; unlike the game's version it can't accept typed input mid-drag
-// (a native drag blocks keyboard focus until it ends), so every dropped row's
-// amount stays editable afterward in the list instead.
+// Mirrors the game's own quick-transfer boxes (verified against the real
+// inventory-transfer overlay): AMT first, then every power of ten up to the
+// stack size, HLF, and ALL, sorted ascending by amount — for an 18-stack the
+// game really shows HLF(9) *before* 10, and a 21,697-stack gets 1000 and
+// 10000 boxes. Equal values aren't deduped (a 10-stack shows both 10 and
+// ALL), also matching the game. AMT here defaults to the full stack; unlike
+// the game's version it can't accept typed input mid-drag (a native drag
+// blocks keyboard focus until it ends), so every dropped row's amount stays
+// editable afterward in the list instead.
 function quickAmounts(quantity: number): QuickAmount[] {
-  const options: QuickAmount[] = [
-    { label: 'AMT', amount: quantity },
-    { label: '1', amount: 1 },
-  ];
-  if (quantity >= 10) {
-    options.push({ label: '10', amount: 10 });
-  }
-  if (quantity >= 100) {
-    options.push({ label: '100', amount: 100 });
+  const options: QuickAmount[] = [{ label: '1', amount: 1 }];
+  for (let power = 10; power <= quantity; power *= 10) {
+    options.push({ label: String(power), amount: power });
   }
   options.push({ label: 'HLF', amount: Math.floor(quantity / 2) });
   options.push({ label: 'ALL', amount: quantity });
-  return options;
+  const sorted = options.filter(option => option.amount >= 1).sort((a, b) => a.amount - b.amount);
+  return [{ label: 'AMT', amount: quantity }, ...sorted];
 }
 
 interface ParserConfig {
@@ -312,6 +311,7 @@ function insertPasteBox(container: Element, anchor: Element) {
   };
 
   let dragDepth = 0;
+  const hoveredOption = ref<number | undefined>();
   const onZoneDragEnter = (e: DragEvent) => {
     e.preventDefault();
     dragDepth++;
@@ -323,12 +323,22 @@ function insertPasteBox(container: Element, anchor: Element) {
     dragDepth = Math.max(0, dragDepth - 1);
     if (dragDepth === 0) {
       dragHover.value = undefined;
+      hoveredOption.value = undefined;
     }
   };
   const onZoneDrop = (e: DragEvent) => {
     e.preventDefault();
     dragDepth = 0;
     dragHover.value = undefined;
+    hoveredOption.value = undefined;
+  };
+  // Hover tracking via dragover (which fires continuously on the hovered
+  // cell) instead of dragenter/dragleave pairs — moving onto the next cell
+  // simply overwrites the index, and leaving the zone entirely is already
+  // handled by onZoneDragLeave, so there's no leave-order bookkeeping.
+  const onOptionDragOver = (e: DragEvent, index: number) => {
+    e.preventDefault();
+    hoveredOption.value = index;
   };
   const onOptionDrop = (e: DragEvent, option: QuickAmount) => {
     e.preventDefault();
@@ -336,6 +346,7 @@ function insertPasteBox(container: Element, anchor: Element) {
     dragDepth = 0;
     const stack = dragHover.value;
     dragHover.value = undefined;
+    hoveredOption.value = undefined;
     if (!stack || option.amount <= 0) {
       return;
     }
@@ -417,12 +428,19 @@ function insertPasteBox(container: Element, anchor: Element) {
             ))}
             {dragHover.value && (
               <div class={$style.dropOverlay}>
-                {quickAmounts(dragHover.value.quantity).map(option => (
+                {quickAmounts(dragHover.value.quantity).map((option, index) => (
                   <div
-                    class={[C.DropTargetView.item, $style.overlayItem]}
-                    onDragover={(e: DragEvent) => e.preventDefault()}
+                    class={$style.overlayCell}
+                    onDragover={(e: DragEvent) => onOptionDragOver(e, index)}
                     onDrop={(e: DragEvent) => onOptionDrop(e, option)}>
-                    {option.label}
+                    <div
+                      class={[
+                        C.DropTargetView.item,
+                        $style.overlaySquare,
+                        hoveredOption.value === index && C.DropTargetView.isOver,
+                      ]}>
+                      {option.label}
+                    </div>
                   </div>
                 ))}
               </div>

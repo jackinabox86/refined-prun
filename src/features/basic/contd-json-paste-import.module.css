@@ -1,5 +1,9 @@
 .container {
   margin-bottom: 8px;
+  /* Size container for the narrow-buffer query below — it must live on an
+     ancestor of .dropZone, since a container query can't size-query the very
+     element it styles. */
+  container-type: inline-size;
 }
 
 .tabRow {
@@ -22,7 +26,6 @@
   border: 1px dashed rgb(141, 100, 17);
   background: rgba(66, 54, 29, 0.4);
   padding: 4px;
-  container-type: inline-size;
 }
 
 .dropZoneHover {
@@ -61,37 +64,46 @@
   outline: none;
 }
 
+/* Mirrors the game's own transfer-overlay structure at a smaller scale
+   (verified against the real inventory DropTargetView): equal flexible
+   columns that wrap when they'd drop below roughly square width — the whole
+   column is the drop target — each with a fixed-size square centered in it.
+   The game never scales its 45px square down; it wraps columns into extra
+   rows instead, with wrapped rows splitting the zone height evenly (which
+   align-content: stretch, the flex default, does for free). 32px squares
+   here because the zone is only 48px tall, not inventory-sized. */
 .dropOverlay {
   position: absolute;
   inset: 0;
   display: flex;
   flex-wrap: wrap;
-  justify-content: center;
-  align-items: center;
-  gap: 4px;
 }
 
-.overlayItem {
-  flex: 0 0 56px;
-  height: 56px;
+.overlayCell {
+  flex: 1 1 auto;
+  min-width: 36px;
   display: flex;
   align-items: center;
   justify-content: center;
 }
 
-/* Not enough width for a single centered row of fixed-size boxes (sized for
-   the largest case — AMT/1/10/100/HLF/ALL, 6 boxes) — fall back to stretching
-   them to divide up whatever space is available, so every box stays
-   reachable even on a small buffer. */
-@container (max-width: 400px) {
-  .dropOverlay {
-    align-items: stretch;
-    gap: 0;
-  }
+.overlaySquare {
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  /* Visual only — the cell is the drop target, so drag events aren't
+     swallowed by the square (the game's full-height columns work the same
+     way). */
+  pointer-events: none;
+}
 
-  .overlayItem {
-    flex: 1 0 33%;
-    height: auto;
+/* A large stack (1000/10000 boxes) in a squeezed buffer wraps to two rows of
+   squares, which need more height than the zone's resting minimum. */
+@container (max-width: 360px) {
+  .dropZone {
+    min-height: 78px;
   }
 }
 
