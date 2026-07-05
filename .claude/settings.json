@@ -7,6 +7,8 @@
       "Bash(node scripts/pw-kill.mjs)",
       "Bash(node scripts/pw-screenshot.mjs *)",
       "Bash(node scripts/pw-act.mjs *)",
+      "Bash(sleep *)",
+      "Bash(tail *)",
       "Bash(pnpm run *)",
       "Bash(pnpm install)",
       "Bash(npx eslint *)",
