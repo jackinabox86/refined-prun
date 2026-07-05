@@ -1,4 +1,4 @@
-// Launches a real Edge instance with the built extension loaded, via a persistent
+// Launches a real Chromium instance with the built extension loaded, via a persistent
 // profile under .local/browser-profile so login survives across runs.
 //
 // Usage: node scripts/local-browser-test.mjs
@@ -12,7 +12,8 @@ import { playwright, distDir, profileDir, APEX_URL, CDP_PORT } from './pw-helper
 const { chromium } = playwright;
 
 const context = await chromium.launchPersistentContext(profileDir, {
-  channel: 'msedge',
+  // No `channel`: use Playwright's own downloaded Chromium (Linux-native under WSL2,
+  // visible via WSLg) instead of a system browser — see docs-jack/wsl-migration-guide.md.
   headless: false,
   args: [
     `--disable-extensions-except=${distDir}`,
