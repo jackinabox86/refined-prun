@@ -12,9 +12,9 @@
 // Every eval call passes a *different* piece of arbitrary JS to run against a
 // live logged-in session, which is a fundamentally different (and pricier,
 // approval-wise) thing than a fixed action taking plain string arguments —
-// see gotcha #8/#10 in .claude/skills/run/SKILL.md. If you catch yourself
+// see gotcha #8 in .claude/skills/run/SKILL.md. If you catch yourself
 // reaching for eval to read/check *anything*, stop and add a fixed action for
-// it instead — that mistake has already happened once (see gotcha #10).
+// it instead — that mistake has already happened once (see gotcha #8).
 import { readFileSync } from 'node:fs';
 import { playwright, CDP_ENDPOINT } from './pw-helper.mjs';
 
@@ -488,7 +488,7 @@ switch (action) {
   case 'move-window': {
     // Repositions a floating buffer by its text (style.left/top on the outer
     // Window__window div is safe — unlike size, position isn't mirrored in
-    // framework state; see gotcha #12/#13). Use before multi-buffer drag
+    // framework state; see gotcha #10/#11). Use before multi-buffer drag
     // tests so windows don't overlap.
     const [windowText, left, top] = rest;
     const moved = await page.evaluate(
@@ -509,7 +509,7 @@ switch (action) {
   case 'resize-window': {
     // Resizes a floating buffer to a target size by dragging its real
     // bottom-right se-resize handle — setting style.width/height on
-    // Window__window desyncs the framework's own layout state (gotcha #12).
+    // Window__window desyncs the framework's own layout state (gotcha #10).
     // Probes several points inside the handle's rect for one where the handle
     // is genuinely on top (siblings overlap most of its box) before dragging.
     const [windowText, targetW, targetH] = rest;

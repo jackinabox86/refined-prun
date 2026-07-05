@@ -235,15 +235,9 @@ Prefer async (`$`/`$$`) over sync (`_$`/`_$$`) when possible — they're type-sa
 
 ---
 
-## Key Concepts
+## Observing Tiles
 
 **Tiles** are the game's UI panels — each opened by a command (e.g., `INV`, `PROD`, `FLT`). See `docs/game/ui-concepts.md` for full APEX interface reference.
-
-**`C` object** maps all PrUn CSS class names, parsed at runtime from the game's hashed stylesheets. Always use `C.Component.class` — never hardcode hashed class names.
-
----
-
-## Observing Tiles
 
 ```ts
 function onTileReady(tile: PrunTile) {

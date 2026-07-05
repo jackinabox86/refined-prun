@@ -17,14 +17,15 @@ debug port so follow-up steps can attach and drive the page without relaunching.
 
 ## Prerequisites (one-time per machine)
 
-1. **pnpm on PATH.** `corepack prepare pnpm@<version> --activate` fails with `EPERM`
-   writing to `C:\Program Files\nodejs\pnpm` (no admin rights). Fix once:
+1. **pnpm on PATH.** Install the version pinned in `package.json`'s `packageManager`
+   field:
    ```
    npm install -g pnpm@10.32.1
    ```
-   (Match the version pinned in `package.json`'s `packageManager` field.) Verify with
-   `pnpm --version`. If this still isn't available, fall back to `npx pnpm@10.32.1 <cmd>`
-   for every command below.
+   Verify with `pnpm --version`. If a global install isn't possible, fall back to
+   `npx pnpm@10.32.1 <cmd>` for every command below. (Windows-era note: `corepack
+   prepare` fails there with `EPERM` under `C:\Program Files` — the global npm install
+   is the fix on that platform too.)
 
 2. **Isolated Playwright install.** Playwright is deliberately **not** a project
    devDependency (kept out of `package.json`/`pnpm-lock.yaml`) — it's a personal testing
@@ -121,7 +122,7 @@ node scripts/pw-act.mjs real-drag-stack '<ticker>' '<box>'   # CONTD Drag tab vi
                                                              # move/up) — exercises the full
                                                              # browser drag pipeline. Use THIS
                                                              # for final drop verification;
-                                                             # see gotcha #14. Fails loudly if
+                                                             # see gotcha #12. Fails loudly if
                                                              # the stack or zone is covered by
                                                              # a window (move-window first)
 node scripts/pw-act.mjs drag-stack '<ticker>' '<box>'        # CONTD Drag tab: simulates the
@@ -154,10 +155,10 @@ node scripts/pw-act.mjs move-window '<window-text>' <left> <top>
                                                              # tests so windows don't overlap
 node scripts/pw-act.mjs resize-window '<window-text>' <width> <height>
                                                              # resize via the real se-resize
-                                                             # handle drag (gotcha #12); raises
+                                                             # handle drag (gotcha #10); raises
                                                              # the window first so the handle
                                                              # is on top
-node scripts/pw-act.mjs eval "() => { ...; return x; }"      # see gotcha #1 and #10 below —
+node scripts/pw-act.mjs eval "() => { ...; return x; }"      # see gotcha #1 and #8 below —
                                                              # last resort, not first reach
 node scripts/pw-act.mjs screenshot '<absolute-output-path>'
 node scripts/pw-act.mjs open-contd-template ['<draft name substring>']
@@ -282,34 +283,44 @@ process for this profile, then retry.
    natural ID), then target with something like
    `click '[class*="Window__window"]:has-text("CD-1234") button:has-text("Select Template")'`.
 
-8. **Prefer the codified actions (`open-buffer`, `open-contd-template`, `list-windows`,
-   `styles`, etc.) over rediscovering navigation by hand with `eval`.** Every ad-hoc
-   exploratory `eval` call is a command the user has to approve, and unlike the other
-   actions it passes *arbitrary JS* as its argument rather than plain data — see gotcha
-   #10. Ten rounds of "find the button, check its rect, try clicking, screenshot, adjust"
-   is ten approvals for one navigation step that only needs to be figured out once. When
-   you learn a fix or pattern that applies to *any* feature test (like the
-   Escape-before-Enter fix in gotcha #4), put it in the shared `openBuffer()` helper, not
-   inside a feature-specific action — otherwise the next session testing a different tile
-   hits the same bug again with no way to know it's already solved. Only build a
-   feature-specific compound action (like `open-contd-template`) on top of that shared
-   primitive for navigation steps that are genuinely specific to one tile.
+8. **Approvals are the scarce resource — use codified data-only actions, and batch
+   calls.** Three rules with one purpose:
+
+   - **Don't default to `eval`.** `click`, `type`, `styles`, `list-windows`,
+     `local-storage-get`, etc. take plain data (a selector, a path, a key) with the JS
+     logic fixed inside `pw-act.mjs`, so one allowlist entry covers every call. `eval`'s
+     argument *is* the code, run against a live logged-in session — every call is a
+     fresh approval, and one session burned ~20 of them on needs already covered by
+     `click` with a `:has-text()` selector or the `styles` action. Before reaching for
+     `eval`, run the checklist *every time* (not "have I built tooling before" — that
+     framing caused a repeat the very next round): can this be a selector string?
+     `list-windows`? `styles`? `local-storage-get`? Reserve `eval` for genuinely
+     one-off logic.
+   - **If an eval pattern recurs, codify it as a new fixed-argument action** in
+     `pw-act.mjs` — N future approvals become one. Put fixes that apply to *any*
+     feature test (like the Escape-before-Enter fix in gotcha #4) in the shared
+     `openBuffer()` helper; build feature-specific compound actions (like
+     `open-contd-template`) on top of shared primitives only for genuinely
+     tile-specific flows.
+   - **Batch, don't drip-feed.** Every separate Bash call is an approval-eligible
+     event even when each command in it is allowlisted. Chain steps that don't need
+     intermediate inspection with `&&` (e.g. `... reload && ... open-contd-template`),
+     and screenshot only at genuine decision points — not after every click as running
+     commentary.
 
 9. **`pw-close.mjs` reporting "Browser closed" doesn't guarantee the profile lock is
-   released.** A prior session's `msedge.exe` process tree can survive an abnormal exit
+   released.** A prior session's browser process tree can survive an abnormal exit
    (killed shell, crashed script), or even outlive a clean `pw-close.mjs` call some other
    way, and keep holding `--user-data-dir=.local/browser-profile` — so the next
    `local-browser-test.mjs` launch fails with `browserType.launchPersistentContext:
    Opening in existing browser session`. Fix: run `node scripts/pw-kill.mjs` — it finds
-   every `msedge.exe` process whose command line references this profile's
+   every browser process whose command line references this profile's
    `.local/browser-profile` path and force-kills the tree, then reports how many it
-   killed (or that none were found). Prefer this over hand-rolling
-   `tasklist`/`wmic process`/`taskkill` — it's scoped to this tool's own profile so it
-   can't touch an unrelated Edge window, and it's a single allowlisted command instead of
-   a three-step manual dance.
-
-   `pw-kill.mjs` is platform-branched: PowerShell + `taskkill` on Windows,
-   `pgrep -f` on the profile path + SIGKILL on Linux/WSL2.
+   killed (or that none were found). Prefer this over hand-rolling `pgrep`/`kill` (or
+   `tasklist`/`taskkill` on Windows) — it's scoped to this tool's own profile so it
+   can't touch an unrelated browser window, and it's a single allowlisted command
+   instead of a manual dance. It's platform-branched: PowerShell + `taskkill` on
+   Windows, `pgrep -f` on the profile path + SIGKILL on Linux/WSL2.
 
    **Never call this without asking first if the browser might still be in active use** —
    killing it discards the open windows/buffers and the next relaunch takes real time
@@ -317,43 +328,7 @@ process for this profile, then retry.
    step; only do it when the user asks or a rebuilt extension genuinely needs a fresh
    load, and confirm first even then.
 
-10. **`eval` is fundamentally different from every other action, and defaulting to it is
-    what causes approval fatigue.** `click`, `type`, `screenshot`, `list-windows`,
-    `styles`, `local-storage-get`, etc. take plain data (a selector string, a file path, a
-    list of CSS property names, a storage key) — the JS logic is fixed inside `pw-act.mjs`
-    itself, so a single allowlist entry covers every call regardless of the specific
-    argument. `eval`'s argument *is* the code to run against a live, logged-in game
-    session, so every call is a genuinely new, unreviewed piece of JS — one session drove
-    ~20 fresh approvals in a single turn this way, almost all of which were really "find
-    this element by its text and click it" or "read this element's computed style," both
-    already covered by `click`/`click-nth` with a `:has-text()` selector, or by the
-    `styles` action. Before reaching for `eval`, check: can this be a selector string
-    instead? Is this "list what windows are open" (→ `list-windows`), "read computed
-    style" (→ `styles`), or "read a stored value" (→ `local-storage-get`)? If a *pattern*
-    of eval snippet keeps recurring (not just this once), add it as a new fixed-argument
-    action in `pw-act.mjs` rather than writing the JS inline again — that turns N future
-    approvals into one. Reserve `eval` for genuinely one-off logic that doesn't fit any of
-    the above.
-
-    **This mistake recurred in the very next testing round after this gotcha was
-    written** — `eval "() => localStorage.getItem(...)"` got used instead of adding
-    `local-storage-get`, because the check wasn't "is there an action for this" but
-    "have I already built tooling to avoid eval" (which had just happened, for a
-    different need). Treat the question as a checklist to run *every time*, not
-    something already handled because a prior gap got fixed.
-
-11. **Every separate Bash tool call is an approval-eligible event on its own, even when
-    every command in it is individually allowlisted — so batch, don't drip-feed.** A
-    verification round that could be "rebuild, reload, open the screen, do the thing,
-    confirm the result" as a handful of calls instead turned into a long back-and-forth of
-    one action + one screenshot at a time. Chain steps that don't need to inspect
-    intermediate state with `&&` in a single Bash call (e.g. `node scripts/pw-act.mjs
-    reload && node scripts/pw-act.mjs open-contd-template`), and only take a screenshot
-    at a genuine decision point (does this look right? did it fail?) — not after every
-    click as a running commentary. Fewer, more purposeful round-trips beats more, smaller
-    ones even when nothing in them is individually risky.
-
-12. **To resize a floating buffer, drag its real bottom-right resize handle with
+10. **To resize a floating buffer, drag its real bottom-right resize handle with
     `mouse-drag` — don't set `style.width`/`style.height` on `Window__window`.** The
     outer window div's inline style can be overridden freely for *position*
     (`style.left`/`style.top` — safe, used throughout this doc), but overriding its
@@ -376,7 +351,7 @@ process for this profile, then retry.
     a window whose bottom-right corner has drifted off-screen has an unreachable handle,
     so reposition with `style.left`/`style.top` first if needed.
 
-13. **Position every buffer you'll need before starting a multi-buffer interaction (like
+11. **Position every buffer you'll need before starting a multi-buffer interaction (like
     a drag test), and verify the layout with one screenshot before touching anything
     else.** Stacking buffers on top of each other and hunting for the right one afterward
     wastes calls and risks grabbing the wrong window — text-based identification is
@@ -387,7 +362,7 @@ process for this profile, then retry.
     only the detail screen has), position them side by side with non-overlapping
     `style.left`/`style.top`, confirm with a screenshot, and only then proceed.
 
-14. **A synthetic-DragEvent test can pass while a real player drag fails — always
+12. **A synthetic-DragEvent test can pass while a real player drag fails — always
     verify drop behavior with `real-drag-stack` (real mouse input), not just
     `drag-stack`.** This happened for real: the CONTD Drag tab passed every
     `drag-stack` test while being completely broken for actual users in three
@@ -405,7 +380,7 @@ process for this profile, then retry.
       `getBoundingClientRect` doesn't know a floating window is covering the
       source stack. A mouse-down meant for a stack silently drags/clicks the
       covering window instead — and can shuffle the window layout, breaking every
-      later call too (this compounds with gotcha #13). `real-drag-stack` checks
+      later call too (this compounds with gotcha #11). `real-drag-stack` checks
       `elementFromPoint` for both the stack and the zone and errors with the
       covering element's class; fix with `move-window` and retry.
 

@@ -15,7 +15,6 @@ from LFS filtering in `.gitattributes`). The script copies them into
 `src/assets/fonts/` before invoking `pnpm build`, then zips `dist/` into
 `dist.zip`.
 
-Run it directly, or let the Claude Code PostToolUse hook in
-`.claude/settings.json` run it automatically after every `git commit` on
-non-`main` branches (auto-commits the updated `dist.zip` with an
-`[auto-dist]` marker to break the loop).
+Run it directly whenever an up-to-date `dist.zip` is needed (e.g. before a
+release). There is no automation around it — a Claude Code hook that used to
+run it after commits no longer exists.

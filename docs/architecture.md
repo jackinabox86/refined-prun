@@ -110,20 +110,9 @@ Migrations (`user-data-migrations.ts`) run on every load to transform stored dat
 
 ---
 
-## Auto-Imports (no explicit import needed)
+## Auto-Imports
 
-| Symbol | Source |
-|--------|--------|
-| Vue composables (`ref`, `computed`, `reactive`, `watch`, …) | `vue` |
-| `$`, `$$`, `_$`, `_$$` | `@src/utils/select-dom` |
-| `C` | `@src/infrastructure/prun-ui/prun-css` |
-| `subscribe` | `@src/utils/observable` |
-| `tiles` | `@src/infrastructure/prun-ui/tiles` |
-| `features` | `@src/features/feature-registry` |
-| `xit` | `@src/features/XIT/xit-registry` |
-| `config` | `@src/infrastructure/shell/config` |
-| `createFragmentApp` | `@src/utils/vue-fragment-app` |
-| `applyCssRule` | `@src/infrastructure/prun-ui/refined-prun-css` |
+See the table in `docs/feature-patterns.md` → "Auto-Imports" (single source of truth — the two copies had already drifted once).
 
 ---
 
