@@ -2,7 +2,13 @@
 
 Goal: run Claude Code inside WSL2 (required for the Bash sandbox — see
 `wsl-sandbox-option.md` for why), with its own fresh clone of the repo rather than
-reusing the Windows checkout. Nothing here has been executed — do this at your PC.
+reusing the Windows checkout.
+
+**Status (2026-07-04): migration completed end to end** — extension verified rendering
+on the CONTD template screen via Linux Chromium + WSLg + CDP. GitHub auth ended up via
+`gh auth login` (the alternative in step 4), not shared Windows GCM. Corrections learned
+while executing are annotated inline below; `.claude/skills/run/SKILL.md` prerequisites
+are updated and authoritative for the browser-harness setup.
 
 ## 1. Install WSL2
 
@@ -174,6 +180,17 @@ or later (DirectX 12 paravirtualization support) — check this first if the mac
      is the opposite of the Windows setup, which passed
      `PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1` specifically because it reused the system Edge.
    - Or install a system Chromium: `sudo apt install -y chromium-browser`.
+
+   **Corrections from actually doing this (Playwright-download path):**
+   - `npx playwright install chromium` alone is NOT the whole setup — it only caches the
+     browser build under `~/.cache/ms-playwright`. The playwright npm package must also
+     be installed into `.local/pw-tools/node_modules` (`pw-helper.mjs` `require()`s it
+     from there), version-matched to the cached revision (chromium-1228 ↔
+     playwright@1.61.1).
+   - The browser download does not include Chromium's OS-level shared libraries; on
+     fresh Ubuntu 26.04 the launch failed with `libnspr4.so: cannot open shared object
+     file` until `sudo apt-get install -y libnss3 libnspr4 libasound2t64`.
+   - Full working recipe now lives in `.claude/skills/run/SKILL.md` prerequisites.
 
 3. **Update the launch code** (an actual code change, not just config — do this when you
    get there, not blindly ahead of time): `scripts/pw-helper.mjs`/

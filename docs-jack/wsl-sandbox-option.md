@@ -67,6 +67,20 @@ Linux, or Windows-via-WSL2. These are scratch notes, not a decision or a plan.
   elsewhere, just a way to check in on / drive the same local session from a phone or
   another screen while the WSL2 machine keeps running.
 
+## Observed in practice (2026-07-04, sandbox live on WSL2)
+
+- The sandbox masks sensitive paths (`.gitconfig`, `.mcp.json`, `.claude/hooks`,
+  `.gitmodules`, editor configs, …) by mounting `/dev/null` over them. Inside sandboxed
+  commands these show up as **character devices owned by `nobody:nogroup`** — so
+  `git status` lists a pile of bogus "untracked files" and git warns
+  `unable to access '.gitmodules': Permission denied`. Not real files; nothing to clean.
+- `npm install` fails sandboxed with `EROFS` writing `~/.npm/_cacache` (only
+  `~/.npm/_logs` is write-allowed). Watch out: piping the install to `tail` masks the
+  failure as exit 0 — check the installed artifact, not the pipeline exit code.
+- The `127.0.0.1` CDP allowlist entry anticipated above was still unset this session, so
+  every `pw-act.mjs` call ran with the sandbox disabled — the payoff needs that entry
+  actually added (todo filed).
+
 ## Open questions to resolve before deciding
 
 - Is the payoff (fewer approval prompts during browser testing) worth: WSL2 setup,

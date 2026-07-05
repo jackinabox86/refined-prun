@@ -1,6 +1,6 @@
 ---
 name: run
-description: Launch a real Edge browser with the refined-prun extension loaded via a persistent profile, so you can log into Prosperous Universe once and then drive/observe the live game UI (navigate, click, screenshot) across many tool calls. Triggers on "run the app", "test this in the browser", "verify this feature", "take a screenshot of the game". Do NOT use for pure unit/type checks (use `pnpm run compile`) — this is for visual/behavioral verification against the real game.
+description: Launch a real Chromium browser with the refined-prun extension loaded via a persistent profile, so you can log into Prosperous Universe once and then drive/observe the live game UI (navigate, click, screenshot) across many tool calls. Triggers on "run the app", "test this in the browser", "verify this feature", "take a screenshot of the game". Do NOT use for pure unit/type checks (use `pnpm run compile`) — this is for visual/behavioral verification against the real game.
 ---
 
 # Run: Local Browser Test Harness
@@ -10,8 +10,9 @@ the game's WebSocket and injects a page-level `<script>` at `document_start`, so
 **must** run as a real unpacked extension in a real Chromium-based browser. It cannot
 be tested by just visiting the game as a webpage.
 
-This skill launches Edge (already installed on Windows) with the built extension via
-Playwright, using a persistent profile so login survives across runs. It exposes a CDP
+This skill launches Playwright's own downloaded Chromium (Linux-native under WSL2; the
+window is visible on the Windows desktop via WSLg) with the built extension, using a
+persistent profile so login survives across runs. It exposes a CDP
 debug port so follow-up steps can attach and drive the page without relaunching.
 
 ## Prerequisites (one-time per machine)
@@ -31,12 +32,26 @@ debug port so follow-up steps can attach and drive the page without relaunching.
    ```
    mkdir -p .local/pw-tools
    cd .local/pw-tools && npm init -y
-   PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 npm install playwright --no-save --prefix .
+   npm install playwright --no-save --prefix .
+   npx playwright install chromium
    cd -
    ```
-   `PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1` skips downloading Playwright's bundled Chromium —
-   unnecessary since we launch the system Edge via `channel: 'msedge'`. Check
-   `.local/pw-tools/node_modules/playwright` exists before redoing this step.
+   The harness launches Playwright's own downloaded Chromium (no `channel` option), so
+   **both** halves are required: the npm package in `.local/pw-tools/node_modules`
+   (`pw-helper.mjs` `require()`s it from there) *and* the browser build under
+   `~/.cache/ms-playwright` — one without the other fails. If a browser build is already
+   cached, install the playwright version matching its revision (chromium-1228 ↔
+   playwright@1.61.1) or just re-run `npx playwright install chromium`. The download does
+   **not** include Chromium's OS-level shared libraries: on a fresh distro the launch dies
+   with `libnspr4.so: cannot open shared object file`. Fix needs sudo (password —
+   ask the user to run it in their own terminal):
+   ```
+   sudo apt-get install -y libnss3 libnspr4 libasound2t64
+   ```
+   Diagnose any repeat with `ldd ~/.cache/ms-playwright/chromium-*/chrome-linux64/chrome |
+   grep "not found"`. Check `.local/pw-tools/node_modules/playwright` exists before
+   redoing this step. npm installs write to `~/.npm/_cacache`, which the Bash sandbox
+   denies (EROFS) — run them unsandboxed.
 
 Both are already satisfied if `.local/pw-tools/node_modules/playwright` and a working
 `pnpm` exist — skip straight to "Every session" below.
@@ -101,6 +116,39 @@ node scripts/pw-act.mjs styles '<selector>' 'prop1,prop2'    # computed style va
 node scripts/pw-act.mjs local-storage-get '<key>'            # reads one localStorage key — use
                                                              # this instead of an eval
                                                              # localStorage.getItem snippet
+node scripts/pw-act.mjs drag-stack '<ticker>' '<box>'        # CONTD Drag tab: simulates the
+                                                             # native HTML5 drag of a material
+                                                             # stack from any open inventory
+                                                             # onto one of the quick-amount
+                                                             # boxes (AMT/1/10/.../HLF/ALL);
+                                                             # prints the ready-list rows.
+                                                             # mouse-drag can't drive real
+                                                             # DnD — this dispatches the
+                                                             # DragEvent sequence instead.
+                                                             # Passing a bogus box label
+                                                             # (e.g. BOGUS) prints the boxes
+                                                             # on offer without dropping.
+node scripts/pw-act.mjs drag-probe '<ticker>' '<window-text>' [shot-path] ['<hover-selector>']
+                                                             # starts a native drag and hovers
+                                                             # a window (or a selector inside
+                                                             # it) WITHOUT dropping: prints
+                                                             # every DropTargetView box that
+                                                             # appears (labels/geometry/styles),
+                                                             # optionally screenshots mid-drag,
+                                                             # then cancels. Safe for GAME
+                                                             # inventories (a real drop would
+                                                             # transfer materials server-side —
+                                                             # never dispatch that yourself)
+node scripts/pw-act.mjs move-window '<window-text>' <left> <top>
+                                                             # reposition a floating buffer
+                                                             # (style.left/top — safe, unlike
+                                                             # size); use before multi-buffer
+                                                             # tests so windows don't overlap
+node scripts/pw-act.mjs resize-window '<window-text>' <width> <height>
+                                                             # resize via the real se-resize
+                                                             # handle drag (gotcha #12); raises
+                                                             # the window first so the handle
+                                                             # is on top
 node scripts/pw-act.mjs eval "() => { ...; return x; }"      # see gotcha #1 and #10 below —
                                                              # last resort, not first reach
 node scripts/pw-act.mjs screenshot '<absolute-output-path>'
@@ -252,6 +300,10 @@ process for this profile, then retry.
    can't touch an unrelated Edge window, and it's a single allowlisted command instead of
    a three-step manual dance.
 
+   **Linux/WSL2 caveat:** `pw-kill.mjs` is still Windows-only (PowerShell + `taskkill`)
+   and will just error here. Until it's ported, use
+   `pkill -f '\-\-user-data-dir=.*\.local/browser-profile'` — same profile-scoped idea.
+
    **Never call this without asking first if the browser might still be in active use** —
    killing it discards the open windows/buffers and the next relaunch takes real time
    (relaunch + possible re-login). Closing the test browser is not a routine "cleanup"
@@ -336,9 +388,10 @@ process for this profile, then retry.
   `node_modules` lookup chain from `scripts/`).
 - `scripts/local-browser-test.mjs` — the long-running launcher.
 - `scripts/pw-close.mjs` — clean shutdown (flushes the profile).
-- `scripts/pw-kill.mjs` — force-kills leftover `msedge.exe` processes for this profile
+- `scripts/pw-kill.mjs` — force-kills leftover browser processes for this profile
   only (see gotcha #9); use when a relaunch fails with "Opening in existing browser
-  session" even after `pw-close.mjs`.
+  session" even after `pw-close.mjs`. **Windows-only for now** (PowerShell/taskkill) —
+  see the Linux caveat in gotcha #9.
 - `scripts/pw-screenshot.mjs` — quick one-off screenshot + URL/title.
 - `scripts/pw-act.mjs` — generic action runner, plus the shared `openBuffer()` helper
   (used by every tile via `open-buffer`) and feature-specific compound actions built on
