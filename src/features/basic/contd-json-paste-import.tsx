@@ -312,12 +312,27 @@ function insertPasteBox(container: Element, anchor: Element) {
 
   let dragDepth = 0;
   const hoveredOption = ref<number | undefined>();
-  const onZoneDragEnter = (e: DragEvent) => {
+  // Every dragenter/dragover here must preventDefault AND stopPropagation AND
+  // set an explicit dropEffect: the game's own top-level dragover handler
+  // (running after ours in the bubble phase) resets dataTransfer.dropEffect
+  // to 'none' for anything that isn't one of its own drop targets, and a
+  // dragover that ends with dropEffect 'none' makes the browser cancel the
+  // drop outright — dragend fires, drop never does. Synthetic DragEvent
+  // dispatch skips this negotiation entirely, so only a real mouse drag
+  // (pw-act real-drag-stack) catches a regression here.
+  const acceptDrag = (e: DragEvent) => {
     e.preventDefault();
+    e.stopPropagation();
+    if (e.dataTransfer) {
+      e.dataTransfer.dropEffect = 'copy';
+    }
+  };
+  const onZoneDragEnter = (e: DragEvent) => {
+    acceptDrag(e);
     dragDepth++;
     dragHover.value ??= getDraggedStack();
   };
-  const onZoneDragOver = (e: DragEvent) => e.preventDefault();
+  const onZoneDragOver = (e: DragEvent) => acceptDrag(e);
   const onZoneDragLeave = (e: DragEvent) => {
     e.preventDefault();
     dragDepth = Math.max(0, dragDepth - 1);
@@ -337,7 +352,7 @@ function insertPasteBox(container: Element, anchor: Element) {
   // simply overwrites the index, and leaving the zone entirely is already
   // handled by onZoneDragLeave, so there's no leave-order bookkeeping.
   const onOptionDragOver = (e: DragEvent, index: number) => {
-    e.preventDefault();
+    acceptDrag(e);
     hoveredOption.value = index;
   };
   const onOptionDrop = (e: DragEvent, option: QuickAmount) => {

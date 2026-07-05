@@ -116,6 +116,14 @@ node scripts/pw-act.mjs styles '<selector>' 'prop1,prop2'    # computed style va
 node scripts/pw-act.mjs local-storage-get '<key>'            # reads one localStorage key — use
                                                              # this instead of an eval
                                                              # localStorage.getItem snippet
+node scripts/pw-act.mjs real-drag-stack '<ticker>' '<box>'   # CONTD Drag tab via a REAL mouse
+                                                             # drag (Playwright mouse down/
+                                                             # move/up) — exercises the full
+                                                             # browser drag pipeline. Use THIS
+                                                             # for final drop verification;
+                                                             # see gotcha #14. Fails loudly if
+                                                             # the stack or zone is covered by
+                                                             # a window (move-window first)
 node scripts/pw-act.mjs drag-stack '<ticker>' '<box>'        # CONTD Drag tab: simulates the
                                                              # native HTML5 drag of a material
                                                              # stack from any open inventory
@@ -379,6 +387,34 @@ process for this profile, then retry.
     target buffer by something unique to *that specific view* (a tab label, a heading
     only the detail screen has), position them side by side with non-overlapping
     `style.left`/`style.top`, confirm with a screenshot, and only then proceed.
+
+14. **A synthetic-DragEvent test can pass while a real player drag fails — always
+    verify drop behavior with `real-drag-stack` (real mouse input), not just
+    `drag-stack`.** This happened for real: the CONTD Drag tab passed every
+    `drag-stack` test while being completely broken for actual users in three
+    browsers. Two mechanisms synthetic dispatch skips:
+    - **dropEffect negotiation.** The game's own top-level dragover handler runs
+      after feature handlers in the bubble phase and resets
+      `dataTransfer.dropEffect` to `'none'` for anything that isn't one of its own
+      drop targets — and a dragover that ends with dropEffect `'none'` makes the
+      browser cancel the drop outright (`dragend` fires, `drop` never does).
+      A drop zone's dragenter/dragover handlers must therefore `preventDefault()`
+      AND `stopPropagation()` AND set an explicit `dropEffect`. Dispatching a
+      `drop` event directly at the handler never runs this negotiation, so it
+      can't catch the bug.
+    - **Occlusion.** Real mouse input lands on whatever is topmost;
+      `getBoundingClientRect` doesn't know a floating window is covering the
+      source stack. A mouse-down meant for a stack silently drags/clicks the
+      covering window instead — and can shuffle the window layout, breaking every
+      later call too (this compounds with gotcha #13). `real-drag-stack` checks
+      `elementFromPoint` for both the stack and the zone and errors with the
+      covering element's class; fix with `move-window` and retry.
+
+    Diagnosis pattern that found this: attach capture+bubble listeners for all
+    six drag event types logging `defaultPrevented` and `dropEffect`, run the
+    real drag, and diff capture vs bubble values — `copy` at capture becoming
+    `none` at bubble names the culprit; a missing `drop` entry confirms the
+    browser cancelled.
 
 ## Files
 

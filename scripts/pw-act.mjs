@@ -274,6 +274,105 @@ switch (action) {
     console.log(JSON.stringify(result, null, 2));
     break;
   }
+  case 'real-drag-stack': {
+    // Like drag-stack, but performs a REAL browser drag via mouse down/move/up
+    // (Playwright drives Chromium's actual drag pipeline), so it exercises
+    // everything synthetic DragEvent dispatch skips: drag-allowed negotiation,
+    // dropEffect, and the game's own top-level drag listeners. Use this for
+    // final verification of any drop behavior — synthetic drag-stack can pass
+    // where a real player drag fails.
+    const [ticker, optionLabel] = rest;
+    const info = await page.evaluate(
+      async ({ ticker }) => {
+        const sleep = ms => new Promise(r => setTimeout(r, ms));
+        const byText = (els, text) =>
+          [...els].filter(el => el.textContent?.trim().toLowerCase() === text.toLowerCase());
+        if (!document.querySelector('[class*="dropZone_"]')) {
+          const tab = byText(document.querySelectorAll('[class*="tabRow_"] button'), 'drag')[0];
+          if (!tab) return { error: 'No Drag tab found — is the CONTD template screen open?' };
+          tab.click();
+          await sleep(100);
+        }
+        const zone = document.querySelector('[class*="dropZone_"]');
+        if (!zone) return { error: 'Drop zone did not render.' };
+        const source = [...document.querySelectorAll('[draggable="true"]')].find(
+          el => byText(el.querySelectorAll('[class*="ColoredIcon__label"]'), ticker).length > 0,
+        );
+        if (!source) return { error: `No draggable stack for "${ticker}".` };
+        const sr = source.getBoundingClientRect();
+        const zr = zone.getBoundingClientRect();
+        // Real mouse input lands on whatever is topmost — getBoundingClientRect
+        // doesn't know about occlusion, and a mouse-down on a covering window
+        // silently drags/clicks THAT instead (and can shuffle the layout for
+        // every later call). Fail loudly and let the caller move windows.
+        const sTop = document.elementFromPoint(sr.x + sr.width / 2, sr.y + sr.height / 2);
+        if (!source.contains(sTop)) {
+          return {
+            error: `Stack "${ticker}" is covered by another element — reposition windows first (move-window).`,
+            coveredBy: String(sTop && (sTop.className || sTop.tagName)).slice(0, 80),
+          };
+        }
+        const zTop = document.elementFromPoint(zr.x + zr.width / 2, zr.y + zr.height / 2);
+        if (!zone.contains(zTop)) {
+          return {
+            error: 'Drop zone center is covered by another element — reposition windows first (move-window).',
+            coveredBy: String(zTop && (zTop.className || zTop.tagName)).slice(0, 80),
+          };
+        }
+        return {
+          sx: sr.x + sr.width / 2,
+          sy: sr.y + sr.height / 2,
+          zx: zr.x + zr.width / 2,
+          zy: zr.y + zr.height / 2,
+        };
+      },
+      { ticker },
+    );
+    if (info.error) {
+      console.log(JSON.stringify(info, null, 2));
+      break;
+    }
+    await page.mouse.move(info.sx, info.sy);
+    await page.mouse.down();
+    await page.mouse.move(info.sx + 8, info.sy + 8); // cross the drag-start threshold
+    await page.mouse.move(info.zx, info.zy, { steps: 20 });
+    await page.waitForTimeout(300); // overlay renders on real dragenter
+    const cell = await page.evaluate(
+      ({ optionLabel }) => {
+        const cells = [...document.querySelectorAll('[class*="overlayCell_"]')];
+        const target = cells.find(
+          el => el.textContent?.trim().toLowerCase() === optionLabel.toLowerCase(),
+        );
+        if (!target) {
+          return {
+            error: `No quick-amount box "${optionLabel}" while hovering.`,
+            available: cells.map(el => el.textContent?.trim()),
+          };
+        }
+        const r = target.getBoundingClientRect();
+        return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
+      },
+      { optionLabel },
+    );
+    if (cell.error) {
+      await page.mouse.up();
+      console.log(JSON.stringify(cell, null, 2));
+      break;
+    }
+    await page.mouse.move(cell.x, cell.y, { steps: 8 });
+    await page.waitForTimeout(150);
+    await page.mouse.up();
+    await page.waitForTimeout(200);
+    const rows = await page.evaluate(() => {
+      const zone = document.querySelector('[class*="dropZone_"]');
+      return [...(zone?.querySelectorAll('[class*="materialRow_"]') ?? [])].map(row => ({
+        ticker: row.querySelector('[class*="materialTicker_"]')?.textContent?.trim(),
+        amount: row.querySelector('input')?.value,
+      }));
+    });
+    console.log(JSON.stringify({ dropped: { ticker, option: optionLabel }, rows }, null, 2));
+    break;
+  }
   case 'drag-probe': {
     // Explores the game's own inventory-transfer drag UI without transferring
     // anything: starts a native-DnD drag of the stack with the given ticker
