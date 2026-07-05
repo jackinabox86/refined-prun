@@ -1,8 +1,8 @@
 // Attaches to the already-running browser via CDP and runs one action, then
 // takes a screenshot. Actions: click <selector>, type <selector> <text>,
 // press <key>, screenshot <path>, list-windows, styles <selector> <props-csv>,
-// local-storage-get <key>, mouse-drag <x1> <y1> <x2> <y2> [steps], reload,
-// eval <js-expression>
+// local-storage-get <key>, mouse-drag <x1> <y1> <x2> <y2> [steps],
+// drag-stack <ticker> <amount-box-label>, reload, eval <js-expression>
 //
 // Prefer click/click-nth/type/fill-nth/list-windows/styles/local-storage-get
 // over eval whenever possible. Playwright selectors support :has-text("...")
@@ -202,6 +202,286 @@ switch (action) {
     await page.mouse.down();
     await page.mouse.move(x2, y2, { steps: steps || 10 });
     await page.mouse.up();
+    break;
+  }
+  case 'drag-stack': {
+    // Simulates dragging a material stack into the CONTD paste-import Drag tab
+    // and dropping it on one of the quick-amount boxes (AMT/1/10/100/HLF/ALL).
+    // Data-only arguments (ticker + box label). Material stacks use native
+    // HTML5 drag-and-drop (draggable="true"), which mouse-drag's mousedown/
+    // mousemove/mouseup cannot trigger, and the quick-amount drop targets only
+    // exist mid-drag — so this dispatches the DragEvent sequence the feature's
+    // listeners actually consume (dragstart on the stack, dragenter on the
+    // zone, drop on the chosen box). Prints the resulting ready-list rows.
+    const [ticker, optionLabel] = rest;
+    const result = await page.evaluate(
+      async ({ ticker, optionLabel }) => {
+        const sleep = ms => new Promise(r => setTimeout(r, ms));
+        const byText = (els, text) =>
+          [...els].filter(el => el.textContent?.trim().toLowerCase() === text.toLowerCase());
+
+        // The drop zone only renders while the Drag tab is active.
+        if (!document.querySelector('[class*="dropZone_"]')) {
+          const tab = byText(document.querySelectorAll('[class*="tabRow_"] button'), 'drag')[0];
+          if (!tab) return { error: 'No Drag tab found — is the CONTD template screen open?' };
+          tab.click();
+          await sleep(100);
+        }
+        const zone = document.querySelector('[class*="dropZone_"]');
+        if (!zone) return { error: 'Drop zone did not render after activating the Drag tab.' };
+
+        const source = [...document.querySelectorAll('[draggable="true"]')].find(
+          el => byText(el.querySelectorAll('[class*="ColoredIcon__label"]'), ticker).length > 0,
+        );
+        if (!source) return { error: `No draggable stack found for ticker "${ticker}".` };
+        const sourceQuantity = source
+          .querySelector('[class*="MaterialIcon__indicator"]')
+          ?.textContent?.trim();
+
+        const fire = (el, type) =>
+          el.dispatchEvent(new DragEvent(type, { bubbles: true, cancelable: true }));
+        fire(source, 'dragstart');
+        fire(zone, 'dragenter');
+        fire(zone, 'dragover');
+        await sleep(150);
+
+        const options = zone.querySelectorAll('[class*="overlayCell_"]');
+        const option = byText(options, optionLabel)[0];
+        if (!option) {
+          fire(zone, 'drop'); // clear the hover overlay before bailing
+          fire(source, 'dragend');
+          return {
+            error: `No quick-amount box "${optionLabel}" in the overlay.`,
+            available: [...options].map(el => el.textContent?.trim()),
+            sourceQuantity,
+          };
+        }
+        fire(option, 'drop');
+        // End the drag from the game's perspective too — its own dragstart
+        // listener saw our synthetic dragstart, and without a dragend every
+        // other inventory keeps rendering its transfer drop boxes forever.
+        fire(source, 'dragend');
+        await sleep(150);
+
+        const rows = [...zone.querySelectorAll('[class*="materialRow_"]')].map(row => ({
+          ticker: row.querySelector('[class*="materialTicker_"]')?.textContent?.trim(),
+          amount: row.querySelector('input')?.value,
+        }));
+        return { dropped: { ticker, option: optionLabel, sourceQuantity }, rows };
+      },
+      { ticker, optionLabel },
+    );
+    console.log(JSON.stringify(result, null, 2));
+    break;
+  }
+  case 'drag-probe': {
+    // Explores the game's own inventory-transfer drag UI without transferring
+    // anything: starts a native-DnD drag of the stack with the given ticker
+    // (found outside the target window), hovers the center of the target
+    // window (matched by its text), records every DropTargetView drop box
+    // that appears (labels, geometry, key styles), optionally screenshots
+    // mid-drag, then cancels the drag (dragleave + dragend — never drop, a
+    // real drop would transfer materials on the server).
+    // Optional 4th arg: a CSS selector (resolved inside the target window)
+    // for the element to hover instead of the window's center — needed for
+    // drop zones that don't sit at the center, like the CONTD paste box.
+    const [ticker, targetWindowText, shotPath, hoverSelector] = rest;
+    const setup = await page.evaluate(
+      async ({ ticker, targetWindowText, hoverSelector }) => {
+        const sleep = ms => new Promise(r => setTimeout(r, ms));
+        const windows = [...document.querySelectorAll('[class*="Window__window"]')];
+        const target = windows.find(w => w.innerText.includes(targetWindowText));
+        if (!target) return { error: `No window matching "${targetWindowText}".` };
+
+        const source = [...document.querySelectorAll('[draggable="true"]')].find(
+          el =>
+            !target.contains(el) &&
+            [...el.querySelectorAll('[class*="ColoredIcon__label"]')].some(
+              l => l.textContent?.trim().toLowerCase() === ticker.toLowerCase(),
+            ),
+        );
+        if (!source) return { error: `No draggable stack for "${ticker}" outside the target.` };
+        const sourceQuantity = source
+          .querySelector('[class*="MaterialIcon__indicator"]')
+          ?.textContent?.trim();
+
+        // Hover the given selector inside the window, or the element at the
+        // window's center, so the dragenter bubbles up through whatever
+        // ancestor actually owns the drop handler.
+        const rect = target.getBoundingClientRect();
+        const hoverEl =
+          (hoverSelector && target.querySelector(hoverSelector)) ??
+          document.elementFromPoint(rect.left + rect.width / 2, rect.top + rect.height / 2) ??
+          target;
+        const fire = (el, type) =>
+          el.dispatchEvent(new DragEvent(type, { bubbles: true, cancelable: true }));
+        fire(source, 'dragstart');
+        fire(hoverEl, 'dragenter');
+        fire(hoverEl, 'dragover');
+        await sleep(250);
+        // Re-fire dragover on whatever now sits at the hover element's center
+        // (a quick-amount box rendered by the dragenter above), so per-box
+        // hover state shows up in the capture. dragover only — a second
+        // dragenter would unbalance enter/leave depth counting in the target.
+        const hr = hoverEl.getBoundingClientRect();
+        const over = document.elementFromPoint(hr.left + hr.width / 2, hr.top + hr.height / 2);
+        if (over) {
+          fire(over, 'dragover');
+          await sleep(100);
+        }
+
+        const boxes = [...document.querySelectorAll('[class*="DropTargetView"]')].map(el => {
+          const r = el.getBoundingClientRect();
+          const cs = getComputedStyle(el);
+          return {
+            class: el.className,
+            text: el.textContent?.trim(),
+            rect: { x: Math.round(r.x), y: Math.round(r.y), w: Math.round(r.width), h: Math.round(r.height) },
+            styles: {
+              display: cs.display,
+              width: cs.width,
+              height: cs.height,
+              flex: cs.flex,
+              justifyContent: cs.justifyContent,
+              alignItems: cs.alignItems,
+              fontSize: cs.fontSize,
+              border: cs.border,
+              background: cs.backgroundColor,
+            },
+          };
+        });
+        return { sourceQuantity, hoverClass: hoverEl.className, boxes };
+      },
+      { ticker, targetWindowText, hoverSelector },
+    );
+    if (shotPath && !setup.error) {
+      await page.screenshot({ path: shotPath });
+    }
+    // Always cancel the drag state, even after a successful probe.
+    await page.evaluate(
+      ({ ticker, targetWindowText, hoverSelector }) => {
+        const windows = [...document.querySelectorAll('[class*="Window__window"]')];
+        const target = windows.find(w => w.innerText.includes(targetWindowText));
+        const source = [...document.querySelectorAll('[draggable="true"]')].find(
+          el =>
+            (!target || !target.contains(el)) &&
+            [...el.querySelectorAll('[class*="ColoredIcon__label"]')].some(
+              l => l.textContent?.trim().toLowerCase() === ticker.toLowerCase(),
+            ),
+        );
+        const fire = (el, type) =>
+          el?.dispatchEvent(new DragEvent(type, { bubbles: true, cancelable: true }));
+        if (target) {
+          const rect = target.getBoundingClientRect();
+          const hoverEl =
+            (hoverSelector && target.querySelector(hoverSelector)) ??
+            document.elementFromPoint(rect.left + rect.width / 2, rect.top + rect.height / 2) ??
+            target;
+          fire(hoverEl, 'dragleave');
+        }
+        fire(source, 'dragend');
+      },
+      { ticker, targetWindowText, hoverSelector },
+    );
+    console.log(JSON.stringify(setup, null, 2));
+    break;
+  }
+  case 'move-window': {
+    // Repositions a floating buffer by its text (style.left/top on the outer
+    // Window__window div is safe — unlike size, position isn't mirrored in
+    // framework state; see gotcha #12/#13). Use before multi-buffer drag
+    // tests so windows don't overlap.
+    const [windowText, left, top] = rest;
+    const moved = await page.evaluate(
+      ({ windowText, left, top }) => {
+        const w = [...document.querySelectorAll('[class*="Window__window"]')].find(el =>
+          el.innerText.includes(windowText),
+        );
+        if (!w) return false;
+        w.style.left = `${left}px`;
+        w.style.top = `${top}px`;
+        return true;
+      },
+      { windowText, left: Number(left), top: Number(top) },
+    );
+    console.log(moved ? 'Moved.' : `No window matching "${windowText}".`);
+    break;
+  }
+  case 'resize-window': {
+    // Resizes a floating buffer to a target size by dragging its real
+    // bottom-right se-resize handle — setting style.width/height on
+    // Window__window desyncs the framework's own layout state (gotcha #12).
+    // Probes several points inside the handle's rect for one where the handle
+    // is genuinely on top (siblings overlap most of its box) before dragging.
+    const [windowText, targetW, targetH] = rest;
+    // Raise the window first — elementFromPoint sees whatever is topmost, so
+    // an overlapped window's handle is unreachable until it's frontmost. A
+    // real click near the left of its title strip (away from the _/x buttons)
+    // is the same raise a player performs.
+    const title = await page.evaluate(
+      ({ windowText }) => {
+        const w = [...document.querySelectorAll('[class*="Window__window"]')].find(el =>
+          el.innerText.includes(windowText),
+        );
+        if (!w) return undefined;
+        const r = w.getBoundingClientRect();
+        return { x: r.left + 40, y: r.top + 8 };
+      },
+      { windowText },
+    );
+    if (title) await page.mouse.click(title.x, title.y);
+    const start = await page.evaluate(
+      ({ windowText }) => {
+        const w = [...document.querySelectorAll('[class*="Window__window"]')].find(el =>
+          el.innerText.includes(windowText),
+        );
+        if (!w) return { error: `No window matching "${windowText}".` };
+        const handle = [...w.querySelectorAll('*')].find(
+          e => getComputedStyle(e).cursor === 'se-resize',
+        );
+        if (!handle) return { error: 'No se-resize handle found in that window.' };
+        const r = handle.getBoundingClientRect();
+        const points = [];
+        for (const fx of [0.97, 0.9, 0.8, 0.65, 0.5, 0.35, 0.2, 0.05]) {
+          for (const fy of [0.97, 0.9, 0.8, 0.65, 0.5, 0.35, 0.2, 0.05]) {
+            points.push([r.left + r.width * fx, r.top + r.height * fy]);
+          }
+        }
+        const pt = points.find(([x, y]) => {
+          const el = document.elementFromPoint(x, y);
+          return el === handle || handle.contains(el);
+        });
+        if (!pt) {
+          return {
+            error: 'Resize handle not on top at any probed point.',
+            handleRect: { x: Math.round(r.x), y: Math.round(r.y), w: Math.round(r.width), h: Math.round(r.height) },
+            topAtCorner: document.elementFromPoint(r.right - 2, r.bottom - 2)?.className ?? null,
+          };
+        }
+        const wr = w.getBoundingClientRect();
+        return { x: pt[0], y: pt[1], winW: wr.width, winH: wr.height };
+      },
+      { windowText },
+    );
+    if (start.error) {
+      console.log(JSON.stringify(start));
+      break;
+    }
+    await page.mouse.move(start.x, start.y);
+    await page.mouse.down();
+    await page.mouse.move(start.x + Number(targetW) - start.winW, start.y + Number(targetH) - start.winH, { steps: 15 });
+    await page.mouse.up();
+    const size = await page.evaluate(
+      ({ windowText }) => {
+        const w = [...document.querySelectorAll('[class*="Window__window"]')].find(el =>
+          el.innerText.includes(windowText),
+        );
+        const r = w.getBoundingClientRect();
+        return { width: Math.round(r.width), height: Math.round(r.height) };
+      },
+      { windowText },
+    );
+    console.log(JSON.stringify(size));
     break;
   }
   case 'eval': {
