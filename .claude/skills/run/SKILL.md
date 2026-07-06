@@ -85,16 +85,24 @@ Run this with a **backgrounded/non-blocking** shell call — the process blocks 
 purpose (`await new Promise(() => {})`) to keep the browser subprocess alive and to hold
 the CDP port open at `http://127.0.0.1:9333`. Killing the process kills the browser.
 
-**Run every pw script unsandboxed.** The Bash sandbox kills the launch (Chromium's
+**Every pw script must run unsandboxed.** The Bash sandbox kills the launch (Chromium's
 crashpad needs `~/.config`, its process singleton needs a unix socket — `Read-only file
 system` / `socket() failed: Operation not permitted`) and blocks every `pw-act.mjs` call
 too: the sandbox gives commands an isolated loopback, so its `127.0.0.1` is not the
 host's — connecting to the browser's CDP port fails with `ECONNREFUSED` even when
 `127.0.0.1` is in the sandbox network allowlist (verified: sandboxed curl to :9333
 refused while unsandboxed got HTTP 200 at the same moment). Allowlisting the host
-cannot fix this. Worse, a sandbox-killed launch leaves a partial process tree holding
-the profile lock, so the next launch fails with "Opening in existing browser session"
-(gotcha #9) — run `node scripts/pw-kill.mjs` before retrying.
+cannot fix this. `.claude/settings.json` handles it via `sandbox.excludedCommands`:
+the pw scripts (and `curl`, for the :9333 up-check) run outside the sandbox
+automatically, so call them as plain Bash commands — do NOT set
+`dangerouslyDisableSandbox`, which forces a permission prompt the exclusion exists to
+avoid. Exclusion entries are wildcard patterns (`node scripts/pw-act.mjs *`), and a
+*chained* command (`sleep 5 && node scripts/pw-act.mjs ...`) may not match them — if a
+pw call fails with `ECONNREFUSED` while the browser is up, run it standalone (or as the
+first command in the chain) before suspecting the browser; check the exclusion list is
+intact before reaching for the flag. A sandbox-killed launch leaves a partial
+process tree holding the profile lock, so the next launch fails with "Opening in
+existing browser session" (gotcha #9) — run `node scripts/pw-kill.mjs` before retrying.
 
 First time ever: tell the user the window is open at `apex.prosperousuniverse.com` and
 **wait for them to log in manually** — do not attempt this yourself. After that, the
