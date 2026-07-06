@@ -21,7 +21,11 @@
       "Bash(pnpm exec eslint *)",
       "Bash(tasklist *)",
       "Bash(node .local/scratch/*)",
-      "Bash(pgrep *)"
+      "Bash(pgrep *)",
+      "Agent",
+      "SendMessage",
+      "ToolSearch",
+      "Skill"
     ]
   },
   "sandbox": {
