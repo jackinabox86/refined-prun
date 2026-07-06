@@ -305,8 +305,8 @@ export interface AddMaterialsOptions {
  * Adds material rows to the contract template. Clicks "Add shipment"/"Add commodity"
  * for rows after the first, sets amount and selects material for each.
  *
- * Same job as importMaterials() in src/features/basic/contd-json-paste-import.tsx (the
- * CONTD JSON-paste feature), kept separate since this one is coupled to ACT's
+ * Same job as importMaterials() in src/features/basic/contd-paste-import/draft-form.ts
+ * (the CONTD paste-import feature), kept separate since this one is coupled to ACT's
  * ContDraftContext.
  */
 export async function addMaterials(

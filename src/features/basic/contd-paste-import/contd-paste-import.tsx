@@ -1,175 +1,93 @@
-import {
-  changeInputValue,
-  clickElement,
-  focusElement,
-  selectMaterialInMaterialSelector,
-} from '@src/util';
-import { sleep } from '@src/utils/sleep';
 import PrunButton from '@src/components/PrunButton.vue';
-import $style from './contd-json-paste-import.module.css';
+import {
+  ContractDraftSpec,
+  MaterialEntry,
+  ParseResult,
+  parseContractJson,
+  parseSheetsExcel,
+  parseSupplyCart,
+  specHasContractFields,
+  summarizeContractJson,
+  summarizeSheetsExcel,
+  summarizeSupplyCart,
+} from './parsers';
+import {
+  currentTemplateType,
+  importMaterials,
+  selectLocation,
+  selectTemplateType,
+  setAutoProvision,
+  setCurrency,
+  setDeadline,
+  setShipPrice,
+} from './draft-form';
+import $style from './contd-paste-import.module.css';
 
-interface SupplyCartJson {
-  groups?: Array<{ name?: string; materials?: Record<string, number> }>;
-}
+// Fills the template panel from the spec, in dependency order: the template
+// type first (switching it rebuilds the form), payment after the material
+// rows (the division needs the final row count), auto-provision after the
+// origin (its options populate only then). Fields the spec doesn't set stay
+// untouched; fields that fail are collected and reported, the rest of the
+// import continues. Server actions (apply template, cancel) are never clicked.
+async function importSpec(anchor: Element, spec: ContractDraftSpec): Promise<string[]> {
+  const issues: string[] = [];
 
-interface MaterialEntry {
-  ticker: string;
-  amount: number;
-  price?: number;
-}
+  if (spec.type && !(await selectTemplateType(anchor, spec.type))) {
+    issues.push(`template ${spec.type}`);
+  }
+  const isShip = currentTemplateType(anchor) === 'SHIP';
 
-interface ParseResult {
-  error?: string;
-  groupCount?: number;
-  skipped?: number;
-  materials: MaterialEntry[];
-}
-
-function parseSupplyCart(json: string): ParseResult {
-  if (json.trim() === '') {
-    return { materials: [] };
+  if (spec.currency && !(await setCurrency(anchor, spec.currency))) {
+    issues.push(`currency ${spec.currency}`);
   }
 
-  let data: SupplyCartJson;
-  try {
-    data = JSON.parse(json);
-  } catch {
-    return { error: 'Invalid JSON.', materials: [] };
-  }
+  await importMaterials(anchor, spec.materials);
 
-  const groups = Array.isArray(data.groups) ? data.groups : [];
-  if (groups.length === 0) {
-    return { error: 'No material groups found.', materials: [] };
-  }
-
-  const materials = groups.flatMap(group =>
-    Object.entries(group.materials ?? {}).map(([ticker, amount]) => ({ ticker, amount })),
-  );
-
-  return { groupCount: groups.length, materials };
-}
-
-function summarizeSupplyCart(result: ParseResult): string {
-  if (result.error) {
-    return result.error;
-  }
-  if (result.groupCount === undefined) {
-    return '';
-  }
-  const { groupCount, materials } = result;
-  return `Parsed ${groupCount} group${groupCount === 1 ? '' : 's'}, ${materials.length} material${materials.length === 1 ? '' : 's'}.`;
-}
-
-// Sheets/Excel rows paste as tab-separated columns: amount, ticker, price.
-// Rows that don't parse (e.g. a pasted header row like "Amount Material Price")
-// are skipped rather than failing the whole paste.
-function parseSheetsExcel(text: string): ParseResult {
-  if (text.trim() === '') {
-    return { materials: [] };
-  }
-
-  const materials: MaterialEntry[] = [];
-  let skipped = 0;
-  for (const line of text.split('\n')) {
-    if (line.trim() === '') {
-      continue;
-    }
-
-    const [amountCol, tickerCol, priceCol] = line.split('\t');
-    const amount = Number(amountCol?.trim());
-    const ticker = tickerCol?.trim().toUpperCase();
-    if (!ticker || !Number.isFinite(amount)) {
-      skipped++;
-      continue;
-    }
-
-    const priceText = priceCol?.trim();
-    const parsedPrice = priceText ? Number(priceText) : undefined;
-    const price = Number.isFinite(parsedPrice) ? parsedPrice : undefined;
-
-    materials.push({ ticker, amount, price });
-  }
-
-  if (materials.length === 0) {
-    return { error: 'No material rows found.', materials: [] };
-  }
-
-  return { materials, skipped };
-}
-
-function summarizeSheetsExcel(result: ParseResult): string {
-  if (result.error) {
-    return result.error;
-  }
-  if (result.materials.length === 0) {
-    return '';
-  }
-  const { materials, skipped } = result;
-  const skippedText =
-    skipped !== undefined && skipped > 0
-      ? ` (${skipped} row${skipped === 1 ? '' : 's'} skipped)`
-      : '';
-  return `Parsed ${materials.length} material${materials.length === 1 ? '' : 's'}${skippedText}.`;
-}
-
-function findAddCommodityButton(anchor: Element) {
-  return _$$(anchor, 'button').find(btn => {
-    const t = btn.textContent?.trim().toLowerCase();
-    return t === 'add commodity' || t === 'add shipment';
-  }) as HTMLElement | undefined;
-}
-
-async function waitForGroupCount(anchor: Element, expected: number, timeout = 2000) {
-  const deadline = Date.now() + timeout;
-  while (Date.now() < deadline) {
-    if (_$$(anchor, C.TemplateSelection.group).length >= expected) {
-      return;
-    }
-    await sleep(50);
-  }
-}
-
-// Adds/fills CONTD commodity rows from parsed input. Same job as addMaterials() in
-// src/features/XIT/ACT/action-steps/cont-utils.ts (used by the ACT runner), kept
-// separate here since that helper is coupled to ACT's ContDraftContext.
-async function importMaterials(anchor: Element, materials: MaterialEntry[]) {
-  for (let i = 0; i < materials.length; i++) {
-    let groups = _$$(anchor, C.TemplateSelection.group);
-    if (groups.length <= i) {
-      await clickElement(findAddCommodityButton(anchor));
-      await waitForGroupCount(anchor, i + 1);
-      groups = _$$(anchor, C.TemplateSelection.group);
-    }
-
-    if (groups.length <= i) {
-      continue;
-    }
-    const group = groups[i];
-    const { ticker, amount, price } = materials[i];
-
-    const amountInput = group.querySelector(
-      'input[inputmode="numeric"]',
-    ) as HTMLInputElement | null;
-    if (amountInput) {
-      focusElement(amountInput);
-      changeInputValue(amountInput, String(amount));
-    }
-
-    if (price !== undefined) {
-      const priceInput = group.querySelector(
-        'input[inputmode="decimal"]',
-      ) as HTMLInputElement | null;
-      if (priceInput) {
-        focusElement(priceInput);
-        changeInputValue(priceInput, String(price));
-      }
-    }
-
-    const materialSelectorContainer = _$(group, C.MaterialSelector.container);
-    if (materialSelectorContainer) {
-      await selectMaterialInMaterialSelector(materialSelectorContainer, ticker);
+  if (spec.payment !== undefined) {
+    if (!isShip) {
+      issues.push('payment (SHIP only)');
+    } else if (!setShipPrice(anchor, spec.payment)) {
+      issues.push('payment');
     }
   }
+
+  const addresses = _$$(anchor, C.AddressSelector.container);
+  const fillAddress = async (index: number, name: string, label: string) => {
+    const address = addresses.at(index);
+    if (!address || !(await selectLocation(address, name))) {
+      issues.push(`${label} ${name}`);
+    }
+  };
+  if (isShip) {
+    if (spec.location) {
+      issues.push('location (BUY/SELL only)');
+    }
+    if (spec.origin) {
+      await fillAddress(0, spec.origin, 'origin');
+    }
+    if (spec.destination) {
+      await fillAddress(1, spec.destination, 'destination');
+    }
+    if (spec.autoProvision && !(await setAutoProvision(anchor, spec.autoProvision))) {
+      issues.push(`auto-provision ${spec.autoProvision}`);
+    }
+  } else {
+    if (spec.origin || spec.destination) {
+      issues.push('origin/destination (SHIP only)');
+    }
+    if (spec.autoProvision) {
+      issues.push('auto-provision (SHIP only)');
+    }
+    if (spec.location) {
+      await fillAddress(0, spec.location, 'location');
+    }
+  }
+
+  if (spec.deadline !== undefined && !setDeadline(anchor, spec.deadline)) {
+    issues.push('deadline');
+  }
+
+  return issues;
 }
 
 // --- Drag tab: dragging a material stack icon from another inventory in and
@@ -257,23 +175,38 @@ interface ParserConfig {
 // The Drag tab (below) isn't text-driven, so it's wired up separately.
 const parsers: ParserConfig[] = [
   {
-    id: 'prunplanner',
-    label: 'Prun Planner',
-    placeholder: 'Paste PRUNplanner supply cart JSON (parsing only, for now)',
-    parse: parseSupplyCart,
-    summarize: summarizeSupplyCart,
+    id: 'json',
+    label: 'JSON',
+    placeholder:
+      'Paste contract JSON, e.g. {"type": "SHIP", "currency": "NCC", "origin": "Montem", ' +
+      '"destination": "Moria Station", "payment": 10000, "deadline": 5, ' +
+      '"materials": [{"ticker": "RAT", "amount": 100}]} — BUY/SELL take "location" and ' +
+      'per-material "price" instead. Every field is optional.',
+    parse: parseContractJson,
+    summarize: summarizeContractJson,
   },
   {
     id: 'sheets',
     label: 'Sheets/Excel',
-    placeholder: 'Paste rows copied from Sheets/Excel: amount, ticker, price (tab-separated)',
+    placeholder:
+      'Paste rows copied from Sheets/Excel: amount, ticker, price (tab-separated). ' +
+      'Contract fields are keyword rows: template, currency, location, origin, ' +
+      'destination, payment, deadline, autoprovision — keyword in the first column, ' +
+      'value in the second.',
     parse: parseSheetsExcel,
     summarize: summarizeSheetsExcel,
+  },
+  {
+    id: 'prunplanner',
+    label: 'Prun Planner',
+    placeholder: 'Paste PRUNplanner supply cart JSON',
+    parse: parseSupplyCart,
+    summarize: summarizeSupplyCart,
   },
 ];
 
 const dragTabId = 'drag';
-const activeParserStorageKey = 'rprun-contd-json-paste-active';
+const activeParserStorageKey = 'rprun-contd-paste-import-active';
 
 function insertPasteBox(container: Element, anchor: Element) {
   // Storage returns null only when the key was never set (first-ever use) —
@@ -288,9 +221,13 @@ function insertPasteBox(container: Element, anchor: Element) {
     const parsed = computed(() => parser.parse(text.value));
     const status = computed(() => parser.summarize(parsed.value));
     const isInvalid = computed(() => parsed.value.error !== undefined);
-    const canImport = computed(() => !parsed.value.error && parsed.value.materials.length > 0);
-    const materials = computed(() => parsed.value.materials);
-    return { kind: 'text' as const, ...parser, text, materials, status, isInvalid, canImport };
+    const canImport = computed(
+      () =>
+        !parsed.value.error &&
+        (parsed.value.spec.materials.length > 0 || specHasContractFields(parsed.value.spec)),
+    );
+    const spec = computed(() => parsed.value.spec);
+    return { kind: 'text' as const, ...parser, text, spec, status, isInvalid, canImport };
   });
 
   const dragMaterials = ref<MaterialEntry[]>([]);
@@ -304,7 +241,7 @@ function insertPasteBox(container: Element, anchor: Element) {
     kind: 'drag' as const,
     id: dragTabId,
     label: 'Drag',
-    materials: computed(() => dragMaterials.value),
+    spec: computed<ContractDraftSpec>(() => ({ materials: dragMaterials.value })),
     status: dragStatus,
     isInvalid: computed(() => false),
     canImport: computed(() => dragMaterials.value.length > 0),
@@ -371,6 +308,17 @@ function insertPasteBox(container: Element, anchor: Element) {
   const tabs = [...textInstances, dragInstance];
   const active = computed(() => tabs.find(tab => tab.id === activeParser.value));
 
+  const importIssues = ref<string[] | undefined>();
+  watch(active, () => (importIssues.value = undefined));
+  const importStatus = computed(() => {
+    if (importIssues.value === undefined) {
+      return '';
+    }
+    return importIssues.value.length === 0
+      ? 'Imported.'
+      : `Imported, but failed: ${importIssues.value.join(', ')}.`;
+  });
+
   let importing = false;
   const onImport = async () => {
     const instance = active.value;
@@ -378,8 +326,9 @@ function insertPasteBox(container: Element, anchor: Element) {
       return;
     }
     importing = true;
+    importIssues.value = undefined;
     try {
-      await importMaterials(anchor, instance.materials.value);
+      importIssues.value = await importSpec(anchor, instance.spec.value);
     } finally {
       importing = false;
     }
@@ -474,6 +423,16 @@ function insertPasteBox(container: Element, anchor: Element) {
                 {instance.status.value}
               </div>
             )}
+            {importStatus.value && (
+              <div
+                class={[
+                  $style.status,
+                  C.type.typeSmall,
+                  importIssues.value!.length > 0 && C.colors.textDanger,
+                ]}>
+                {importStatus.value}
+              </div>
+            )}
             {instance.canImport.value && (
               <PrunButton dark inline onClick={onImport}>
                 Import
@@ -505,5 +464,7 @@ function init() {
 features.add(
   import.meta.url,
   init,
-  'CONTD: Adds a paste box at the top of the commodity template screen to import materials/amounts from PRUNplanner JSON, Sheets/Excel rows, or dragged material stacks.',
+  'CONTD: Adds a paste box at the top of the contract template screen to fill the full ' +
+    'template (type, currency, materials, prices, locations, deadline) from contract JSON, ' +
+    'Sheets/Excel rows, PRUNplanner JSON, or dragged material stacks.',
 );
