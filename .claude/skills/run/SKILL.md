@@ -203,6 +203,11 @@ node scripts/pw-act.mjs resize-window '<window-text>' <width> <height>
 node scripts/pw-act.mjs eval "() => { ...; return x; }"      # see gotcha #1 and #8 below —
                                                              # last resort, not first reach
 node scripts/pw-act.mjs screenshot '<absolute-output-path>'
+node scripts/pw-act.mjs contd-template-fields ['<draft substring>']
+  # CONTD-specific: dumps every field value on an open template screen
+  # (template type, currency, amounts, commodities, prices, addresses,
+  # deadline) as JSON — use this to verify imports/fills instead of a
+  # bespoke eval.
 node scripts/pw-act.mjs open-contd-template ['<draft name substring>']
   # CONTD-specific, built on open-buffer: also opens a draft (View) and
   # clicks "Select Template" to reach the commodity template screen (see

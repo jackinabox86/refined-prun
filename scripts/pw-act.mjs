@@ -137,6 +137,41 @@ switch (action) {
     console.log('Template screen ready.');
     break;
   }
+  case 'contd-template-fields': {
+    // CONTD-specific: reads back every field value on an open contract
+    // template screen — template type, currency, per-group amounts/commodities,
+    // prices, address inputs, deadline, auto-provision options. Optional
+    // argument narrows to the draft window containing that substring (e.g. its
+    // natural id); otherwise the last template window wins. Data-only, so use
+    // this to verify imports/fills instead of a bespoke eval — that eval got
+    // hand-rolled three times before this action existed.
+    const [draftSubstr] = rest;
+    const result = await page.evaluate(substr => {
+      const wins = Array.from(document.querySelectorAll('[class*="Window__window"]')).filter(
+        w =>
+          w.textContent.toLowerCase().includes('apply template') &&
+          (!substr || w.textContent.includes(substr)),
+      );
+      const win = wins.at(-1);
+      if (!win) return { error: 'no open template screen' + (substr ? ` matching "${substr}"` : '') };
+      const selects = Array.from(win.querySelectorAll('select')).map(s => ({
+        value: s.value,
+        text: s.options[s.selectedIndex]?.text,
+        options: s.options.length,
+      }));
+      const named = {};
+      for (const i of win.querySelectorAll('input[name]')) named[i.name] = i.value;
+      const commodities = Array.from(
+        win.querySelectorAll('input[placeholder="commodity name"]'),
+      ).map(i => i.value);
+      const addresses = Array.from(win.querySelectorAll('input[placeholder="Enter location"]')).map(
+        i => i.value,
+      );
+      return { selects, named, commodities, addresses };
+    }, draftSubstr);
+    console.log(JSON.stringify(result, null, 2));
+    break;
+  }
   case 'click-nth': {
     const [selector, index] = rest;
     await nthLocator(page, selector, index).click();
