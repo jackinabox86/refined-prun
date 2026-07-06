@@ -5,6 +5,15 @@ description: Launch a real Chromium browser with the refined-prun extension load
 
 # Run: Local Browser Test Harness
 
+**Delegate verification to the `game-tester` agent by default.** Screenshots and DOM
+dumps are the most expensive thing a main session can hold in context — spawn the
+`game-tester` agent (defined in `.claude/agents/game-tester.md`, it reads this skill
+itself) with a concrete checklist of what to verify, and consume its text-only report.
+Drive the browser directly from the main session only for a single quick call (one
+`list-windows`, one targeted `styles` check) or when the user asks to watch a specific
+interaction live; anything multi-step or screenshot-heavy goes to the agent. Pass
+`model: haiku` for cheap smoke checks; the default (sonnet) handles normal verification.
+
 **Environment gate: this skill only works in the local WSL2 checkout** (the one with
 WSLg and the gitignored `.local/` directory). Quick check: `/mnt/wslg` and
 `.local/pw-tools/node_modules/playwright` both exist. If either is missing — Claude Code
