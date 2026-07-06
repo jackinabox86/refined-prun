@@ -428,6 +428,9 @@ process for this profile, then retry.
     target buffer by something unique to *that specific view* (a tab label, a heading
     only the detail screen has), position them side by side with non-overlapping
     `style.left`/`style.top`, confirm with a screenshot, and only then proceed.
+    When no view-specific text is handy, the title-bar's `BUFFER n` label is unique
+    per window and works as a match key (confirmed in practice after a draft-ID
+    match grabbed the drafts list instead of the template window).
 
 12. **A synthetic-DragEvent test can pass while a real player drag fails — always
     verify drop behavior with `real-drag-stack` (real mouse input), not just

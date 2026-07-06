@@ -50,6 +50,12 @@ check, not something to skip because nothing else stood out:
 - Did an existing allowlist entry fail to match because of a quote-style or
   absolute-vs-relative-path mismatch? Fix the invocation habit (record it as a
   `[GUIDELINE]`) rather than widening the pattern to match every variant.
+- Prompts aren't only Bash. With `autoAllowBashIfSandboxed` on, sandboxed bash never
+  prompts — if the user still clicked approvals, scan the transcript's `tool_use`
+  *names*, not just commands: unallowlisted tools like `Agent`, `SendMessage`, or
+  `Skill` each prompt per call (one session racked up 16 dialogs from agent spawns
+  alone while every bash command sailed through). Fix: allowlist the tool name itself
+  in `permissions.allow`.
 
 Write findings from this audit using the same `[GUIDELINE]`/`[CORRECTION]` format as
 above, e.g. `[GUIDELINE] Prefer scripts/pw-act.mjs list-windows over an eval enumerating
