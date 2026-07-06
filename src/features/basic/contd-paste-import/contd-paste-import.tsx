@@ -102,10 +102,15 @@ async function importSpec(anchor: Element, spec: ContractDraftSpec): Promise<str
 // that element's own icon markup (C.ColoredIcon.label / C.MaterialIcon.indicator)
 // once it's dropped here.
 //
-// Known limitation: the game supports ctrl-click-selecting multiple stacks and
-// dragging them together; only one source element fires dragstart per gesture,
-// so multi-stack-in-one-drag isn't recoverable here. Dropping stacks one at a
-// time accumulates them in the list below instead.
+// Multi-stack drags: the game lets a player ctrl-click several stacks to
+// select them, then drag the group. Only the ctrl-clicked source fires
+// dragstart, but the selection markers (C.GridItemView.selected on the
+// GridItemView container, a sibling of the draggable image) stay in the DOM
+// for the whole gesture, so the rest of the selected set is read back from
+// there at drop time instead of from the drag payload. Dragging a stack that
+// ISN'T part of the current selection makes the game drag only that stack
+// (and clears the selection), so the source's own selected state decides
+// which case applies.
 let lastDragSource: Element | undefined;
 
 function trackDragSource() {
@@ -123,13 +128,9 @@ interface DraggedStack {
   quantity: number;
 }
 
-function getDraggedStack(): DraggedStack | undefined {
-  const source = lastDragSource;
-  if (!source) {
-    return undefined;
-  }
-  const ticker = _$(source, C.ColoredIcon.label)?.textContent?.trim();
-  const quantityText = _$(source, C.MaterialIcon.indicator)?.textContent?.trim();
+function readStack(container: Element): DraggedStack | undefined {
+  const ticker = _$(container, C.ColoredIcon.label)?.textContent?.trim();
+  const quantityText = _$(container, C.MaterialIcon.indicator)?.textContent?.trim();
   if (!ticker || !quantityText) {
     return undefined;
   }
@@ -137,9 +138,36 @@ function getDraggedStack(): DraggedStack | undefined {
   return Number.isFinite(quantity) ? { ticker, quantity } : undefined;
 }
 
+function getDraggedStacks(): DraggedStack[] {
+  const source = lastDragSource;
+  if (!source) {
+    return [];
+  }
+  const container = source.closest(`.${C.GridItemView.container}`);
+  if (!container?.classList.contains(C.GridItemView.selected)) {
+    const stack = readStack(source);
+    return stack ? [stack] : [];
+  }
+  const grid = container.closest(`.${C.InventoryView.grid}`);
+  const containers = grid ? _$$(grid, C.GridItemView.container) : [container];
+  return containers
+    .filter(x => x.classList.contains(C.GridItemView.selected))
+    .map(readStack)
+    .filter(x => x !== undefined);
+}
+
 interface QuickAmount {
   label: string;
+  // Value used only to decide which options apply and their sort order —
+  // based on the largest hovered stack, since a multi-stack drag hovers one
+  // shared grid of boxes.
   amount: number;
+  // Actual per-stack amount applied on drop, so each stack in a multi-stack
+  // drag gets its own resolved quantity instead of sharing one fixed amount.
+  resolve: (stack: DraggedStack) => number;
+  // AMT doesn't add a row on drop — it opens the inline amount prompt below
+  // the list instead, like the game's AMT box opens a MATERIAL TRANSFER buffer.
+  prompt?: boolean;
 }
 
 // Mirrors the game's own quick-transfer boxes (verified against the real
@@ -147,19 +175,40 @@ interface QuickAmount {
 // stack size, HLF, and ALL, sorted ascending by amount — for an 18-stack the
 // game really shows HLF(9) *before* 10, and a 21,697-stack gets 1000 and
 // 10000 boxes. Equal values aren't deduped (a 10-stack shows both 10 and
-// ALL), also matching the game. AMT here defaults to the full stack; unlike
-// the game's version it can't accept typed input mid-drag (a native drag
-// blocks keyboard focus until it ends), so every dropped row's amount stays
-// editable afterward in the list instead.
-function quickAmounts(quantity: number): QuickAmount[] {
-  const options: QuickAmount[] = [{ label: '1', amount: 1 }];
+// ALL), also matching the game. AMT appears only for a single-stack drag —
+// the game omits it from multi-stack drags too — and opens the typed-amount
+// prompt after the drop rather than adding a row, the panel-scale version of
+// the game's AMT box opening a MATERIAL TRANSFER buffer.
+//
+// `quantity` is the largest quantity among the hovered stacks (a single
+// stack is just the degenerate case), which decides which numeric boxes
+// show. Each option's `resolve` is then applied per stack, so a multi-stack
+// drop can yield different amounts per row from the same box.
+function quickAmounts(quantity: number, single: boolean): QuickAmount[] {
+  const options: QuickAmount[] = [
+    { label: '1', amount: 1, resolve: stack => Math.min(1, stack.quantity) },
+  ];
   for (let power = 10; power <= quantity; power *= 10) {
-    options.push({ label: String(power), amount: power });
+    options.push({
+      label: String(power),
+      amount: power,
+      resolve: stack => Math.min(power, stack.quantity),
+    });
   }
-  options.push({ label: 'HLF', amount: Math.floor(quantity / 2) });
-  options.push({ label: 'ALL', amount: quantity });
+  options.push({
+    label: 'HLF',
+    amount: Math.floor(quantity / 2),
+    resolve: stack => Math.max(1, Math.floor(stack.quantity / 2)),
+  });
+  options.push({ label: 'ALL', amount: quantity, resolve: stack => stack.quantity });
   const sorted = options.filter(option => option.amount >= 1).sort((a, b) => a.amount - b.amount);
-  return [{ label: 'AMT', amount: quantity }, ...sorted];
+  if (!single) {
+    return sorted;
+  }
+  return [
+    { label: 'AMT', amount: quantity, resolve: stack => stack.quantity, prompt: true },
+    ...sorted,
+  ];
 }
 
 interface ParserConfig {
@@ -231,7 +280,18 @@ function insertPasteBox(container: Element, anchor: Element) {
   });
 
   const dragMaterials = ref<MaterialEntry[]>([]);
-  const dragHover = ref<DraggedStack | undefined>();
+  const dragHover = ref<DraggedStack[] | undefined>();
+  // Stack awaiting a typed amount after an AMT drop; its row is added only on
+  // confirm. Mirrors the game's MTRA buffer (text input prefilled to 1,
+  // explicit confirm, amount validated against the stack size at submit
+  // rather than as-you-type), inlined into the panel. Unlike MTRA the prompt
+  // is purely local, so Enter/Escape work too, and the input is auto-focused
+  // — the same nicety mtra-auto-focus-amount.ts adds to the real buffer.
+  const amountPrompt = ref<DraggedStack | undefined>();
+  const promptAmount = ref('');
+  // One-shot flag: the template ref below fires on every re-render, but the
+  // input should be focused only when the prompt opens, not on each keystroke.
+  let promptNeedsFocus = false;
   const dragStatus = computed(() =>
     dragMaterials.value.length > 0
       ? `${dragMaterials.value.length} material${dragMaterials.value.length === 1 ? '' : 's'} ready.`
@@ -267,7 +327,12 @@ function insertPasteBox(container: Element, anchor: Element) {
   const onZoneDragEnter = (e: DragEvent) => {
     acceptDrag(e);
     dragDepth++;
-    dragHover.value ??= getDraggedStack();
+    // A new drag supersedes any amount prompt still open from the last drop.
+    amountPrompt.value = undefined;
+    if (!dragHover.value) {
+      const stacks = getDraggedStacks();
+      dragHover.value = stacks.length > 0 ? stacks : undefined;
+    }
   };
   const onZoneDragOver = (e: DragEvent) => acceptDrag(e);
   const onZoneDragLeave = (e: DragEvent) => {
@@ -296,13 +361,49 @@ function insertPasteBox(container: Element, anchor: Element) {
     e.preventDefault();
     e.stopPropagation();
     dragDepth = 0;
-    const stack = dragHover.value;
+    const stacks = dragHover.value;
     dragHover.value = undefined;
     hoveredOption.value = undefined;
-    if (!stack || option.amount <= 0) {
+    if (!stacks) {
       return;
     }
-    dragMaterials.value.push({ ticker: stack.ticker, amount: option.amount });
+    if (option.prompt) {
+      amountPrompt.value = stacks[0];
+      promptAmount.value = '1';
+      promptNeedsFocus = true;
+      return;
+    }
+    for (const stack of stacks) {
+      const amount = option.resolve(stack);
+      if (amount >= 1) {
+        dragMaterials.value.push({ ticker: stack.ticker, amount });
+      }
+    }
+  };
+  const confirmPrompt = () => {
+    const stack = amountPrompt.value;
+    if (!stack) {
+      return;
+    }
+    const typed = Number(promptAmount.value.replace(/,/g, ''));
+    if (!Number.isFinite(typed)) {
+      return;
+    }
+    const amount = Math.min(Math.max(Math.floor(typed), 1), stack.quantity);
+    dragMaterials.value.push({ ticker: stack.ticker, amount });
+    amountPrompt.value = undefined;
+  };
+  const onPromptKeydown = (e: KeyboardEvent) => {
+    if (e.key !== 'Enter' && e.key !== 'Escape') {
+      return;
+    }
+    // Keep Enter/Escape away from the game's own document-level handlers.
+    e.stopPropagation();
+    if (e.key === 'Enter') {
+      confirmPrompt();
+    } else {
+      amountPrompt.value = undefined;
+    }
   };
 
   const tabs = [...textInstances, dragInstance];
@@ -369,7 +470,7 @@ function insertPasteBox(container: Element, anchor: Element) {
             onDragover={onZoneDragOver}
             onDragleave={onZoneDragLeave}
             onDrop={onZoneDrop}>
-            {dragMaterials.value.length === 0 && !dragHover.value && (
+            {dragMaterials.value.length === 0 && !dragHover.value && !amountPrompt.value && (
               <div class={[$style.dropZoneHint, C.type.typeSmall]}>
                 Drag a material stack here from another inventory
               </div>
@@ -390,9 +491,51 @@ function insertPasteBox(container: Element, anchor: Element) {
                 </PrunButton>
               </div>
             ))}
+            {amountPrompt.value && (
+              <div class={$style.materialRow}>
+                <span class={[$style.materialTicker, C.type.typeSmall]}>
+                  {amountPrompt.value.ticker}
+                </span>
+                <input
+                  type="text"
+                  inputmode="numeric"
+                  class={$style.amountInput}
+                  value={promptAmount.value}
+                  ref={el => {
+                    if (!promptNeedsFocus || !el) {
+                      return;
+                    }
+                    promptNeedsFocus = false;
+                    const input = el as HTMLInputElement;
+                    // Deferred like mtra-auto-focus-amount.ts: focus applied
+                    // right after a drop can be stolen by drag-end handling.
+                    setTimeout(() => {
+                      input.focus();
+                      input.select();
+                    });
+                  }}
+                  onInput={(e: Event) =>
+                    (promptAmount.value = (e.target as HTMLInputElement).value)
+                  }
+                  onKeydown={onPromptKeydown}
+                />
+                <PrunButton dark inline onClick={confirmPrompt}>
+                  add
+                </PrunButton>
+                <PrunButton dark inline onClick={() => (amountPrompt.value = undefined)}>
+                  x
+                </PrunButton>
+              </div>
+            )}
             {dragHover.value && (
               <div class={$style.dropOverlay}>
-                {quickAmounts(dragHover.value.quantity).map((option, index) => (
+                <div class={[$style.dropOverlayLabel, C.type.typeSmall]}>
+                  {dragHover.value.map(stack => stack.ticker).join(', ')}
+                </div>
+                {quickAmounts(
+                  Math.max(...dragHover.value.map(stack => stack.quantity)),
+                  dragHover.value.length === 1,
+                ).map((option, index) => (
                   <div
                     class={$style.overlayCell}
                     onDragover={(e: DragEvent) => onOptionDragOver(e, index)}

@@ -79,6 +79,14 @@
   flex-wrap: wrap;
 }
 
+/* Full-width row above the quick-amount squares — flex-wrap puts it on its
+   own line since it never fits alongside a square. */
+.dropOverlayLabel {
+  flex: 1 0 100%;
+  text-align: center;
+  color: rgb(136, 136, 136);
+}
+
 .overlayCell {
   flex: 1 1 auto;
   min-width: 36px;
