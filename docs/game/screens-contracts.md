@@ -29,6 +29,8 @@ The draft editor's "Select Template" leads to the template screen. The template 
 
 "add commodity" / "add shipment" appends a group.
 
+After a commodity is picked, the MaterialSelector input holds the i18n **display name** ("Basic Rations"), and the ticker/icon markup disappears from the group — a ColoredIcon with the ticker exists only inside the open suggestion dropdown. Reading a selected commodity back therefore requires the display-name → material lookup (`getMaterialByName`), not DOM icon scraping.
+
 ### AddressSelector autosuggest gotchas
 
 Suggestions render in `#autosuggest-portal` (outside the tile DOM; only one portal open at a time). On focus, the portal first shows a **default list** (own bases, warehouses, CX stations) for the empty query; the typed query's search results only arrive after the server round-trip. Code that clicks as soon as *any* suggestion exists picks from the stale default list — wait for an entry whose text matches the query. Picking a suggestion canonicalizes the input to the address's natural id: a station becomes its system id (`Moria Station` → `OT-580`), a planet its planet id (`Montem` → `OT-580b`).

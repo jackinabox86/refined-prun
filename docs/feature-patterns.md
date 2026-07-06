@@ -352,6 +352,13 @@ sitesStore.all.value      // undefined until fetched, then array
 sitesStore.fetched.value  // boolean
 ```
 
+### Store key shapes (verified the hard way)
+
+Map getters are keyed by API values, which don't always match what the game UI shows:
+
+- `materialsStore.getByName` is keyed by the API's camelCase internal name (`basicRations`). UI text holds the i18n **display** name ("Basic Rations") — resolve that with `getMaterialByName` from `@src/infrastructure/prun-ui/i18n` instead (reverse direction: `getMaterialName`).
+- `stationsStore.getByNaturalId` is keyed by the station's **own** natural id (`MOR`), but game address fields canonicalize stations to their **system** id (`OT-580`). To resolve a system id to its station, search `stationsStore.all.value` by `getSystemLineFromAddress(x.address)?.entity.naturalId`.
+
 ---
 
 ## Data & Reactivity Rules
