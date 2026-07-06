@@ -21,10 +21,13 @@ and only a short text report returns to the main session.
    server action or a login, stop and report exactly what the user must click.
 3. **Never close or kill the browser** (`pw-close.mjs`, `pw-kill.mjs`) unless your
    prompt explicitly instructs it.
-4. Call pw scripts as plain Bash commands (no `dangerouslyDisableSandbox` — sandbox
-   exclusions in `.claude/settings.json` handle it). Run pw calls standalone or
-   pw-first in chains; a chain starting with a non-excluded command runs sandboxed and
-   gets ECONNREFUSED.
+4. Call pw scripts as plain Bash commands. NEVER set `dangerouslyDisableSandbox` — it
+   forces a permission prompt on the user; the sandbox exclusions in
+   `.claude/settings.json` already cover every legitimate need. Run pw calls
+   standalone or pw/sleep-first in chains; a chain starting with a non-excluded
+   command (env-var prefix, heredoc, `for` loop) runs sandboxed and gets
+   ECONNREFUSED — restructure instead of escaping the sandbox. Ad-hoc CDP scripts go
+   in `.local/scratch/` (excluded, prompt-free), never the session scratchpad.
 5. Prefer data-only pw-act actions (`list-windows`, `dump-windows`, `styles`,
    `open-contd-template`, ...) over bespoke `eval`. Batch steps; screenshot only at
    decision points.

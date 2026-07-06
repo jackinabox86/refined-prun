@@ -105,11 +105,25 @@ cannot fix this. `.claude/settings.json` handles it via `sandbox.excludedCommand
 the pw scripts (and `curl`, for the :9333 up-check) run outside the sandbox
 automatically, so call them as plain Bash commands — do NOT set
 `dangerouslyDisableSandbox`, which forces a permission prompt the exclusion exists to
-avoid. Exclusion entries are wildcard patterns (`node scripts/pw-act.mjs *`), and a
-*chained* command (`sleep 5 && node scripts/pw-act.mjs ...`) may not match them — if a
-pw call fails with `ECONNREFUSED` while the browser is up, run it standalone (or as the
-first command in the chain) before suspecting the browser; check the exclusion list is
-intact before reaching for the flag. A sandbox-killed launch leaves a partial
+avoid; there is no legitimate reason to use that flag in this repo, every known need
+has an exclusion. Exclusion entries are wildcard patterns matched against the whole
+command string (`node scripts/pw-act.mjs *`), so a *chained* command only matches when
+its FIRST segment is an excluded one — `sleep 5 && node scripts/pw-act.mjs ...` works
+(`sleep *` is excluded), but an env-var prefix (`SCRATCH=...; node scripts/...`), a
+`cat > file` heredoc first, or a `for` loop does not. Set variables in a prior call or
+inline the value, write files with the Write tool instead of heredocs, and unroll
+loops so each iteration starts with the pw command. If a pw call fails with
+`ECONNREFUSED` while the browser is up, restructure the chain pw-first; check the
+exclusion list is intact before suspecting the browser.
+
+**Ad-hoc CDP scripts** (a bespoke Playwright/CDP script that `pw-act.mjs` actions don't
+cover) must be written to `.local/scratch/` in the repo — NOT the session scratchpad —
+and run as `node .local/scratch/<name>.mjs` (first in any chain). That path is
+sandbox-excluded and allowlisted, so it runs prompt-free; the same script under the
+scratchpad path is not excluded, gets the sandbox's isolated loopback, and dies with
+`ECONNREFUSED`. `.local/` is gitignored; `mkdir -p .local/scratch` if missing. If the
+same script keeps getting rewritten across sessions, promote it to a real `pw-act.mjs`
+action (gotcha #8). A sandbox-killed launch leaves a partial
 process tree holding the profile lock, so the next launch fails with "Opening in
 existing browser session" (gotcha #9) — run `node scripts/pw-kill.mjs` before retrying.
 
@@ -142,6 +156,12 @@ node scripts/pw-act.mjs fill-nth '<selector>' <index> <text>
 node scripts/pw-act.mjs click-nth '<selector>' <index>
 node scripts/pw-act.mjs press '<key>'                       # keyboard.press, global focus
 node scripts/pw-act.mjs press-on '<selector>' '<key>'        # press targeted at one element
+node scripts/pw-act.mjs ctrl-click '<selector>'              # real Control+click (keydown/
+                                                             # click/keyup) — the game's
+                                                             # multi-stack selection toggle in
+                                                             # inventory grids; a synthetic
+                                                             # MouseEvent with ctrlKey set
+                                                             # does NOT work
 node scripts/pw-act.mjs list-windows                         # index + leading text of every
                                                              # open window/buffer — use this
                                                              # instead of an eval that does
@@ -436,6 +456,24 @@ process for this profile, then retry.
     real drag, and diff capture vs bubble values — `copy` at capture becoming
     `none` at bubble names the culprit; a missing `drop` entry confirms the
     browser cancelled.
+
+13. **Tickers repeat across visible inventory grids, and every ticker-taking
+    helper (`ctrl-click` by text, `drag-stack`, `real-drag-stack`, `drag-probe`)
+    resolves the FIRST DOM match.** Two open inventories routinely share many
+    tickers (one live check: COF, KOM, PWO, DW, RAT, OVE, EXO, PT, REP all in
+    both grids), so a naive ticker selector silently hits the wrong grid — or a
+    covered copy of the stack, failing the occlusion check for no apparent
+    reason. Before multi-inventory tests, enumerate each grid's tickers (one
+    `eval` over `ColoredIcon__label` per grid) and use tickers unique to the
+    source grid, or scope the selector to that grid's container.
+
+14. **Docked tiles are invisible to the window helpers.** `list-windows`,
+    `dump-windows`, `move-window`, `resize-window`, and `drag-probe`'s target
+    lookup only see floating buffers (`Window__window`); base-screen docked
+    tiles (`TileFrame__`) never appear in them and can't be repositioned. To
+    interact with content inside a docked tile, target its inner selectors
+    directly, and resolve occlusion with `elementFromPoint` checks — not
+    `move-window`.
 
 ## Files
 

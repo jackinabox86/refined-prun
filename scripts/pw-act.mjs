@@ -1,7 +1,8 @@
 // Attaches to the already-running browser via CDP and runs one action, then
-// takes a screenshot. Actions: click <selector>, type <selector> <text>,
-// press <key>, screenshot <path>, list-windows, styles <selector> <props-csv>,
-// local-storage-get <key>, mouse-drag <x1> <y1> <x2> <y2> [steps],
+// takes a screenshot. Actions: click <selector>, ctrl-click <selector>,
+// type <selector> <text>, press <key>, screenshot <path>, list-windows,
+// styles <selector> <props-csv>, local-storage-get <key>,
+// mouse-drag <x1> <y1> <x2> <y2> [steps],
 // drag-stack <ticker> <amount-box-label>, reload, eval <js-expression>
 //
 // Prefer click/click-nth/type/fill-nth/list-windows/styles/local-storage-get
@@ -66,6 +67,17 @@ switch (action) {
   }
   case 'click-force': {
     await page.click(rest[0], { force: true });
+    break;
+  }
+  case 'ctrl-click': {
+    // Holds Control while clicking — the game's ctrl-click multi-stack
+    // selection in inventory grids. Real keydown+click+keyup (not a
+    // synthetic MouseEvent with ctrlKey set), per gotcha #8's "don't
+    // reach for eval" — this is a fixed, data-only (just a selector)
+    // action like click/click-force.
+    await page.keyboard.down('Control');
+    await page.click(rest[0]);
+    await page.keyboard.up('Control');
     break;
   }
   case 'type': {
