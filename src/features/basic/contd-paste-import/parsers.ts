@@ -17,11 +17,13 @@ export interface ContractDraftSpec {
   deadline?: number;
   // BUY/SELL only.
   location?: string;
-  // SHIP only. autoProvision matches a store option by text or value.
+  // SHIP only. autoProvision: true = first store at the origin, false = off,
+  // string = match a specific store option by text or value. The boolean
+  // forms are the portable ones — store names/ids are account-specific.
   origin?: string;
   destination?: string;
   payment?: number;
-  autoProvision?: string;
+  autoProvision?: string | boolean;
   materials: MaterialEntry[];
 }
 
@@ -67,7 +69,7 @@ function parsePositiveNumber(value: string): number | undefined {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : undefined;
 }
 
-function describeSpecFields(spec: ContractDraftSpec): string[] {
+export function describeSpecFields(spec: ContractDraftSpec): string[] {
   const fields: string[] = [];
   if (spec.type !== undefined) {
     fields.push(spec.type);
@@ -188,9 +190,24 @@ const keywordHandlers = new Map<string, KeywordHandler>([
       return spec.deadline !== undefined;
     },
   ],
-  ['autoprovision', (spec, value) => applyText(value, v => (spec.autoProvision = v))],
-  ['auto-provision', (spec, value) => applyText(value, v => (spec.autoProvision = v))],
+  ['autoprovision', applyAutoProvision],
+  ['auto-provision', applyAutoProvision],
 ]);
+
+// Toggle words become the portable boolean form; any other non-empty value
+// stays a string and matches a specific store by text or value.
+const autoProvisionWords: Record<string, boolean> = {
+  yes: true,
+  true: true,
+  on: true,
+  no: false,
+  false: false,
+  off: false,
+};
+
+function applyAutoProvision(spec: ContractDraftSpec, value: string): boolean {
+  return applyText(value, v => (spec.autoProvision = autoProvisionWords[v.toLowerCase()] ?? v));
+}
 
 function applyTemplateType(spec: ContractDraftSpec, value: string): boolean {
   spec.type = parseTemplateType(value);
@@ -337,13 +354,22 @@ export function parseContractJson(json: string): ParseResult {
     }
     spec.currency = data.currency.trim().toUpperCase();
   }
-  for (const key of ['location', 'origin', 'destination', 'autoProvision'] as const) {
+  for (const key of ['location', 'origin', 'destination'] as const) {
     const value = data[key];
     if (value !== undefined) {
       if (typeof value !== 'string' || value.trim() === '') {
         return { error: `Invalid ${key}.`, spec: emptySpec() };
       }
       spec[key] = value.trim();
+    }
+  }
+  if (data.autoProvision !== undefined) {
+    if (typeof data.autoProvision === 'boolean') {
+      spec.autoProvision = data.autoProvision;
+    } else if (typeof data.autoProvision === 'string' && data.autoProvision.trim() !== '') {
+      spec.autoProvision = data.autoProvision.trim();
+    } else {
+      return { error: 'Invalid autoProvision.', spec: emptySpec() };
     }
   }
   for (const key of ['payment', 'deadline'] as const) {

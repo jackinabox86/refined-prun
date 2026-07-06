@@ -3,6 +3,7 @@ import {
   ContractDraftSpec,
   MaterialEntry,
   ParseResult,
+  describeSpecFields,
   parseContractJson,
   parseSheetsExcel,
   parseSupplyCart,
@@ -14,6 +15,8 @@ import {
 import {
   currentTemplateType,
   importMaterials,
+  isLoanTemplate,
+  readDraftSpec,
   selectLocation,
   selectTemplateType,
   setAutoProvision,
@@ -68,14 +71,14 @@ async function importSpec(anchor: Element, spec: ContractDraftSpec): Promise<str
     if (spec.destination) {
       await fillAddress(1, spec.destination, 'destination');
     }
-    if (spec.autoProvision && !(await setAutoProvision(anchor, spec.autoProvision))) {
+    if (spec.autoProvision !== undefined && !(await setAutoProvision(anchor, spec.autoProvision))) {
       issues.push(`auto-provision ${spec.autoProvision}`);
     }
   } else {
     if (spec.origin || spec.destination) {
       issues.push('origin/destination (SHIP only)');
     }
-    if (spec.autoProvision) {
+    if (spec.autoProvision !== undefined) {
       issues.push('auto-provision (SHIP only)');
     }
     if (spec.location) {
@@ -410,7 +413,11 @@ function insertPasteBox(container: Element, anchor: Element) {
   const active = computed(() => tabs.find(tab => tab.id === activeParser.value));
 
   const importIssues = ref<string[] | undefined>();
-  watch(active, () => (importIssues.value = undefined));
+  const exportStatus = ref('');
+  watch(active, () => {
+    importIssues.value = undefined;
+    exportStatus.value = '';
+  });
   const importStatus = computed(() => {
     if (importIssues.value === undefined) {
       return '';
@@ -433,6 +440,35 @@ function insertPasteBox(container: Element, anchor: Element) {
     } finally {
       importing = false;
     }
+  };
+
+  // Exports into the JSON tab's own textarea, so the result is immediately
+  // re-importable (and visible even when the clipboard write is refused).
+  const jsonInstance = textInstances[0];
+  const onExport = async () => {
+    if (isLoanTemplate(anchor)) {
+      exportStatus.value = "Loan templates aren't supported.";
+      return;
+    }
+    const spec = readDraftSpec(anchor);
+    const json = JSON.stringify(spec, null, 2);
+    jsonInstance.text.value = json;
+    activeParser.value = jsonInstance.id;
+    const materials = spec.materials.length;
+    const fields = describeSpecFields(spec).length;
+    let clipboard: string;
+    try {
+      await navigator.clipboard.writeText(json);
+      clipboard = 'copied to clipboard';
+    } catch {
+      clipboard = 'clipboard unavailable, copy from the box';
+    }
+    // The tab-switch watcher above clears exportStatus on its flush; wait it
+    // out so the fresh status isn't wiped by the export's own switch to JSON.
+    await nextTick();
+    exportStatus.value =
+      `Exported ${materials} material${materials === 1 ? '' : 's'} + ` +
+      `${fields} field${fields === 1 ? '' : 's'} — ${clipboard}.`;
   };
 
   createFragmentApp(() => {
@@ -576,11 +612,17 @@ function insertPasteBox(container: Element, anchor: Element) {
                 {importStatus.value}
               </div>
             )}
+            {exportStatus.value && (
+              <div class={[$style.status, C.type.typeSmall]}>{exportStatus.value}</div>
+            )}
             {instance.canImport.value && (
               <PrunButton dark inline onClick={onImport}>
                 Import
               </PrunButton>
             )}
+            <PrunButton dark inline onClick={onExport}>
+              Export
+            </PrunButton>
           </div>
         )}
       </div>
@@ -609,5 +651,6 @@ features.add(
   init,
   'CONTD: Adds a paste box at the top of the contract template screen to fill the full ' +
     'template (type, currency, materials, prices, locations, deadline) from contract JSON, ' +
-    'Sheets/Excel rows, PRUNplanner JSON, or dragged material stacks.',
+    'Sheets/Excel rows, PRUNplanner JSON, or dragged material stacks, and to export the ' +
+    'template back to contract JSON.',
 );
