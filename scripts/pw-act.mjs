@@ -61,6 +61,65 @@ switch (action) {
     await page.reload();
     break;
   }
+  case 'reload-extension': {
+    // Rebuilding dist/ (pnpm run build:fast) isn't enough on its own — Chromium
+    // keeps running the extension code it already loaded until the extension
+    // itself is reloaded, same as clicking the reload icon on chrome://extensions
+    // by hand. This drives that same click via CDP (piercing the page's nested
+    // shadow DOM: extensions-manager > extensions-item-list > extensions-item),
+    // then refreshes the game tab so the freshly-reloaded content script
+    // re-injects. One command instead of the manual "chrome://extensions, find
+    // the card, click reload, switch tabs, refresh" dance.
+    const extPage = await context.newPage();
+    await extPage.goto('chrome://extensions/');
+    // `pnpm run build:fast` runs `rimraf dist` before rebuilding, so the
+    // unpacked extension's files briefly vanish and come back different. With
+    // Developer Mode off, Chrome treats that as "may have been corrupted" and
+    // auto-disables the extension (silently — the reload click still "works",
+    // it just reloads a disabled extension, which is why every XIT buffer
+    // then falls back to a broken green placeholder). Force Developer Mode on
+    // first so the reload never trips this.
+    await extPage.evaluate(() => {
+      const manager = document.querySelector('extensions-manager');
+      const devToggle = manager?.shadowRoot
+        ?.querySelector('extensions-toolbar')
+        ?.shadowRoot?.querySelector('#devMode');
+      if (devToggle && devToggle.getAttribute('aria-pressed') !== 'true') {
+        devToggle.click();
+      }
+    });
+    const clicked = await extPage.evaluate(() => {
+      const manager = document.querySelector('extensions-manager');
+      const itemList = manager?.shadowRoot?.querySelector('extensions-item-list');
+      const items = [...(itemList?.shadowRoot?.querySelectorAll('extensions-item') ?? [])];
+      const item =
+        items.find(x => x.shadowRoot?.querySelector('#name')?.textContent?.includes('RPrUn')) ??
+        items[0];
+      // The extension can be left disabled from a previous corrupted-reload
+      // (see above) even after Developer Mode is back on — re-enable it
+      // before reloading, not just after.
+      const enableToggle = item?.shadowRoot?.querySelector('#enableToggle');
+      if (enableToggle && !enableToggle.hasAttribute('checked')) {
+        enableToggle.click();
+      }
+      const button = item?.shadowRoot?.querySelector('#dev-reload-button');
+      if (!button) return false;
+      button.click();
+      return true;
+    });
+    await extPage.waitForTimeout(500);
+    await extPage.close();
+    if (!clicked) {
+      console.error(
+        'Could not find the extension reload button on chrome://extensions ' +
+          '(is it still loaded via --load-extension?).',
+      );
+      process.exit(1);
+    }
+    await page.reload();
+    console.log('Extension reloaded; game tab refreshed.');
+    break;
+  }
   case 'click': {
     await page.click(rest[0]);
     break;

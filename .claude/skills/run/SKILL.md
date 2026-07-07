@@ -85,6 +85,11 @@ pnpm run build:fast
 `build:fast` skips `tsc --noEmit` (faster; run `pnpm run compile` separately if you want
 type errors surfaced). Output goes to `dist/`.
 
+**If the browser is already running**, don't relaunch it — rebuild, then run
+`node scripts/pw-act.mjs reload-extension` to pick up the change (see action list in
+step 3). That's the full loop for iterating on a change without a fresh launch or an
+agent: rebuild, reload-extension, look.
+
 ### 2. Launch the browser
 
 ```
@@ -144,6 +149,16 @@ browser via `chromium.connectOverCDP()` each time, so it never touches the profi
 relaunches anything:
 
 ```
+node scripts/pw-act.mjs reload-extension                    # rebuild picked up: clicks the reload
+                                                             # icon for this extension on
+                                                             # chrome://extensions (piercing its
+                                                             # shadow DOM) then refreshes the game
+                                                             # tab, so a rebuilt dist/ actually takes
+                                                             # effect. Run `pnpm run build:fast`
+                                                             # first — this only reloads whatever is
+                                                             # already on disk. The user can also run
+                                                             # this directly themselves, no agent
+                                                             # needed, for their own quick checks.
 node scripts/pw-act.mjs open-buffer '<CMD>'                # opens ANY tile — see below, use this
                                                              # first for every feature test
 node scripts/pw-act.mjs click '<selector>'

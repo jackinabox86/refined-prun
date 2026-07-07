@@ -10,6 +10,7 @@ import { showBuffer } from '@src/infrastructure/prun-ui/buffers';
 import { useTileState } from '@src/store/user-data-tiles';
 import LoadingSpinner from '@src/components/LoadingSpinner.vue';
 import RadioItem from '@src/components/forms/RadioItem.vue';
+import PrunButton from '@src/components/PrunButton.vue';
 import FleetStatusCell from './FleetStatusCell.vue';
 import CargoBar from './CargoBar.vue';
 import { fixed0 } from '@src/utils/format';
@@ -418,6 +419,10 @@ function onFuel(registration: string) {
   showBuffer(`SHPF ${registration}`);
 }
 
+function onRefuelAllExchanges() {
+  showBuffer('XIT REFUELACT');
+}
+
 function toggleFilters() {
   showFilters.value = !showFilters.value;
 }
@@ -663,14 +668,26 @@ function getCargoState(cargoRatio: number) {
             :key="column.key"
             :class="[$style.headerCell, $style.sortable]"
             @click="setSort(column.key)">
-            {{ column.label }}
-            <span
-              :class="{
-                [$style.sortPrimary]: isPrimarySort(column.key),
-                [$style.sortSecondary]: isSecondarySort(column.key),
-              }">
-              {{ getSortIndicator(column.key) }}
-            </span>
+            <div :class="$style.headerCellContent">
+              <span>
+                {{ column.label }}
+                <span
+                  :class="{
+                    [$style.sortPrimary]: isPrimarySort(column.key),
+                    [$style.sortSecondary]: isSecondarySort(column.key),
+                  }">
+                  {{ getSortIndicator(column.key) }}
+                </span>
+              </span>
+              <PrunButton
+                v-if="column.key === 'fuel'"
+                dark
+                inline
+                :class="$style.refuelActButton"
+                @click.stop="onRefuelAllExchanges">
+                REFUEL
+              </PrunButton>
+            </div>
           </th>
         </tr>
       </thead>
@@ -798,6 +815,17 @@ function getCargoState(cargoRatio: number) {
 .headerCell {
   text-align: left;
   padding: 4px 6px;
+}
+
+.headerCellContent {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.refuelActButton {
+  flex: 0 0 auto;
 }
 
 .sortable {

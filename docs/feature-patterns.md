@@ -97,6 +97,45 @@ The file is auto-imported via `import.meta.glob` in `src/features/index.ts` — 
 
 The command should be short. Refer to `docs/game/commands.csv` for an example of game commands. Alias is usually added for backwards compatibility or if the community REALLY wants it.
 
+### One-Click Preconfigured Action Packages
+
+To give users a single button that runs a specific ACT action package without opening the ACT editor (e.g. `BURNACT`, `REFUELACT`), pair two files next to the relevant action:
+
+```ts
+// <NAME>ACT.ts
+import '@src/features/XIT/ACT/actions/refuel/refuel'; // ensure the action type is registered
+
+xit.add({
+  command: 'REFUELACT',
+  name: 'REFUEL ALL EXCHANGES',
+  description: 'Executes a refuel action package for all ships docked at exchanges.',
+  component: () => RefuelActWindow,
+});
+```
+
+```vue
+<!-- <Name>ActWindow.vue -->
+<script setup lang="ts">
+import ExecuteActionPackage from '@src/features/XIT/ACT/ExecuteActionPackage.vue';
+
+const pkg: UserData.ActionPackageData = {
+  global: { name: 'Refuel All Exchanges' },
+  groups: [],
+  actions: [{ type: 'Refuel', name: 'Refuel', origin: allExchangesValue, buyMissingFuel: true }],
+};
+</script>
+
+<template>
+  <ExecuteActionPackage :pkg="pkg" />
+</template>
+```
+
+The `pkg` is a plain hardcoded object, not persisted user data — `ExecuteActionPackage` runs it exactly like a saved package (CONFIGURE only appears if an action still needs runtime input; PREVIEW/EXECUTE always available). Trigger it from anywhere with `showBuffer('XIT REFUELACT')` (see `PlanetHeader.vue`'s `XIT BURNACT` button for a row-level example, or `FLT.vue`'s Fuel-column header button for another).
+
+### Action-Specific Sentinel Values
+
+`configurableValue` and `groupTargetPrefix` (`shared-types.ts`) are sentinels shared across every ACT action/material-group type. If an action needs an extra dropdown option unique to itself (e.g. Refuel's "All Exchanges" origin, alongside "Configure on Execution" and specific storages), define that sentinel in the action's own `utils.ts`/`config.ts` instead of adding it to `shared-types.ts`.
+
 ---
 
 ## Auto-Imports (no explicit import needed)
