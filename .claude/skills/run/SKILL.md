@@ -128,7 +128,12 @@ sandbox-excluded and allowlisted, so it runs prompt-free; the same script under 
 scratchpad path is not excluded, gets the sandbox's isolated loopback, and dies with
 `ECONNREFUSED`. `.local/` is gitignored; `mkdir -p .local/scratch` if missing. If the
 same script keeps getting rewritten across sessions, promote it to a real `pw-act.mjs`
-action (gotcha #8). A sandbox-killed launch leaves a partial
+action (gotcha #8). Invoke it with that exact relative form — an absolute path (e.g.
+`node /home/.../repo/.local/scratch/foo.mjs`) does not match the exclusion pattern and
+silently falls back to the sandboxed isolated loopback, producing the same misleading
+`ECONNREFUSED` as running it from the scratchpad; this looks like a dead browser but
+isn't (confirmed live: `curl :9333` and `pw-act.mjs` both worked fine at the same
+moment an absolute-path script got `ECONNREFUSED`). A sandbox-killed launch leaves a partial
 process tree holding the profile lock, so the next launch fails with "Opening in
 existing browser session" (gotcha #9) — run `node scripts/pw-kill.mjs` before retrying.
 
@@ -492,6 +497,24 @@ process for this profile, then retry.
     interact with content inside a docked tile, target its inner selectors
     directly, and resolve occlusion with `elementFromPoint` checks — not
     `move-window`.
+
+15. **A rebuilt extension can get silently auto-disabled by Chrome, breaking every XIT
+    tile with no error.** `pnpm run build:fast` runs `rimraf dist` before rebuilding, so
+    the unpacked extension's on-disk files briefly disappear and come back different.
+    If Developer Mode is off in `chrome://extensions`, Chrome treats that file churn as
+    "may have been corrupted" and disables the extension — `reload-extension`'s click
+    still reports success (it did click reload), but it reloaded a now-disabled
+    extension. Every XIT buffer then falls back to the game's own
+    unrecognized-command placeholder, rendered as a solid bright-green box, which reads
+    as a rendering crash rather than "extension not running." `reload-extension` now
+    forces Developer Mode on and re-enables the extension before every reload click, so
+    this shouldn't recur — but if the green-box symptom ever shows up again, check
+    `chrome://extensions` for a disabled/corrupted card before assuming the code broke.
+    Treat `reload-extension`'s success message as "the click happened," not "the
+    extension is confirmed running" — verify with a screenshot or `dump-windows` on a
+    real XIT tile before telling the user a change is live. This happened for real: a
+    reload was reported as working and only caught because the user noticed the green
+    screens themselves.
 
 ## Files
 
