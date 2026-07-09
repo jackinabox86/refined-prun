@@ -264,6 +264,12 @@ FLT, XIT, CONTD, all of them) — always reach for it first instead of hand-roll
 NEW BFR, type the command, press Enter." It already has the Escape-before-Enter fix from
 gotcha #4 baked in; hand-rolling the sequence yourself will hit that bug again.
 
+**Custom XIT panels (DEV, ACT, BURN, ...) are not real commands** — the extension only
+registers the native `XIT` command and parses everything after it as a sub-command
+(`xit-commands.ts`). `open-buffer DEV` types the bare string `DEV` into the game's own
+command parser, which doesn't recognize it and silently opens a dead "Illegal command"
+buffer — no error, easy to miss. Always pass the full form: `open-buffer 'XIT DEV'`.
+
 For one-off screenshots without any interaction, `scripts/pw-screenshot.mjs <path>` is
 a shorthand that also prints the current URL and title.
 
