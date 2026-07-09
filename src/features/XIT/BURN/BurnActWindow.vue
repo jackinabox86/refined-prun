@@ -6,6 +6,7 @@ import { sitesStore } from '@src/infrastructure/prun-api/data/sites';
 import { getEntityNameFromAddress } from '@src/infrastructure/prun-api/data/addresses';
 import { ActionPackageConfig, configurableValue } from '@src/features/XIT/ACT/shared-types';
 import { computeResupplyBill } from '@src/features/XIT/ACT/material-groups/resupply/bill';
+import { postActionPackageToAgent } from '@src/features/XIT/ACT/agent-sync';
 import type { MaterialFilter } from '@src/features/XIT/ACT/material-groups/resupply/config';
 import type { LogTag, LogContent } from '@src/features/XIT/ACT/runner/logger';
 import Active from '@src/components/forms/Active.vue';
@@ -73,12 +74,13 @@ const pkg = computed(
 );
 
 const generateReturnJson = ref(false);
+const agent = ref(false);
 
-function afterExecute(
+async function afterExecute(
   pkgConfig: ActionPackageConfig,
   log: (tag: LogTag, message: LogContent) => void,
-): void {
-  if (!generateReturnJson.value) {
+): Promise<void> {
+  if (!generateReturnJson.value && !agent.value) {
     return;
   }
 
@@ -131,8 +133,18 @@ function afterExecute(
     ],
   };
 
-  log('INFO', 'Auto Offload JSON:');
-  log(null, JSON.stringify(result, null, 2));
+  if (generateReturnJson.value) {
+    log('INFO', 'Auto Offload JSON:');
+    log(null, JSON.stringify(result, null, 2));
+  }
+
+  if (agent.value) {
+    try {
+      await postActionPackageToAgent(result);
+    } catch (e) {
+      log('ERROR', `Failed to post Auto Offload package to agent channel: ${String(e)}`);
+    }
+  }
 }
 </script>
 
@@ -142,6 +154,9 @@ function afterExecute(
     <template #extra>
       <Active label="Generate Return JSON">
         <RadioItem v-model="generateReturnJson">generate return json</RadioItem>
+      </Active>
+      <Active label="Agent">
+        <RadioItem v-model="agent">agent</RadioItem>
       </Active>
     </template>
   </ExecuteActionPackage>
