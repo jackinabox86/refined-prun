@@ -473,6 +473,46 @@ import { showBuffer } from '@src/infrastructure/prun-ui/buffers';
 showBuffer('CXM AI1.RAT');  // opens a buffer with the given command
 ```
 
+### Repeatable Hidden-Buffer Fetches
+
+`showBuffer(cmd, { autoClose: true, closeWhen })` (the `XIT BURN`-style invisible-fetch
+pattern, see `docs/contributing.md` → "Server Communication & ToS") has two gotchas for
+code that calls it more than once for the same command:
+
+- **`autoClose` closes the window via a detached `closeWhenDone()` that `showBuffer()`
+  doesn't await** — its returned promise resolves once the command is submitted, not
+  once the window is actually removed from the DOM. A caller that needs to know the
+  window is truly gone (e.g. before opening another one for the same command) must
+  separately await `onNodeDisconnected(window, resolve)` on the returned element.
+- **Without `{ force: true }`, `showBuffer()` silently reuses an existing non-docked
+  tile for the same command instead of resubmitting it** — fine for the existing
+  single-shot `request-hooks.ts` pattern (each command is only ever requested once per
+  connection), but wrong for anything meant to be re-triggered repeatedly (e.g. a manual
+  refresh button): a second call can reuse a tile that's still mid-close and never
+  re-fetch.
+
+Neither of these solves data staleness by itself — see `docs/game/screens-comms.md` for
+a deeper case (channel data) where the server won't resend a full data set a second time
+no matter how the buffer is managed client-side.
+
+### Submitting a Formless Input Programmatically
+
+Some game inputs (e.g. the chat channel compose box) have no `<form>` to call
+`requestSubmit()` on — submission only happens via a real Enter keypress. To submit one
+programmatically: set the value with `changeInputValue`/`changeTextAreaValue`, wait
+~300ms (a keydown fired immediately after the value change is silently dropped), then
+dispatch the full `keydown`+`keypress`+`keyup` sequence (not keydown alone):
+
+```ts
+changeInputValue(input, text);
+await sleep(300);
+for (const type of ['keydown', 'keypress', 'keyup'] as const) {
+  input.dispatchEvent(
+    new KeyboardEvent(type, { key: 'Enter', code: 'Enter', bubbles: true, cancelable: true }),
+  );
+}
+```
+
 ### Companion Buffers (Splitting)
 
 To split a tile and set a companion command, click the tile's split button then wait for the node and change the companion's command.
