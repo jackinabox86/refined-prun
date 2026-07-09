@@ -48,8 +48,14 @@ async function openBuffer(page, command) {
   // This input is a react-autosuggest combobox: typing opens a suggestions
   // dropdown that captures Enter (to pick a highlighted suggestion) instead
   // of submitting. Escape closes the dropdown without clearing the typed
-  // value, so the following Enter submits the raw command instead.
+  // value, so the following Enter submits the raw command instead. But if no
+  // suggestion is showing (e.g. a command/param combo with no matching
+  // entry), Escape can clear the field instead of no-opping - detect that and
+  // retype rather than assume Escape is always safe.
   await page.keyboard.press('Escape');
+  if ((await cmdInput.inputValue()) !== command) {
+    await cmdInput.fill(command);
+  }
   await page.keyboard.press('Enter');
   return buffer;
 }
