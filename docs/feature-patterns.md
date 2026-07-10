@@ -498,19 +498,37 @@ no matter how the buffer is managed client-side.
 ### Submitting a Formless Input Programmatically
 
 Some game inputs (e.g. the chat channel compose box) have no `<form>` to call
-`requestSubmit()` on — submission only happens via a real Enter keypress. To submit one
-programmatically: set the value with `changeInputValue`/`changeTextAreaValue`, wait
-~300ms (a keydown fired immediately after the value change is silently dropped), then
-dispatch the full `keydown`+`keypress`+`keyup` sequence (not keydown alone):
+`requestSubmit()` on — submission only happens via a real Enter keypress. A plain
+`new KeyboardEvent(...)` Enter is **silently ignored** by these handlers: a constructed
+event leaves the legacy `keyCode`/`which` fields at 0, the game reads them, nothing
+sends, and no error surfaces anywhere (this shipped as a "verified" pattern and was
+only caught by checking server-side history). The working, server-verified recipe —
+reference implementation `postAgentMessage()` in
+`src/infrastructure/prun-api/data/agent-channel.ts`:
+
+1. `focusElement(input)`, then set the value with `changeInputValue`/`changeTextAreaValue`.
+2. Wait ~300ms (a keydown fired immediately after the value change is silently dropped).
+3. Dispatch the full `keydown`+`keypress`+`keyup` sequence with `keyCode`/`which`
+   patched to 13 via `Object.defineProperty` (the constructor ignores them).
+4. Verify the send: poll until the input clears (the game empties the compose box only
+   on an actual send) and throw on timeout — never assume the dispatch worked.
 
 ```ts
+focusElement(input);
 changeInputValue(input, text);
 await sleep(300);
 for (const type of ['keydown', 'keypress', 'keyup'] as const) {
-  input.dispatchEvent(
-    new KeyboardEvent(type, { key: 'Enter', code: 'Enter', bubbles: true, cancelable: true }),
-  );
+  const event = new KeyboardEvent(type, {
+    key: 'Enter',
+    code: 'Enter',
+    bubbles: true,
+    cancelable: true,
+  });
+  Object.defineProperty(event, 'keyCode', { get: () => 13 });
+  Object.defineProperty(event, 'which', { get: () => 13 });
+  input.dispatchEvent(event);
 }
+// Poll input.value === '' against a deadline; throw if it never clears.
 ```
 
 ### Companion Buffers (Splitting)
