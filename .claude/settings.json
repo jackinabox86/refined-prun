@@ -22,6 +22,7 @@
       "Bash(tasklist *)",
       "Bash(node .local/scratch/*)",
       "Bash(pgrep *)",
+      "Bash(grok --no-auto-update --no-alt-screen --always-approve -p *)",
       "Agent",
       "SendMessage",
       "ToolSearch",
@@ -30,6 +31,9 @@
   },
   "sandbox": {
     "autoAllowBashIfSandboxed": true,
+    "network": {
+      "allowedDomains": ["api.x.ai"]
+    },
     "excludedCommands": [
       "node scripts/local-browser-test.mjs",
       "node scripts/pw-act.mjs *",
