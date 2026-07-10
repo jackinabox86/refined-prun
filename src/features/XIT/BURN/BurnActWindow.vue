@@ -6,7 +6,6 @@ import { sitesStore } from '@src/infrastructure/prun-api/data/sites';
 import { getEntityNameFromAddress } from '@src/infrastructure/prun-api/data/addresses';
 import { ActionPackageConfig, configurableValue } from '@src/features/XIT/ACT/shared-types';
 import { computeResupplyBill } from '@src/features/XIT/ACT/material-groups/resupply/bill';
-import { postActionPackageToAgent } from '@src/features/XIT/ACT/agent-sync';
 import type { MaterialFilter } from '@src/features/XIT/ACT/material-groups/resupply/config';
 import type { LogTag, LogContent } from '@src/features/XIT/ACT/runner/logger';
 import Active from '@src/components/forms/Active.vue';
@@ -40,6 +39,8 @@ const planetName = computed(() =>
   site.value ? getEntityNameFromAddress(site.value.address) : undefined,
 );
 
+const agent = ref(false);
+
 const pkg = computed(
   () =>
     ({
@@ -68,19 +69,19 @@ const pkg = computed(
           group: 'Resupply',
           origin: configurableValue,
           dest: configurableValue,
+          postToAgent: agent.value,
         },
       ],
     }) as UserData.ActionPackageData,
 );
 
 const generateReturnJson = ref(false);
-const agent = ref(false);
 
 async function afterExecute(
   pkgConfig: ActionPackageConfig,
   log: (tag: LogTag, message: LogContent) => void,
 ): Promise<void> {
-  if (!generateReturnJson.value && !agent.value) {
+  if (!generateReturnJson.value) {
     return;
   }
 
@@ -133,18 +134,8 @@ async function afterExecute(
     ],
   };
 
-  if (generateReturnJson.value) {
-    log('INFO', 'Auto Offload JSON:');
-    log(null, JSON.stringify(result, null, 2));
-  }
-
-  if (agent.value) {
-    try {
-      await postActionPackageToAgent(result);
-    } catch (e) {
-      log('ERROR', `Failed to post Auto Offload package to agent channel: ${String(e)}`);
-    }
-  }
+  log('INFO', 'Auto Offload JSON:');
+  log(null, JSON.stringify(result, null, 2));
 }
 </script>
 

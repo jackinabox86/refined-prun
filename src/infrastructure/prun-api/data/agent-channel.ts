@@ -1,7 +1,7 @@
 import { createEntityStore } from '@src/infrastructure/prun-api/data/create-entity-store';
 import { onApiMessage } from '@src/infrastructure/prun-api/data/api-messages';
 import { showBuffer } from '@src/infrastructure/prun-ui/buffers';
-import { changeInputValue } from '@src/util';
+import { focusElement, changeInputValue } from '@src/util';
 import { sleep } from '@src/utils/sleep';
 import { watchUntil } from '@src/utils/watch';
 import { onNodeDisconnected } from '@src/utils/on-node-disconnected';
@@ -83,9 +83,11 @@ export async function fetchAgentChannel() {
 
 // Posts a raw string to the channel via the compose input (no <form> exists on it, so
 // this dispatches real Enter key events instead of the requestSubmit() pattern buffers.ts
-// uses for command-entry inputs). Verified live: a bare keydown dispatched right after
-// filling the input is silently dropped - the game's handler needs a beat after the
-// value change plus the full keydown/keypress/keyup sequence, not just keydown.
+// uses for command-entry inputs). A bare keydown right after filling the input is silently
+// dropped - the game's handler needs a beat after the value change plus the full
+// keydown/keypress/keyup sequence. Legacy keyCode/which getters are patched onto the
+// events because the game still reads them. Success is verified by polling until the
+// compose input clears (the game clears it only after an actual send).
 export async function postAgentMessage(text: string) {
   const posted = ref(false);
   const window = await showBuffer(channelCommand, {
@@ -93,30 +95,58 @@ export async function postAgentMessage(text: string) {
     autoClose: true,
     closeWhen: computed(() => posted.value),
   });
-  const prompt = await $(window, C.Channel.prompt);
-  const input = _$(prompt, 'input') as HTMLInputElement;
-  changeInputValue(input, text);
-  await sleep(300);
-  for (const type of ['keydown', 'keypress', 'keyup'] as const) {
-    input.dispatchEvent(
-      new KeyboardEvent(type, { key: 'Enter', code: 'Enter', bubbles: true, cancelable: true }),
-    );
+  try {
+    const prompt = await Promise.race([
+      $(window, C.Channel.prompt),
+      (async () => {
+        await watchUntil(inaccessible);
+        return undefined;
+      })(),
+    ]);
+    if (!prompt) {
+      throw new Error(
+        `The "${channelIdentifier}" channel isn't set up - open COM, click "new group", add no other members, and name it "${channelIdentifier}".`,
+      );
+    }
+    const input = _$(prompt, 'input') as HTMLInputElement;
+    focusElement(input);
+    changeInputValue(input, text);
+    await sleep(300);
+    for (const type of ['keydown', 'keypress', 'keyup'] as const) {
+      const event = new KeyboardEvent(type, {
+        key: 'Enter',
+        code: 'Enter',
+        bubbles: true,
+        cancelable: true,
+      });
+      Object.defineProperty(event, 'keyCode', { get: () => 13 });
+      Object.defineProperty(event, 'which', { get: () => 13 });
+      input.dispatchEvent(event);
+    }
+    const deadline = Date.now() + 3000;
+    while (input.value !== '' && Date.now() < deadline) {
+      await sleep(100);
+    }
+    if (input.value !== '') {
+      throw new Error('The game did not accept the message (chat input never cleared).');
+    }
+    // The server won't push this back as a fresh CHANNEL_MESSAGE_LIST within the same
+    // session (see fetchAgentChannel), but we already know exactly what we just sent -
+    // fold it into the store directly so this session's own posts are visible without
+    // waiting on a refetch that will never come. A real reload picks up the authoritative
+    // copy (with a real messageId) the normal way.
+    store.addOne({
+      messageId: `local-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+      type: 'CHAT',
+      sender: null,
+      message: text,
+      time: { timestamp: Date.now() },
+      channelId: channelId.value ?? '',
+      deletingUser: null,
+    });
+    store.setFetched();
+  } finally {
+    posted.value = true;
   }
-  posted.value = true;
   await waitForWindowClosed(window);
-  // The server won't push this back as a fresh CHANNEL_MESSAGE_LIST within the same
-  // session (see fetchAgentChannel), but we already know exactly what we just sent -
-  // fold it into the store directly so this session's own posts are visible without
-  // waiting on a refetch that will never come. A real reload picks up the authoritative
-  // copy (with a real messageId) the normal way.
-  store.addOne({
-    messageId: `local-${Date.now()}-${Math.random().toString(36).slice(2)}`,
-    type: 'CHAT',
-    sender: null,
-    message: text,
-    time: { timestamp: Date.now() },
-    channelId: channelId.value ?? '',
-    deletingUser: null,
-  });
-  store.setFetched();
 }
