@@ -34,6 +34,10 @@ For feature work (new feature, fix feature, refactor, PR review), create the fol
 
 For small tasks (one-line fixes, running tests, infra chores, questions): skip the plan-approval round trip. Still read the docs relevant to whatever you touch.
 
+## SANDBOX & GIT
+
+The Bash sandbox denies writes to `.claude/` control files (skills, hooks, settings) by design. Some of those files are also git-tracked and differ between branches, so a sandboxed `git checkout`/`git stash` crossing such branches fails **midway** ("Read-only file system"), leaving git half-done. When a branch switch involves `.claude/` file changes, run that git command unsandboxed from the start.
+
 ## DISTILL
 
 The distill skill captures session learnings into the docs. Run it once per session, near the end — not after every task.
