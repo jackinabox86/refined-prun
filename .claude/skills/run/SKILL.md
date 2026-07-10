@@ -522,6 +522,25 @@ process for this profile, then retry.
     reload was reported as working and only caught because the user noticed the green
     screens themselves.
 
+16. **RadioItem toggles ignore clicks on their inner text.** Clicking the label text
+    (`text=agent`, or the `RadioItem__value` span) silently no-ops — no error, no state
+    change. Click the `[class*="RadioItem__container"]:has-text("...")` element instead,
+    and confirm the toggle took by checking for the `RadioItem__active` class on its
+    indicator, not by assuming the click landed.
+
+17. **`dist/` and the checked-out branch are shared, mutable state — verify the loaded
+    build actually contains the feature under test.** A concurrent session (or the user)
+    can switch branches and rebuild `dist/` at any time, including mid-test;
+    `reload-extension` then silently loads a build without your change and every
+    "feature is broken" observation after that is noise (happened live: dist was rebuilt
+    from another branch during a test run, removing the feature under test with zero
+    errors). Before concluding anything, grep `dist/` for a string unique to the change;
+    re-check if a long run produces surprising results. Related: client-side success
+    signals — ACT log lines, local store echoes, reactive UI updates — prove nothing
+    about a server action; the authoritative check for "did it reach the server" is
+    `node scripts/pw-act.mjs reload` (fresh WebSocket) and re-fetching the data from
+    scratch.
+
 ## Files
 
 - `scripts/pw-helper.mjs` — shared constants (paths, CDP port, APEX URL) and the

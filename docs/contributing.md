@@ -161,7 +161,7 @@ Use `data-tooltip` attribute for instant tooltips (PrUn-style). Don't use `title
 
 Every action that triggers server communication must require a user click. No automated server requests without explicit player action. This is a hard rule from the game developers.
 
-The extension does make some background server requests (e.g., `XIT BURN` opens invisible buffers; `XIT AGENT` extends the same pattern to post/read a private chat channel for cross-device data sync). This is a known ToS violation with explicit developer permission — don't extend this pattern further without discussion.
+The extension does make some background server requests (e.g., `XIT BURN` opens invisible buffers; `XIT AGENT` extends the same pattern to read a private chat channel for cross-device data sync — posting into that channel is click-gated via the `POST_AGENT` runner step, so the write side still gets an explicit ACT click). This is a known ToS violation with explicit developer permission — don't extend this pattern further without discussion.
 
 ---
 
