@@ -23,16 +23,23 @@
       "Bash(node .local/scratch/*)",
       "Bash(pgrep *)",
       "Bash(grok --no-auto-update --no-alt-screen --always-approve -p *)",
+      "Bash(git merge-base *)",
       "Agent",
       "SendMessage",
       "ToolSearch",
-      "Skill"
+      "Skill",
+      "TaskCreate",
+      "TaskUpdate",
+      "TaskGet",
+      "TaskList",
+      "TaskOutput",
+      "TaskStop"
     ]
   },
   "sandbox": {
     "autoAllowBashIfSandboxed": true,
     "network": {
-      "allowedDomains": ["api.x.ai"]
+      "allowedDomains": ["api.x.ai", "auth.x.ai"]
     },
     "excludedCommands": [
       "node scripts/local-browser-test.mjs",
