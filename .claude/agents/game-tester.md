@@ -31,6 +31,12 @@ and only a short text report returns to the main session.
 5. Prefer data-only pw-act actions (`list-windows`, `dump-windows`, `styles`,
    `open-contd-template`, ...) over bespoke `eval`. Batch steps; screenshot only at
    decision points.
+6. **Retry cap: 2 attempts per verification method.** If the same approach (e.g. a
+   cropped hover screenshot) fails twice, stop iterating on it — switch to a cheaper,
+   more reliable method instead (usually `eval` reading computed style / DOM attributes
+   directly rather than a pixel screenshot). Never rewrite the same script a third time
+   hoping the selector or timing will work; if the DOM-level check also isn't feasible,
+   report what you tried and stop rather than continuing to iterate.
 
 ## Reporting
 
