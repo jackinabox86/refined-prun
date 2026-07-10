@@ -53,6 +53,10 @@ Implementation and verification are delegated, not done in the main session — 
   (`.claude/agents/game-tester.md`), per `.claude/skills/run/SKILL.md`. Screenshots and DOM
   dumps stay in its context, not the main session's.
 
+## SANDBOX & GIT
+
+The Bash sandbox denies writes to `.claude/` control files (skills, hooks, settings) by design. Some of those files are also git-tracked and differ between branches, so a sandboxed `git checkout`/`git stash` crossing such branches fails **midway** ("Read-only file system"), leaving git half-done. When a branch switch involves `.claude/` file changes, run that git command unsandboxed from the start.
+
 ## DISTILL
 
 The distill skill captures session learnings into the docs. Run it once per session, near the end — not after every task.
