@@ -2,6 +2,7 @@ import { act } from '@src/features/XIT/ACT/act-registry';
 import Edit from '@src/features/XIT/ACT/actions/mtra/Edit.vue';
 import Configure from '@src/features/XIT/ACT/actions/mtra/Configure.vue';
 import { MTRA_TRANSFER } from '@src/features/XIT/ACT/action-steps/MTRA_TRANSFER';
+import { POST_AGENT } from '@src/features/XIT/ACT/action-steps/POST_AGENT';
 import { OPEN_SFC } from '@src/features/XIT/ACT/action-steps/OPEN_SFC';
 import { atSameLocation, deserializeStorage } from '@src/features/XIT/ACT/actions/utils';
 import { Config, CX_BUY_ONLY_DEST } from '@src/features/XIT/ACT/actions/mtra/config';
@@ -74,6 +75,32 @@ act.addAction<Config>({
           to: dest.id,
           ticker,
           amount: materials[ticker],
+        }),
+      );
+    }
+
+    if (dest.type === 'SHIP_STORE' && data.postToAgent) {
+      emitStep(
+        POST_AGENT({
+          pkg: {
+            global: { name: 'Auto Offload' },
+            groups: [
+              {
+                type: 'Manual' as UserData.MaterialGroupType,
+                name: data.group,
+                materials,
+              },
+            ],
+            actions: [
+              {
+                type: 'MTRA' as UserData.ActionType,
+                name: data.group,
+                group: data.group,
+                origin: serializedDest,
+                dest: configurableValue,
+              },
+            ],
+          } as UserData.ActionPackageData,
         }),
       );
     }
