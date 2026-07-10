@@ -83,6 +83,7 @@ declare namespace UserData {
 
     origin?: string;
     dest?: string;
+    postToAgent?: boolean;
 
     // CONT Ship specific
     currency?: string;
