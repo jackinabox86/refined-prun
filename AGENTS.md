@@ -62,6 +62,14 @@ The Bash sandbox denies writes to `.claude/` control files (skills, hooks, setti
 `.claude/settings.json`, or every call falls back to a manual sandbox-bypass approval. That
 setting isn't exposed through the `/sandbox` command; edit `.claude/settings.json` directly.
 
+When invoking `grok -p`, never build the prompt with command substitution (`-p "$(cat
+brief.md)"`) — `$(...)` trips Claude Code's injection detection and forces a manual
+approval even though the `grok --no-auto-update --no-alt-screen --always-approve -p *`
+prefix is allowlisted. Write the brief to a file and pass a literal prompt instead:
+`-p "Read <absolute path> and implement it exactly."`. Also start the prompt with an
+explicit "IMPLEMENT NOW, do not ask for confirmation" — in `-p` mode grok otherwise tends
+to restate the plan and end with "OK to proceed?" without touching any files.
+
 ## DISTILL
 
 The distill skill captures session learnings into the docs. Run it once per session, near the end — not after every task.

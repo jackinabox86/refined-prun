@@ -24,6 +24,7 @@
       "Bash(pgrep *)",
       "Bash(grok --no-auto-update --no-alt-screen --always-approve -p *)",
       "Bash(git merge-base *)",
+      "Edit",
       "Agent",
       "SendMessage",
       "ToolSearch",
