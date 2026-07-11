@@ -55,7 +55,7 @@ Implementation and verification are delegated, not done in the main session — 
 
 ## SANDBOX & GIT
 
-The Bash sandbox denies writes to `.claude/` control files (skills, hooks, settings) by design. Some of those files are also git-tracked and differ between branches, so a sandboxed `git checkout`/`git stash` crossing such branches fails **midway** ("Read-only file system"), leaving git half-done. When a branch switch involves `.claude/` file changes, run that git command unsandboxed from the start.
+The Bash sandbox denies writes to `.claude/` control files (skills, hooks, settings) by design. Some of those files are also git-tracked and differ between branches, so a sandboxed `git checkout`/`git stash` crossing them fails **midway** ("Read-only file system"), leaving git half-done. You can't know in advance whether `.claude/` files differ, so never attempt the sandboxed version first: run any `git checkout`/`git stash` crossing main unsandboxed from the start.
 
 `grok` also refreshes its OAuth token against `auth.x.ai` on every invocation, not just at
 `grok login` — that host needs to be in `sandbox.network.allowedDomains` in
