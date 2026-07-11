@@ -4,6 +4,7 @@ import {
   agentChannelStore,
   maxMessageLength,
   postAgentMessage,
+  fetchAgentChannel,
 } from '@src/infrastructure/prun-api/data/agent-channel';
 import { configurableValue, groupTargetPrefix } from '@src/features/XIT/ACT/shared-types';
 import { deserializeStorage } from '@src/features/XIT/ACT/actions/utils';
@@ -144,6 +145,8 @@ interface AgentSyncEnvelope {
   // Kind: action-package.
   k: 'ap';
   v: 1;
+  // Short per-day id (e.g. "a3"); optional for backward compatibility with older posts.
+  i?: string;
   p: unknown;
 }
 
@@ -176,8 +179,63 @@ function parseAgentSyncEnvelope(text: string | null): AgentSyncEnvelope | undefi
   return undefined;
 }
 
+// Dismissal markers are the entire message body: a short id like "a3".
+const dismissalMarkerRegex = /^([a-z])(\d{1,2})$/;
+
+export function parseDismissalMarker(text: string | null | undefined) {
+  if (!text) {
+    return undefined;
+  }
+  const normalized = text.trim().toLowerCase();
+  const match = normalized.match(dismissalMarkerRegex);
+  return match ? match[0] : undefined;
+}
+
+function getInWindowCutoff() {
+  return Date.now() - readyMaxAgeMs;
+}
+
+// Collects ids already used by package envelopes or dismissal markers inside the live
+// window, so a freshly generated id stays unique for the 5-day retention period.
+function collectUsedIds(messages: PrunApi.ChannelMessage[], cutoff: number) {
+  const used = new Set<string>();
+  for (const message of messages) {
+    if (message.type !== 'CHAT' || message.time.timestamp < cutoff) {
+      continue;
+    }
+    const envelope = parseAgentSyncEnvelope(message.message);
+    if (envelope?.i) {
+      used.add(String(envelope.i).toLowerCase());
+    }
+    const marker = parseDismissalMarker(message.message);
+    if (marker) {
+      used.add(marker);
+    }
+  }
+  return used;
+}
+
+// Id = <letter><dayOfMonth>, e.g. "a3" = first package posted on the 3rd.
+export function generateAgentMessageId() {
+  const day = new Date().getDate();
+  const messages = agentChannelStore.all.value ?? [];
+  const used = collectUsedIds(messages, getInWindowCutoff());
+  for (let i = 0; i < 26; i++) {
+    const id = String.fromCharCode(97 + i) + day;
+    if (!used.has(id)) {
+      return id;
+    }
+  }
+  throw new Error('All 26 agent message ids for today are in use.');
+}
+
 export async function postActionPackageToAgent(pkg: UserData.ActionPackageData) {
-  const envelope = compactActionPackageForSync(pkg);
+  // History is needed to pick a free id; no-op when already fetched this session.
+  await fetchAgentChannel();
+  const id = generateAgentMessageId();
+  const { p } = compactActionPackageForSync(pkg);
+  // Place `i` right after k/v so it stays near the front of the raw chat message.
+  const envelope: AgentSyncEnvelope = { k: 'ap', v: 1, i: id, p };
   const text = JSON.stringify(envelope);
   if (text.length > maxMessageLength) {
     throw new Error(
@@ -185,12 +243,14 @@ export async function postActionPackageToAgent(pkg: UserData.ActionPackageData) 
     );
   }
   await postAgentMessage(text);
+  return id;
 }
 
 export interface AgentReadyPackage {
   messageId: string;
   pkg: UserData.ActionPackageData;
   ready: boolean;
+  id?: string;
 }
 
 // Whichever action references a store is what needs to be "ready" (landed, for a ship
@@ -216,7 +276,24 @@ function getReadyState(pkg: UserData.ActionPackageData): boolean {
 
 export const agentReadyPackages = computed<AgentReadyPackage[]>(() => {
   const messages = agentChannelStore.all.value ?? [];
-  const cutoff = Date.now() - readyMaxAgeMs;
+  const cutoff = getInWindowCutoff();
+
+  // Marker id -> latest marker timestamp inside the live window.
+  const markers = new Map<string, number>();
+  for (const message of messages) {
+    if (message.type !== 'CHAT' || message.time.timestamp < cutoff) {
+      continue;
+    }
+    const marker = parseDismissalMarker(message.message);
+    if (!marker) {
+      continue;
+    }
+    const prev = markers.get(marker);
+    if (prev === undefined || message.time.timestamp > prev) {
+      markers.set(marker, message.time.timestamp);
+    }
+  }
+
   const result: AgentReadyPackage[] = [];
   for (const message of messages) {
     if (message.type !== 'CHAT' || message.time.timestamp < cutoff) {
@@ -226,8 +303,21 @@ export const agentReadyPackages = computed<AgentReadyPackage[]>(() => {
     if (!envelope) {
       continue;
     }
+    const id = typeof envelope.i === 'string' ? envelope.i.toLowerCase() : undefined;
+    // A marker later than the package hides it; earlier markers leave the id free for reuse.
+    if (id) {
+      const markerTs = markers.get(id);
+      if (markerTs !== undefined && markerTs > message.time.timestamp) {
+        continue;
+      }
+    }
     const pkg = expandActionPackageFromSync(envelope);
-    result.push({ messageId: message.messageId, pkg, ready: getReadyState(pkg) });
+    result.push({
+      messageId: message.messageId,
+      pkg,
+      ready: getReadyState(pkg),
+      id,
+    });
   }
   return result;
 });

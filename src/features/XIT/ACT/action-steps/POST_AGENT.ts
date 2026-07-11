@@ -9,9 +9,10 @@ export const POST_AGENT = act.addActionStep<Data>({
   type: 'POST_AGENT',
   description: data => `Post [${data.pkg.global.name}] package to the agent channel`,
   execute: async ctx => {
-    const { data, waitAct, complete } = ctx;
+    const { data, waitAct, complete, log } = ctx;
     await waitAct();
-    await postActionPackageToAgent(data.pkg);
+    const id = await postActionPackageToAgent(data.pkg);
+    log.info(`Posted package as [${id}]`);
     complete();
   },
 });

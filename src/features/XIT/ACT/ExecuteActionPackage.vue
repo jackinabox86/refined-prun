@@ -7,15 +7,16 @@ import { useTile } from '@src/hooks/use-tile';
 import { Logger, LogTag, LogContent } from '@src/features/XIT/ACT/runner/logger';
 import LogWindow from '@src/features/XIT/ACT/LogWindow.vue';
 import ConfigWindow from '@src/features/XIT/ACT/ConfigureWindow.vue';
-import { ActionPackageConfig } from '@src/features/XIT/ACT/shared-types';
+import { ActionPackageConfig, ActionStep } from '@src/features/XIT/ACT/shared-types';
 import { act } from '@src/features/XIT/ACT/act-registry';
 
-const { pkg, afterExecute } = defineProps<{
+const { pkg, afterExecute, extraSteps } = defineProps<{
   pkg: UserData.ActionPackageData;
   afterExecute?: (
     config: ActionPackageConfig,
     log: (tag: LogTag, message: LogContent) => void,
   ) => void;
+  extraSteps?: ActionStep[];
 }>();
 
 const tile = useTile();
@@ -123,7 +124,7 @@ async function onPreviewClick() {
   logScrolling.value = false;
   clearLog();
   isPreviewing.value = true;
-  await runner.preview(pkg, config.value);
+  await runner.preview(pkg, config.value, extraSteps);
   isPreviewing.value = false;
   status.value = undefined;
 }
@@ -132,7 +133,7 @@ function onExecuteClick() {
   logScrolling.value = true;
   clearLog();
   actReady.value = false;
-  runner.execute(pkg, config.value);
+  runner.execute(pkg, config.value, extraSteps);
 }
 
 function onCancelClick() {
