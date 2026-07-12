@@ -547,6 +547,29 @@ process for this profile, then retry.
     `node scripts/pw-act.mjs reload` (fresh WebSocket) and re-fetching the data from
     scratch.
 
+18. **Extension-internal HTML5 drag-and-drop needs the full gotcha-#12 treatment even
+    between the extension's own elements.** A drop can "work" (state updates) while the
+    game's top-level dragover still resets `dropEffect` to `'none'` — the only visible
+    symptom is the drag ghost playing a ~1s snap-back animation after the drop. Drop
+    zones must preventDefault + stopPropagation + set an explicit `dropEffect` in BOTH
+    dragenter and dragover. Related: the browser's default drag image snapshots the
+    element plus overlapping neighbors — call `setDragImage` with the intended element;
+    and a `data-tooltip` on the drag source bleeds into the ghost (ARMADA removed its
+    ship tooltip for this reason). To TEST such DnD without a real mouse drag, dispatch
+    `dragstart`/`dragover`/`drop` with one shared `new DataTransfer()` — works for
+    extension-internal zones; check the result on the NEXT tick (Vue re-renders async).
+
+19. **Scope test selectors to the target window, and measure before asserting.**
+    `[class*="rp-BaseRow__x"]` matches every component with that basename across all
+    open windows — BS's BaseRow was measured instead of ARMADA's for two rounds
+    (see `docs/feature-patterns.md` "File Organization" for the underlying CSS-module
+    basename collision). Resolve the window by its text first, then query inside it.
+    And never report a visual/pixel claim from intended CSS — measure
+    `getBoundingClientRect` gaps live; in that same incident the written CSS wasn't
+    even applied. Also: after `reload-extension` refreshes the game tab, the first
+    `open-buffer` can time out while the game reconnects — wait ~20s and retry before
+    suspecting the build.
+
 ## Files
 
 - `scripts/pw-helper.mjs` — shared constants (paths, CDP port, APEX URL) and the

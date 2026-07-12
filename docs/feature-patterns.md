@@ -50,6 +50,14 @@ Vue component filenames must match the import name:
 // The file MUST be: ContextRow.vue (not my-feature.vue)
 ```
 
+**Component basenames must be unique across the whole project.** CSS-module scoping
+hashes only the file's basename and class name, so two features that each have a
+`BaseRow.vue` emit rules under the same `rp-BaseRow__*` selectors — both land in the
+built CSS and the later one silently overrides the earlier (found live: ARMADA's
+BaseRow styles were overridden by BS's and leaked back into XIT BS). Same-named files
+also break `[class*="rp-BaseRow__"]`-style test selectors, which match every feature
+sharing the basename. Pick a distinct name instead (ARMADA's row is `PlanetRow.vue`).
+
 ### Parameter Checks
 
 If a tile command can't be opened without a parameter (like `PRODQ`), don't guard against missing parameters.
@@ -131,6 +139,15 @@ const pkg: UserData.ActionPackageData = {
 ```
 
 The `pkg` is a plain hardcoded object, not persisted user data — `ExecuteActionPackage` runs it exactly like a saved package (CONFIGURE only appears if an action still needs runtime input; PREVIEW/EXECUTE always available). Trigger it from anywhere with `showBuffer('XIT REFUELACT')` (see `PlanetHeader.vue`'s `XIT BURNACT` button for a row-level example, or `FLT.vue`'s Fuel-column header button for another).
+
+**Never embed `ExecuteActionPackage` inside a long-lived planner tile.** The runner
+splits its host tile to allocate command buffers, which remounts the host component —
+non-persisted state resets and the run dies (this broke ARMADA's first embedded-run
+design). Instead stage the built package in a module-level ref and open a dedicated
+XIT command whose window renders `ExecuteActionPackage` (see
+`src/features/XIT/ARMADA/staged.ts` + `ARMADAACT.ts`). Besides `afterExecute`,
+`ExecuteActionPackage` accepts `beforeExecute` — logs emitted there land at the top of
+the run log (ARMADA prints its offload JSONs that way).
 
 ### Action-Specific Sentinel Values
 
@@ -744,6 +761,18 @@ Two verified quirks when pairing such an input with sibling elements:
 - A bare `<textarea>` is inline-block: it sits on the text baseline and leaves a few px
   of descender gap below it. Give it `display: block` when its footprint must match a
   block-level sibling pane, or the panes' total heights differ even with identical rects.
+
+For a `<select>` there is no class on the element itself — the game styles selects
+through an ancestor: `.${C.forms.input} select` provides the standard look (17px
+height, dark background, amber bottom border, amber focus underline). When using the
+shared `SelectInput` outside a game form (e.g. in a table cell), wrap it in a div
+carrying `C.forms.input`:
+
+```html
+<div :class="[C.forms.input, $style.selectWrap]">
+  <SelectInput v-model="value" :options="options" />
+</div>
+```
 
 ### Matching the Game's Scrollbar
 
