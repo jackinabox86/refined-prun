@@ -1,10 +1,10 @@
 <script setup lang="ts">
 import PrunButton from '@src/components/PrunButton.vue';
-import type { ArmadaBaseConfig, ArmadaShip } from '@src/features/XIT/ARMADA/utils';
+import type { DispatchBaseConfig, DispatchShip } from '@src/features/XIT/DISPATCH/utils';
 
 const { ships, baseConfigs } = defineProps<{
-  ships: ArmadaShip[];
-  baseConfigs: Record<string, ArmadaBaseConfig>;
+  ships: DispatchShip[];
+  baseConfigs: Record<string, DispatchBaseConfig>;
 }>();
 
 const assignedShipIds = computed(() => {
@@ -20,7 +20,7 @@ const assignedShipIds = computed(() => {
 const unassigned = computed(() => ships.filter(x => !assignedShipIds.value.has(x.ship.id)));
 const assigned = computed(() => ships.filter(x => assignedShipIds.value.has(x.ship.id)));
 
-function shipLabel(entry: ArmadaShip) {
+function shipLabel(entry: DispatchShip) {
   return entry.ship.name ?? entry.ship.registration;
 }
 
@@ -31,7 +31,7 @@ function compactCapacity(x: number) {
   return x >= 1000 ? fixed01(x / 1000) + 'k' : fixed0(x);
 }
 
-function freeCapacity(entry: ArmadaShip) {
+function freeCapacity(entry: DispatchShip) {
   const store = entry.cargoStore;
   if (!store) {
     return '--';
@@ -41,7 +41,7 @@ function freeCapacity(entry: ArmadaShip) {
   return `${compactCapacity(weight)}t/${compactCapacity(volume)}m³`;
 }
 
-function shipTooltip(entry: ArmadaShip) {
+function shipTooltip(entry: DispatchShip) {
   return freeCapacity(entry);
 }
 */
@@ -67,6 +67,9 @@ function onDragStart(event: DragEvent, shipId: string) {
         </tr>
       </thead>
       <tbody>
+        <tr v-if="unassigned.length > 0" :class="$style.labelRow">
+          <td :class="$style.labelCell">Unassigned</td>
+        </tr>
         <tr v-for="entry in unassigned" :key="entry.ship.id" :class="$style.shipRow">
           <td :class="$style.shipCell">
             <!-- Tooltip disabled: it bled into the drag image. Restore with :data-tooltip="shipTooltip(entry)". -->
@@ -80,10 +83,8 @@ function onDragStart(event: DragEvent, shipId: string) {
             </div>
           </td>
         </tr>
-        <tr v-if="unassigned.length > 0 && assigned.length > 0" :class="$style.dividerRow">
-          <td :class="$style.dividerCell">
-            <div :class="$style.dividerLine" />
-          </td>
+        <tr v-if="assigned.length > 0" :class="$style.labelRow">
+          <td :class="$style.labelCell">Assigned</td>
         </tr>
         <tr v-for="entry in assigned" :key="entry.ship.id" :class="$style.shipRow">
           <td :class="$style.shipCell">
@@ -105,8 +106,7 @@ function onDragStart(event: DragEvent, shipId: string) {
 
 <style module>
 .pool {
-  --armada-row-height: 24px;
-  height: 100%;
+  --dispatch-row-height: 24px;
   width: max-content;
   min-width: 10ch;
   max-width: 15ch;
@@ -114,7 +114,6 @@ function onDragStart(event: DragEvent, shipId: string) {
   border-left: 1px solid #2b485a;
   border-right: 1px solid #2b485a;
   box-sizing: border-box;
-  overflow-y: auto;
 }
 
 .table {
@@ -123,15 +122,15 @@ function onDragStart(event: DragEvent, shipId: string) {
 }
 
 .table thead tr {
-  height: var(--armada-row-height);
-  line-height: var(--armada-row-height);
+  height: var(--dispatch-row-height);
+  line-height: var(--dispatch-row-height);
   border-bottom: 1px solid #2b485a;
   box-sizing: border-box;
 }
 
 .table thead th {
-  height: var(--armada-row-height);
-  line-height: var(--armada-row-height);
+  height: var(--dispatch-row-height);
+  line-height: var(--dispatch-row-height);
   padding: 0 4px;
   box-sizing: border-box;
   text-align: center;
@@ -168,21 +167,19 @@ function onDragStart(event: DragEvent, shipId: string) {
   box-sizing: border-box;
 }
 
-.dividerRow {
+.labelRow {
   height: 24px;
   box-sizing: border-box;
   border-bottom: 1px solid #2b485a;
 }
 
-.dividerCell {
-  padding: 0;
+.labelCell {
+  font-size: 11px;
+  color: #888;
+  text-align: center;
+  padding: 0 4px;
   height: 24px;
   vertical-align: middle;
   box-sizing: border-box;
-}
-
-.dividerLine {
-  width: 100%;
-  border-top: 1px solid #2b485a;
 }
 </style>

@@ -2,6 +2,8 @@
 import PrunLink from '@src/components/PrunLink.vue';
 import PrunButton from '@src/components/PrunButton.vue';
 import RadioItem from '@src/components/forms/RadioItem.vue';
+import NumberInput from '@src/components/forms/NumberInput.vue';
+import SelectInput from '@src/components/forms/SelectInput.vue';
 import GripCell from '@src/components/grip/GripCell.vue';
 import { getPlanetBurn } from '@src/core/burn';
 import { countDays } from '@src/features/XIT/BURN/utils';
@@ -12,14 +14,23 @@ import { timestampEachMinute } from '@src/utils/dayjs';
 import { sitesStore } from '@src/infrastructure/prun-api/data/sites';
 import { shipsStore } from '@src/infrastructure/prun-api/data/ships';
 import { fixed0 } from '@src/utils/format';
-import { ArmadaBaseConfig, billTotals, combinedBaseBill } from '@src/features/XIT/ARMADA/utils';
+import type { MaterialFilter } from '@src/features/XIT/ACT/material-groups/resupply/config';
+import { DispatchBaseConfig, billTotals, combinedBaseBill } from '@src/features/XIT/DISPATCH/utils';
 
 const { siteId, naturalId, planetName, config } = defineProps<{
   siteId: string;
   naturalId: string;
   planetName: string;
-  config: ArmadaBaseConfig;
+  config: DispatchBaseConfig;
 }>();
+
+const emit = defineEmits<{
+  fit: [];
+}>();
+
+const materialFilterOptions: MaterialFilter[] = ['All', 'Workforce', 'Production'];
+
+const canFit = computed(() => !!config.ship);
 
 const burn = computed(() => getPlanetBurn(siteId));
 const days = computed(() => (burn.value ? countDays(burn.value.burn) : undefined));
@@ -124,7 +135,11 @@ function onDrop(event: DragEvent) {
   if (!shipId) {
     return;
   }
-  config.ship = shipId;
+  // Mutating state during drop unmounts the drag source before dragend fires,
+  // freezing the drag ghost at the drop point. Defer past the drag operation.
+  setTimeout(() => {
+    config.ship = shipId;
+  }, 0);
 }
 
 function clearShip() {
@@ -134,6 +149,20 @@ function clearShip() {
 
 <template>
   <tr :class="$style.row">
+    <td
+      :class="[$style.shipCell, dragOver && $style.shipCellOver]"
+      @dragenter="onDragEnter"
+      @dragover="onDragOver"
+      @dragleave="onDragLeave"
+      @drop="onDrop">
+      <template v-if="config.ship && shipLabel">
+        <div :class="$style.shipAssigned">
+          <PrunButton primary inline :class="$style.shipButton">{{ shipLabel }}</PrunButton>
+          <PrunButton dark inline :class="$style.clearButton" @click="clearShip">×</PrunButton>
+        </div>
+      </template>
+      <div v-else :class="$style.shipPlaceholder" />
+    </td>
     <GripCell />
     <td :class="$style.planetCell">
       <PrunLink inline :command="`BS ${naturalId}`" :class="$style.planetLink">{{
@@ -157,19 +186,31 @@ function clearShip() {
       </div>
     </td>
     <td :class="[C.type.typeSmall, $style.loadCell]">{{ loadText }}</td>
-    <td
-      :class="[$style.shipCell, dragOver && $style.shipCellOver]"
-      @dragenter="onDragEnter"
-      @dragover="onDragOver"
-      @dragleave="onDragLeave"
-      @drop="onDrop">
-      <template v-if="config.ship && shipLabel">
-        <div :class="$style.shipAssigned">
-          <PrunButton primary inline :class="$style.shipButton">{{ shipLabel }}</PrunButton>
-          <PrunButton dark inline :class="$style.clearButton" @click="clearShip">×</PrunButton>
-        </div>
-      </template>
-      <div v-else :class="$style.shipPlaceholder" />
+    <td :class="$style.selectCell">
+      <div :class="[C.forms.input, $style.selectWrap]">
+        <SelectInput v-model="config.materialFilter" :options="materialFilterOptions" />
+      </div>
+    </td>
+    <td :class="$style.fitCell">
+      <PrunButton dark inline :disabled="!canFit" @click="emit('fit')">FIT</PrunButton>
+    </td>
+    <td :class="$style.inputCell">
+      <NumberInput v-model="config.days" :class="$style.faintInput" />
+    </td>
+    <td :class="$style.inputCell">
+      <NumberInput v-model="config.repThreshold" :class="$style.faintInput" />
+    </td>
+    <td :class="$style.inputCell">
+      <NumberInput v-model="config.repAdvance" :class="$style.faintInput" />
+    </td>
+    <td :class="$style.advToggleCell">
+      <RadioItem v-model="config.cxBuy" horizontal>BUY</RadioItem>
+    </td>
+    <td :class="$style.advToggleCell">
+      <RadioItem v-model="config.offloadJson" horizontal>JSON</RadioItem>
+    </td>
+    <td :class="$style.advToggleCell">
+      <RadioItem v-model="config.agent" horizontal>AGT</RadioItem>
     </td>
   </tr>
 </template>
@@ -279,5 +320,71 @@ function clearShip() {
   height: 18px;
   font-size: 11px;
   padding: 0;
+}
+
+.inputCell {
+  width: 0;
+  white-space: nowrap;
+  padding: 0 2px;
+  line-height: 22px;
+  vertical-align: middle;
+}
+
+.faintInput {
+  width: 48px;
+}
+
+.faintInput :global(input) {
+  width: 48px;
+  height: 17px;
+  background-color: transparent;
+  border-width: 0 0 1px;
+  border-bottom: 1px solid transparent;
+  color: #888;
+  padding: 0 4px;
+  box-sizing: border-box;
+}
+
+.faintInput :global(input:focus) {
+  outline: none;
+  color: #ccc;
+  border-bottom-color: #666;
+}
+
+.selectCell {
+  width: 0;
+  white-space: nowrap;
+  padding: 0 2px;
+  line-height: 22px;
+  vertical-align: middle;
+}
+
+.selectWrap {
+  width: 90px;
+}
+
+.selectWrap > * {
+  width: 90px !important;
+  margin: 0 !important;
+}
+
+.selectWrap :global(select) {
+  width: 100%;
+}
+
+.advToggleCell {
+  width: 0;
+  white-space: nowrap;
+  padding: 0 2px;
+  vertical-align: middle;
+  text-align: center;
+}
+
+.fitCell {
+  width: 0;
+  white-space: nowrap;
+  padding: 0 4px;
+  line-height: 22px;
+  vertical-align: middle;
 }
 </style>

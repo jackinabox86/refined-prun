@@ -4,11 +4,11 @@ import '@src/features/XIT/ACT/actions/refuel/refuel';
 import '@src/features/XIT/ACT/material-groups/resupply/resupply';
 import '@src/features/XIT/ACT/material-groups/repair/repair';
 
-import ArmadaActWindow from '@src/features/XIT/ARMADA/ArmadaActWindow.vue';
+import DispatchActWindow from '@src/features/XIT/DISPATCH/DispatchActWindow.vue';
 
 xit.add({
-  command: 'ARMADAACT',
-  name: 'ARMADA EXECUTE',
-  description: 'Executes the staged armada resupply/repair action package.',
-  component: () => ArmadaActWindow,
+  command: 'DISPATCHACT',
+  name: 'DISPATCH EXECUTE',
+  description: 'Executes the staged dispatch resupply/repair action package.',
+  component: () => DispatchActWindow,
 });

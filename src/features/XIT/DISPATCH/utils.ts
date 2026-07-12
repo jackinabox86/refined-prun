@@ -11,7 +11,7 @@ import { computeResupplyBill } from '@src/features/XIT/ACT/material-groups/resup
 import { computeRepairBill } from '@src/features/XIT/ACT/material-groups/repair/bill';
 import type { MaterialFilter } from '@src/features/XIT/ACT/material-groups/resupply/config';
 
-export interface ArmadaBaseConfig {
+export interface DispatchBaseConfig {
   resupply: boolean;
   repair: boolean;
   days: number;
@@ -20,17 +20,18 @@ export interface ArmadaBaseConfig {
   materialFilter: MaterialFilter;
   cxBuy: boolean;
   offloadJson: boolean;
+  agent: boolean;
   ship?: string;
 }
 
-export interface ArmadaShip {
+export interface DispatchShip {
   ship: PrunApi.Ship;
   exchangeCode: string;
   warehouseStore?: PrunApi.Store;
   cargoStore?: PrunApi.Store;
 }
 
-export function getShipsAtCX(): ArmadaShip[] | undefined {
+export function getShipsAtCX(): DispatchShip[] | undefined {
   const ships = shipsStore.all.value;
   if (!ships) {
     return undefined;
@@ -38,7 +39,7 @@ export function getShipsAtCX(): ArmadaShip[] | undefined {
 
   const exchanges = exchangesStore.all.value ?? [];
   const warehouses = warehousesStore.all.value ?? [];
-  const result: ArmadaShip[] = [];
+  const result: DispatchShip[] = [];
 
   for (const ship of ships) {
     const shipAddress = ship.address ?? undefined;
@@ -114,7 +115,7 @@ export function mergeBills(
 
 export function combinedBaseBill(
   naturalId: string,
-  config: ArmadaBaseConfig,
+  config: DispatchBaseConfig,
   site: PrunApi.Site,
 ): Record<string, number> | undefined {
   if (!config.resupply && !config.repair) {
@@ -145,7 +146,7 @@ export function combinedBaseBill(
 
 export function fitDaysForShip(
   shipId: string,
-  bases: { naturalId: string; config: ArmadaBaseConfig; site: PrunApi.Site }[],
+  bases: { naturalId: string; config: DispatchBaseConfig; site: PrunApi.Site }[],
   cargoStore: PrunApi.Store,
 ): number | undefined {
   const sharing = bases.filter(x => x.config.ship === shipId);

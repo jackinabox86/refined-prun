@@ -1,9 +1,8 @@
 <script setup lang="ts">
 import LoadingSpinner from '@src/components/LoadingSpinner.vue';
 import PrunButton from '@src/components/PrunButton.vue';
-import PlanetRow from '@src/features/XIT/ARMADA/PlanetRow.vue';
-import ShipPool from '@src/features/XIT/ARMADA/ShipPool.vue';
-import AdvancedRow from '@src/features/XIT/ARMADA/AdvancedRow.vue';
+import PlanetRow from '@src/features/XIT/DISPATCH/PlanetRow.vue';
+import ShipPool from '@src/features/XIT/DISPATCH/ShipPool.vue';
 import { sitesStore } from '@src/infrastructure/prun-api/data/sites';
 import {
   getEntityNameFromAddress,
@@ -16,19 +15,20 @@ import { getRepairOffset, getRepairThreshold } from '@src/core/buildings';
 import { countDays } from '@src/features/XIT/BURN/utils';
 import { serializeStorage } from '@src/features/XIT/ACT/actions/utils';
 import { allExchangesValue } from '@src/features/XIT/ACT/actions/refuel/utils';
-import { showBuffer } from '@src/infrastructure/prun-ui/buffers';
-import { stagedArmada, type StagedOffload } from '@src/features/XIT/ARMADA/staged';
+import { setBufferSize, showBuffer } from '@src/infrastructure/prun-ui/buffers';
+import { stagedDispatch } from '@src/features/XIT/DISPATCH/staged';
 import { vDraggable } from 'vue-draggable-plus';
 import { grip } from '@src/components/grip';
 import GripHeaderCell from '@src/components/grip/GripHeaderCell.vue';
+import { useTile } from '@src/hooks/use-tile';
 import {
-  ArmadaBaseConfig,
-  ArmadaShip,
+  DispatchBaseConfig,
+  DispatchShip,
   combinedBaseBill,
   fitDaysForShip,
   getShipsAtCX,
   mergeBills,
-} from '@src/features/XIT/ARMADA/utils';
+} from '@src/features/XIT/DISPATCH/utils';
 
 interface BaseEntry {
   siteId: string;
@@ -37,11 +37,13 @@ interface BaseEntry {
   site: PrunApi.Site;
 }
 
-const baseConfigs = useTileState<Record<string, ArmadaBaseConfig>>('baseConfigs', {});
+const tile = useTile();
+const panesEl = ref<HTMLElement | null>(null);
+const baseConfigs = useTileState<Record<string, DispatchBaseConfig>>('baseConfigs', {});
 const baseOrder = useTileState<string[]>('baseOrder', []);
 const orderedIds = ref<string[]>([]);
 
-function createBaseConfig(naturalId: string): ArmadaBaseConfig {
+function createBaseConfig(naturalId: string): DispatchBaseConfig {
   return {
     resupply: true,
     repair: false,
@@ -51,6 +53,7 @@ function createBaseConfig(naturalId: string): ArmadaBaseConfig {
     materialFilter: 'All',
     cxBuy: true,
     offloadJson: false,
+    agent: false,
   };
 }
 
@@ -98,13 +101,15 @@ watchEffect(() => {
     if (
       existing.materialFilter === undefined ||
       existing.cxBuy === undefined ||
-      existing.offloadJson === undefined
+      existing.offloadJson === undefined ||
+      existing.agent === undefined
     ) {
       patched = {
         ...patched,
         materialFilter: existing.materialFilter ?? 'All',
         cxBuy: existing.cxBuy ?? true,
         offloadJson: existing.offloadJson ?? false,
+        agent: existing.agent ?? false,
       };
     }
     // One-time migration: old default was plain getRepairThreshold; new default
@@ -136,8 +141,37 @@ const rows = computed(() =>
     .filter(x => x.config !== undefined),
 );
 
+// Size the window body to content width after the first data render. The
+// game applies the initial bufferSize asynchronously around tile creation,
+// so a direct style.width write gets clobbered — go through setBufferSize
+// (dispatched after mount, applied last) instead.
+const stopWidthWatch = watch([() => rows.value.length, panesEl], async ([length, panes]) => {
+  if (length === 0 || !panes) {
+    return;
+  }
+  stopWidthWatch();
+  await nextTick();
+  const windowEl = tile.frame.closest(`.${C.Window.window}`) as HTMLElement | null;
+  const bodyEl = windowEl ? (_$(windowEl, C.Window.body) as HTMLElement | null) : null;
+  if (!bodyEl) {
+    return;
+  }
+  let contentWidth = 0;
+  for (const child of panes.children) {
+    contentWidth += (child as HTMLElement).offsetWidth;
+  }
+  if (panes.scrollWidth > panes.clientWidth) {
+    contentWidth = panes.scrollWidth;
+  }
+  const chrome = bodyEl.offsetWidth - panes.clientWidth;
+  const width = Math.min(contentWidth + chrome, window.innerWidth - 60);
+  const parsedHeight = parseInt(bodyEl.style.height, 10);
+  const height = isNaN(parsedHeight) ? 500 : parsedHeight;
+  setBufferSize(tile.id, width, height);
+});
+
 const rowById = computed(() => {
-  const map = new Map<string, { base: BaseEntry; config: ArmadaBaseConfig }>();
+  const map = new Map<string, { base: BaseEntry; config: DispatchBaseConfig }>();
   for (const row of rows.value) {
     map.set(row.base.naturalId, { base: row.base, config: row.config! });
   }
@@ -182,10 +216,15 @@ const dragOptions = {
   },
 };
 
+// Built in script to pass the ref itself — the template would auto-unwrap
+// orderedIds, binding the directive to a stale array snapshot after the sync
+// watcher replaces orderedIds.value, which silently breaks drag reordering.
+const dragBinding = [orderedIds, dragOptions];
+
 const cxShips = computed(() => getShipsAtCX() ?? []);
 
 const cxShipById = computed(() => {
-  const map = new Map<string, ArmadaShip>();
+  const map = new Map<string, DispatchShip>();
   for (const entry of cxShips.value) {
     map.set(entry.ship.id, entry);
   }
@@ -214,12 +253,12 @@ interface IncludedBase {
   naturalId: string;
   planetName: string;
   site: PrunApi.Site;
-  config: ArmadaBaseConfig;
-  armadaShip: ArmadaShip;
+  config: DispatchBaseConfig;
+  dispatchShip: DispatchShip;
 }
 
 const includedBases = computed(() => {
-  // Armada LIST order (user-reorderable), not sites order.
+  // Dispatch LIST order (user-reorderable), not sites order.
   const result: IncludedBase[] = [];
   for (const id of orderedIds.value) {
     const row = rowById.value.get(id);
@@ -230,8 +269,8 @@ const includedBases = computed(() => {
     if (!config.ship || (!config.resupply && !config.repair)) {
       continue;
     }
-    const armadaShip = cxShipById.value.get(config.ship);
-    if (!armadaShip?.warehouseStore || !armadaShip.cargoStore) {
+    const dispatchShip = cxShipById.value.get(config.ship);
+    if (!dispatchShip?.warehouseStore || !dispatchShip.cargoStore) {
       continue;
     }
     result.push({
@@ -239,7 +278,7 @@ const includedBases = computed(() => {
       planetName: base.planetName,
       site: base.site,
       config,
-      armadaShip,
+      dispatchShip,
     });
   }
   return result;
@@ -250,8 +289,8 @@ function fitBase(naturalId: string) {
   if (!config?.ship) {
     return;
   }
-  const armadaShip = cxShipById.value.get(config.ship);
-  if (!armadaShip?.cargoStore) {
+  const dispatchShip = cxShipById.value.get(config.ship);
+  if (!dispatchShip?.cargoStore) {
     return;
   }
 
@@ -261,7 +300,7 @@ function fitBase(naturalId: string) {
     site: x.base.site,
   }));
 
-  const days = fitDaysForShip(config.ship, sharingBases, armadaShip.cargoStore);
+  const days = fitDaysForShip(config.ship, sharingBases, dispatchShip.cargoStore);
   if (days === undefined) {
     return;
   }
@@ -280,7 +319,6 @@ function execute() {
 
   const groups: UserData.MaterialGroupData[] = [];
   const cxBuyActions: UserData.ActionData[] = [];
-  const offloads: StagedOffload[] = [];
 
   // Per-exchange aggregate of bills for bases with cxBuy on.
   const exchangeBills = new Map<string, Record<string, number>>();
@@ -288,7 +326,7 @@ function execute() {
   const stagedBases: IncludedBase[] = [];
 
   for (const base of includedBases.value) {
-    const { naturalId, planetName, site, config, armadaShip } = base;
+    const { naturalId, site, config, dispatchShip } = base;
     const bill = combinedBaseBill(naturalId, config, site);
     if (!bill || Object.keys(bill).length === 0) {
       continue;
@@ -304,20 +342,12 @@ function execute() {
     });
 
     if (config.cxBuy) {
-      const code = armadaShip.exchangeCode;
+      const code = dispatchShip.exchangeCode;
       exchangeBills.set(code, mergeBills(exchangeBills.get(code), bill)!);
     }
-
-    offloads.push({
-      naturalId,
-      planetName,
-      config: { ...config },
-      cargo: serializeStorage(armadaShip.cargoStore!),
-      materials: { ...bill },
-    });
   }
 
-  if (offloads.length === 0) {
+  if (stagedBases.length === 0) {
     return;
   }
 
@@ -348,30 +378,48 @@ function execute() {
 
   const mtraActions: UserData.ActionData[] = [];
 
-  for (const shipBases of multiShipGroups) {
-    const firstNaturalId = shipBases[0]!.naturalId;
-    for (let i = 0; i < shipBases.length; i++) {
-      const base = shipBases[i]!;
-      const isLast = i === shipBases.length - 1;
-      mtraActions.push({
-        type: 'MTRA',
-        name: `Load ${base.naturalId}`,
-        group: base.naturalId,
-        origin: serializeStorage(base.armadaShip.warehouseStore!),
-        dest: serializeStorage(base.armadaShip.cargoStore!),
-        ...(isLast ? { sfcDestination: firstNaturalId } : { noSfc: true }),
-      });
+  // One merged MTRA per ship: sum of that ship's base bills, offload JSONs
+  // still per-base (via offloadGroups), single SFC to the first base.
+  const pushShipMtra = (shipBases: IncludedBase[]) => {
+    const first = shipBases[0]!;
+    const dispatchShip = first.dispatchShip;
+    const shipName = dispatchShip.ship.name ?? dispatchShip.ship.registration;
+    const loadName = `Load ${shipName}`;
+
+    let materials: Record<string, number> | undefined;
+    for (const base of shipBases) {
+      const group = groups.find(x => x.name === base.naturalId);
+      materials = mergeBills(materials, group?.materials);
     }
+
+    groups.push({
+      type: 'Manual',
+      name: loadName,
+      materials: materials!,
+    });
+
+    // Offload = JSON print; agent = post to agent channel (chain ids for 2+ stops).
+    const offloadGroups = shipBases.filter(x => x.config.offloadJson).map(x => x.naturalId);
+    const agentGroups = shipBases.filter(x => x.config.agent).map(x => x.naturalId);
+
+    mtraActions.push({
+      type: 'MTRA',
+      name: loadName,
+      group: loadName,
+      origin: serializeStorage(dispatchShip.warehouseStore!),
+      dest: serializeStorage(dispatchShip.cargoStore!),
+      sfcDestination: first.naturalId,
+      ...(offloadGroups.length > 0 ? { offloadGroups } : {}),
+      ...(agentGroups.length > 0 ? { agentGroups } : {}),
+    });
+  };
+
+  for (const shipBases of multiShipGroups) {
+    pushShipMtra(shipBases);
   }
 
   for (const base of singleShipBases) {
-    mtraActions.push({
-      type: 'MTRA',
-      name: `Load ${base.naturalId}`,
-      group: base.naturalId,
-      origin: serializeStorage(base.armadaShip.warehouseStore!),
-      dest: serializeStorage(base.armadaShip.cargoStore!),
-    });
+    pushShipMtra([base]);
   }
 
   for (const [code, materials] of exchangeBills) {
@@ -402,17 +450,16 @@ function execute() {
   };
 
   const pkg: UserData.ActionPackageData = {
-    global: { name: 'Armada' },
+    global: { name: 'Dispatch' },
     groups,
     actions: [refuelAction, ...cxBuyActions, ...mtraActions],
   };
 
-  stagedArmada.value = {
+  stagedDispatch.value = {
     // Deep-clone to detach from tile-state reactivity.
     pkg: JSON.parse(JSON.stringify(pkg)),
-    offloads,
   };
-  showBuffer('XIT ARMADAACT');
+  showBuffer('XIT DISPATCHACT');
 }
 
 function reset() {
@@ -428,48 +475,35 @@ function reset() {
       <PrunButton dark @click="reset">RESET</PrunButton>
       <PrunButton primary :data-tooltip="executeTooltip" @click="execute"> EXECUTE </PrunButton>
     </div>
-    <div :class="$style.panes">
+    <div ref="panesEl" :class="$style.panes">
+      <ShipPool :ships="cxShips" :base-configs="baseConfigs" />
       <div :class="$style.left">
         <table :class="$style.table">
           <thead>
             <tr>
+              <th :class="[$style.narrowCol, $style.centered]">Assign</th>
               <GripHeaderCell />
               <th :class="[$style.narrowCol, $style.centered]">Planet</th>
               <th :class="[$style.narrowCol, $style.centered]" colspan="2">Burn</th>
               <th :class="[$style.narrowCol, $style.centered]" colspan="2">Rep</th>
               <th :class="[$style.narrowCol, $style.centered]">Load</th>
-              <th :class="[$style.narrowCol, $style.centered]">Assign</th>
+              <th :class="[$style.narrowCol, $style.centered]">Materials</th>
+              <th :class="[$style.narrowCol, $style.centered]">Fit</th>
+              <th :class="[$style.narrowCol, $style.centered]">Days</th>
+              <th :class="[$style.narrowCol, $style.centered]">Rep ≥</th>
+              <th :class="[$style.narrowCol, $style.centered]">Adv</th>
+              <th :class="[$style.narrowCol, $style.centered]">CX</th>
+              <th :class="[$style.narrowCol, $style.centered]">Offload</th>
+              <th :class="[$style.narrowCol, $style.centered]">Agent</th>
             </tr>
           </thead>
-          <tbody v-draggable="[orderedIds, dragOptions]">
+          <tbody v-draggable="dragBinding">
             <PlanetRow
               v-for="id in orderedIds"
               :key="id"
               :site-id="rowById.get(id)!.base.siteId"
               :natural-id="rowById.get(id)!.base.naturalId"
               :planet-name="rowById.get(id)!.base.planetName"
-              :config="rowById.get(id)!.config" />
-          </tbody>
-        </table>
-      </div>
-      <ShipPool :ships="cxShips" :base-configs="baseConfigs" />
-      <div :class="$style.right">
-        <table :class="$style.table">
-          <thead>
-            <tr>
-              <th :class="[$style.narrowCol, $style.centered]">Fit</th>
-              <th :class="[$style.narrowCol, $style.centered]">Materials</th>
-              <th :class="[$style.narrowCol, $style.centered]">Days</th>
-              <th :class="[$style.narrowCol, $style.centered]">Rep ≥</th>
-              <th :class="[$style.narrowCol, $style.centered]">Adv</th>
-              <th :class="[$style.narrowCol, $style.centered]">CX</th>
-              <th :class="[$style.narrowCol, $style.centered]">Offload</th>
-            </tr>
-          </thead>
-          <tbody>
-            <AdvancedRow
-              v-for="id in orderedIds"
-              :key="id"
               :config="rowById.get(id)!.config"
               @fit="fitBase(rowById.get(id)!.base.naturalId)" />
           </tbody>
@@ -481,10 +515,9 @@ function reset() {
 
 <style module>
 .layout {
-  --armada-row-height: 24px;
+  --dispatch-row-height: 24px;
   display: flex;
   flex-direction: column;
-  height: 100%;
   box-sizing: border-box;
 }
 
@@ -492,32 +525,18 @@ function reset() {
   display: flex;
   justify-content: flex-end;
   align-items: center;
-  height: var(--armada-row-height);
+  height: var(--dispatch-row-height);
   border-bottom: 1px solid #2b485a;
   box-sizing: border-box;
   flex-shrink: 0;
   padding: 0 8px;
 }
 
+/* No inner scroller — the game's ScrollView scrolls the tile like every
+   other buffer, so no scrollbar width is reserved inside the window. */
 .panes {
   display: flex;
   flex-direction: row;
-  align-items: flex-start;
-  overflow: auto;
-  flex: 1;
-  min-height: 0;
-  scrollbar-width: thin;
-  scrollbar-color: rgb(51, 51, 51) transparent;
-}
-
-.panes::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
-}
-
-.panes::-webkit-scrollbar-thumb {
-  background-color: rgb(51, 51, 51);
-  border-radius: 5px;
 }
 
 .left {
@@ -526,26 +545,20 @@ function reset() {
   overflow: visible;
 }
 
-.right {
-  flex: 0 0 auto;
-  padding: 0;
-  overflow: visible;
-}
-
 .table {
   border-collapse: collapse;
 }
 
 .table thead tr {
-  height: var(--armada-row-height);
-  line-height: var(--armada-row-height);
+  height: var(--dispatch-row-height);
+  line-height: var(--dispatch-row-height);
   border-bottom: 1px solid #2b485a;
   box-sizing: border-box;
 }
 
 .table thead th {
-  height: var(--armada-row-height);
-  line-height: var(--armada-row-height);
+  height: var(--dispatch-row-height);
+  line-height: var(--dispatch-row-height);
   padding: 0 4px;
   box-sizing: border-box;
 }
