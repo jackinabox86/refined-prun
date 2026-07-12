@@ -14,6 +14,7 @@ interface StepMachineOptions {
   onEnd: () => void;
   onStatusChanged: (status: string, keepReady?: boolean) => void;
   onActReady: () => void;
+  onSkipReady: () => void;
 }
 
 const AssertionError = new Error('Assertion failed');
@@ -93,9 +94,9 @@ export class StepMachine {
         data: next,
         log,
         setStatus: status => this.options.onStatusChanged(status),
-        waitAct: async status => {
+        waitAct: async (status, opts) => {
           status ??= description ?? info.description(next);
-          await this.waitAct(status);
+          await this.waitAct(status, opts);
         },
         waitActionFeedback: async tile => {
           this.options.onStatusChanged('Waiting for action feedback...');
@@ -158,10 +159,22 @@ export class StepMachine {
     return tile;
   }
 
-  private async waitAct(status: string) {
+  private async waitAct(status: string, opts?: { actDelayMs?: number }) {
     this.options.onStatusChanged(status);
-    this.options.onActReady();
-    await new Promise<void>(resolve => (this.nextAct = resolve));
+    const promise = new Promise<void>(resolve => (this.nextAct = resolve));
+    if ((opts?.actDelayMs ?? 0) > 0) {
+      // SKIP/CANCEL work during the delay; ACT stays grayed until it elapses.
+      this.options.onSkipReady();
+      const armed = this.nextAct;
+      await sleep(opts.actDelayMs);
+      // Skipped/canceled/acted during the delay - don't re-arm the ACT button.
+      if (this.nextAct === armed) {
+        this.options.onActReady();
+      }
+    } else {
+      this.options.onActReady();
+    }
+    await promise;
   }
 
   private ensureRunning() {

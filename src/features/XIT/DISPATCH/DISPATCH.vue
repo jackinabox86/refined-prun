@@ -24,6 +24,7 @@ import { useTile } from '@src/hooks/use-tile';
 import {
   DispatchBaseConfig,
   DispatchShip,
+  billTotals,
   combinedBaseBill,
   fitDaysForShip,
   getShipsAtCX,
@@ -231,6 +232,40 @@ const cxShipById = computed(() => {
   return map;
 });
 
+// Ships whose assigned bases' combined bills exceed free cargo capacity.
+const overloadedShips = computed(() => {
+  const totals = new Map<string, { weight: number; volume: number }>();
+  for (const { base, config } of rows.value) {
+    if (!config.ship || (!config.resupply && !config.repair)) {
+      continue;
+    }
+    const bill = combinedBaseBill(base.naturalId, config!, base.site);
+    if (!bill) {
+      continue;
+    }
+    const billT = billTotals(bill);
+    const acc = totals.get(config.ship) ?? { weight: 0, volume: 0 };
+    acc.weight += billT.weight;
+    acc.volume += billT.volume;
+    totals.set(config.ship, acc);
+  }
+  const result = new Set<string>();
+  for (const [shipId, t] of totals) {
+    const store = cxShipById.value.get(shipId)?.cargoStore;
+    if (!store) {
+      continue;
+    }
+    // Free capacity net of whatever is already in the cargo hold, matching FIT.
+    if (
+      t.weight > store.weightCapacity - store.weightLoad ||
+      t.volume > store.volumeCapacity - store.volumeLoad
+    ) {
+      result.add(shipId);
+    }
+  }
+  return result;
+});
+
 const hasAssignedShip = computed(() => {
   const list = bases.value;
   if (!list) {
@@ -245,9 +280,15 @@ const hasAssignedShip = computed(() => {
   return false;
 });
 
-const executeTooltip = computed(() =>
-  hasAssignedShip.value ? undefined : 'Assign a ship to at least one base first',
-);
+const executeTooltip = computed(() => {
+  if (!hasAssignedShip.value) {
+    return 'Assign a ship to at least one base first';
+  }
+  if (overloadedShips.value.size > 0) {
+    return 'A ship is loaded above its capacity';
+  }
+  return undefined;
+});
 
 interface IncludedBase {
   naturalId: string;
@@ -316,6 +357,9 @@ function execute() {
   if (includedBases.value.length === 0) {
     return;
   }
+  if (overloadedShips.value.size > 0) {
+    return;
+  }
 
   const groups: UserData.MaterialGroupData[] = [];
   const cxBuyActions: UserData.ActionData[] = [];
@@ -377,14 +421,18 @@ function execute() {
   }
 
   const mtraActions: UserData.ActionData[] = [];
+  const finishActions: UserData.ActionData[] = [];
 
-  // One merged MTRA per ship: sum of that ship's base bills, offload JSONs
-  // still per-base (via offloadGroups), single SFC to the first base.
+  // Two-phase MTRA per ship: transfer actions first (all ships), then finish
+  // actions (offload JSONs, agent posts, SFC) so cargo moves complete before
+  // any ship's SFC. One material group per ship (sum of base bills).
   const pushShipMtra = (shipBases: IncludedBase[]) => {
     const first = shipBases[0]!;
     const dispatchShip = first.dispatchShip;
     const shipName = dispatchShip.ship.name ?? dispatchShip.ship.registration;
     const loadName = `Load ${shipName}`;
+    const origin = serializeStorage(dispatchShip.warehouseStore!);
+    const dest = serializeStorage(dispatchShip.cargoStore!);
 
     let materials: Record<string, number> | undefined;
     for (const base of shipBases) {
@@ -401,16 +449,28 @@ function execute() {
     // Offload = JSON print; agent = post to agent channel (chain ids for 2+ stops).
     const offloadGroups = shipBases.filter(x => x.config.offloadJson).map(x => x.naturalId);
     const agentGroups = shipBases.filter(x => x.config.agent).map(x => x.naturalId);
+    const repairGroups = shipBases.filter(x => x.config.repair).map(x => x.naturalId);
 
     mtraActions.push({
       type: 'MTRA',
       name: loadName,
       group: loadName,
-      origin: serializeStorage(dispatchShip.warehouseStore!),
-      dest: serializeStorage(dispatchShip.cargoStore!),
+      origin,
+      dest,
+      noSfc: true,
+    });
+
+    finishActions.push({
+      type: 'MTRA',
+      name: `Offload ${shipName}`,
+      group: loadName,
+      origin,
+      dest,
+      finishOnly: true,
       sfcDestination: first.naturalId,
       ...(offloadGroups.length > 0 ? { offloadGroups } : {}),
       ...(agentGroups.length > 0 ? { agentGroups } : {}),
+      ...(repairGroups.length > 0 ? { repairGroups } : {}),
     });
   };
 
@@ -452,7 +512,7 @@ function execute() {
   const pkg: UserData.ActionPackageData = {
     global: { name: 'Dispatch' },
     groups,
-    actions: [refuelAction, ...cxBuyActions, ...mtraActions],
+    actions: [refuelAction, ...cxBuyActions, ...mtraActions, ...finishActions],
   };
 
   stagedDispatch.value = {
@@ -473,7 +533,13 @@ function reset() {
   <div v-else :class="$style.layout">
     <div :class="$style.executeBar">
       <PrunButton dark @click="reset">RESET</PrunButton>
-      <PrunButton primary :data-tooltip="executeTooltip" @click="execute"> EXECUTE </PrunButton>
+      <PrunButton
+        primary
+        :disabled="overloadedShips.size > 0"
+        :data-tooltip="executeTooltip"
+        @click="execute">
+        EXECUTE
+      </PrunButton>
     </div>
     <div ref="panesEl" :class="$style.panes">
       <ShipPool :ships="cxShips" :base-configs="baseConfigs" />
@@ -505,6 +571,9 @@ function reset() {
               :natural-id="rowById.get(id)!.base.naturalId"
               :planet-name="rowById.get(id)!.base.planetName"
               :config="rowById.get(id)!.config"
+              :overloaded="
+                !!rowById.get(id)!.config.ship && overloadedShips.has(rowById.get(id)!.config.ship!)
+              "
               @fit="fitBase(rowById.get(id)!.base.naturalId)" />
           </tbody>
         </table>

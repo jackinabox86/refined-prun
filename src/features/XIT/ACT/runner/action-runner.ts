@@ -17,6 +17,7 @@ interface ActionRunnerOptions {
   onEnd: () => void;
   onStatusChanged: (status: string, keepReady?: boolean) => void;
   onActReady: () => void;
+  onSkipReady: () => void;
 }
 
 export class ActionRunner {

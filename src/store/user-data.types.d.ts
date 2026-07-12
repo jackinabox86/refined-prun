@@ -90,6 +90,11 @@ declare namespace UserData {
     printOffloadJson?: boolean;
     offloadGroups?: string[];
     agentGroups?: string[];
+    finishOnly?: boolean;
+    // Bases (group names) that had repair toggled on; stamps braPlanet on their offload packages.
+    repairGroups?: string[];
+    // When set, an OPEN_BRA step for this planet is emitted after the transfers.
+    braPlanet?: string;
 
     // CONT Ship specific
     currency?: string;

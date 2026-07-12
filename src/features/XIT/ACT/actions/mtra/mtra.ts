@@ -5,6 +5,7 @@ import { MTRA_TRANSFER } from '@src/features/XIT/ACT/action-steps/MTRA_TRANSFER'
 import { POST_AGENT } from '@src/features/XIT/ACT/action-steps/POST_AGENT';
 import { LOG_JSON } from '@src/features/XIT/ACT/action-steps/LOG_JSON';
 import { OPEN_SFC } from '@src/features/XIT/ACT/action-steps/OPEN_SFC';
+import { OPEN_BRA } from '@src/features/XIT/ACT/action-steps/OPEN_BRA';
 import { atSameLocation, deserializeStorage } from '@src/features/XIT/ACT/actions/utils';
 import { Config, CX_BUY_ONLY_DEST } from '@src/features/XIT/ACT/actions/mtra/config';
 import { AssertFn, configurableValue } from '@src/features/XIT/ACT/shared-types';
@@ -71,15 +72,26 @@ act.addAction<Config>({
     const isSameLocation = atSameLocation(origin, dest);
     assert(isSameLocation, 'Origin and destination are not at the same location');
 
-    for (const ticker of Object.keys(materials)) {
-      emitStep(
-        MTRA_TRANSFER({
-          from: origin.id,
-          to: dest.id,
-          ticker,
-          amount: materials[ticker],
-        }),
-      );
+    // A finishOnly action re-runs the ship's finish steps (offload JSONs, agent
+    // posts, SFC) after all transfer actions; the transfers themselves were
+    // already emitted by the matching non-finishOnly action.
+    if (!data.finishOnly) {
+      for (const ticker of Object.keys(materials)) {
+        emitStep(
+          MTRA_TRANSFER({
+            from: origin.id,
+            to: dest.id,
+            ticker,
+            amount: materials[ticker],
+          }),
+        );
+      }
+    }
+
+    // Repair reminder for DISPATCH-generated offload packages (see braPlanet in
+    // user-data.types): after the offload transfers, before the chain SFC.
+    if (data.braPlanet) {
+      emitStep(OPEN_BRA({ planet: data.braPlanet }));
     }
 
     // Single-group Auto Offload post (no multi-group lists). Multi-stop dispatch
@@ -177,6 +189,10 @@ act.addAction<Config>({
           }
           const groupPlanet = getMaterialGroupPlanet(name);
           const offloadPkg = buildOffloadPkg(name, groupMats, groupPlanet);
+          if (groupPlanet && data.repairGroups?.includes(name)) {
+            // Survives agent-channel sync - unmapped keys pass through compaction.
+            offloadPkg.actions[0]!.braPlanet = groupPlanet;
+          }
           if (printGroups.includes(name)) {
             emitStep(LOG_JSON({ pkg: offloadPkg }));
           }

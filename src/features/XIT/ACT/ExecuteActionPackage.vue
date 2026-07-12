@@ -34,6 +34,7 @@ const isPreviewing = ref(false);
 const isRunning = ref(false);
 const status = ref(undefined as string | undefined);
 const actReady = ref(false);
+const skipReady = ref(false);
 
 watch(config, clearLog, { deep: true });
 
@@ -106,10 +107,14 @@ const runner = new ActionRunner({
     status.value = title;
     if (!keepReady) {
       actReady.value = false;
+      skipReady.value = false;
     }
   },
   onActReady: () => {
     actReady.value = true;
+  },
+  onSkipReady: () => {
+    skipReady.value = true;
   },
 });
 
@@ -135,21 +140,25 @@ function onExecuteClick() {
   clearLog();
   beforeExecute?.(logMessage);
   actReady.value = false;
+  skipReady.value = false;
   runner.execute(pkg, config.value, extraSteps);
 }
 
 function onCancelClick() {
   actReady.value = false;
+  skipReady.value = false;
   runner.cancel();
 }
 
 function onActClick() {
   actReady.value = false;
+  skipReady.value = false;
   runner.act();
 }
 
 function onSkipClick() {
   actReady.value = false;
+  skipReady.value = false;
   runner.skip();
 }
 
@@ -201,13 +210,15 @@ function clearLog() {
         <PrunButton primary disabled>PREVIEW</PrunButton>
         <PrunButton
           danger
-          :disabled="!actReady"
+          :disabled="!actReady && !skipReady"
           :class="$style.executeButton"
           @click="onCancelClick">
           CANCEL
         </PrunButton>
         <PrunButton primary :disabled="!actReady" @click="onActClick">ACT</PrunButton>
-        <PrunButton neutral :disabled="!actReady" @click="onSkipClick">SKIP</PrunButton>
+        <PrunButton neutral :disabled="!actReady && !skipReady" @click="onSkipClick">
+          SKIP
+        </PrunButton>
       </template>
     </ActionBar>
   </div>

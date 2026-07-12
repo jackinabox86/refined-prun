@@ -17,11 +17,12 @@ import { fixed0 } from '@src/utils/format';
 import type { MaterialFilter } from '@src/features/XIT/ACT/material-groups/resupply/config';
 import { DispatchBaseConfig, billTotals, combinedBaseBill } from '@src/features/XIT/DISPATCH/utils';
 
-const { siteId, naturalId, planetName, config } = defineProps<{
+const { siteId, naturalId, planetName, config, overloaded } = defineProps<{
   siteId: string;
   naturalId: string;
   planetName: string;
   config: DispatchBaseConfig;
+  overloaded: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -185,7 +186,14 @@ function clearShip() {
         <span :class="$style.statusNum">{{ repairDaysText }}</span>
       </div>
     </td>
-    <td :class="[C.type.typeSmall, $style.loadCell]">{{ loadText }}</td>
+    <td
+      :class="[
+        C.type.typeSmall,
+        $style.loadCell,
+        overloaded && [C.Workforces.daysMissing, $style.loadOverloaded],
+      ]">
+      {{ loadText }}
+    </td>
     <td :class="$style.selectCell">
       <div :class="[C.forms.input, $style.selectWrap]">
         <SelectInput v-model="config.materialFilter" :options="materialFilterOptions" />
@@ -275,6 +283,10 @@ function clearShip() {
   padding: 0 6px;
   text-align: center;
   color: #f7a600;
+}
+
+.loadOverloaded {
+  color: inherit;
 }
 
 .shipCell {
