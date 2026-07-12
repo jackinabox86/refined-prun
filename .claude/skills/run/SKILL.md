@@ -570,6 +570,19 @@ process for this profile, then retry.
     `open-buffer` can time out while the game reconnects — wait ~20s and retry before
     suspecting the build.
 
+20. **Restore anything you resize.** A `resize-window` done purely for screenshot
+    readability leaves the window at that size for the rest of the session — the user
+    later sees the oversized window and reads the slack as a product layout bug
+    (happened live: a 1128px-wide test resize got reported as "the buffer opens with
+    extra space" and cost a full diagnosis round). Resize back or close the buffer once
+    the screenshot is taken; never leave a manually resized window as the final state.
+
+21. **In a scrolled tile, the fixed `TileFrame__header` covers the topmost visible
+    row.** A mouse-down aimed at that row lands on the header and the drag/click
+    silently no-ops — indistinguishable from a broken feature. Verify the press point
+    with `elementFromPoint` immediately before pressing, and target rows fully below
+    the header (this false-flagged drag-reorder as regressed once).
+
 ## Files
 
 - `scripts/pw-helper.mjs` — shared constants (paths, CDP port, APEX URL) and the

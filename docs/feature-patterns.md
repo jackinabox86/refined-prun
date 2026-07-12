@@ -53,10 +53,10 @@ Vue component filenames must match the import name:
 **Component basenames must be unique across the whole project.** CSS-module scoping
 hashes only the file's basename and class name, so two features that each have a
 `BaseRow.vue` emit rules under the same `rp-BaseRow__*` selectors — both land in the
-built CSS and the later one silently overrides the earlier (found live: ARMADA's
+built CSS and the later one silently overrides the earlier (found live: DISPATCH's
 BaseRow styles were overridden by BS's and leaked back into XIT BS). Same-named files
 also break `[class*="rp-BaseRow__"]`-style test selectors, which match every feature
-sharing the basename. Pick a distinct name instead (ARMADA's row is `PlanetRow.vue`).
+sharing the basename. Pick a distinct name instead (DISPATCH's row is `PlanetRow.vue`).
 
 ### Parameter Checks
 
@@ -142,16 +142,59 @@ The `pkg` is a plain hardcoded object, not persisted user data — `ExecuteActio
 
 **Never embed `ExecuteActionPackage` inside a long-lived planner tile.** The runner
 splits its host tile to allocate command buffers, which remounts the host component —
-non-persisted state resets and the run dies (this broke ARMADA's first embedded-run
+non-persisted state resets and the run dies (this broke DISPATCH's first embedded-run
 design). Instead stage the built package in a module-level ref and open a dedicated
 XIT command whose window renders `ExecuteActionPackage` (see
-`src/features/XIT/ARMADA/staged.ts` + `ARMADAACT.ts`). Besides `afterExecute`,
+`src/features/XIT/DISPATCH/staged.ts` + `DISPATCHACT.ts`). Besides `afterExecute`,
 `ExecuteActionPackage` accepts `beforeExecute` — logs emitted there land at the top of
-the run log (ARMADA prints its offload JSONs that way).
+the run log. (DISPATCH used to print its offload JSONs that way; they now go through
+`LOG_JSON` steps emitted by MTRA's `offloadGroups` path, with `agentGroups` controlling
+the agent-channel posts.)
 
 ### Action-Specific Sentinel Values
 
 `configurableValue` and `groupTargetPrefix` (`shared-types.ts`) are sentinels shared across every ACT action/material-group type. If an action needs an extra dropdown option unique to itself (e.g. Refuel's "All Exchanges" origin, alongside "Configure on Execution" and specific storages), define that sentinel in the action's own `utils.ts`/`config.ts` instead of adding it to `shared-types.ts`.
+
+---
+
+## Tile UI Gotchas
+
+### Let the game's ScrollView do the scrolling
+
+Never create an inner scroll container inside a tile (`height: 100%` on the root plus
+`overflow: auto` on a pane). The game wraps every tile in its own ScrollView; an inner
+scroller reserves a second scrollbar's width next to the game's scroll gutter, making
+the buffer visibly wider on the right than every other buffer (this was DISPATCH's
+right-edge gap). Let content flow at natural height and the game scrolls it.
+
+### Auto-fitting a window to its content
+
+The game applies the registered `bufferSize` asynchronously around tile creation, so a
+direct `style.width` write gets clobbered — dispatch `setBufferSize(tile.id, ...)` after
+the first data render instead (one-shot watch; see `DISPATCH.vue`). Measure width as
+`content + (bodyEl.offsetWidth − contentEl.clientWidth)`; that chrome term is real
+structural overhead on every floating window: a 6px `Tile__tile` margin per side plus
+the ScrollView's 10px right gutter (which hosts its 6px scrollbar track).
+
+### Drag-reorder with vue-draggable-plus
+
+The `v-draggable` directive binds once at mount, and a template binding
+(`v-draggable="[list, opts]"`) auto-unwraps a ref — the directive captures that array
+instance and mutates it in place on drag. Two safe patterns:
+
+- A reactive array that is only ever mutated in place (TODO/SORT/ACT lists) — the
+  template binding is fine.
+- If any code REPLACES the array (`ids.value = next` in a sync watcher), the directive
+  is left mutating an orphaned snapshot and drags silently revert. Pass the ref itself
+  by building the tuple in script (`const dragBinding = [idsRef, opts]`) — the library
+  handles refs natively (see `DISPATCH.vue`).
+
+### Tile state is ephemeral for floating buffers
+
+`useTileState` persists only for docked tiles (non-numeric tile ids). Floating buffers
+get numeric ids and their state is deleted on close (`tileRemoved` in
+`user-data-tiles.ts`). Don't promise cross-open persistence for a floating-buffer
+feature; put durable state in `userData` instead.
 
 ---
 
