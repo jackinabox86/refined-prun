@@ -10,10 +10,14 @@ import { configurableValue } from '@src/features/XIT/ACT/shared-types';
 const parameters = useXitParameters();
 const messageId = parameters.join(' ');
 
-const entry = computed(() => agentReadyPackages.value.find(x => x.messageId === messageId));
+// Snapshot once: AGENT_DONE posts a completion marker mid-run, which drops this
+// message from agentReadyPackages (meant to hide it from AGENT next time, not kill
+// the run in progress). A live computed here would flip `v-if="!entry"` and unmount
+// ExecuteActionPackage - and its runner - before the chained OPEN_SFC step could run.
+const entry = agentReadyPackages.value.find(x => x.messageId === messageId);
 
 const extraSteps = computed(() => {
-  const id = entry.value?.id;
+  const id = entry?.id;
   if (!id) {
     return undefined;
   }
@@ -30,7 +34,7 @@ const extraSteps = computed(() => {
   }
 
   // Ship id from the current package's MTRA origin (ship cargo store).
-  const origin = entry.value?.pkg.actions.find(x => x.type === 'MTRA')?.origin;
+  const origin = entry?.pkg.actions.find(x => x.type === 'MTRA')?.origin;
   if (origin === undefined || origin === configurableValue) {
     return steps;
   }

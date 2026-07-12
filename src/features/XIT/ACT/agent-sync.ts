@@ -11,7 +11,10 @@ import { deserializeStorage } from '@src/features/XIT/ACT/actions/utils';
 import { sitesStore } from '@src/infrastructure/prun-api/data/sites';
 import { warehousesStore } from '@src/infrastructure/prun-api/data/warehouses';
 import { shipsStore } from '@src/infrastructure/prun-api/data/ships';
-import { getEntityNaturalIdFromAddress } from '@src/infrastructure/prun-api/data/addresses';
+import {
+  getEntityNaturalIdFromAddress,
+  getEntityNameFromAddress,
+} from '@src/infrastructure/prun-api/data/addresses';
 
 const readyMaxAgeMs = 5 * 24 * 60 * 60 * 1000;
 
@@ -281,12 +284,54 @@ export interface AgentReadyPackage {
   pkg: UserData.ActionPackageData;
   ready: boolean;
   id?: string;
+  destination?: PackageDestination;
 }
 
-// Whichever action references a store is what needs to be "ready" (landed, for a ship
-// store) before the package makes sense to run - e.g. an Auto Offload MTRA whose origin
-// is a ship's cargo hold that's still in flight.
-function getReadyState(pkg: UserData.ActionPackageData): boolean {
+export interface PackageDestination {
+  naturalId: string;
+  name: string;
+}
+
+// The base-store side of a package's action(s) is the planet it's headed to (the
+// ship-store side is the ship carrying the cargo - see getPackageShip).
+export function getPackageDestination(
+  pkg: UserData.ActionPackageData,
+): PackageDestination | undefined {
+  for (const action of pkg.actions) {
+    for (const value of [action.origin, action.dest]) {
+      const store = deserializeStorage(value);
+      if (store?.type === 'STORE') {
+        const site = sitesStore.getById(store.addressableId);
+        const naturalId = getEntityNaturalIdFromAddress(site?.address);
+        if (naturalId) {
+          return { naturalId, name: getEntityNameFromAddress(site?.address) ?? naturalId };
+        }
+      }
+    }
+  }
+  return undefined;
+}
+
+export function getPackageShip(pkg: UserData.ActionPackageData): PrunApi.Ship | undefined {
+  for (const action of pkg.actions) {
+    for (const value of [action.origin, action.dest]) {
+      const store = deserializeStorage(value);
+      if (store?.type === 'SHIP_STORE') {
+        return shipsStore.getById(store.addressableId);
+      }
+    }
+  }
+  return undefined;
+}
+
+// Whichever action references a store is what needs to be "ready" (landed at the
+// package's destination, for a ship store) before the package makes sense to run -
+// e.g. an Auto Offload MTRA whose origin is a ship's cargo hold that's still in
+// flight, or already landed but at some other planet than the offload target.
+function getReadyState(
+  pkg: UserData.ActionPackageData,
+  destination: PackageDestination | undefined,
+): boolean {
   const storageValues = [pkg.actions.map(x => x.origin), pkg.actions.map(x => x.dest)]
     .flat()
     .filter((x): x is string => !!x && x !== configurableValue && !x.startsWith(groupTargetPrefix));
@@ -298,6 +343,12 @@ function getReadyState(pkg: UserData.ActionPackageData): boolean {
     }
     const ship = shipsStore.getById(store.addressableId);
     if (ship?.flightId) {
+      return false;
+    }
+    if (
+      destination &&
+      getEntityNaturalIdFromAddress(ship?.address ?? undefined) !== destination.naturalId
+    ) {
       return false;
     }
   }
@@ -342,11 +393,13 @@ export const agentReadyPackages = computed<AgentReadyPackage[]>(() => {
       }
     }
     const pkg = expandActionPackageFromSync(envelope);
+    const destination = getPackageDestination(pkg);
     result.push({
       messageId: message.messageId,
       pkg,
-      ready: getReadyState(pkg),
+      ready: getReadyState(pkg, destination),
       id,
+      destination,
     });
   }
   return result;

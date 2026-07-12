@@ -5,8 +5,16 @@ import {
   fetchAgentChannel,
   openAgentChannelWithDraft,
 } from '@src/infrastructure/prun-api/data/agent-channel';
-import { agentReadyPackages } from '@src/features/XIT/ACT/agent-sync';
+import {
+  agentReadyPackages,
+  getPackageShip,
+  type PackageDestination,
+} from '@src/features/XIT/ACT/agent-sync';
 import { showBuffer } from '@src/infrastructure/prun-ui/buffers';
+import { flightsStore } from '@src/infrastructure/prun-api/data/flights';
+import { getEntityNaturalIdFromAddress } from '@src/infrastructure/prun-api/data/addresses';
+import { formatEta } from '@src/utils/format';
+import { timestampEachMinute } from '@src/utils/dayjs';
 import LoadingSpinner from '@src/components/LoadingSpinner.vue';
 import PrunButton from '@src/components/PrunButton.vue';
 import PrunLink from '@src/components/PrunLink.vue';
@@ -22,7 +30,35 @@ async function refresh() {
 
 const fetched = computed(() => agentChannelStore.fetched.value);
 const inaccessible = computed(() => agentChannelStore.inaccessible.value);
-const packages = computed(() => agentReadyPackages.value);
+
+function getEta(pkg: UserData.ActionPackageData, destinationNaturalId: string | undefined) {
+  if (!destinationNaturalId) {
+    return undefined;
+  }
+  const flight = flightsStore.getById(getPackageShip(pkg)?.flightId);
+  if (!flight || getEntityNaturalIdFromAddress(flight.destination) !== destinationNaturalId) {
+    return undefined;
+  }
+  return formatEta(timestampEachMinute.value, flight.arrival.timestamp);
+}
+
+// Older posted packages named themselves "Offload <naturalId>" (see mtra.ts history);
+// swap the natural id for the same display name shown in the Destination column.
+function getDisplayName(
+  pkg: UserData.ActionPackageData,
+  destination: PackageDestination | undefined,
+) {
+  const name = pkg.global.name ?? '';
+  return destination ? name.replaceAll(destination.naturalId, destination.name) : name;
+}
+
+const packages = computed(() =>
+  agentReadyPackages.value.map(entry => ({
+    ...entry,
+    name: getDisplayName(entry.pkg, entry.destination),
+    eta: getEta(entry.pkg, entry.destination?.naturalId),
+  })),
+);
 
 function openPackage(messageId: string) {
   showBuffer(`XIT AGENT ${messageId}`);
@@ -45,19 +81,28 @@ function openPackage(messageId: string) {
       <tr>
         <th>Name</th>
         <th>Id</th>
+        <th>Destination</th>
+        <th>ETA</th>
         <th>Execute</th>
         <th>Dismiss</th>
       </tr>
     </thead>
     <tbody v-if="packages.length === 0">
       <tr>
-        <td colspan="4">No ready action packages.</td>
+        <td colspan="6">No ready action packages.</td>
       </tr>
     </tbody>
     <tbody v-else>
       <tr v-for="entry in packages" :key="entry.messageId">
-        <td>{{ entry.pkg.global.name }}</td>
+        <td>{{ entry.name }}</td>
         <td>{{ entry.id ?? '--' }}</td>
+        <td>
+          <PrunLink v-if="entry.destination" inline :command="`BS ${entry.destination.naturalId}`">
+            {{ entry.destination.name }}
+          </PrunLink>
+          <template v-else>--</template>
+        </td>
+        <td>{{ entry.eta ?? '--' }}</td>
         <td>
           <PrunButton v-if="entry.ready" primary @click="openPackage(entry.messageId)">
             OPEN

@@ -132,11 +132,10 @@ act.addAction<Config>({
       const needsSfc = !data.noSfc && !PRUNPLANNER_PACKAGES.includes(packageName);
 
       const buildOffloadPkg = (
-        groupName: string | undefined,
         groupMaterials: Record<string, number>,
         planet: string | undefined,
       ) => {
-        const name = `Offload ${planet ?? groupName}`;
+        const name = 'Auto Offload';
         return {
           global: { name },
           groups: [
@@ -188,7 +187,7 @@ act.addAction<Config>({
             continue;
           }
           const groupPlanet = getMaterialGroupPlanet(name);
-          const offloadPkg = buildOffloadPkg(name, groupMats, groupPlanet);
+          const offloadPkg = buildOffloadPkg(groupMats, groupPlanet);
           if (groupPlanet && data.repairGroups?.includes(name)) {
             // Survives agent-channel sync - unmapped keys pass through compaction.
             offloadPkg.actions[0]!.braPlanet = groupPlanet;
@@ -201,7 +200,7 @@ act.addAction<Config>({
           }
         }
       } else if (needsPrint) {
-        emitStep(LOG_JSON({ pkg: buildOffloadPkg(data.group, materials, planet) }));
+        emitStep(LOG_JSON({ pkg: buildOffloadPkg(materials, planet) }));
       }
 
       if (needsSfc) {

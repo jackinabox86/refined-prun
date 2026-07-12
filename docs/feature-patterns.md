@@ -151,6 +151,23 @@ the run log. (DISPATCH used to print its offload JSONs that way; they now go thr
 `LOG_JSON` steps emitted by MTRA's `offloadGroups` path, with `agentGroups` controlling
 the agent-channel posts.)
 
+**A host `v-if`/`v-else` gating `ExecuteActionPackage` must not depend on data the run
+itself mutates.** `XIT AGENT`'s `ExecuteStoredPackage.vue` used to resolve its `pkg` via
+a `computed` over `agentReadyPackages`, gated by `v-if="!entry"`. The run's own
+`AGENT_DONE` step posts a completion marker to the agent channel, which drops the
+message from `agentReadyPackages` (by design, to hide it from AGENT next time) —
+flipping the `v-if` and unmounting `ExecuteActionPackage`, and its runner, before later
+chained steps (e.g. `OPEN_SFC`) could execute. Resolve such an `entry` once as a plain
+non-reactive snapshot at setup instead of a live `computed`, so a step's own side effect
+can't unmount the component that's running it.
+
+**Automated posts to the agent channel must stay hidden.** `agent-channel.ts` exposes
+both a hidden path (`postAgentMessage` — `showBuffer` with `autoClose`) and a visible one
+(`openAgentChannel`/`openAgentChannelWithDraft`). Use the hidden path for anything an ACT
+step posts on the user's behalf (`POST_AGENT`, `AGENT_DONE`'s completion marker) —
+reserve the visible path for flows where the player is meant to review/send the message
+themselves (e.g. the AGENT panel's manual "dismiss" button).
+
 ### Action-Specific Sentinel Values
 
 `configurableValue` and `groupTargetPrefix` (`shared-types.ts`) are sentinels shared across every ACT action/material-group type. If an action needs an extra dropdown option unique to itself (e.g. Refuel's "All Exchanges" origin, alongside "Configure on Execution" and specific storages), define that sentinel in the action's own `utils.ts`/`config.ts` instead of adding it to `shared-types.ts`.
