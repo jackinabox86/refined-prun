@@ -162,11 +162,12 @@ export class StepMachine {
   private async waitAct(status: string, opts?: { actDelayMs?: number }) {
     this.options.onStatusChanged(status);
     const promise = new Promise<void>(resolve => (this.nextAct = resolve));
-    if ((opts?.actDelayMs ?? 0) > 0) {
+    const actDelayMs = opts?.actDelayMs ?? 0;
+    if (actDelayMs > 0) {
       // SKIP/CANCEL work during the delay; ACT stays grayed until it elapses.
       this.options.onSkipReady();
       const armed = this.nextAct;
-      await sleep(opts.actDelayMs);
+      await sleep(actDelayMs);
       // Skipped/canceled/acted during the delay - don't re-arm the ACT button.
       if (this.nextAct === armed) {
         this.options.onActReady();
