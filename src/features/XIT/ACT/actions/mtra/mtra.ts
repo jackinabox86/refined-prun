@@ -105,8 +105,8 @@ act.addAction<Config>({
       );
     }
 
-    if (dest.type === 'SHIP_STORE' && !PRUNPLANNER_PACKAGES.includes(packageName)) {
-      const planet = getMaterialGroupPlanet(data.group);
+    if (dest.type === 'SHIP_STORE' && !data.noSfc && !PRUNPLANNER_PACKAGES.includes(packageName)) {
+      const planet = data.sfcDestination ?? getMaterialGroupPlanet(data.group);
       emitStep(OPEN_SFC({ shipId: dest.addressableId, destination: planet }));
     }
   },

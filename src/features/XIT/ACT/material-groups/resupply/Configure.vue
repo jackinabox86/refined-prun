@@ -43,7 +43,7 @@ if (data.days === configurableValue && config.days === undefined) {
 
 const materialFilterOptions: MaterialFilter[] = ['All', 'Workforce', 'Production'];
 const materialFilter = ref<MaterialFilter>(
-  config.materialFilter ?? (data.consumablesOnly ? 'Workforce' : 'All'),
+  config.materialFilter ?? data.materialFilter ?? (data.consumablesOnly ? 'Workforce' : 'All'),
 );
 config.materialFilter = materialFilter.value;
 watch(materialFilter, val => {

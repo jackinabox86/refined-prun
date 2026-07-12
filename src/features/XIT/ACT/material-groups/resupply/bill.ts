@@ -29,7 +29,8 @@ export function computeResupplyBill(
   }
   const stores = storagesStore.getByAddressableId(site.siteId);
 
-  const filter = materialFilter ?? (data.consumablesOnly ? 'Workforce' : 'All');
+  const filter =
+    materialFilter ?? data.materialFilter ?? (data.consumablesOnly ? 'Workforce' : 'All');
   const planetBurn = calculatePlanetBurn(
     production,
     workforce,

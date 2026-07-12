@@ -62,6 +62,7 @@ declare namespace UserData {
     materials?: Record<string, number>;
     exclusions?: string[];
     consumablesOnly?: boolean;
+    materialFilter?: 'All' | 'Workforce' | 'Production';
   }
 
   type ActionType = 'CX Buy' | 'MTRA' | 'Refuel' | 'CONT Ship' | 'CONT Trade';
@@ -84,6 +85,8 @@ declare namespace UserData {
     origin?: string;
     dest?: string;
     postToAgent?: boolean;
+    noSfc?: boolean;
+    sfcDestination?: string;
 
     // CONT Ship specific
     currency?: string;
