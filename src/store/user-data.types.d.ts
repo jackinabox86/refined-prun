@@ -87,6 +87,9 @@ declare namespace UserData {
     postToAgent?: boolean;
     noSfc?: boolean;
     sfcDestination?: string;
+    printOffloadJson?: boolean;
+    offloadGroups?: string[];
+    agentGroups?: string[];
 
     // CONT Ship specific
     currency?: string;

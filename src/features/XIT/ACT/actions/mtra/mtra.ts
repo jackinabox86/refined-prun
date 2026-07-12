@@ -3,10 +3,12 @@ import Edit from '@src/features/XIT/ACT/actions/mtra/Edit.vue';
 import Configure from '@src/features/XIT/ACT/actions/mtra/Configure.vue';
 import { MTRA_TRANSFER } from '@src/features/XIT/ACT/action-steps/MTRA_TRANSFER';
 import { POST_AGENT } from '@src/features/XIT/ACT/action-steps/POST_AGENT';
+import { LOG_JSON } from '@src/features/XIT/ACT/action-steps/LOG_JSON';
 import { OPEN_SFC } from '@src/features/XIT/ACT/action-steps/OPEN_SFC';
 import { atSameLocation, deserializeStorage } from '@src/features/XIT/ACT/actions/utils';
 import { Config, CX_BUY_ONLY_DEST } from '@src/features/XIT/ACT/actions/mtra/config';
 import { AssertFn, configurableValue } from '@src/features/XIT/ACT/shared-types';
+import { generateAgentChainIds } from '@src/features/XIT/ACT/agent-sync';
 
 act.addAction<Config>({
   type: 'MTRA',
@@ -41,7 +43,8 @@ act.addAction<Config>({
     );
   },
   generateSteps: async ctx => {
-    const { data, config, packageName, getMaterialGroup, getMaterialGroupPlanet, emitStep } = ctx;
+    const { data, config, packageName, log, getMaterialGroup, getMaterialGroupPlanet, emitStep } =
+      ctx;
     const assert: AssertFn = ctx.assert;
 
     const PRUNPLANNER_PACKAGES = [
@@ -79,7 +82,14 @@ act.addAction<Config>({
       );
     }
 
-    if (dest.type === 'SHIP_STORE' && data.postToAgent) {
+    // Single-group Auto Offload post (no multi-group lists). Multi-stop dispatch
+    // posts per-stop packages in the offloadGroups/agentGroups branch below.
+    if (
+      dest.type === 'SHIP_STORE' &&
+      data.postToAgent &&
+      !data.offloadGroups &&
+      !data.agentGroups
+    ) {
       emitStep(
         POST_AGENT({
           pkg: {
@@ -105,9 +115,87 @@ act.addAction<Config>({
       );
     }
 
-    if (dest.type === 'SHIP_STORE' && !data.noSfc && !PRUNPLANNER_PACKAGES.includes(packageName)) {
-      const planet = data.sfcDestination ?? getMaterialGroupPlanet(data.group);
-      emitStep(OPEN_SFC({ shipId: dest.addressableId, destination: planet }));
+    if (dest.type === 'SHIP_STORE') {
+      const needsPrint = !!data.printOffloadJson;
+      const needsSfc = !data.noSfc && !PRUNPLANNER_PACKAGES.includes(packageName);
+
+      const buildOffloadPkg = (
+        groupName: string | undefined,
+        groupMaterials: Record<string, number>,
+        planet: string | undefined,
+      ) => {
+        const name = `Offload ${planet ?? groupName}`;
+        return {
+          global: { name },
+          groups: [
+            {
+              type: 'Manual' as UserData.MaterialGroupType,
+              name,
+              materials: groupMaterials,
+            },
+          ],
+          actions: [
+            {
+              type: 'MTRA' as UserData.ActionType,
+              name,
+              group: name,
+              origin: serializedDest,
+              dest: planet ? `${planet} Base` : configurableValue,
+            },
+          ],
+        } as UserData.ActionPackageData;
+      };
+
+      // Shared group-planet for single-group print/SFC fallback (not used by
+      // the multi-group path, which resolves each group itself).
+      const printGroups = data.offloadGroups ?? [];
+      const agentGroups = data.agentGroups ?? (data.postToAgent ? printGroups : []);
+      const hasMultiGroups = printGroups.length > 0 || agentGroups.length > 0;
+
+      let planet: string | undefined;
+      if (!hasMultiGroups) {
+        // Only call getMaterialGroupPlanet when print/SFC need it (it warns if
+        // the group has no planet); share the result across both branches.
+        const needGroupPlanet = needsPrint || (needsSfc && data.sfcDestination === undefined);
+        planet = needGroupPlanet ? getMaterialGroupPlanet(data.group) : undefined;
+      }
+
+      if (hasMultiGroups) {
+        // One offload package per group name (union of print + agent lists).
+        // LOG_JSON only for printGroups; POST_AGENT only for agentGroups.
+        // Multi-stop agent posts get chain ids so XIT AGENT can SFC to the next stop.
+        let ids: (string | undefined)[] | undefined;
+        if (agentGroups.length > 0) {
+          ids =
+            agentGroups.length >= 2 ? await generateAgentChainIds(agentGroups.length) : [undefined];
+        }
+        for (const name of [...new Set([...printGroups, ...agentGroups])]) {
+          const groupMats = await getMaterialGroup(name);
+          if (!groupMats) {
+            log.warning(`Skipping offload for missing material group [${name}]`);
+            continue;
+          }
+          const groupPlanet = getMaterialGroupPlanet(name);
+          const offloadPkg = buildOffloadPkg(name, groupMats, groupPlanet);
+          if (printGroups.includes(name)) {
+            emitStep(LOG_JSON({ pkg: offloadPkg }));
+          }
+          if (ids && agentGroups.includes(name)) {
+            emitStep(POST_AGENT({ pkg: offloadPkg, id: ids[agentGroups.indexOf(name)] }));
+          }
+        }
+      } else if (needsPrint) {
+        emitStep(LOG_JSON({ pkg: buildOffloadPkg(data.group, materials, planet) }));
+      }
+
+      if (needsSfc) {
+        emitStep(
+          OPEN_SFC({
+            shipId: dest.addressableId,
+            destination: data.sfcDestination ?? planet,
+          }),
+        );
+      }
     }
   },
 });

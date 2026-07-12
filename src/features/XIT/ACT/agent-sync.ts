@@ -179,8 +179,9 @@ function parseAgentSyncEnvelope(text: string | null): AgentSyncEnvelope | undefi
   return undefined;
 }
 
-// Dismissal markers are the entire message body: a short id like "a3".
-const dismissalMarkerRegex = /^([a-z])(\d{1,2})$/;
+// Dismissal markers are the entire message body: a short id like "a3", or a chain
+// member like "a3-2".
+const dismissalMarkerRegex = /^([a-z])(\d{1,2})(-\d{1,2})?$/;
 
 export function parseDismissalMarker(text: string | null | undefined) {
   if (!text) {
@@ -191,25 +192,47 @@ export function parseDismissalMarker(text: string | null | undefined) {
   return match ? match[0] : undefined;
 }
 
+// Chain member ids: "<base>-<n>" e.g. "c11-2". Base itself is a normal agent id.
+export function parseChainId(id: string | undefined): { base: string; index: number } | undefined {
+  if (!id) {
+    return undefined;
+  }
+  const match = id.toLowerCase().match(/^([a-z]\d{1,2})-(\d{1,2})$/);
+  if (!match) {
+    return undefined;
+  }
+  return { base: match[1]!, index: Number(match[2]) };
+}
+
 function getInWindowCutoff() {
   return Date.now() - readyMaxAgeMs;
 }
 
 // Collects ids already used by package envelopes or dismissal markers inside the live
 // window, so a freshly generated id stays unique for the 5-day retention period.
+// Chain members (e.g. "c11-2") also reserve their base ("c11") so generateAgentMessageId
+// never hands out a base that still has live chain members.
 function collectUsedIds(messages: PrunApi.ChannelMessage[], cutoff: number) {
   const used = new Set<string>();
+  const addId = (raw: string) => {
+    const id = raw.toLowerCase();
+    used.add(id);
+    const chain = parseChainId(id);
+    if (chain) {
+      used.add(chain.base);
+    }
+  };
   for (const message of messages) {
     if (message.type !== 'CHAT' || message.time.timestamp < cutoff) {
       continue;
     }
     const envelope = parseAgentSyncEnvelope(message.message);
     if (envelope?.i) {
-      used.add(String(envelope.i).toLowerCase());
+      addId(String(envelope.i));
     }
     const marker = parseDismissalMarker(message.message);
     if (marker) {
-      used.add(marker);
+      addId(marker);
     }
   }
   return used;
@@ -229,13 +252,20 @@ export function generateAgentMessageId() {
   throw new Error('All 26 agent message ids for today are in use.');
 }
 
-export async function postActionPackageToAgent(pkg: UserData.ActionPackageData) {
+// Allocates one free base and returns chain member ids: base-1 … base-count.
+export async function generateAgentChainIds(count: number): Promise<string[]> {
+  await fetchAgentChannel();
+  const base = generateAgentMessageId();
+  return Array.from({ length: count }, (_, i) => `${base}-${i + 1}`);
+}
+
+export async function postActionPackageToAgent(pkg: UserData.ActionPackageData, id?: string) {
   // History is needed to pick a free id; no-op when already fetched this session.
   await fetchAgentChannel();
-  const id = generateAgentMessageId();
+  const resolvedId = id ?? generateAgentMessageId();
   const { p } = compactActionPackageForSync(pkg);
   // Place `i` right after k/v so it stays near the front of the raw chat message.
-  const envelope: AgentSyncEnvelope = { k: 'ap', v: 1, i: id, p };
+  const envelope: AgentSyncEnvelope = { k: 'ap', v: 1, i: resolvedId, p };
   const text = JSON.stringify(envelope);
   if (text.length > maxMessageLength) {
     throw new Error(
@@ -243,7 +273,7 @@ export async function postActionPackageToAgent(pkg: UserData.ActionPackageData) 
     );
   }
   await postAgentMessage(text);
-  return id;
+  return resolvedId;
 }
 
 export interface AgentReadyPackage {
