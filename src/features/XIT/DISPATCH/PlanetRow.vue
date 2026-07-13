@@ -296,6 +296,13 @@ function clearShip() {
   vertical-align: middle;
 }
 
+/* Beats the game's `table tbody td:first-child { border-left-style: none }`
+   reset (2 class selectors > its 1 pseudo-class + 3 type selectors, since
+   specificity compares class/pseudo-class count before type-selector count). */
+.row .shipCell {
+  border-left: 1px solid #f7a600;
+}
+
 .shipCellOver {
   background: #2b485a;
 }

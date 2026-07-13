@@ -144,6 +144,33 @@ export function combinedBaseBill(
   return mergeBills(resupply, repair);
 }
 
+// Groups rows assigned to the same ship together: when a base is assigned a
+// ship that already has an earlier base in `order`, it moves immediately
+// after that ship's last grouped row instead of staying wherever it was.
+export function regroupByShip(order: string[], shipOf: Map<string, string>): string[] {
+  const result: string[] = [];
+  const lastIndexForShip = new Map<string, number>();
+  for (const id of order) {
+    const ship = shipOf.get(id);
+    if (ship && lastIndexForShip.has(ship)) {
+      const insertAt = lastIndexForShip.get(ship)! + 1;
+      result.splice(insertAt, 0, id);
+      for (const [otherShip, index] of lastIndexForShip) {
+        if (index >= insertAt) {
+          lastIndexForShip.set(otherShip, index + 1);
+        }
+      }
+      lastIndexForShip.set(ship, insertAt);
+    } else {
+      result.push(id);
+      if (ship) {
+        lastIndexForShip.set(ship, result.length - 1);
+      }
+    }
+  }
+  return result;
+}
+
 export function fitDaysForShip(
   shipId: string,
   bases: { naturalId: string; config: DispatchBaseConfig; site: PrunApi.Site }[],

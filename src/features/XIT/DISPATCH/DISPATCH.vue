@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import LoadingSpinner from '@src/components/LoadingSpinner.vue';
 import PrunButton from '@src/components/PrunButton.vue';
+import RadioItem from '@src/components/forms/RadioItem.vue';
 import PlanetRow from '@src/features/XIT/DISPATCH/PlanetRow.vue';
 import ShipPool from '@src/features/XIT/DISPATCH/ShipPool.vue';
 import { sitesStore } from '@src/infrastructure/prun-api/data/sites';
@@ -29,6 +30,7 @@ import {
   fitDaysForShip,
   getShipsAtCX,
   mergeBills,
+  regroupByShip,
 } from '@src/features/XIT/DISPATCH/utils';
 
 interface BaseEntry {
@@ -38,11 +40,20 @@ interface BaseEntry {
   site: PrunApi.Site;
 }
 
+const exchangeFilterOptions: { label: string; code: string }[] = [
+  { label: 'ANT', code: 'AI1' },
+  { label: 'HRT', code: 'IC1' },
+  { label: 'MOR', code: 'NC1' },
+  { label: 'BEN', code: 'CI1' },
+];
+
 const tile = useTile();
 const panesEl = ref<HTMLElement | null>(null);
 const baseConfigs = useTileState<Record<string, DispatchBaseConfig>>('baseConfigs', {});
 const baseOrder = useTileState<string[]>('baseOrder', []);
 const orderedIds = ref<string[]>([]);
+const exchangeFilter = useTileState<string | undefined>('exchangeFilter', undefined);
+const refuel = useTileState<boolean>('refuel', true);
 
 function createBaseConfig(naturalId: string): DispatchBaseConfig {
   return {
@@ -209,6 +220,28 @@ watchEffect(() => {
   }
 });
 
+// Assignment map used to auto-group rows sharing a ship. Only depends on
+// each config's .ship, so it re-runs solely on ship (re)assignment.
+const shipAssignments = computed(() => {
+  const map = new Map<string, string>();
+  for (const row of rows.value) {
+    if (row.config?.ship) {
+      map.set(row.base.naturalId, row.config.ship);
+    }
+  }
+  return map;
+});
+
+// When a ship is assigned to a second (or later) base, move that base's row
+// to sit immediately after the first base already assigned to that ship.
+watch(shipAssignments, map => {
+  const next = regroupByShip(orderedIds.value, map);
+  if (next.some((id, i) => id !== orderedIds.value[i])) {
+    orderedIds.value = next;
+    baseOrder.value = next;
+  }
+});
+
 const dragOptions = {
   ...grip.draggable,
   onEnd: (evt: unknown) => {
@@ -223,6 +256,14 @@ const dragOptions = {
 const dragBinding = [orderedIds, dragOptions];
 
 const cxShips = computed(() => getShipsAtCX() ?? []);
+
+// Pool display only — assignment/execution logic always resolves against the
+// unfiltered cxShips/cxShipById so a filtered-out ship stays assigned.
+const filteredCxShips = computed(() =>
+  exchangeFilter.value
+    ? cxShips.value.filter(x => x.exchangeCode === exchangeFilter.value)
+    : cxShips.value,
+);
 
 const cxShipById = computed(() => {
   const map = new Map<string, DispatchShip>();
@@ -512,7 +553,12 @@ function execute() {
   const pkg: UserData.ActionPackageData = {
     global: { name: 'Dispatch' },
     groups,
-    actions: [refuelAction, ...cxBuyActions, ...mtraActions, ...finishActions],
+    actions: [
+      ...(refuel.value ? [refuelAction] : []),
+      ...cxBuyActions,
+      ...mtraActions,
+      ...finishActions,
+    ],
   };
 
   stagedDispatch.value = {
@@ -531,7 +577,18 @@ function reset() {
 <template>
   <LoadingSpinner v-if="bases === undefined" />
   <div v-else :class="$style.layout">
-    <div :class="$style.executeBar">
+    <div :class="C.ComExOrdersPanel.filter">
+      <RadioItem
+        v-for="option in exchangeFilterOptions"
+        :key="option.code"
+        :model-value="exchangeFilter === option.code"
+        horizontal
+        @update:model-value="v => (exchangeFilter = v ? option.code : undefined)">
+        {{ option.label }}
+      </RadioItem>
+      <div :class="$style.separator" />
+      <RadioItem v-model="refuel" horizontal>REFUEL</RadioItem>
+      <div :class="$style.spacer" />
       <PrunButton dark @click="reset">RESET</PrunButton>
       <PrunButton
         primary
@@ -542,7 +599,7 @@ function reset() {
       </PrunButton>
     </div>
     <div ref="panesEl" :class="$style.panes">
-      <ShipPool :ships="cxShips" :base-configs="baseConfigs" />
+      <ShipPool :ships="filteredCxShips" :base-configs="baseConfigs" />
       <div :class="$style.left">
         <table :class="$style.table">
           <thead>
@@ -584,21 +641,20 @@ function reset() {
 
 <style module>
 .layout {
-  --dispatch-row-height: 24px;
   display: flex;
   flex-direction: column;
   box-sizing: border-box;
 }
 
-.executeBar {
-  display: flex;
-  justify-content: flex-end;
-  align-items: center;
-  height: var(--dispatch-row-height);
-  border-bottom: 1px solid #2b485a;
-  box-sizing: border-box;
-  flex-shrink: 0;
-  padding: 0 8px;
+.spacer {
+  flex: 1;
+}
+
+.separator {
+  width: 1px;
+  align-self: stretch;
+  background-color: #2b485a;
+  margin: 0 0.25rem;
 }
 
 /* No inner scroller — the game's ScrollView scrolls the tile like every
@@ -619,16 +675,7 @@ function reset() {
 }
 
 .table thead tr {
-  height: var(--dispatch-row-height);
-  line-height: var(--dispatch-row-height);
   border-bottom: 1px solid #2b485a;
-  box-sizing: border-box;
-}
-
-.table thead th {
-  height: var(--dispatch-row-height);
-  line-height: var(--dispatch-row-height);
-  padding: 0 4px;
   box-sizing: border-box;
 }
 

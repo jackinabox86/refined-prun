@@ -106,13 +106,11 @@ function onDragStart(event: DragEvent, shipId: string) {
 
 <style module>
 .pool {
-  --dispatch-row-height: 24px;
   width: max-content;
   min-width: 10ch;
   max-width: 15ch;
   flex: 0 0 auto;
   border-left: 1px solid #2b485a;
-  border-right: 1px solid #2b485a;
   box-sizing: border-box;
 }
 
@@ -122,17 +120,11 @@ function onDragStart(event: DragEvent, shipId: string) {
 }
 
 .table thead tr {
-  height: var(--dispatch-row-height);
-  line-height: var(--dispatch-row-height);
   border-bottom: 1px solid #2b485a;
   box-sizing: border-box;
 }
 
 .table thead th {
-  height: var(--dispatch-row-height);
-  line-height: var(--dispatch-row-height);
-  padding: 0 4px;
-  box-sizing: border-box;
   text-align: center;
 }
 
