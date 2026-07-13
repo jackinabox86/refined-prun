@@ -7,6 +7,7 @@ declare namespace PrunApi {
     activeLevel: number;
     currentLevel: number;
     upkeeps: PopulationProjectUpkeep[];
+    contributions: PopulationProjectContribution[];
   }
 
   interface PopulationProjectUpkeep {
@@ -17,5 +18,11 @@ declare namespace PrunApi {
     material: Material;
     amount: number;
     currentAmount: number;
+  }
+
+  interface PopulationProjectContribution {
+    materials: MaterialAmount[];
+    time: DateTime;
+    contributor: { id: string; name: string; code?: string };
   }
 }

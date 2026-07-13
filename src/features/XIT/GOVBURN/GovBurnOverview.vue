@@ -48,8 +48,9 @@ function openPlanet(naturalId: string) {
   showBuffer(`XIT GOVBURN ${naturalId}`);
 }
 
-// Placeholder for a future action runner hookup.
-function onActClick() {}
+function onActClick(naturalId: string) {
+  showBuffer(`XIT GOVBURNACT ${naturalId}`);
+}
 </script>
 
 <template>
@@ -80,7 +81,7 @@ function onActClick() {}
           </td>
           <GovBurnDaysCell v-else :days="row.days" :on-click="() => openPlanet(row.naturalId)" />
           <td>
-            <PrunButton dark inline @click="onActClick">ACT</PrunButton>
+            <PrunButton dark inline @click="onActClick(row.naturalId)">ACT</PrunButton>
           </td>
         </tr>
       </tbody>

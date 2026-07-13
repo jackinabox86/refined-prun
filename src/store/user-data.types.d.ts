@@ -191,6 +191,15 @@ declare namespace UserData {
     level: number;
     upkeeps?: GovBurnUpkeep[];
     upkeepsCapturedAt?: number;
+    // Upkeep ticker -> last contribution timestamps (ms epoch).
+    contribHistory?: Record<string, GovBurnContrib>;
+  }
+
+  interface GovBurnContrib {
+    // Last contribution by the player's own company.
+    own?: number;
+    // Last contribution by anyone (including own).
+    any?: number;
   }
 
   interface GovBurnUpkeep {

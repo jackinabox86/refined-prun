@@ -327,9 +327,30 @@ switch (action) {
     try {
       await locator.selectOption({ value }, { timeout: 5000 });
     } catch {
-      await locator.selectOption({ label: value }, { timeout: 5000 });
+      try {
+        await locator.selectOption({ label: value }, { timeout: 5000 });
+      } catch {
+        // Fall through to the native-setter path below.
+      }
     }
-    console.log(await locator.inputValue());
+    let current = await locator.inputValue();
+    if (current !== value) {
+      // Some Vue-bound selects snap back after Playwright's selectOption;
+      // the native value setter + input/change dispatch is what sticks
+      // (verified live on GOVBURNACT slot selects).
+      await locator.evaluate((el, v) => {
+        const setter = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value').set;
+        setter.call(el, v);
+        el.dispatchEvent(new Event('input', { bubbles: true }));
+        el.dispatchEvent(new Event('change', { bubbles: true }));
+      }, value);
+      current = await locator.inputValue();
+    }
+    if (current !== value) {
+      console.error(`Select value did not stick (currently "${current}").`);
+      process.exit(1);
+    }
+    console.log(current);
     break;
   }
   case 'dump-windows': {

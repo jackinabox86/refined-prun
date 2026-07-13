@@ -1,6 +1,7 @@
 import { populationsStore } from '@src/infrastructure/prun-api/data/populations';
 import { populationProjectsStore } from '@src/infrastructure/prun-api/data/population-projects';
 import { planetsStore } from '@src/infrastructure/prun-api/data/planets';
+import { companyStore } from '@src/infrastructure/prun-api/data/company';
 import { userData } from '@src/store/user-data';
 
 // Strip capture timestamps so identical payload rewrites do not thrash userData saves.
@@ -8,6 +9,61 @@ function comparable(value: unknown) {
   return JSON.stringify(value, (key, v) =>
     key === 'capturedAt' || key === 'upkeepsCapturedAt' ? undefined : v,
   );
+}
+
+function maxTs(a: number | undefined, b: number | undefined) {
+  if (a === undefined) {
+    return b;
+  }
+  if (b === undefined) {
+    return a;
+  }
+  return Math.max(a, b);
+}
+
+// Merge contribution history, keeping the later timestamp per field.
+function mergeContribHistory(
+  existing: Record<string, UserData.GovBurnContrib> | undefined,
+  incoming: Record<string, UserData.GovBurnContrib>,
+) {
+  const merged: Record<string, UserData.GovBurnContrib> = {};
+  for (const [ticker, contrib] of Object.entries(existing ?? {})) {
+    merged[ticker] = { ...contrib };
+  }
+  for (const [ticker, contrib] of Object.entries(incoming)) {
+    const prev = merged[ticker];
+    if (prev === undefined) {
+      merged[ticker] = { ...contrib };
+      continue;
+    }
+    merged[ticker] = {
+      own: maxTs(prev.own, contrib.own),
+      any: maxTs(prev.any, contrib.any),
+    };
+  }
+  return merged;
+}
+
+function buildContribHistory(project: PrunApi.PopulationProject) {
+  const upkeepTickers = new Set(project.upkeeps.map(x => x.material.ticker));
+  const ownId = companyStore.value?.id;
+  const history: Record<string, UserData.GovBurnContrib> = {};
+  for (const contribution of project.contributions ?? []) {
+    const ts = contribution.time.timestamp;
+    const isOwn = ownId !== undefined && contribution.contributor.id === ownId;
+    for (const entry of contribution.materials) {
+      const ticker = entry.material.ticker;
+      if (!upkeepTickers.has(ticker)) {
+        continue;
+      }
+      const prev = history[ticker] ?? {};
+      history[ticker] = {
+        any: maxTs(prev.any, ts),
+        own: isOwn ? maxTs(prev.own, ts) : prev.own,
+      };
+    }
+  }
+  return history;
 }
 
 function capturePopulations() {
@@ -32,6 +88,9 @@ function capturePopulations() {
       if (previous?.upkeeps !== undefined) {
         building.upkeeps = previous.upkeeps;
         building.upkeepsCapturedAt = previous.upkeepsCapturedAt;
+      }
+      if (previous?.contribHistory !== undefined) {
+        building.contribHistory = previous.contribHistory;
       }
       return building;
     });
@@ -64,13 +123,19 @@ function captureProjects() {
         duration: x.duration,
         nextTick: x.nextTick.timestamp,
       }));
+      const contribHistory = mergeContribHistory(
+        building.contribHistory,
+        buildContribHistory(project),
+      );
       const next = {
         level: project.level,
         upkeeps,
+        contribHistory,
       };
       const previous = {
         level: building.level,
         upkeeps: building.upkeeps,
+        contribHistory: building.contribHistory,
       };
       if (comparable(previous) === comparable(next)) {
         continue;
@@ -78,6 +143,7 @@ function captureProjects() {
       building.level = project.level;
       building.upkeeps = upkeeps;
       building.upkeepsCapturedAt = Date.now();
+      building.contribHistory = contribHistory;
     }
   }
 }

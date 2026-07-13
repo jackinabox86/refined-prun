@@ -78,7 +78,10 @@ export const initialUserData = deepFreeze({
   linkedBuffersPresets: [] as UserData.LinkedBuffersPreset[],
   govburn: {
     planets: {} as Record<string, UserData.GovBurnPlanet>,
-    config: { planets: {} as Record<string, UserData.GovBurnPlanetConfig> },
+    config: {
+      planets: {} as Record<string, UserData.GovBurnPlanetConfig>,
+      resupplyDays: 30,
+    },
   },
 
   // Used in user-data-migrations.ts
