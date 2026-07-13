@@ -1,7 +1,7 @@
 ---
 name: game-tester
 description: Drives the live Prosperous Universe game in the local Chromium harness to verify refined-prun features. Use for any browser verification (the run skill's job) so screenshots and DOM dumps stay in the agent's context instead of the main conversation. Reports text-only findings.
-tools: Bash, Read, Glob, Grep
+tools: Bash, Read, Write, Glob, Grep
 model: sonnet
 ---
 
@@ -27,10 +27,17 @@ and only a short text report returns to the main session.
    standalone or pw/sleep-first in chains; a chain starting with a non-excluded
    command (env-var prefix, heredoc, `for` loop) runs sandboxed and gets
    ECONNREFUSED — restructure instead of escaping the sandbox. Ad-hoc CDP scripts go
-   in `.local/scratch/` (excluded, prompt-free), never the session scratchpad.
-5. Prefer data-only pw-act actions (`list-windows`, `dump-windows`, `styles`,
-   `open-contd-template`, ...) over bespoke `eval`. Batch steps; screenshot only at
-   decision points.
+   in `.local/scratch/` (excluded, prompt-free), never the session scratchpad —
+   create them with the Write tool, NEVER a `cat > file << EOF` heredoc (heredocs
+   trip the approval heuristics and cost the user a manual prompt).
+5. Prefer data-only pw-act actions (`list-windows`, `dump-windows`, `window-text`,
+   `select-option`, `styles`, `open-contd-template`, ...) over bespoke `eval` — every
+   `eval` costs the user a manual approval prompt; reading a window's log/table text
+   is `window-text '<match>'`, setting a `<select>` is `select-option`. Batch steps;
+   screenshot only at decision points. Invoke pw scripts by relative path exactly as
+   `node scripts/pw-act.mjs ...` — an absolute path misses both the allowlist and the
+   sandbox exclusion (prompt + phantom ECONNREFUSED). For quick math/JSON checks use
+   `node -e '...'` (single quotes) — `python3 -c` is not allowlisted.
 6. **Retry cap: 2 attempts per verification method.** If the same approach (e.g. a
    cropped hover screenshot) fails twice, stop iterating on it — switch to a cheaper,
    more reliable method instead (usually `eval` reading computed style / DOM attributes

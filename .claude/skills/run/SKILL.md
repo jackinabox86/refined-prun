@@ -199,6 +199,19 @@ node scripts/pw-act.mjs dump-windows [index]                 # structured dump o
                                                              # this to study a screen's
                                                              # content/connections instead
                                                              # of a bespoke eval
+node scripts/pw-act.mjs window-text '<match>' [maxChars]     # full innerText of the first
+                                                             # floating window whose text
+                                                             # contains <match> (case-
+                                                             # insensitive; default cap 6000
+                                                             # chars) — use for run logs,
+                                                             # table values, any window text
+                                                             # instead of a bespoke eval
+node scripts/pw-act.mjs select-option '<selector>' '<value>' # set a native <select> (falls
+                                                             # back to label match); fires
+                                                             # the events Vue v-model needs —
+                                                             # use instead of an eval that
+                                                             # assigns .value and dispatches
+                                                             # change by hand
 node scripts/pw-act.mjs styles '<selector>' 'prop1,prop2'    # computed style values off the
                                                              # first match — use this instead
                                                              # of an eval getComputedStyle snippet
