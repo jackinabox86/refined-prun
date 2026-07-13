@@ -185,6 +185,23 @@ step posts on the user's behalf (`POST_AGENT`, `AGENT_DONE`'s completion marker)
 reserve the visible path for flows where the player is meant to review/send the message
 themselves (e.g. the AGENT panel's manual "dismiss" button).
 
+### ACT Step Behaviors Worth Knowing
+
+- **Per-open click gate lives in `requestTile`.** A step that opens a buffer via
+  `ctx.requestTile(cmd)` already makes the player click ACT for that open — don't add
+  another `waitAct` around it.
+- **Steps can self-skip without a click.** Calling `ctx.skip()` and returning before any
+  `waitAct` consumes the step silently (logs a SKIP line). Used by `OPEN_POPID` to walk a
+  fixed 14-building step list while only present buildings cost a click — a static step
+  list plus self-skipping steps is simpler than generating steps dynamically from data
+  that only arrives mid-run.
+- **MTRA into a ship store auto-emits `OPEN_SFC`** (destination `sfcDestination ??` the
+  material group's `planet`) unless `noSfc` is set — a buy→load→launch package needs no
+  explicit launch step; the player still clicks the actual takeoff in SFC.
+- **`CX Buy` with `useCXInv: true` nets out warehouse stock**, so a PREVIEW showing
+  `Buy 900` against `Transfer 1,000` of the same ticker is correct (100 already in the
+  warehouse), not a quantity bug.
+
 ### Action-Specific Sentinel Values
 
 `configurableValue` and `groupTargetPrefix` (`shared-types.ts`) are sentinels shared across every ACT action/material-group type. If an action needs an extra dropdown option unique to itself (e.g. Refuel's "All Exchanges" origin, alongside "Configure on Execution" and specific storages), define that sentinel in the action's own `utils.ts`/`config.ts` instead of adding it to `shared-types.ts`.

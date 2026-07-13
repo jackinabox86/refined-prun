@@ -48,12 +48,18 @@ Priorities per tier:
 - Scientists: Education, Culture, Comfort
 
 ## Population Infrastructure (POPI)
-16 buildings under "Population Infrastructure" project (POPI). Each provides 2 needs, upgradeable to level 10.
+14 buildings under "Population Infrastructure" project (POPI): SST, SDP, EMC, INF, HOS, WCE, PAR, 4DA, ACA, ART, VRT, PBH, LIB, UNI (verified from a live POPI payload; the list always contains all 14, absent buildings have `level: 0`). Each provides 2 needs, upgradeable to level 10.
 
 - **Small (SST, INF, etc.)**: Provide 2,500 per need when fully filled.
 - **Mixed (EMC, PBH, etc.)**: Provide 1,000 per need each.
 - **Large (SDP, HOS, etc.)**: Provide 5,000 per need each.
 
 Upkeep consumed daily (reserve = 30 days). Effect scales linearly with upkeep availability (e.g., 4 of 7 days fed = 4/7 effect).
+
+### POPI/POPID API payloads (verified live)
+
+- `DATA_DATA path ["planets", <planetId>]` — planet body includes `populationId` (the planet↔population link).
+- `DATA_DATA path ["populations", <popId>]` (arrives with POPI) — `infrastructure[]`: all 14 buildings with `type`, `ticker`, `projectId`, `projectName`, `level`, `upkeepStatus`.
+- `DATA_DATA path ["populations", <popId>, "projects", <projectId>]` (arrives with POPID) — per-building `upkeeps[]`: `material`, `amount` consumed per tick, `duration` (days between ticks — 5 or 15 observed), `nextTick.timestamp`, `stored` (reserve), `storeCapacity` (= 30 days' worth). Days until a material's first unpayable tick: `(nextTick − now) + floor(stored / amount) × duration`. Also `contributions[]` (contributor company id/name, materials, time) — it mixes upkeep and upgrade/building materials (filter against the body's own `upkeeps` ticker set), and may only cover recent history, so persisted history must merge, not replace. `currentAmount` semantics unverified (always 0 in observed data).
 
 Education infrastructure (PBH +0.001, LIB +0.002, UNI +0.004) boosts education growth rate.
