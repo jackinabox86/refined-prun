@@ -82,6 +82,23 @@ XIT panels with filter toggles use `C.ComExOrdersPanel.filter` as the container 
 </div>
 ```
 
+`RadioItem` is a boolean toggle, not a true radio group — the above pattern gives independent (AND-able) toggles. For an **exclusive** single-select filter (choosing one option clears any other), bind each option against one shared ref instead of `v-model`:
+
+```html
+<div :class="C.ComExOrdersPanel.filter">
+  <RadioItem
+    v-for="option in filterOptions"
+    :key="option.code"
+    :model-value="selected === option.code"
+    horizontal
+    @update:model-value="v => (selected = v ? option.code : undefined)">
+    {{ option.label }}
+  </RadioItem>
+</div>
+```
+
+Each option's `active` state is a computed read of the same `selected` ref, so setting one option re-evaluates the others to `false` automatically — no manual "clear the others" step needed. Clicking the active option again clears `selected` (shows everything).
+
 ---
 
 ## Adding an XIT Command
@@ -861,6 +878,26 @@ rules verbatim:
 There is no game class to reuse for this: the game's main `ScrollView` machinery never
 restyles the scrollbar — it hides the native one by pushing it outside a clipped parent
 (`margin-right: -15px`) — so copy the values.
+
+### Beating the Game's `td:first-child` Border Reset
+
+The game's base table CSS includes `table tbody td:first-child { border-left-style: none }`. A feature's own `.myFirstColumnCell { border-left: ... }` rule loses to it: both selectors have one class/pseudo-class-level selector, and CSS specificity compares that count before type-selector count, so the game rule's three type selectors (`table`, `tbody`, `td`) become the tiebreaker and it wins regardless of source order. This silently drops a border-left declared on a table's first column (found live: DISPATCH's Assign-column divider rendered nowhere despite a correct, present-in-build rule).
+
+Beat it with a compound selector using two local classes instead of one — e.g. the cell's own class plus its row's class:
+
+```css
+/* Loses to the game's td:first-child reset */
+.cell {
+  border-left: 1px solid gold;
+}
+
+/* Wins: two class selectors outrank the game rule's one pseudo-class */
+.row .cell {
+  border-left: 1px solid gold;
+}
+```
+
+Matching the exact header row **height** of another panel also needs more than matching font-size: the game's unstyled `<th>` carries native padding (roughly `5px 8px 2px`). A feature that sets `thead th { padding: 0 4px }` collapses its header to about half that height even with identical font-size — to match another panel's header, don't override `th` padding at all and let it inherit the native value.
 
 ### `:has` Selector
 
