@@ -65,7 +65,7 @@ declare namespace UserData {
     materialFilter?: 'All' | 'Workforce' | 'Production';
   }
 
-  type ActionType = 'CX Buy' | 'MTRA' | 'Refuel' | 'CONT Ship' | 'CONT Trade';
+  type ActionType = 'CX Buy' | 'MTRA' | 'Refuel' | 'CONT Ship' | 'CONT Trade' | 'GovBurn Data';
 
   interface ActionData {
     type: ActionType;
@@ -81,6 +81,9 @@ declare namespace UserData {
     priceLimits?: Record<string, number>;
 
     buyMissingFuel?: boolean;
+
+    // GovBurn Data: planet natural ID or name.
+    planet?: string;
 
     origin?: string;
     dest?: string;
@@ -173,4 +176,31 @@ declare namespace UserData {
     name: string;
     screenIds: string[];
   }
+
+  interface GovBurnPlanet {
+    naturalId: string;
+    name: string;
+    capturedAt: number;
+    buildings: GovBurnBuilding[];
+  }
+
+  interface GovBurnBuilding {
+    ticker: string;
+    type: string;
+    projectId: string;
+    level: number;
+    upkeeps?: GovBurnUpkeep[];
+    upkeepsCapturedAt?: number;
+  }
+
+  interface GovBurnUpkeep {
+    ticker: string;
+    stored: number;
+    amount: number;
+    duration: number;
+    nextTick: number;
+  }
+
+  // Building ticker -> required count of supplied upkeep materials (0-6).
+  type GovBurnPlanetConfig = Record<string, number>;
 }

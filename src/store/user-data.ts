@@ -76,6 +76,10 @@ export const initialUserData = deepFreeze({
   },
   commandLists: [] as UserData.CommandList[],
   linkedBuffersPresets: [] as UserData.LinkedBuffersPreset[],
+  govburn: {
+    planets: {} as Record<string, UserData.GovBurnPlanet>,
+    config: { planets: {} as Record<string, UserData.GovBurnPlanetConfig> },
+  },
 
   // Used in user-data-migrations.ts
   migrations: undefined,
