@@ -596,6 +596,14 @@ process for this profile, then retry.
     with `elementFromPoint` immediately before pressing, and target rows fully below
     the header (this false-flagged drag-reorder as regressed once).
 
+22. **Vue `@change` handlers don't fire from synthetic events.** Setting `input.value`
+    and dispatching `new Event('input'/'blur'/'focusout')` via eval never triggers a
+    component's `@change` handler, so the edit looks like it "doesn't persist" — a
+    false product bug (cost a diagnosis round on GOVBURN's config inputs). Use real
+    interactions instead: Playwright `fill()` followed by a genuine `Tab`/`Enter`
+    keypress fires `change` correctly. Verify persistence by re-reading from a freshly
+    opened buffer, not the same DOM.
+
 ## Files
 
 - `scripts/pw-helper.mjs` — shared constants (paths, CDP port, APEX URL) and the

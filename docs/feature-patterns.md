@@ -240,6 +240,24 @@ instance and mutates it in place on drag. Two safe patterns:
   by building the tuple in script (`const dragBinding = [idsRef, opts]`) — the library
   handles refs natively (see `DISPATCH.vue`).
 
+### Clamping a numeric input needs a raw input + DOM write-back
+
+`NumberInput` (a `defineModel` + computed v-model wrapper) cannot enforce min/max: its
+attrs land on the wrapper div, and when the parent clamps the emitted value back to what
+the store already holds, no prop change occurs, so Vue never rewrites the DOM and the
+input keeps displaying the out-of-range typed value. For clamped fields use a raw
+`<input type="number" :min :max :value @change>` and, in the handler, write the clamped
+value back explicitly (`input.value = String(clamped)`) after updating the store — the
+`min`/`max` attributes bound the spinner arrows, the write-back fixes typed values (see
+`GovBurnConfig.vue`).
+
+### Opening a companion buffer (split pane) next to a tile
+
+`openCompanionBuffer(tile, command)` in `src/infrastructure/prun-ui/companion-buffer.ts`
+splits the tile's window (widening a floating window by 450px first) and loads `command`
+into the sibling pane. Get the tile inside a Vue component via `useTile()`. Used by the
+POPI details shift-click feature and GOVBURN's planet view.
+
 ### Tile state is ephemeral for floating buffers
 
 `useTileState` persists only for docked tiles (non-numeric tile ids). Floating buffers
