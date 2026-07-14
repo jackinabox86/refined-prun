@@ -70,6 +70,12 @@ prefix is allowlisted. Write the brief to a file and pass a literal prompt inste
 explicit "IMPLEMENT NOW, do not ask for confirmation" — in `-p` mode grok otherwise tends
 to restate the plan and end with "OK to proceed?" without touching any files.
 
+The same injection detection flags heredoc-fed interpreter code (`python3 - <<'EOF'`),
+bypassing both the allowlist and sandboxed auto-allow. Use `python3 -c '...'` for
+one-liners, or write the script to the scratchpad or `.local/scratch/` and run the
+path — `python3 -c *`, `python3 /tmp/claude-1000/*`, and `python3 .local/scratch/*`
+are allowlisted.
+
 ## DISTILL
 
 The distill skill captures session learnings into the docs. Run it once per session, near the end — not after every task.
