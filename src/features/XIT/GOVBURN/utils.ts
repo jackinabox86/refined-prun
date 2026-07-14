@@ -7,11 +7,18 @@ export function materialDays(upkeep: UserData.GovBurnUpkeep, now: number) {
   return Math.max(0, days);
 }
 
-// Days until fewer than n of the building's upkeep materials still have reserve.
+// Days until the first consumption event among the building's n supplied materials.
+// The supplied set is chosen like GOVBURNACT resupply does (rankSlots: reserve
+// depth first, then own/any contribution recency) — so a 15-day material
+// contributed within its current period counts down to its own nextTick instead
+// of rushing the user onto a shorter-period material.
+// Slots with no signal at all (no reserve, no contribution history) count down
+// to the earliest tick among the remaining materials — the first missable
+// consumption event is the first chance to start supplying.
+// Caveat: contribHistory is only as fresh as the last GOVBURNDATA run.
 // n <= -1: unconfigured (0 days, red).
 // n === 0: deliberately unsupplied (infinity, green).
 // n > 0 with no upkeep data: 0 (conservative red).
-// n > 0 otherwise: n-th largest materialDays (n clamped to upkeeps.length).
 export function buildingDays(building: UserData.GovBurnBuilding, n: number, now: number) {
   if (n <= -1) {
     return 0;
@@ -23,10 +30,31 @@ export function buildingDays(building: UserData.GovBurnBuilding, n: number, now:
   if (!upkeeps || upkeeps.length === 0) {
     return 0;
   }
-  const clamped = Math.min(n, upkeeps.length);
-  // N-th largest materialDays.
-  const days = upkeeps.map(x => materialDays(x, now)).sort((a, b) => b - a);
-  return days[clamped - 1];
+  const slots = rankSlots(building, n);
+  let days = Number.POSITIVE_INFINITY;
+  let hasUnresolved = false;
+  const picked = new Set<string>();
+  for (const slot of slots) {
+    if (slot.ticker === '') {
+      hasUnresolved = true;
+      continue;
+    }
+    picked.add(slot.ticker);
+    const upkeep = upkeeps.find(x => x.ticker === slot.ticker);
+    if (!upkeep) {
+      continue;
+    }
+    days = Math.min(days, materialDays(upkeep, now));
+  }
+  if (hasUnresolved) {
+    for (const upkeep of upkeeps) {
+      if (picked.has(upkeep.ticker)) {
+        continue;
+      }
+      days = Math.min(days, Math.max(0, (upkeep.nextTick - now) / MS_IN_DAY));
+    }
+  }
+  return days;
 }
 
 // Min over buildings with level > 0 of buildingDays(config[ticker] ?? -1).
