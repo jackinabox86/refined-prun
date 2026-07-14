@@ -59,6 +59,7 @@ function onActClick(naturalId: string) {
     <div :class="C.ComExOrdersPanel.filter">
       <div :class="$style.spacer" />
       <PrunButton primary @click="showConfig = true">CONFIG</PrunButton>
+      <PrunButton primary @click="showBuffer('XIT GOVBURNDATA')">DATA</PrunButton>
     </div>
     <p v-if="rows.length === 0" :class="$style.empty">No planets configured.</p>
     <table v-else>

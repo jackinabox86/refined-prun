@@ -4,6 +4,7 @@ import { popiBuildings } from '@src/features/XIT/GOVBURN/buildings';
 import GovBurnDaysCell from '@src/features/XIT/GOVBURN/GovBurnDaysCell.vue';
 import { buildingDays } from '@src/features/XIT/GOVBURN/utils';
 import { useXitParameters } from '@src/hooks/use-xit-parameters';
+import { showBuffer } from '@src/infrastructure/prun-ui/buffers';
 import { planetsStore } from '@src/infrastructure/prun-api/data/planets';
 import { userData } from '@src/store/user-data';
 import { timestampEachMinute } from '@src/utils/dayjs';
@@ -94,7 +95,9 @@ const rows = computed(() => {
     </thead>
     <tbody>
       <tr v-for="row in rows" :key="row.ticker">
-        <td>{{ row.ticker }} {{ row.level }}</td>
+        <td :class="$style.building" @click="showBuffer(`POPID P-${naturalId} T-${row.ticker}`)">
+          {{ row.ticker }} Lvl {{ row.level }}
+        </td>
         <td>{{ row.required }}</td>
         <td v-if="!row.hasData" data-tooltip="No data captured. Run XIT GOVBURNDATA.">--</td>
         <GovBurnDaysCell v-else :days="row.days" />
@@ -102,3 +105,9 @@ const rows = computed(() => {
     </tbody>
   </table>
 </template>
+
+<style module>
+.building {
+  cursor: pointer;
+}
+</style>

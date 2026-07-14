@@ -1,8 +1,12 @@
 const MS_IN_DAY = 24 * 60 * 60 * 1000;
 
-// Days from `now` until the first consumption tick this material cannot pay.
+// Days of supplied runway until the first consumption tick this material cannot pay.
+// An empty/insufficient reserve counts as 0 days.
 export function materialDays(upkeep: UserData.GovBurnUpkeep, now: number) {
   const ticksPaid = upkeep.amount > 0 ? Math.floor(upkeep.stored / upkeep.amount) : 0;
+  if (ticksPaid === 0) {
+    return 0;
+  }
   const days = (upkeep.nextTick - now) / MS_IN_DAY + ticksPaid * upkeep.duration;
   return Math.max(0, days);
 }
@@ -22,7 +26,9 @@ export function buildingDays(building: UserData.GovBurnBuilding, n: number, now:
   return days[clamped - 1];
 }
 
-// Min over buildings with level > 0, configured n > 0, and upkeeps captured.
+// Min over buildings with level > 0 and upkeeps captured.
+// hasData is true if any such building exists, even with n = 0.
+// When no building has configured n > 0, falls back to n = upkeeps.length.
 export function planetDays(
   planet: UserData.GovBurnPlanet,
   config: UserData.GovBurnPlanetConfig,
@@ -30,19 +36,26 @@ export function planetDays(
 ) {
   let days = Number.POSITIVE_INFINITY;
   let hasData = false;
+  let anyConfigured = false;
   for (const building of planet.buildings) {
-    if (building.level <= 0) {
+    if (building.level <= 0 || building.upkeeps === undefined) {
       continue;
     }
+    hasData = true;
     const n = config[building.ticker] ?? 0;
     if (n <= 0) {
       continue;
     }
-    if (building.upkeeps === undefined) {
-      continue;
-    }
-    hasData = true;
+    anyConfigured = true;
     days = Math.min(days, buildingDays(building, n, now));
+  }
+  if (hasData && !anyConfigured) {
+    for (const building of planet.buildings) {
+      if (building.level <= 0 || building.upkeeps === undefined) {
+        continue;
+      }
+      days = Math.min(days, buildingDays(building, building.upkeeps.length, now));
+    }
   }
   return { days, hasData };
 }

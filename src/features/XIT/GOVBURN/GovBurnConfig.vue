@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import Active from '@src/components/forms/Active.vue';
 import Commands from '@src/components/forms/Commands.vue';
-import SelectInput from '@src/components/forms/SelectInput.vue';
+import NumberInput from '@src/components/forms/NumberInput.vue';
 import TextInput from '@src/components/forms/TextInput.vue';
 import PrunButton from '@src/components/PrunButton.vue';
 import SectionHeader from '@src/components/SectionHeader.vue';
@@ -15,8 +15,6 @@ const emit = defineEmits<{ (e: 'done'): void }>();
 const planetInput = ref('');
 const planetError = ref(false);
 
-const requiredOptions = ['0', '1', '2', '3', '4', '5', '6'];
-
 const configuredPlanets = computed(() =>
   Object.keys(userData.govburn.config.planets).sort(comparePlanets),
 );
@@ -27,24 +25,25 @@ function planetName(naturalId: string) {
   );
 }
 
-function buildingLabel(naturalId: string, ticker: string) {
-  const building = userData.govburn.planets[naturalId]?.buildings.find(x => x.ticker === ticker);
-  if (building && building.level > 0) {
-    return `${ticker} (lvl ${building.level})`;
-  }
-  return ticker;
-}
-
 function getRequired(naturalId: string, ticker: string) {
-  return String(userData.govburn.config.planets[naturalId]?.[ticker] ?? 0);
+  return userData.govburn.config.planets[naturalId]?.[ticker] ?? 0;
 }
 
-function setRequired(naturalId: string, ticker: string, value: string) {
+function maxRequired(naturalId: string, ticker: string) {
+  return (
+    userData.govburn.planets[naturalId]?.buildings.find(x => x.ticker === ticker)?.upkeeps
+      ?.length ?? 6
+  );
+}
+
+function setRequired(naturalId: string, ticker: string, value: number | undefined) {
   const config = userData.govburn.config.planets[naturalId];
   if (config === undefined) {
     return;
   }
-  config[ticker] = Number(value);
+  const max = maxRequired(naturalId, ticker);
+  const n = Math.round(value ?? 0);
+  config[ticker] = Math.max(0, Math.min(max, n));
 }
 
 function addPlanet() {
@@ -91,33 +90,30 @@ function onInputKeydown(ev: KeyboardEvent) {
   </form>
   <p v-if="planetError" :class="$style.error">Planet not found.</p>
 
-  <template v-for="naturalId in configuredPlanets" :key="naturalId">
-    <SectionHeader>
-      <span>{{ planetName(naturalId) }} ({{ naturalId }})</span>
-      <PrunButton danger :class="$style.remove" @click="removePlanet(naturalId)">REMOVE</PrunButton>
-    </SectionHeader>
-    <table>
-      <thead>
-        <tr>
-          <th>Building</th>
-          <th>Required</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr v-for="building in popiBuildings" :key="building.ticker">
-          <td>{{ buildingLabel(naturalId, building.ticker) }}</td>
-          <td>
-            <div :class="[C.forms.input, $style.selectWrap]">
-              <SelectInput
-                :model-value="getRequired(naturalId, building.ticker)"
-                :options="requiredOptions"
-                @update:model-value="v => setRequired(naturalId, building.ticker, v ?? '0')" />
-            </div>
-          </td>
-        </tr>
-      </tbody>
-    </table>
-  </template>
+  <table v-if="configuredPlanets.length > 0">
+    <thead>
+      <tr>
+        <th>Planet</th>
+        <th v-for="building in popiBuildings" :key="building.ticker">{{ building.ticker }}</th>
+        <th />
+      </tr>
+    </thead>
+    <tbody>
+      <tr v-for="naturalId in configuredPlanets" :key="naturalId">
+        <td :data-tooltip="naturalId">{{ planetName(naturalId) }}</td>
+        <td v-for="building in popiBuildings" :key="building.ticker">
+          <div :class="[C.forms.input, $style.numberWrap]">
+            <NumberInput
+              :model-value="getRequired(naturalId, building.ticker)"
+              @update:model-value="v => setRequired(naturalId, building.ticker, v)" />
+          </div>
+        </td>
+        <td>
+          <PrunButton danger inline @click="removePlanet(naturalId)">REMOVE</PrunButton>
+        </td>
+      </tr>
+    </tbody>
+  </table>
 </template>
 
 <style module>
@@ -130,16 +126,14 @@ function onInputKeydown(ev: KeyboardEvent) {
   color: rgb(217, 83, 79);
 }
 
-.remove {
-  margin-left: 0.5rem;
+.numberWrap {
+  width: 2.5rem;
 }
 
-.selectWrap {
-  width: 4rem;
-}
-
-.selectWrap :global(div) {
+.numberWrap :global(div),
+.numberWrap :global(input) {
   width: 100%;
   margin-left: 0;
+  text-align: center;
 }
 </style>

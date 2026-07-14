@@ -19,7 +19,7 @@ export const OPEN_POPID = act.addActionStep<Data>({
     const population = populationsStore.getById(popId);
     const infra = population?.infrastructure.find(x => x.ticker === data.ticker);
     if (population === undefined || infra === undefined || infra.level === 0) {
-      skip();
+      skip({ silent: true });
       return;
     }
 

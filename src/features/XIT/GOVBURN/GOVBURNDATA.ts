@@ -15,6 +15,6 @@ xit.add({
     return 'GOVBURN DATA';
   },
   description: 'Collects planetary infrastructure upkeep data via POPI/POPID buffers.',
-  mandatoryParameters: 'Planet Identifier',
+  optionalParameters: 'Planet Identifier',
   component: () => GovBurnDataWindow,
 });

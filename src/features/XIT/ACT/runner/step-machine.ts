@@ -50,7 +50,7 @@ export class StepMachine {
     nextAct?.();
   }
 
-  skip() {
+  skip(opts?: { silent?: boolean }) {
     if (!this.ensureRunning()) {
       return;
     }
@@ -58,8 +58,10 @@ export class StepMachine {
     if (!next) {
       return;
     }
-    const info = act.getActionStepInfo(next.type);
-    this.log.skip(info.description(next));
+    if (!opts?.silent) {
+      const info = act.getActionStepInfo(next.type);
+      this.log.skip(info.description(next));
+    }
     this.nextAct = undefined;
     void this.startNext();
   }
@@ -119,7 +121,7 @@ export class StepMachine {
           log.success(description ?? info.description(next));
           void this.startNext();
         },
-        skip: () => this.skip(),
+        skip: opts => this.skip(opts),
         fail: message => {
           if (message) {
             log.error(message);
