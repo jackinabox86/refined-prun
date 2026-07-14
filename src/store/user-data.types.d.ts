@@ -210,6 +210,9 @@ declare namespace UserData {
     nextTick: number;
   }
 
-  // Building ticker -> required count of supplied upkeep materials (0-6).
+  // Building ticker -> required count of supplied upkeep materials.
+  // -1 (or missing): unconfigured — treat as 0 days (red).
+  // 0: deliberately unsupplied — infinity days (green).
+  // 1..upkeepCount: number of upkeep materials the player keeps supplied.
   type GovBurnPlanetConfig = Record<string, number>;
 }

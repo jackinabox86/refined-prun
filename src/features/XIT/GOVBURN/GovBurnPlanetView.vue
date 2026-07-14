@@ -3,13 +3,16 @@ import PrunLink from '@src/components/PrunLink.vue';
 import { popiBuildings } from '@src/features/XIT/GOVBURN/buildings';
 import GovBurnDaysCell from '@src/features/XIT/GOVBURN/GovBurnDaysCell.vue';
 import { buildingDays } from '@src/features/XIT/GOVBURN/utils';
+import { useTile } from '@src/hooks/use-tile';
 import { useXitParameters } from '@src/hooks/use-xit-parameters';
+import { openCompanionBuffer } from '@src/infrastructure/prun-ui/companion-buffer';
 import { showBuffer } from '@src/infrastructure/prun-ui/buffers';
 import { planetsStore } from '@src/infrastructure/prun-api/data/planets';
 import { userData } from '@src/store/user-data';
 import { timestampEachMinute } from '@src/utils/dayjs';
 
 const parameters = useXitParameters();
+const tile = useTile();
 
 const parameter = computed(() => parameters.join(' '));
 
@@ -48,15 +51,13 @@ const rows = computed(() => {
     if (building.level <= 0) {
       continue;
     }
-    const n = config[building.ticker] ?? 0;
+    const required = config[building.ticker] ?? -1;
     const hasData = building.upkeeps !== undefined;
-    const days = hasData
-      ? buildingDays(building, n > 0 ? n : (building.upkeeps?.length ?? 0), now)
-      : Number.POSITIVE_INFINITY;
+    const days = buildingDays(building, required, now);
     result.push({
       ticker: building.ticker,
       level: building.level,
-      required: n,
+      required,
       days,
       hasData,
       order: popiOrder.get(building.ticker) ?? 999,
@@ -73,6 +74,17 @@ const rows = computed(() => {
   });
   return result;
 });
+
+function onBuildingClick(e: MouseEvent, ticker: string) {
+  const command = `POPID P-${naturalId.value} T-${ticker}`;
+  if (e.shiftKey) {
+    e.stopPropagation();
+    e.preventDefault();
+    void openCompanionBuffer(tile, command);
+    return;
+  }
+  showBuffer(command);
+}
 </script>
 
 <template>
@@ -95,11 +107,15 @@ const rows = computed(() => {
     </thead>
     <tbody>
       <tr v-for="row in rows" :key="row.ticker">
-        <td :class="$style.building" @click="showBuffer(`POPID P-${naturalId} T-${row.ticker}`)">
+        <td :class="$style.building" @click="onBuildingClick($event, row.ticker)">
           {{ row.ticker }} Lvl {{ row.level }}
         </td>
-        <td>{{ row.required }}</td>
-        <td v-if="!row.hasData" data-tooltip="No data captured. Run XIT GOVBURNDATA.">--</td>
+        <td>{{ row.required === -1 ? '--' : row.required }}</td>
+        <td
+          v-if="row.required > 0 && !row.hasData"
+          data-tooltip="No data captured. Run XIT GOVBURNDATA.">
+          --
+        </td>
         <GovBurnDaysCell v-else :days="row.days" />
       </tr>
     </tbody>

@@ -81,6 +81,8 @@ export const initialUserData = deepFreeze({
     config: {
       planets: {} as Record<string, UserData.GovBurnPlanetConfig>,
       resupplyDays: 30,
+      red: 3,
+      yellow: 7,
     },
   },
 

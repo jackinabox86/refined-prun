@@ -17,6 +17,13 @@ function isCheckpoint(entry: MigrationEntry): entry is Checkpoint {
 // The date is for reference only, and it does not affect migration order.
 const migrations: MigrationEntry[] = [
   [
+    '13.07.2026 Add govburn thresholds',
+    userData => {
+      userData.govburn.config.red = 3;
+      userData.govburn.config.yellow = 7;
+    },
+  ],
+  [
     '13.07.2026 Add govburn resupplyDays',
     userData => {
       userData.govburn.config.resupplyDays = 30;

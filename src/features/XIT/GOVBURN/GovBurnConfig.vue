@@ -26,7 +26,7 @@ function planetName(naturalId: string) {
 }
 
 function getRequired(naturalId: string, ticker: string) {
-  return userData.govburn.config.planets[naturalId]?.[ticker] ?? 0;
+  return userData.govburn.config.planets[naturalId]?.[ticker] ?? -1;
 }
 
 function maxRequired(naturalId: string, ticker: string) {
@@ -36,14 +36,22 @@ function maxRequired(naturalId: string, ticker: string) {
   );
 }
 
-function setRequired(naturalId: string, ticker: string, value: number | undefined) {
+function hasBuilding(naturalId: string, ticker: string) {
+  const building = userData.govburn.planets[naturalId]?.buildings.find(x => x.ticker === ticker);
+  return building !== undefined && building.level > 0;
+}
+
+function onRequiredChange(naturalId: string, ticker: string, ev: Event) {
   const config = userData.govburn.config.planets[naturalId];
   if (config === undefined) {
     return;
   }
+  const input = ev.target as HTMLInputElement;
+  const parsed = parseInt(input.value, 10);
   const max = maxRequired(naturalId, ticker);
-  const n = Math.round(value ?? 0);
-  config[ticker] = Math.max(0, Math.min(max, n));
+  const clamped = Number.isNaN(parsed) ? -1 : Math.max(-1, Math.min(max, parsed));
+  config[ticker] = clamped;
+  input.value = String(clamped);
 }
 
 function addPlanet() {
@@ -58,7 +66,9 @@ function addPlanet() {
     return;
   }
   planetError.value = false;
-  userData.govburn.config.planets[planet.naturalId] ??= {};
+  userData.govburn.config.planets[planet.naturalId] ??= Object.fromEntries(
+    popiBuildings.map(x => [x.ticker, -1]),
+  );
   planetInput.value = '';
 }
 
@@ -78,6 +88,16 @@ function onInputKeydown(ev: KeyboardEvent) {
     <div :class="$style.spacer" />
     <PrunButton primary @click="emit('done')">DONE</PrunButton>
   </div>
+
+  <SectionHeader>Thresholds</SectionHeader>
+  <form>
+    <Active label="Red (days)">
+      <NumberInput v-model="userData.govburn.config.red" />
+    </Active>
+    <Active label="Yellow (days)">
+      <NumberInput v-model="userData.govburn.config.yellow" />
+    </Active>
+  </form>
 
   <SectionHeader>Add Planet</SectionHeader>
   <form>
@@ -100,12 +120,17 @@ function onInputKeydown(ev: KeyboardEvent) {
     </thead>
     <tbody>
       <tr v-for="naturalId in configuredPlanets" :key="naturalId">
-        <td :data-tooltip="naturalId">{{ planetName(naturalId) }}</td>
+        <td>{{ planetName(naturalId) }}</td>
         <td v-for="building in popiBuildings" :key="building.ticker">
-          <div :class="[C.forms.input, $style.numberWrap]">
-            <NumberInput
-              :model-value="getRequired(naturalId, building.ticker)"
-              @update:model-value="v => setRequired(naturalId, building.ticker, v)" />
+          <div
+            v-if="hasBuilding(naturalId, building.ticker)"
+            :class="[C.forms.input, $style.numberWrap]">
+            <input
+              type="number"
+              :min="-1"
+              :max="maxRequired(naturalId, building.ticker)"
+              :value="getRequired(naturalId, building.ticker)"
+              @change="onRequiredChange(naturalId, building.ticker, $event)" />
           </div>
         </td>
         <td>
@@ -130,8 +155,7 @@ function onInputKeydown(ev: KeyboardEvent) {
   width: 2.5rem;
 }
 
-.numberWrap :global(div),
-.numberWrap :global(input) {
+.numberWrap input {
   width: 100%;
   margin-left: 0;
   text-align: center;

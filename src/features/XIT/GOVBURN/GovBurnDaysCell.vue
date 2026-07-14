@@ -20,9 +20,9 @@ const formattedDays = computed(() => {
 const burnClass = computed(() => {
   const flooredDays = Math.floor(days);
   return {
-    [C.Workforces.daysMissing]: flooredDays <= userData.settings.burn.red,
-    [C.Workforces.daysWarning]: flooredDays <= userData.settings.burn.yellow,
-    [C.Workforces.daysSupplied]: flooredDays > userData.settings.burn.yellow,
+    [C.Workforces.daysMissing]: flooredDays <= userData.govburn.config.red,
+    [C.Workforces.daysWarning]: flooredDays <= userData.govburn.config.yellow,
+    [C.Workforces.daysSupplied]: flooredDays > userData.govburn.config.yellow,
   };
 });
 </script>
