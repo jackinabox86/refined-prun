@@ -24,6 +24,8 @@
       "Bash(node /home/cyrus/code/refined-prun/scripts/*)",
       "Bash(node /home/cyrus/code/refined-prun/.local/scratch/*)",
       "Bash(python3 -c *)",
+      "Bash(python3 /tmp/claude-1000/*)",
+      "Bash(python3 .local/scratch/*)",
       "Bash(pgrep *)",
       "Bash(grok --no-auto-update --no-alt-screen --always-approve -p *)",
       "Bash(git merge-base *)",
