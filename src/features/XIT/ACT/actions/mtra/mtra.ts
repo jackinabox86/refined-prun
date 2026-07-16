@@ -2,6 +2,7 @@ import { act } from '@src/features/XIT/ACT/act-registry';
 import Edit from '@src/features/XIT/ACT/actions/mtra/Edit.vue';
 import Configure from '@src/features/XIT/ACT/actions/mtra/Configure.vue';
 import { MTRA_TRANSFER } from '@src/features/XIT/ACT/action-steps/MTRA_TRANSFER';
+import { SHPI_UNLOAD } from '@src/features/XIT/ACT/action-steps/SHPI_UNLOAD';
 import { POST_AGENT } from '@src/features/XIT/ACT/action-steps/POST_AGENT';
 import { LOG_JSON } from '@src/features/XIT/ACT/action-steps/LOG_JSON';
 import { OPEN_SFC } from '@src/features/XIT/ACT/action-steps/OPEN_SFC';
@@ -76,15 +77,27 @@ act.addAction<Config>({
     // posts, SFC) after all transfer actions; the transfers themselves were
     // already emitted by the matching non-finishOnly action.
     if (!data.finishOnly) {
-      for (const ticker of Object.keys(materials)) {
-        emitStep(
-          MTRA_TRANSFER({
-            from: origin.id,
-            to: dest.id,
-            ticker,
-            amount: materials[ticker],
-          }),
-        );
+      // Full cargo hold covered by the group → unload via SHPI instead of per-ticker MTRA.
+      const originItems = origin.items.filter(x => x.quantity);
+      const fullCargoOffload =
+        origin.type === 'SHIP_STORE' &&
+        dest.type === 'STORE' &&
+        originItems.length > 0 &&
+        originItems.every(x => (materials[x.quantity!.material.ticker] ?? 0) >= x.quantity!.amount);
+      if (fullCargoOffload) {
+        log.info('Group covers the entire cargo hold — unloading via SHPI instead of MTRA');
+        emitStep(SHPI_UNLOAD({ shipId: origin.addressableId }));
+      } else {
+        for (const ticker of Object.keys(materials)) {
+          emitStep(
+            MTRA_TRANSFER({
+              from: origin.id,
+              to: dest.id,
+              ticker,
+              amount: materials[ticker],
+            }),
+          );
+        }
       }
     }
 
