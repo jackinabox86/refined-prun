@@ -65,6 +65,12 @@ export const OPEN_SFC = act.addActionStep<Data>({
       bodyEl.style.width = '975px';
       bodyEl.style.height = '750px';
     }
+    if (data.destination) {
+      // Reminder pause: keep ACT grayed so the player submits the flight first.
+      await waitAct(`Submit flight to ${data.destination} in SFC, then continue`, {
+        actDelayMs: 2000,
+      });
+    }
     complete();
   },
 });
