@@ -188,9 +188,11 @@ themselves (e.g. the AGENT panel's manual "dismiss" button).
 ### Reminder Pauses in ACT Steps
 
 When a step needs the player to do something manually in a companion buffer before the
-run continues (repair buildings in BRA, submit the flight in SFC), call
-`waitAct(status, { actDelayMs: 2000 })`. The step machine grays the ACT button for the
-delay while SKIP/CANCEL stay live, then re-arms ACT — see `OPEN_BRA.ts` / `OPEN_SFC.ts`.
+run continues (repair buildings in BRA, submit the flight in SFC, adjust a transfer
+amount in MTRA), call `waitAct(status, { actDelayMs: 2000 })`. The step machine grays
+the ACT button for the delay while SKIP/CANCEL stay live, then re-arms ACT — see
+`OPEN_BRA.ts` / `OPEN_SFC.ts` / `MTRA_TRANSFER.ts`'s `playerReview` mode (which reads
+the player-adjusted input value after the pause instead of rewriting it).
 Don't add a bare `sleep()` for this; the delay belongs in `waitAct` so skipping/canceling
 during the pause is handled.
 

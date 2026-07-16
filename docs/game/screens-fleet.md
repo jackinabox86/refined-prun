@@ -25,6 +25,8 @@ Fields: Type (e.g. Freighter), Commissioned, Blueprint, Project History (link to
 
 Same material-grid UI as `INV <store-id>` (weight/volume gauges, sort tabs) scoped to the ship's hold. Context bar: `SHP`, `SHPF`, `SFC`.
 
+Below the weight/volume gauges sits a standalone primary `unload` button (`Button__primary` style, live-verified) — a server action that dumps the entire hold into the local store in one click, same as FLT's per-row `unload`. It renders enabled even when the hold is empty. Used by the ACT `SHPI_UNLOAD` step for full-cargo offloads.
+
 ## SHPF — Ship Fuel Tanks
 
 Two grids: STL fuel tank (SF) and FTL fuel tank (FF), each with weight/volume gauges. Context bar: `SHP`, `SHPI`, `SFC`.
