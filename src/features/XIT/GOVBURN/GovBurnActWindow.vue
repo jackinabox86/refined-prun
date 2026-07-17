@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import Active from '@src/components/forms/Active.vue';
+import Header from '@src/components/Header.vue';
 import SelectInput from '@src/components/forms/SelectInput.vue';
 import PrunButton from '@src/components/PrunButton.vue';
 import PrunLink from '@src/components/PrunLink.vue';
@@ -221,6 +222,7 @@ function onExecuteClick() {
 </script>
 
 <template>
+  <Header :class="$style.header">GovBurn Resupply {{ displayName }}</Header>
   <template v-if="!captured">
     <p>
       No data for {{ displayName }}. Run
@@ -286,6 +288,10 @@ function onExecuteClick() {
 </template>
 
 <style module>
+.header {
+  margin-left: 4px;
+}
+
 .noData {
   color: rgb(217, 83, 79);
   font-style: italic;
