@@ -3,6 +3,8 @@ import PrunButton from '@src/components/PrunButton.vue';
 import GovBurnConfig from '@src/features/XIT/GOVBURN/GovBurnConfig.vue';
 import GovBurnDaysCell from '@src/features/XIT/GOVBURN/GovBurnDaysCell.vue';
 import { planetDays } from '@src/features/XIT/GOVBURN/utils';
+import { store as planetContextMenu } from '@src/features/XIT/planet-context-menu';
+import { getEntityNameFromAddress } from '@src/infrastructure/prun-api/data/addresses';
 import { showBuffer } from '@src/infrastructure/prun-ui/buffers';
 import { planetsStore } from '@src/infrastructure/prun-api/data/planets';
 import { userData } from '@src/store/user-data';
@@ -24,7 +26,9 @@ const rows = computed(() => {
   for (const naturalId of Object.keys(userData.govburn.config.planets)) {
     const config = userData.govburn.config.planets[naturalId] ?? {};
     const captured = userData.govburn.planets[naturalId];
-    const name = captured?.name ?? planetsStore.find(naturalId)?.name ?? naturalId;
+    const planet = planetsStore.find(naturalId);
+    const name =
+      getEntityNameFromAddress(planet?.address) ?? captured?.name ?? planet?.name ?? naturalId;
     if (captured === undefined) {
       result.push({ naturalId, name, days: Number.POSITIVE_INFINITY, hasData: false });
       continue;
@@ -67,12 +71,17 @@ function onActClick(naturalId: string) {
         <tr>
           <th>Planet</th>
           <th>Days</th>
-          <th>Act</th>
+          <th>CMD</th>
         </tr>
       </thead>
       <tbody>
         <tr v-for="row in rows" :key="row.naturalId">
-          <td>{{ row.name }}</td>
+          <td
+            :class="$style.planet"
+            @click="openPlanet(row.naturalId)"
+            @contextmenu.prevent="planetContextMenu.showMenu($event, row.naturalId)">
+            {{ row.name }}
+          </td>
           <td
             v-if="!row.hasData"
             data-tooltip="No data captured. Run XIT GOVBURNDATA."
@@ -100,6 +109,11 @@ function onActClick(naturalId: string) {
 }
 
 .noData {
+  cursor: pointer;
+}
+
+.planet {
+  font-weight: bold;
   cursor: pointer;
 }
 </style>

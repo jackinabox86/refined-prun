@@ -9,14 +9,18 @@ import { billTotals } from '@src/features/XIT/DISPATCH/utils';
 import { popiBuildings } from '@src/features/XIT/GOVBURN/buildings';
 import { stagedGovBurn } from '@src/features/XIT/GOVBURN/staged';
 import { planetGovBurnBill, rankSlots, type SlotPick } from '@src/features/XIT/GOVBURN/utils';
+import { useTile } from '@src/hooks/use-tile';
 import { useXitParameters } from '@src/hooks/use-xit-parameters';
+import { UI_TILES_CHANGE_COMMAND } from '@src/infrastructure/prun-api/client-messages';
 import { planetsStore } from '@src/infrastructure/prun-api/data/planets';
+import { dispatchClientPrunMessage } from '@src/infrastructure/prun-api/prun-api-listener';
 import { showBuffer } from '@src/infrastructure/prun-ui/buffers';
 import { userData } from '@src/store/user-data';
 import { timestampEachMinute } from '@src/utils/dayjs';
 import { fixed0, fixed02 } from '@src/utils/format';
 
 const parameters = useXitParameters();
+const tile = useTile();
 
 const parameter = computed(() => parameters.join(' '));
 
@@ -217,7 +221,12 @@ const pkg = computed<UserData.ActionPackageData>(() => ({
 
 function onExecuteClick() {
   stagedGovBurn.value = { pkg: pkg.value };
-  showBuffer('XIT GOVBURNEXEC');
+  // Take over this tile instead of stranding the planner buffer behind the runner.
+  if (!dispatchClientPrunMessage(UI_TILES_CHANGE_COMMAND(tile.id, null))) {
+    showBuffer('XIT GOVBURNEXEC');
+    return;
+  }
+  dispatchClientPrunMessage(UI_TILES_CHANGE_COMMAND(tile.id, 'XIT GOVBURNEXEC'));
 }
 </script>
 
