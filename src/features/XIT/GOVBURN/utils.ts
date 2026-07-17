@@ -279,10 +279,10 @@ export function cogcRefills(horizonDays: number) {
   return Math.min(3, Math.max(1, Math.ceil(horizonDays / COGC_PERIOD_DAYS)));
 }
 
-// {ticker: amount} to buy for the horizon's refills. A fully paid current
-// cycle counts as the first refill; partial contributions get no credit.
+// {ticker: amount} to buy for the horizon's refills: always full refill
+// bills, no credit for the current cycle's paid or partial contributions.
 export function cogcBuyAmounts(cogc: UserData.GovBurnCogc, horizonDays: number) {
-  const refills = cogcRefills(horizonDays) - (cogcPaid(cogc) ? 1 : 0);
+  const refills = cogcRefills(horizonDays);
   const bill: Record<string, number> = {};
   for (const material of cogc.materials) {
     const amount = refills * material.amount;
