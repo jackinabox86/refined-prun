@@ -57,8 +57,9 @@ export function buildingDays(building: UserData.GovBurnBuilding, n: number, now:
   return days;
 }
 
-// Min over buildings with level > 0 of buildingDays(config[ticker] ?? -1).
-// hasData is true if any level > 0 building has upkeeps captured.
+// Min over buildings with level > 0 of buildingDays(config[ticker] ?? -1),
+// and over COGC when present.
+// hasData is true if any level > 0 building has upkeeps captured, or COGC is present.
 // Unconfigured buildings drag the planet to 0 (red); all-zero config is infinity (green).
 export function planetDays(
   planet: UserData.GovBurnPlanet,
@@ -76,6 +77,10 @@ export function planetDays(
     }
     const n = config[building.ticker] ?? -1;
     days = Math.min(days, buildingDays(building, n, now));
+  }
+  if (planet.cogc !== undefined) {
+    hasData = true;
+    days = Math.min(days, cogcDays(planet.cogc, now));
   }
   return { days, hasData };
 }
@@ -209,9 +214,9 @@ export function upkeepBuyAmount(upkeep: UserData.GovBurnUpkeep, horizonDays: num
 
 // Aggregated {ticker: amount} bill for one planet: for each building with
 // level > 0 and configured n > 0, buy upkeepBuyAmount for each of the n
-// resolved slot tickers. `slots` comes from the UI (rankSlots output after
-// the user resolves manual slots); entries with an empty ticker are the
-// caller's bug - assert against them.
+// resolved slot tickers, plus COGC materials when present.
+// `slots` comes from the UI (rankSlots output after the user resolves manual
+// slots); entries with an empty ticker are the caller's bug - assert against them.
 export function planetGovBurnBill(
   planet: UserData.GovBurnPlanet,
   slotsByBuilding: Record<string, SlotPick[]>,
@@ -244,6 +249,44 @@ export function planetGovBurnBill(
         continue;
       }
       bill[slot.ticker] = (bill[slot.ticker] ?? 0) + amount;
+    }
+  }
+  if (planet.cogc !== undefined) {
+    for (const [ticker, amount] of Object.entries(cogcBuyAmounts(planet.cogc, horizonDays))) {
+      bill[ticker] = (bill[ticker] ?? 0) + amount;
+    }
+  }
+  return bill;
+}
+
+const COGC_PERIOD_DAYS = 10;
+
+// True when every bill material has its current cycle fully contributed.
+export function cogcPaid(cogc: UserData.GovBurnCogc) {
+  return cogc.materials.length > 0 && cogc.materials.every(x => x.currentAmount >= x.amount);
+}
+
+// Days until the COGC next needs a contribution: the current cycle's dueDate,
+// or one period later when the current cycle is already fully paid.
+export function cogcDays(cogc: UserData.GovBurnCogc, now: number) {
+  const days = (cogc.dueDate - now) / MS_IN_DAY + (cogcPaid(cogc) ? COGC_PERIOD_DAYS : 0);
+  return Math.max(0, days);
+}
+
+// Full COGC refills covered by a resupply horizon: 5-10d -> 1, 15-20d -> 2, 25-30d -> 3.
+export function cogcRefills(horizonDays: number) {
+  return Math.max(1, Math.ceil(horizonDays / COGC_PERIOD_DAYS));
+}
+
+// {ticker: amount} to buy so `refills` full cycles are covered, crediting
+// what the current cycle already received.
+export function cogcBuyAmounts(cogc: UserData.GovBurnCogc, horizonDays: number) {
+  const refills = cogcRefills(horizonDays);
+  const bill: Record<string, number> = {};
+  for (const material of cogc.materials) {
+    const amount = Math.max(0, refills * material.amount - material.currentAmount);
+    if (amount > 0) {
+      bill[material.ticker] = amount;
     }
   }
   return bill;

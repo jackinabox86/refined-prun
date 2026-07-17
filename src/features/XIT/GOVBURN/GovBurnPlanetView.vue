@@ -2,7 +2,7 @@
 import PrunLink from '@src/components/PrunLink.vue';
 import { popiBuildings } from '@src/features/XIT/GOVBURN/buildings';
 import GovBurnDaysCell from '@src/features/XIT/GOVBURN/GovBurnDaysCell.vue';
-import { buildingDays } from '@src/features/XIT/GOVBURN/utils';
+import { buildingDays, cogcDays } from '@src/features/XIT/GOVBURN/utils';
 import { useTile } from '@src/hooks/use-tile';
 import { useXitParameters } from '@src/hooks/use-xit-parameters';
 import { openCompanionBuffer } from '@src/infrastructure/prun-ui/companion-buffer';
@@ -37,6 +37,7 @@ interface BuildingRow {
   days: number;
   hasData: boolean;
   order: number;
+  isCogc: boolean;
 }
 
 const rows = computed(() => {
@@ -61,6 +62,18 @@ const rows = computed(() => {
       days,
       hasData,
       order: popiOrder.get(building.ticker) ?? 999,
+      isCogc: false,
+    });
+  }
+  if (planet.cogc !== undefined) {
+    result.push({
+      ticker: 'COGC',
+      level: 0,
+      required: -1,
+      days: cogcDays(planet.cogc, now),
+      hasData: true,
+      order: 999,
+      isCogc: true,
     });
   }
   result.sort((a, b) => {
@@ -75,8 +88,10 @@ const rows = computed(() => {
   return result;
 });
 
-function onBuildingClick(e: MouseEvent, ticker: string) {
-  const command = `POPID P-${naturalId.value} T-${ticker}`;
+function onRowClick(e: MouseEvent, row: BuildingRow) {
+  const command = row.isCogc
+    ? `COGCU ${naturalId.value}`
+    : `POPID P-${naturalId.value} T-${row.ticker}`;
   if (e.shiftKey) {
     e.stopPropagation();
     e.preventDefault();
@@ -107,8 +122,9 @@ function onBuildingClick(e: MouseEvent, ticker: string) {
     </thead>
     <tbody>
       <tr v-for="row in rows" :key="row.ticker">
-        <td :class="$style.building" @click="onBuildingClick($event, row.ticker)">
-          {{ row.ticker }} Lvl {{ row.level }}
+        <td :class="$style.building" @click="onRowClick($event, row)">
+          <template v-if="row.isCogc">COGC</template>
+          <template v-else>{{ row.ticker }} Lvl {{ row.level }}</template>
         </td>
         <td>{{ row.required === -1 ? '--' : row.required }}</td>
         <td

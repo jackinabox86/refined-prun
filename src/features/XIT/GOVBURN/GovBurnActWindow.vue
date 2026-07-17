@@ -8,7 +8,12 @@ import { configurableValue } from '@src/features/XIT/ACT/shared-types';
 import { billTotals } from '@src/features/XIT/DISPATCH/utils';
 import { popiBuildings } from '@src/features/XIT/GOVBURN/buildings';
 import { stagedGovBurn } from '@src/features/XIT/GOVBURN/staged';
-import { planetGovBurnBill, rankSlots, type SlotPick } from '@src/features/XIT/GOVBURN/utils';
+import {
+  cogcRefills,
+  planetGovBurnBill,
+  rankSlots,
+  type SlotPick,
+} from '@src/features/XIT/GOVBURN/utils';
 import { useMinBufferHeight } from '@src/hooks/use-min-buffer-height';
 import { useTile } from '@src/hooks/use-tile';
 import { useXitParameters } from '@src/hooks/use-xit-parameters';
@@ -40,13 +45,16 @@ const captured = computed(() => userData.govburn.planets[naturalId.value]);
 
 const planetConfig = computed(() => userData.govburn.config.planets[naturalId.value] ?? {});
 
-const hasConfiguredBuildings = computed(() => {
+const canPlanResupply = computed(() => {
   const planet = captured.value;
   if (planet === undefined) {
     return false;
   }
   const config = planetConfig.value;
-  return planet.buildings.some(x => x.level > 0 && (config[x.ticker] ?? 0) > 0);
+  const hasConfiguredBuildings = planet.buildings.some(
+    x => x.level > 0 && (config[x.ticker] ?? 0) > 0,
+  );
+  return hasConfiguredBuildings || planet.cogc !== undefined;
 });
 
 const popiOrder = new Map(popiBuildings.map((x, i) => [x.ticker, i]));
@@ -243,7 +251,7 @@ function onExecuteClick() {
       .
     </p>
   </template>
-  <template v-else-if="!hasConfiguredBuildings">
+  <template v-else-if="!canPlanResupply">
     <p>
       No buildings configured for {{ displayName }}. Configure them in
       <PrunLink inline command="XIT GOVBURN">XIT GOVBURN</PrunLink>
@@ -255,7 +263,7 @@ function onExecuteClick() {
       <SelectInput v-model="resupplyDays" :options="dayOptions" />
     </Active>
 
-    <table>
+    <table v-if="buildingRows.length > 0">
       <thead>
         <tr>
           <th>Building</th>
@@ -285,6 +293,9 @@ function onExecuteClick() {
       </tbody>
     </table>
 
+    <p v-if="captured?.cogc !== undefined" :class="$style.summary">
+      COGC: {{ cogcRefills(horizonDays) }} refill(s) included
+    </p>
     <p v-if="allResolved && !billNotEmpty" :class="$style.summary">
       Reserves already cover {{ horizonDays }} days — nothing to buy.
     </p>

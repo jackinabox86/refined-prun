@@ -182,6 +182,7 @@ declare namespace UserData {
     name: string;
     capturedAt: number;
     buildings: GovBurnBuilding[];
+    cogc?: GovBurnCogc;
   }
 
   interface GovBurnBuilding {
@@ -208,6 +209,18 @@ declare namespace UserData {
     amount: number;
     duration: number;
     nextTick: number;
+  }
+
+  interface GovBurnCogc {
+    dueDate: number;
+    // Current-cycle bill with contributed amounts; paid when every currentAmount >= amount.
+    materials: GovBurnCogcMaterial[];
+  }
+
+  interface GovBurnCogcMaterial {
+    ticker: string;
+    amount: number;
+    currentAmount: number;
   }
 
   // Building ticker -> required count of supplied upkeep materials.

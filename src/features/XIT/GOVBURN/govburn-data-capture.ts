@@ -1,5 +1,6 @@
 import { populationsStore } from '@src/infrastructure/prun-api/data/populations';
 import { populationProjectsStore } from '@src/infrastructure/prun-api/data/population-projects';
+import { cogcsStore } from '@src/infrastructure/prun-api/data/cogcs';
 import { planetsStore } from '@src/infrastructure/prun-api/data/planets';
 import { companyStore } from '@src/infrastructure/prun-api/data/company';
 import { userData } from '@src/store/user-data';
@@ -101,10 +102,34 @@ function capturePopulations() {
       capturedAt: Date.now(),
       buildings,
     };
+    if (existing?.cogc !== undefined) {
+      next.cogc = existing.cogc;
+    }
     if (existing !== undefined && comparable(existing) === comparable(next)) {
       continue;
     }
     userData.govburn.planets[naturalId] = next;
+  }
+}
+
+function captureCogcs() {
+  for (const cogc of cogcsStore.all.value ?? []) {
+    const planet = userData.govburn.planets[cogc.planet.naturalId];
+    if (!planet || !cogc.upkeep) {
+      continue;
+    }
+    const next: UserData.GovBurnCogc = {
+      dueDate: cogc.upkeep.dueDate.timestamp,
+      materials: cogc.upkeep.billOfMaterial.map(x => ({
+        ticker: x.material.ticker,
+        amount: x.amount,
+        currentAmount: x.currentAmount,
+      })),
+    };
+    if (planet.cogc !== undefined && comparable(planet.cogc) === comparable(next)) {
+      continue;
+    }
+    planet.cogc = next;
   }
 }
 
@@ -151,6 +176,7 @@ function captureProjects() {
 function init() {
   watchEffect(capturePopulations);
   watchEffect(captureProjects);
+  watchEffect(captureCogcs);
 }
 
-features.add(import.meta.url, init, 'Captures POPI/POPID data for XIT GOVBURN.');
+features.add(import.meta.url, init, 'Captures POPI/POPID/COGC data for XIT GOVBURN.');
