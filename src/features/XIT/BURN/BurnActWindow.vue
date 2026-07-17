@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { useXitParameters } from '@src/hooks/use-xit-parameters';
-import { useTile } from '@src/hooks/use-tile';
+import { useMinBufferHeight } from '@src/hooks/use-min-buffer-height';
 import ExecuteActionPackage from '@src/features/XIT/ACT/ExecuteActionPackage.vue';
 import { sitesStore } from '@src/infrastructure/prun-api/data/sites';
 import { getEntityNameFromAddress } from '@src/infrastructure/prun-api/data/addresses';
@@ -15,24 +15,7 @@ import RadioItem from '@src/components/forms/RadioItem.vue';
 const parameters = useXitParameters();
 const naturalId = parameters.join(' ');
 
-const tile = useTile();
-
-onMounted(async () => {
-  await nextTick();
-  const windowEl = tile.frame.closest(`.${C.Window.window}`) as HTMLElement | null;
-  const bodyEl = windowEl ? (_$(windowEl, C.Window.body) as HTMLElement | null) : null;
-  if (!bodyEl) {
-    return;
-  }
-  let overflow = 0;
-  for (const el of tile.anchor.querySelectorAll('*')) {
-    const htmlEl = el as HTMLElement;
-    overflow = Math.max(overflow, htmlEl.scrollHeight - htmlEl.clientHeight);
-  }
-  if (overflow > 0) {
-    bodyEl.style.height = `${bodyEl.offsetHeight + overflow}px`;
-  }
-});
+useMinBufferHeight();
 
 const site = computed(() => sitesStore.getByPlanetNaturalIdOrName(naturalId));
 const planetName = computed(() =>

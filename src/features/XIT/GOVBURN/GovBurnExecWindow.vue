@@ -1,6 +1,9 @@
 <script setup lang="ts">
 import ExecuteActionPackage from '@src/features/XIT/ACT/ExecuteActionPackage.vue';
 import { stagedGovBurn } from '@src/features/XIT/GOVBURN/staged';
+import { useMinBufferHeight } from '@src/hooks/use-min-buffer-height';
+
+useMinBufferHeight();
 </script>
 
 <template>

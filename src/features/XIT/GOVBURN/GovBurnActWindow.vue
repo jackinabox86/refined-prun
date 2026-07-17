@@ -9,6 +9,7 @@ import { billTotals } from '@src/features/XIT/DISPATCH/utils';
 import { popiBuildings } from '@src/features/XIT/GOVBURN/buildings';
 import { stagedGovBurn } from '@src/features/XIT/GOVBURN/staged';
 import { planetGovBurnBill, rankSlots, type SlotPick } from '@src/features/XIT/GOVBURN/utils';
+import { useMinBufferHeight } from '@src/hooks/use-min-buffer-height';
 import { useTile } from '@src/hooks/use-tile';
 import { useXitParameters } from '@src/hooks/use-xit-parameters';
 import { UI_TILES_CHANGE_COMMAND } from '@src/infrastructure/prun-api/client-messages';
@@ -21,6 +22,7 @@ import { fixed0, fixed02 } from '@src/utils/format';
 
 const parameters = useXitParameters();
 const tile = useTile();
+useMinBufferHeight();
 
 const parameter = computed(() => parameters.join(' '));
 
