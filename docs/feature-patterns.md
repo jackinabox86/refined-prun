@@ -157,12 +157,16 @@ const pkg: UserData.ActionPackageData = {
 
 The `pkg` is a plain hardcoded object, not persisted user data — `ExecuteActionPackage` runs it exactly like a saved package (CONFIGURE only appears if an action still needs runtime input; PREVIEW/EXECUTE always available). Trigger it from anywhere with `showBuffer('XIT REFUELACT')` (see `PlanetHeader.vue`'s `XIT BURNACT` button for a row-level example, or `FLT.vue`'s Fuel-column header button for another).
 
-**Never embed `ExecuteActionPackage` inside a long-lived planner tile.** The runner
-splits its host tile to allocate command buffers, which remounts the host component —
-non-persisted state resets and the run dies (this broke DISPATCH's first embedded-run
-design). Instead stage the built package in a module-level ref and open a dedicated
+**Never embed `ExecuteActionPackage` inside a long-lived planner tile.** The split
+happens **at mount**, not at run time: `ActionRunner`'s constructor builds its
+`TileAllocator`, which immediately splits a solo buffer. So rendering
+`ExecuteActionPackage` behind a `v-if` splits and remounts the host the instant the
+condition flips true — non-persisted planner state resets before any run starts (this
+broke DISPATCH's first embedded-run design and wiped GOVBURNACT's slot picks). Instead
+stage the built package in a module-level ref and open a dedicated
 XIT command whose window renders `ExecuteActionPackage` (see
-`src/features/XIT/DISPATCH/staged.ts` + `DISPATCHACT.ts`). Besides `afterExecute`,
+`src/features/XIT/DISPATCH/staged.ts` + `DISPATCHACT.ts`, or GOVBURN's `staged.ts` +
+`GOVBURNEXEC.ts`). Besides `afterExecute`,
 `ExecuteActionPackage` accepts `beforeExecute` — logs emitted there land at the top of
 the run log. (DISPATCH used to print its offload JSONs that way; they now go through
 `LOG_JSON` steps emitted by MTRA's `offloadGroups` path, with `agentGroups` controlling
@@ -217,6 +221,15 @@ Never create an inner scroll container inside a tile (`height: 100%` on the root
 scroller reserves a second scrollbar's width next to the game's scroll gutter, making
 the buffer visibly wider on the right than every other buffer (this was DISPATCH's
 right-edge gap). Let content flow at natural height and the game scrolls it.
+
+### Forms need `@submit.prevent`
+
+A native form submission navigates the page — i.e. force-reloads the whole game tab.
+`PrunButton` renders `type="button"`, so extension forms usually have no submit button,
+but the HTML implicit-submission rule still fires a native submit on Enter in a form
+with a **single** text input (GOVBURN's Add Planet form reloaded the game this way; an
+Enter handler on the input does not stop it). Put `@submit.prevent` on every `<form>`
+in extension UI.
 
 ### Auto-fitting a window to its content
 
@@ -563,6 +576,12 @@ const line = computed(() => productionStore.getById(tile.parameter));
 **Never use `onApiMessage` in features.** It's a low-level API for entity stores in `infrastructure/prun-api`. All API data lands in entity stores — derive what you need with `computed` or `watchEffect`.
 
 **Timestamps in ETAs must stay reactive.** Use `timestampEachMinute` (not `Date.now()`) when calculating ETAs, so it re-renders automatically.
+
+**Don't rebuild editable UI state when its source store object is rewritten.** Data
+capture rewrites whole `userData` objects on any change, so a `watch` that
+reinitializes a local editable structure from that object re-fires mid-edit and wipes
+the user's input. Merge instead: keep still-valid user picks, only fill new/missing
+entries (see the slots watch in `GovBurnActWindow.vue`).
 
 ### Persisting a Small UI Preference
 
