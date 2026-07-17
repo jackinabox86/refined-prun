@@ -166,7 +166,12 @@ broke DISPATCH's first embedded-run design and wiped GOVBURNACT's slot picks). I
 stage the built package in a module-level ref and open a dedicated
 XIT command whose window renders `ExecuteActionPackage` (see
 `src/features/XIT/DISPATCH/staged.ts` + `DISPATCHACT.ts`, or GOVBURN's `staged.ts` +
-`GOVBURNEXEC.ts`). Besides `afterExecute`,
+`GOVBURNEXEC.ts`). To consume the planner window instead of stranding it behind a new
+runner window, change the planner tile's own command in place:
+`dispatchClientPrunMessage(UI_TILES_CHANGE_COMMAND(tile.id, null))` then
+`(tile.id, 'XIT <CMD>')` — the null-then-command two-step is required, and keep
+`showBuffer` as the fallback when the first dispatch fails (see
+`GovBurnActWindow.vue`'s `onExecuteClick`). Besides `afterExecute`,
 `ExecuteActionPackage` accepts `beforeExecute` — logs emitted there land at the top of
 the run log. (DISPATCH used to print its offload JSONs that way; they now go through
 `LOG_JSON` steps emitted by MTRA's `offloadGroups` path, with `agentGroups` controlling
@@ -240,6 +245,12 @@ the first data render instead (one-shot watch; see `DISPATCH.vue`). Measure widt
 structural overhead on every floating window: a 6px `Tile__tile` margin per side plus
 the ScrollView's 10px right gutter (which hosts its 6px scrollbar track).
 
+For **height**, call `useMinBufferHeight()` (`src/hooks/use-min-buffer-height.ts`) in
+the window component's setup — at mount it grows the floating window body by the
+largest content overflow (`scrollHeight − clientHeight` over all descendants), so table
+rows and the action bar are never hidden behind a scrollbar. Origin: BURNACT; also used
+by GOVBURN's planner and runner windows.
+
 ### Drag-reorder with vue-draggable-plus
 
 The `v-draggable` directive binds once at mount, and a template binding
@@ -270,6 +281,20 @@ value back explicitly (`input.value = String(clamped)`) after updating the store
 splits the tile's window (widening a floating window by 450px first) and loads `command`
 into the sibling pane. Get the tile inside a Vue component via `useTile()`. Used by the
 POPI details shift-click feature and GOVBURN's planet view.
+
+### Planet names and the right-click planet menu
+
+To display a planet the way BURN does, derive the name with
+`getEntityNameFromAddress(planet.address)` — named planets show their name, unnamed
+ones get a "SystemName letter" nickname when their system is named (raw natural id
+otherwise). Pair it with the shared right-click menu (PLI/COGC/POPR/POPI/ADM):
+
+```html
+<td @contextmenu.prevent="planetContextMenu.showMenu($event, naturalId)">{{ name }}</td>
+```
+
+where `planetContextMenu` is `import { store as planetContextMenu } from
+'@src/features/XIT/planet-context-menu'` (see `PlanetHeader.vue`, `GovBurnOverview.vue`).
 
 ### Tile state is ephemeral for floating buffers
 
