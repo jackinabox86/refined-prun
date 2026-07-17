@@ -135,19 +135,6 @@ const resupplyDays = computed({
 
 const horizonDays = computed(() => Number(resupplyDays.value));
 
-function sourceTag(source: SlotPick['source']) {
-  switch (source) {
-    case 'reserve':
-      return 'RES';
-    case 'own-history':
-      return 'OWN';
-    case 'any-history':
-      return 'ANY';
-    case 'manual':
-      return 'MAN';
-  }
-}
-
 function slotOptions(buildingTicker: string, slotIndex: number) {
   const building = captured.value?.buildings.find(x => x.ticker === buildingTicker);
   const upkeeps = building?.upkeeps ?? [];
@@ -279,7 +266,6 @@ function onExecuteClick() {
                   :options="slotOptions(row.ticker, index)"
                   @update:model-value="v => setSlot(row.ticker, index, v)" />
               </div>
-              <span :class="$style.source">{{ sourceTag(slot.source) }}</span>
             </td>
           </template>
         </tr>
@@ -318,12 +304,6 @@ function onExecuteClick() {
 .selectWrap :global(div) {
   width: 100%;
   margin-left: 0;
-}
-
-.source {
-  margin-left: 0.25rem;
-  font-size: 0.75em;
-  opacity: 0.75;
 }
 
 .summary {
