@@ -115,7 +115,7 @@ function capturePopulations() {
 function captureCogcs() {
   for (const cogc of cogcsStore.all.value ?? []) {
     const planet = userData.govburn.planets[cogc.planet.naturalId];
-    if (!planet || !cogc.upkeep) {
+    if (planet === undefined || cogc.upkeep === null) {
       continue;
     }
     const next: UserData.GovBurnCogc = {
