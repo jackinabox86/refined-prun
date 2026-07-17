@@ -1,14 +1,16 @@
 <script setup lang="ts">
 import Active from '@src/components/forms/Active.vue';
 import SelectInput from '@src/components/forms/SelectInput.vue';
+import PrunButton from '@src/components/PrunButton.vue';
 import PrunLink from '@src/components/PrunLink.vue';
-import ExecuteActionPackage from '@src/features/XIT/ACT/ExecuteActionPackage.vue';
 import { configurableValue } from '@src/features/XIT/ACT/shared-types';
 import { billTotals } from '@src/features/XIT/DISPATCH/utils';
 import { popiBuildings } from '@src/features/XIT/GOVBURN/buildings';
+import { stagedGovBurn } from '@src/features/XIT/GOVBURN/staged';
 import { planetGovBurnBill, rankSlots, type SlotPick } from '@src/features/XIT/GOVBURN/utils';
 import { useXitParameters } from '@src/hooks/use-xit-parameters';
 import { planetsStore } from '@src/infrastructure/prun-api/data/planets';
+import { showBuffer } from '@src/infrastructure/prun-ui/buffers';
 import { userData } from '@src/store/user-data';
 import { timestampEachMinute } from '@src/utils/dayjs';
 import { fixed0, fixed02 } from '@src/utils/format';
@@ -96,7 +98,19 @@ watch(
       if (n <= 0 || building.upkeeps === undefined) {
         continue;
       }
-      next[building.ticker] = rankSlots(building, n);
+      const previous = slots.value[building.ticker];
+      if (
+        previous !== undefined &&
+        previous.length === Math.max(0, Math.min(n, building.upkeeps.length))
+      ) {
+        // Preserve user picks across data refreshes; blank tickers that are no longer upkeeps.
+        const valid = new Set(building.upkeeps.map(x => x.ticker));
+        next[building.ticker] = previous.map(x =>
+          x.ticker === '' || valid.has(x.ticker) ? x : { ticker: '', source: 'manual' },
+        );
+      } else {
+        next[building.ticker] = rankSlots(building, n);
+      }
     }
     slots.value = next;
   },
@@ -212,6 +226,11 @@ const pkg = computed<UserData.ActionPackageData>(() => ({
     },
   ],
 }));
+
+function onExecuteClick() {
+  stagedGovBurn.value = { pkg: pkg.value };
+  showBuffer('XIT GOVBURNEXEC');
+}
 </script>
 
 <template>
@@ -273,7 +292,9 @@ const pkg = computed<UserData.ActionPackageData>(() => ({
     <template v-else>
       <p v-if="allResolved" :class="$style.summary">{{ billLine }}</p>
       <p v-else :class="$style.summary">Resolve all upkeep slots to continue.</p>
-      <ExecuteActionPackage v-if="allResolved && billNotEmpty" :pkg="pkg" />
+      <PrunButton v-if="allResolved && billNotEmpty" primary @click="onExecuteClick">
+        EXECUTE
+      </PrunButton>
     </template>
   </template>
 </template>

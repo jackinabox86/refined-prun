@@ -90,7 +90,7 @@ function onInputKeydown(ev: KeyboardEvent) {
   </div>
 
   <SectionHeader>Thresholds</SectionHeader>
-  <form>
+  <form @submit.prevent>
     <Active label="Red (days)">
       <NumberInput v-model="userData.govburn.config.red" />
     </Active>
@@ -100,7 +100,7 @@ function onInputKeydown(ev: KeyboardEvent) {
   </form>
 
   <SectionHeader>Add Planet</SectionHeader>
-  <form>
+  <form @submit.prevent>
     <Active label="Planet" :error="planetError">
       <TextInput v-model="planetInput" @keydown="onInputKeydown" />
     </Active>
