@@ -273,18 +273,19 @@ export function cogcDays(cogc: UserData.GovBurnCogc, now: number) {
   return Math.max(0, days);
 }
 
-// Full COGC refills covered by a resupply horizon: 5-10d -> 1, 15-20d -> 2, 25-30d -> 3.
+// Full COGC refills covered by a resupply horizon: 5-10d -> 1, 15-20d -> 2,
+// 25-30d -> 3. Capped at 3 refills no matter the horizon.
 export function cogcRefills(horizonDays: number) {
-  return Math.max(1, Math.ceil(horizonDays / COGC_PERIOD_DAYS));
+  return Math.min(3, Math.max(1, Math.ceil(horizonDays / COGC_PERIOD_DAYS)));
 }
 
-// {ticker: amount} to buy so `refills` full cycles are covered, crediting
-// what the current cycle already received.
+// {ticker: amount} to buy for the horizon's refills. A fully paid current
+// cycle counts as the first refill; partial contributions get no credit.
 export function cogcBuyAmounts(cogc: UserData.GovBurnCogc, horizonDays: number) {
-  const refills = cogcRefills(horizonDays);
+  const refills = cogcRefills(horizonDays) - (cogcPaid(cogc) ? 1 : 0);
   const bill: Record<string, number> = {};
   for (const material of cogc.materials) {
-    const amount = Math.max(0, refills * material.amount - material.currentAmount);
+    const amount = refills * material.amount;
     if (amount > 0) {
       bill[material.ticker] = amount;
     }
