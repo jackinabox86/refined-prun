@@ -30,6 +30,11 @@
 - Provides 25% production bonus to chosen industry for duration of active program.
 - Members vote on programs (votes weighted by influence = workforce composition with tier multipliers: Pioneer 1x, Settler 1.25x, Technician 1.5x, Engineer 1.75x, Scientist 2x).
 - Requires upkeep (DW, MCG, PE, RAT) to stay active; scales with base count.
+- Upkeep runs on a 10-day cycle, independent of programs (programs are 7-day epochs). The full bill must be contributed before the cycle's due date for the CoGC to operate in the next cycle.
+
+### COGC API payload (verified live)
+
+`DATA_DATA path ["planets", <planetGuid>, "cogc", <cogcId>]` — arrives when the `COGC {planet}` buffer opens. The body's own `id` (and the planet body's `cogcId` field) can be the all-zero GUID even for a fully functional CoGC — never key a store by it; key by `planet.id` (the body carries a `planet` entity link with `id`/`naturalId`/`name`). `upkeep.dueDate` = end of the CURRENT 10-day upkeep cycle; `upkeep.billOfMaterial[]` entries have `amount` and `currentAmount`, and the cycle is fully paid when every entry has `currentAmount >= amount` — the next contribution deadline is `dueDate`, or `dueDate + 10 days` when paid. `upkeep.contributions[]` matches the population-project contribution shape. Some planets have no CoGC, and there is no reliable client-side way to detect absence before opening the buffer (the zero-GUID `cogcId` is useless per above) — a data-collection step must timeout-and-continue rather than fail (see `OPEN_COGC`).
 
 ## Population Needs (Tiers)
 
