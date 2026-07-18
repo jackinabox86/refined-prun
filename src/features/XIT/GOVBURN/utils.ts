@@ -57,9 +57,8 @@ export function buildingDays(building: UserData.GovBurnBuilding, n: number, now:
   return days;
 }
 
-// Min over buildings with level > 0 of buildingDays(config[ticker] ?? -1),
-// and over COGC when present.
-// hasData is true if any level > 0 building has upkeeps captured, or COGC is present.
+// Min over buildings with level > 0 of buildingDays(config[ticker] ?? -1).
+// hasData is true iff any level > 0 building has upkeeps captured.
 // Unconfigured buildings drag the planet to 0 (red); all-zero config is infinity (green).
 export function planetDays(
   planet: UserData.GovBurnPlanet,
@@ -77,10 +76,6 @@ export function planetDays(
     }
     const n = config[building.ticker] ?? -1;
     days = Math.min(days, buildingDays(building, n, now));
-  }
-  if (planet.cogc !== undefined) {
-    hasData = true;
-    days = Math.min(days, cogcDays(planet.cogc, now));
   }
   return { days, hasData };
 }

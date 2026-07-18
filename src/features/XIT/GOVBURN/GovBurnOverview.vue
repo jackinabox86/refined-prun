@@ -2,7 +2,7 @@
 import PrunButton from '@src/components/PrunButton.vue';
 import GovBurnConfig from '@src/features/XIT/GOVBURN/GovBurnConfig.vue';
 import GovBurnDaysCell from '@src/features/XIT/GOVBURN/GovBurnDaysCell.vue';
-import { planetDays } from '@src/features/XIT/GOVBURN/utils';
+import { cogcDays, planetDays } from '@src/features/XIT/GOVBURN/utils';
 import { store as planetContextMenu } from '@src/features/XIT/planet-context-menu';
 import { getEntityNameFromAddress } from '@src/infrastructure/prun-api/data/addresses';
 import { showBuffer } from '@src/infrastructure/prun-ui/buffers';
@@ -18,6 +18,7 @@ interface PlanetRow {
   name: string;
   days: number;
   hasData: boolean;
+  cogcDays: number | undefined;
 }
 
 const rows = computed(() => {
@@ -30,18 +31,35 @@ const rows = computed(() => {
     const name =
       getEntityNameFromAddress(planet?.address) ?? captured?.name ?? planet?.name ?? naturalId;
     if (captured === undefined) {
-      result.push({ naturalId, name, days: Number.POSITIVE_INFINITY, hasData: false });
+      result.push({
+        naturalId,
+        name,
+        days: Number.POSITIVE_INFINITY,
+        hasData: false,
+        cogcDays: undefined,
+      });
       continue;
     }
-    const { days, hasData } = planetDays(captured, config, now);
-    result.push({ naturalId, name, days, hasData });
+    const popi = planetDays(captured, config, now);
+    const cogc = captured.cogc !== undefined ? cogcDays(captured.cogc, now) : undefined;
+    result.push({
+      naturalId,
+      name,
+      days: popi.days,
+      hasData: popi.hasData,
+      cogcDays: cogc,
+    });
   }
   result.sort((a, b) => {
-    if (a.hasData !== b.hasData) {
-      return a.hasData ? -1 : 1;
+    const aHasAny = a.hasData || a.cogcDays !== undefined;
+    const bHasAny = b.hasData || b.cogcDays !== undefined;
+    if (aHasAny !== bHasAny) {
+      return aHasAny ? -1 : 1;
     }
-    if (a.hasData && a.days !== b.days) {
-      return a.days - b.days;
+    const aMin = Math.min(a.days, a.cogcDays ?? Number.POSITIVE_INFINITY);
+    const bMin = Math.min(b.days, b.cogcDays ?? Number.POSITIVE_INFINITY);
+    if (aMin !== bMin) {
+      return aMin - bMin;
     }
     return comparePlanets(a.naturalId, b.naturalId);
   });
@@ -70,7 +88,8 @@ function onActClick(naturalId: string) {
       <thead>
         <tr>
           <th>Planet</th>
-          <th>Days</th>
+          <th>POPI</th>
+          <th>COGC</th>
           <th>CMD</th>
         </tr>
       </thead>
@@ -90,6 +109,17 @@ function onActClick(naturalId: string) {
             --
           </td>
           <GovBurnDaysCell v-else :days="row.days" :on-click="() => openPlanet(row.naturalId)" />
+          <td
+            v-if="row.cogcDays === undefined"
+            data-tooltip="No COGC data captured. Run XIT GOVBURNDATA."
+            :class="$style.noData"
+            @click="openPlanet(row.naturalId)">
+            --
+          </td>
+          <GovBurnDaysCell
+            v-else
+            :days="row.cogcDays"
+            :on-click="() => openPlanet(row.naturalId)" />
           <td>
             <PrunButton dark inline @click="onActClick(row.naturalId)">ACT</PrunButton>
           </td>
