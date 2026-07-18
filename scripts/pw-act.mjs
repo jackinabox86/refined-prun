@@ -1,15 +1,20 @@
 // Attaches to the already-running browser via CDP and runs one action, then
 // takes a screenshot. Actions: click <selector>, ctrl-click <selector>,
 // type <selector> <text>, press <key>, screenshot <path>, list-windows,
+// window-text <match> [maxChars], select-option <selector> <value>,
 // styles <selector> <props-csv>, local-storage-get <key>,
 // mouse-drag <x1> <y1> <x2> <y2> [steps],
 // drag-stack <ticker> <amount-box-label>, reload, eval <js-expression>
 //
-// Prefer click/click-nth/type/fill-nth/list-windows/styles/local-storage-get
-// over eval whenever possible. Playwright selectors support :has-text("...")
-// directly, so most "find this button/row by its text and click it" or
-// "which window has X" tasks don't need a bespoke eval at all — e.g.
+// Prefer click/click-nth/type/fill-nth/list-windows/window-text/select-option/
+// styles/local-storage-get over eval whenever possible. Playwright selectors
+// support :has-text("...") directly, so most "find this button/row by its
+// text and click it" or "which window has X" tasks don't need a bespoke eval
+// at all — e.g.
 //   click '[class*="Window__window"]:has-text("CD-1234") button:has-text("Select Template")'
+//   window-text 'GOVBURN DATA'         # dump run log / table text of one window
+//   window-text 'GOVERNMENT BURN' 2000
+//   select-option '[class*="Window__window"]:has-text("GOVERNMENT BURN") tr:has-text("SST") select' '2'
 // Every eval call passes a *different* piece of arbitrary JS to run against a
 // live logged-in session, which is a fundamentally different (and pricier,
 // approval-wise) thing than a fixed action taking plain string arguments —
@@ -272,6 +277,80 @@ switch (action) {
       result.push({ index: i, text });
     }
     console.log(JSON.stringify(result, null, 2));
+    break;
+  }
+  case 'window-text': {
+    // Dumps the full innerText of the first floating window whose text includes
+    // a case-insensitive match substring. Optional maxChars (default 6000)
+    // caps output. Data-only arguments — use instead of a bespoke eval that
+    // walks document.querySelectorAll('[class*=Window__window]') for text.
+    const [match, maxCharsArg] = rest;
+    const maxChars = maxCharsArg === undefined ? 6000 : Number(maxCharsArg);
+    const result = await page.evaluate(
+      ({ match, maxChars }) => {
+        const windows = [...document.querySelectorAll('[class*="Window__window"]')];
+        const needle = match.toLowerCase();
+        const w = windows.find(el => el.innerText.toLowerCase().includes(needle));
+        if (!w) {
+          return {
+            error: `No window matching "${match}".`,
+            open: windows.map(el => el.innerText.replace(/\s+/g, ' ').slice(0, 60)),
+          };
+        }
+        const text = w.innerText;
+        if (text.length > maxChars) {
+          return { text: text.slice(0, maxChars) + '... [truncated]' };
+        }
+        return { text };
+      },
+      { match, maxChars },
+    );
+    if (result.error) {
+      console.error(result.error);
+      for (const t of result.open) console.error('  -', t);
+      process.exit(1);
+    }
+    console.log(result.text);
+    break;
+  }
+  case 'select-option': {
+    // Sets a native <select> to the given value (falls back to matching by
+    // label). Fires proper input/change events for Vue v-model — use instead
+    // of a bespoke eval that assigns .value and dispatches events by hand.
+    // First match only, consistent with click/styles.
+    const [selector, value] = rest;
+    const locator = page.locator(selector).first();
+    if ((await locator.count()) === 0) {
+      console.error(`No element matching "${selector}".`);
+      process.exit(1);
+    }
+    try {
+      await locator.selectOption({ value }, { timeout: 5000 });
+    } catch {
+      try {
+        await locator.selectOption({ label: value }, { timeout: 5000 });
+      } catch {
+        // Fall through to the native-setter path below.
+      }
+    }
+    let current = await locator.inputValue();
+    if (current !== value) {
+      // Some Vue-bound selects snap back after Playwright's selectOption;
+      // the native value setter + input/change dispatch is what sticks
+      // (verified live on GOVBURNACT slot selects).
+      await locator.evaluate((el, v) => {
+        const setter = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value').set;
+        setter.call(el, v);
+        el.dispatchEvent(new Event('input', { bubbles: true }));
+        el.dispatchEvent(new Event('change', { bubbles: true }));
+      }, value);
+      current = await locator.inputValue();
+    }
+    if (current !== value) {
+      console.error(`Select value did not stick (currently "${current}").`);
+      process.exit(1);
+    }
+    console.log(current);
     break;
   }
   case 'dump-windows': {

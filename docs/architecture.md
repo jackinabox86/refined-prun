@@ -93,6 +93,11 @@ import { onApiMessage } from '@src/infrastructure/prun-api/data/api-messages';
 onApiMessage({ SOME_MESSAGE_TYPE(data) { /* ... */ } });
 ```
 
+Stores fed only by ad-hoc `DATA_DATA` payloads (data that arrives per opened buffer, with
+no bulk fetch — e.g. `populations`, `population-projects`) must call `store.setFetched()`
+inside the handler: `.getById()`/`.all` return `undefined` until `fetched` flips, so
+without it the store looks permanently empty no matter how many payloads arrive.
+
 ### `prun-ui/` — DOM Layer
 
 - **`C`** (`prun-css.ts`) — Object of runtime CSS class names parsed from PrUn's hashed stylesheets. E.g. `C.TileFrame.frame`. Available globally (auto-import).

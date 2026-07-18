@@ -60,6 +60,10 @@ tile.anchor.parentElement as HTMLDivElement
 tile.anchor.parentElement!
 ```
 
+### Nullish Checks
+
+Write guards on object-typed values as explicit comparisons (`=== undefined`, `=== null`), not truthiness (`if (!planet)`). The `strict-boolean-expressions` eslint rule rejects truthiness checks on object types, and tsc alone passes them — the failure is lint-only. Spell this out in delegated-work briefs; truthiness guards are the default habit of most code generators.
+
 ### Comments
 
 Put on a separate line, start with a capital letter, end with a full stop.

@@ -57,6 +57,16 @@ Implementation and verification are delegated, not done in the main session — 
 
 The Bash sandbox denies writes to `.claude/` control files (skills, hooks, settings) by design. Some of those files are also git-tracked and differ between branches, so a sandboxed `git checkout`/`git stash` crossing them fails **midway** ("Read-only file system"), leaving git half-done. You can't know in advance whether `.claude/` files differ, so never attempt the sandboxed version first: run any `git checkout`/`git stash` crossing main unsandboxed from the start.
 
+The sandbox also denies writes to `.git/config`, so any git command that writes repo
+config (`git push -u`, `git branch --set-upstream-to`, `git config --local`,
+`git remote add/set-url`) fails sandboxed with a **misleading** error:
+`could not lock config file .git/config: File exists`. There is no stale lock — don't
+hunt for one (a sandboxed `ls` even shows a phantom `config.lock` that doesn't exist
+outside the sandbox). Sneakiest case: sandboxed `git push -u` pushes successfully but
+silently drops the tracking config, leaving the branch pushed but untracked. Run
+config-writing git commands unsandboxed from the start; the `.git/config` deny is
+intentional, so never work around it by widening the allowlist.
+
 `grok` also refreshes its OAuth token against `auth.x.ai` on every invocation, not just at
 `grok login` — that host needs to be in `sandbox.network.allowedDomains` in
 `.claude/settings.json`, or every call falls back to a manual sandbox-bypass approval. That
@@ -69,6 +79,12 @@ prefix is allowlisted. Write the brief to a file and pass a literal prompt inste
 `-p "Read <absolute path> and implement it exactly."`. Also start the prompt with an
 explicit "IMPLEMENT NOW, do not ask for confirmation" — in `-p` mode grok otherwise tends
 to restate the plan and end with "OK to proceed?" without touching any files.
+
+The same injection detection flags heredoc-fed interpreter code (`python3 - <<'EOF'`),
+bypassing both the allowlist and sandboxed auto-allow. Use `python3 -c '...'` for
+one-liners, or write the script to the scratchpad or `.local/scratch/` and run the
+path — `python3 -c *`, `python3 /tmp/claude-1000/*`, and `python3 .local/scratch/*`
+are allowlisted.
 
 ## DISTILL
 

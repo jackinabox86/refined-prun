@@ -157,12 +157,21 @@ const pkg: UserData.ActionPackageData = {
 
 The `pkg` is a plain hardcoded object, not persisted user data — `ExecuteActionPackage` runs it exactly like a saved package (CONFIGURE only appears if an action still needs runtime input; PREVIEW/EXECUTE always available). Trigger it from anywhere with `showBuffer('XIT REFUELACT')` (see `PlanetHeader.vue`'s `XIT BURNACT` button for a row-level example, or `FLT.vue`'s Fuel-column header button for another).
 
-**Never embed `ExecuteActionPackage` inside a long-lived planner tile.** The runner
-splits its host tile to allocate command buffers, which remounts the host component —
-non-persisted state resets and the run dies (this broke DISPATCH's first embedded-run
-design). Instead stage the built package in a module-level ref and open a dedicated
+**Never embed `ExecuteActionPackage` inside a long-lived planner tile.** The split
+happens **at mount**, not at run time: `ActionRunner`'s constructor builds its
+`TileAllocator`, which immediately splits a solo buffer. So rendering
+`ExecuteActionPackage` behind a `v-if` splits and remounts the host the instant the
+condition flips true — non-persisted planner state resets before any run starts (this
+broke DISPATCH's first embedded-run design and wiped GOVBURNACT's slot picks). Instead
+stage the built package in a module-level ref and open a dedicated
 XIT command whose window renders `ExecuteActionPackage` (see
-`src/features/XIT/DISPATCH/staged.ts` + `DISPATCHACT.ts`). Besides `afterExecute`,
+`src/features/XIT/DISPATCH/staged.ts` + `DISPATCHACT.ts`, or GOVBURN's `staged.ts` +
+`GOVBURNEXEC.ts`). To consume the planner window instead of stranding it behind a new
+runner window, change the planner tile's own command in place:
+`dispatchClientPrunMessage(UI_TILES_CHANGE_COMMAND(tile.id, null))` then
+`(tile.id, 'XIT <CMD>')` — the null-then-command two-step is required, and keep
+`showBuffer` as the fallback when the first dispatch fails (see
+`GovBurnActWindow.vue`'s `onExecuteClick`). Besides `afterExecute`,
 `ExecuteActionPackage` accepts `beforeExecute` — logs emitted there land at the top of
 the run log. (DISPATCH used to print its offload JSONs that way; they now go through
 `LOG_JSON` steps emitted by MTRA's `offloadGroups` path, with `agentGroups` controlling
@@ -211,6 +220,23 @@ the player-adjusted input value after the pause instead of rewriting it).
 Don't add a bare `sleep()` for this; the delay belongs in `waitAct` so skipping/canceling
 during the pause is handled.
 
+### ACT Step Behaviors Worth Knowing
+
+- **Per-open click gate lives in `requestTile`.** A step that opens a buffer via
+  `ctx.requestTile(cmd)` already makes the player click ACT for that open — don't add
+  another `waitAct` around it.
+- **Steps can self-skip without a click.** Calling `ctx.skip()` and returning before any
+  `waitAct` consumes the step silently (logs a SKIP line). Used by `OPEN_POPID` to walk a
+  fixed 14-building step list while only present buildings cost a click — a static step
+  list plus self-skipping steps is simpler than generating steps dynamically from data
+  that only arrives mid-run.
+- **MTRA into a ship store auto-emits `OPEN_SFC`** (destination `sfcDestination ??` the
+  material group's `planet`) unless `noSfc` is set — a buy→load→launch package needs no
+  explicit launch step; the player still clicks the actual takeoff in SFC.
+- **`CX Buy` with `useCXInv: true` nets out warehouse stock**, so a PREVIEW showing
+  `Buy 900` against `Transfer 1,000` of the same ticker is correct (100 already in the
+  warehouse), not a quantity bug.
+
 ### Action-Specific Sentinel Values
 
 `configurableValue` and `groupTargetPrefix` (`shared-types.ts`) are sentinels shared across every ACT action/material-group type. If an action needs an extra dropdown option unique to itself (e.g. Refuel's "All Exchanges" origin, alongside "Configure on Execution" and specific storages), define that sentinel in the action's own `utils.ts`/`config.ts` instead of adding it to `shared-types.ts`.
@@ -227,6 +253,15 @@ scroller reserves a second scrollbar's width next to the game's scroll gutter, m
 the buffer visibly wider on the right than every other buffer (this was DISPATCH's
 right-edge gap). Let content flow at natural height and the game scrolls it.
 
+### Forms need `@submit.prevent`
+
+A native form submission navigates the page — i.e. force-reloads the whole game tab.
+`PrunButton` renders `type="button"`, so extension forms usually have no submit button,
+but the HTML implicit-submission rule still fires a native submit on Enter in a form
+with a **single** text input (GOVBURN's Add Planet form reloaded the game this way; an
+Enter handler on the input does not stop it). Put `@submit.prevent` on every `<form>`
+in extension UI.
+
 ### Auto-fitting a window to its content
 
 The game applies the registered `bufferSize` asynchronously around tile creation, so a
@@ -235,6 +270,12 @@ the first data render instead (one-shot watch; see `DISPATCH.vue`). Measure widt
 `content + (bodyEl.offsetWidth − contentEl.clientWidth)`; that chrome term is real
 structural overhead on every floating window: a 6px `Tile__tile` margin per side plus
 the ScrollView's 10px right gutter (which hosts its 6px scrollbar track).
+
+For **height**, call `useMinBufferHeight()` (`src/hooks/use-min-buffer-height.ts`) in
+the window component's setup — at mount it grows the floating window body by the
+largest content overflow (`scrollHeight − clientHeight` over all descendants), so table
+rows and the action bar are never hidden behind a scrollbar. Origin: BURNACT; also used
+by GOVBURN's planner and runner windows.
 
 ### Drag-reorder with vue-draggable-plus
 
@@ -248,6 +289,38 @@ instance and mutates it in place on drag. Two safe patterns:
   is left mutating an orphaned snapshot and drags silently revert. Pass the ref itself
   by building the tuple in script (`const dragBinding = [idsRef, opts]`) — the library
   handles refs natively (see `DISPATCH.vue`).
+
+### Clamping a numeric input needs a raw input + DOM write-back
+
+`NumberInput` (a `defineModel` + computed v-model wrapper) cannot enforce min/max: its
+attrs land on the wrapper div, and when the parent clamps the emitted value back to what
+the store already holds, no prop change occurs, so Vue never rewrites the DOM and the
+input keeps displaying the out-of-range typed value. For clamped fields use a raw
+`<input type="number" :min :max :value @change>` and, in the handler, write the clamped
+value back explicitly (`input.value = String(clamped)`) after updating the store — the
+`min`/`max` attributes bound the spinner arrows, the write-back fixes typed values (see
+`GovBurnConfig.vue`).
+
+### Opening a companion buffer (split pane) next to a tile
+
+`openCompanionBuffer(tile, command)` in `src/infrastructure/prun-ui/companion-buffer.ts`
+splits the tile's window (widening a floating window by 450px first) and loads `command`
+into the sibling pane. Get the tile inside a Vue component via `useTile()`. Used by the
+POPI details shift-click feature and GOVBURN's planet view.
+
+### Planet names and the right-click planet menu
+
+To display a planet the way BURN does, derive the name with
+`getEntityNameFromAddress(planet.address)` — named planets show their name, unnamed
+ones get a "SystemName letter" nickname when their system is named (raw natural id
+otherwise). Pair it with the shared right-click menu (PLI/COGC/POPR/POPI/ADM):
+
+```html
+<td @contextmenu.prevent="planetContextMenu.showMenu($event, naturalId)">{{ name }}</td>
+```
+
+where `planetContextMenu` is `import { store as planetContextMenu } from
+'@src/features/XIT/planet-context-menu'` (see `PlanetHeader.vue`, `GovBurnOverview.vue`).
 
 ### Tile state is ephemeral for floating buffers
 
@@ -561,6 +634,12 @@ value (e.g. `newDefault !== oldDefault`), not merely that the migration applies.
 **Never use `onApiMessage` in features.** It's a low-level API for entity stores in `infrastructure/prun-api`. All API data lands in entity stores — derive what you need with `computed` or `watchEffect`.
 
 **Timestamps in ETAs must stay reactive.** Use `timestampEachMinute` (not `Date.now()`) when calculating ETAs, so it re-renders automatically.
+
+**Don't rebuild editable UI state when its source store object is rewritten.** Data
+capture rewrites whole `userData` objects on any change, so a `watch` that
+reinitializes a local editable structure from that object re-fires mid-edit and wipes
+the user's input. Merge instead: keep still-valid user picks, only fill new/missing
+entries (see the slots watch in `GovBurnActWindow.vue`).
 
 ### Persisting a Small UI Preference
 

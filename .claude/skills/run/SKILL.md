@@ -199,6 +199,19 @@ node scripts/pw-act.mjs dump-windows [index]                 # structured dump o
                                                              # this to study a screen's
                                                              # content/connections instead
                                                              # of a bespoke eval
+node scripts/pw-act.mjs window-text '<match>' [maxChars]     # full innerText of the first
+                                                             # floating window whose text
+                                                             # contains <match> (case-
+                                                             # insensitive; default cap 6000
+                                                             # chars) — use for run logs,
+                                                             # table values, any window text
+                                                             # instead of a bespoke eval
+node scripts/pw-act.mjs select-option '<selector>' '<value>' # set a native <select> (falls
+                                                             # back to label match); fires
+                                                             # the events Vue v-model needs —
+                                                             # use instead of an eval that
+                                                             # assigns .value and dispatches
+                                                             # change by hand
 node scripts/pw-act.mjs styles '<selector>' 'prop1,prop2'    # computed style values off the
                                                              # first match — use this instead
                                                              # of an eval getComputedStyle snippet
@@ -582,6 +595,23 @@ process for this profile, then retry.
     silently no-ops — indistinguishable from a broken feature. Verify the press point
     with `elementFromPoint` immediately before pressing, and target rows fully below
     the header (this false-flagged drag-reorder as regressed once).
+
+22. **Live game state drifts — pure logic may need offline verification.** A
+    calculation fix can become unobservable in-game between coding and testing (a
+    third party refilled the reserve that made the test scenario exist). When the
+    discriminating state is gone, don't force it live: import the built module from
+    `dist/src/...` in a node script (strip the leading `import ".../shell/config.js"`
+    side-effect line first) and assert the cases directly — see
+    `.local/scratch/test-building-days.mjs`. The live check then only needs to confirm
+    the displayed values are consistent with current data.
+
+23. **Vue `@change` handlers don't fire from synthetic events.** Setting `input.value`
+    and dispatching `new Event('input'/'blur'/'focusout')` via eval never triggers a
+    component's `@change` handler, so the edit looks like it "doesn't persist" — a
+    false product bug (cost a diagnosis round on GOVBURN's config inputs). Use real
+    interactions instead: Playwright `fill()` followed by a genuine `Tab`/`Enter`
+    keypress fires `change` correctly. Verify persistence by re-reading from a freshly
+    opened buffer, not the same DOM.
 
 ## Files
 
