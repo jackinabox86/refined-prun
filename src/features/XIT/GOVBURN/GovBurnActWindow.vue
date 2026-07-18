@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import ActionBar from '@src/components/ActionBar.vue';
 import Active from '@src/components/forms/Active.vue';
 import Header from '@src/components/Header.vue';
 import SelectInput from '@src/components/forms/SelectInput.vue';
@@ -241,82 +242,93 @@ function onExecuteClick() {
 </script>
 
 <template>
-  <Header :class="$style.header">GovBurn Resupply {{ displayName }}</Header>
-  <template v-if="!captured">
-    <p>
-      No data for {{ displayName }}. Run
-      <PrunLink inline :command="`XIT GOVBURNDATA ${naturalId}`">
-        XIT GOVBURNDATA {{ naturalId }}
-      </PrunLink>
-      .
-    </p>
-  </template>
-  <template v-else-if="!canPlanResupply">
-    <p>
-      No buildings configured for {{ displayName }}. Configure them in
-      <PrunLink inline command="XIT GOVBURN">XIT GOVBURN</PrunLink>
-      .
-    </p>
-  </template>
-  <template v-else>
-    <div :class="$style.pane">
-      <Active label="Days">
-        <SelectInput v-model="resupplyDays" :options="dayOptions" />
-      </Active>
-
-      <table v-if="buildingRows.length > 0">
-        <thead>
-          <tr>
-            <th>Building</th>
-            <th v-for="i in Math.max(0, ...buildingRows.map(x => x.n))" :key="i">Slot {{ i }}</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-for="row in buildingRows" :key="row.ticker">
-            <td>{{ row.ticker }} {{ row.level }}</td>
-            <template v-if="!row.hasUpkeeps">
-              <td :colspan="row.n" :class="$style.noData">no data</td>
-            </template>
-            <template v-else>
-              <td
-                v-for="(slot, index) in slots[row.ticker]"
-                :key="index"
-                :class="{ [$style.unresolved]: slot.ticker === '' }">
-                <div :class="[C.forms.input, $style.selectWrap]">
-                  <SelectInput
-                    :model-value="slot.ticker"
-                    :options="slotOptions(row.ticker, index)"
-                    @update:model-value="v => setSlot(row.ticker, index, v)" />
-                </div>
-              </td>
-            </template>
-          </tr>
-        </tbody>
-      </table>
-
-      <p v-if="captured?.cogc !== undefined" :class="$style.summary">
-        COGC: {{ cogcRefills(horizonDays) }} refill(s) included
+  <div :class="$style.root">
+    <Header :class="$style.header">GovBurn Resupply {{ displayName }}</Header>
+    <template v-if="!captured">
+      <p>
+        No data for {{ displayName }}. Run
+        <PrunLink inline :command="`XIT GOVBURNDATA ${naturalId}`">
+          XIT GOVBURNDATA {{ naturalId }}
+        </PrunLink>
+        .
       </p>
-    </div>
-    <p v-if="allResolved && !billNotEmpty" :class="$style.summary">
-      Reserves already cover {{ horizonDays }} days — nothing to buy.
-    </p>
-    <template v-else>
-      <p v-if="allResolved" :class="$style.summary">{{ billLine }}</p>
-      <p v-else :class="$style.summary">Resolve all upkeep slots to continue.</p>
-      <PrunButton v-if="allResolved && billNotEmpty" primary @click="onExecuteClick">
-        EXECUTE
-      </PrunButton>
     </template>
-  </template>
+    <template v-else-if="!canPlanResupply">
+      <p>
+        No buildings configured for {{ displayName }}. Configure them in
+        <PrunLink inline command="XIT GOVBURN">XIT GOVBURN</PrunLink>
+        .
+      </p>
+    </template>
+    <template v-else>
+      <div :class="$style.pane">
+        <Active label="Days">
+          <SelectInput v-model="resupplyDays" :options="dayOptions" />
+        </Active>
+
+        <table v-if="buildingRows.length > 0">
+          <thead>
+            <tr>
+              <th>Building</th>
+              <th v-for="i in Math.max(0, ...buildingRows.map(x => x.n))" :key="i">Slot {{ i }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="row in buildingRows" :key="row.ticker">
+              <td>{{ row.ticker }} {{ row.level }}</td>
+              <template v-if="!row.hasUpkeeps">
+                <td :colspan="row.n" :class="$style.noData">no data</td>
+              </template>
+              <template v-else>
+                <td
+                  v-for="(slot, index) in slots[row.ticker]"
+                  :key="index"
+                  :class="{ [$style.unresolved]: slot.ticker === '' }">
+                  <div :class="[C.forms.input, $style.selectWrap]">
+                    <SelectInput
+                      :model-value="slot.ticker"
+                      :options="slotOptions(row.ticker, index)"
+                      @update:model-value="v => setSlot(row.ticker, index, v)" />
+                  </div>
+                </td>
+              </template>
+            </tr>
+          </tbody>
+        </table>
+
+        <p v-if="captured?.cogc !== undefined" :class="$style.cogcSummary">
+          COGC: {{ cogcRefills(horizonDays) }} refill(s) included
+        </p>
+      </div>
+      <p v-if="allResolved && !billNotEmpty" :class="$style.summary">
+        Reserves already cover {{ horizonDays }} days — nothing to buy.
+      </p>
+      <template v-else>
+        <p v-if="allResolved" :class="$style.summary">{{ billLine }}</p>
+        <p v-else :class="$style.summary">Resolve all upkeep slots to continue.</p>
+      </template>
+      <ActionBar :class="$style.actionBar">
+        <PrunButton v-if="allResolved && billNotEmpty" primary @click="onExecuteClick">
+          EXECUTE
+        </PrunButton>
+      </ActionBar>
+    </template>
+  </div>
 </template>
 
 <style module>
+.root {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
 .header {
   margin-left: 4px;
 }
 
 .pane {
+  flex-grow: 1;
   margin-top: 5px;
   margin-left: 4px;
   padding: 4px;
@@ -346,5 +358,17 @@ function onExecuteClick() {
 
 .summary {
   margin: 0.5rem 0;
+  margin-left: 5px;
+}
+
+.cogcSummary {
+  margin: 0.5rem 0 0;
+  padding-left: 8px;
+}
+
+.actionBar {
+  margin-left: 2px;
+  justify-content: flex-start;
+  user-select: none;
 }
 </style>
