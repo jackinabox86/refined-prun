@@ -185,6 +185,21 @@ step posts on the user's behalf (`POST_AGENT`, `AGENT_DONE`'s completion marker)
 reserve the visible path for flows where the player is meant to review/send the message
 themselves (e.g. the AGENT panel's manual "dismiss" button).
 
+**Agent-channel ids are only unique against fetched history.** The channel store handles
+only `CHANNEL_MESSAGE_LIST` (the server sends full history once per connection), so posts
+made by another device mid-session never reach the store, and
+`generateAgentMessageId`/`generateAgentChainIds` treat only posted-and-visible ids as
+used. Two packages staged before either posts, or two devices in one day, can therefore
+pick the same day-letter id — a known, accepted limitation (single-member channel, 5-day
+window). Related preview cost: chain-id allocation runs inside MTRA's `generateSteps`, so
+PREVIEWing a package with 2+ agent stops triggers the once-per-session COMG fetch.
+
+**`waitActionFeedback` aborts the step on failure.** On an error overlay it logs, stops
+the machine, and throws an `ExecutionStopped` sentinel that the step machine's catch
+swallows — an `execute()` body never runs past a failed game action. Code after the
+await (e.g. a `watchWhile` for a storage update that will now never come) can rely on
+this; don't wrap `waitActionFeedback` in a step-local try/catch or the hang comes back.
+
 ### Reminder Pauses in ACT Steps
 
 When a step needs the player to do something manually in a companion buffer before the
@@ -535,6 +550,13 @@ Avoid matching on localized text (like "Weight", "Volume"). Use element index or
 // Good: store.getById is reactive under the hood
 const line = computed(() => productionStore.getById(tile.parameter));
 ```
+
+**A `watchEffect` that writes its own dependency must gate on value inequality, not
+just a condition.** DISPATCH's persisted-config migration rebuilt the patched object
+whenever the migration *condition* held; with a repair offset of 0 the migrated value
+equaled the old one — same values, new object identity, so the effect re-fired on its
+own write in an unbounded loop. Before a self-write, prove the patch actually changes a
+value (e.g. `newDefault !== oldDefault`), not merely that the migration applies.
 
 **Never use `onApiMessage` in features.** It's a low-level API for entity stores in `infrastructure/prun-api`. All API data lands in entity stores — derive what you need with `computed` or `watchEffect`.
 
