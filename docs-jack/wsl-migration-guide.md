@@ -98,31 +98,31 @@ are committed, so those *do* come along automatically):
 
 1. **`.claude/settings.local.json`** — your personal permission allowlist (gitignored):
    ```
-   cp "/mnt/c/Users/cyrus/Codex/refined-prun/.claude/settings.local.json" \
+   cp "/mnt/c/Users/<winuser>/Codex/refined-prun/.claude/settings.local.json" \
       ~/code/refined-prun/.claude/settings.local.json
    ```
 2. **`~/.claude/settings.json`** — user-level Claude Code settings (separate from the
    project one above; currently just `{"agentPushNotifEnabled": true}`):
    ```
    mkdir -p ~/.claude
-   cp "/mnt/c/Users/cyrus/.claude/settings.json" ~/.claude/settings.json
+   cp "/mnt/c/Users/<winuser>/.claude/settings.json" ~/.claude/settings.json
    ```
 3. **Memory files** (`MEMORY.md` + the feedback/project notes under
    `~/.claude/projects/<project-key>/memory/`) — these are keyed by a sanitized version
    of the project's full path, so the WSL2 clone gets a *different* project key than the
    Windows one. Run `claude` once inside the new clone first so it creates its own
    project folder, then copy the memory files in. For a clone at `~/code/refined-prun`
-   the folder is confirmed to be `-home-<user>-code-refined-prun` (e.g.
-   `-home-cyrus-code-refined-prun`) — run the `ls` first to get your exact name rather
+   the folder is confirmed to be `-home-<user>-code-refined-prun` — run the `ls`
+   first to get your exact name rather
    than assuming, and don't leave the angle brackets in when you substitute it (bash
    reads `<name>` as input redirection, not a placeholder, and fails with "No such file
    or directory"):
    ```
    cd ~/code/refined-prun && claude --version   # registers the project
    ls ~/.claude/projects/                        # confirms the exact folder name
-   mkdir -p ~/.claude/projects/-home-cyrus-code-refined-prun/memory
-   cp /mnt/c/Users/cyrus/.claude/projects/C--Users-cyrus-Codex-refined-prun/memory/*.md \
-      ~/.claude/projects/-home-cyrus-code-refined-prun/memory/
+   mkdir -p ~/.claude/projects/-home-<user>-code-refined-prun/memory
+   cp /mnt/c/Users/<winuser>/.claude/projects/C--Users-<winuser>-Codex-refined-prun/memory/*.md \
+      ~/.claude/projects/-home-<user>-code-refined-prun/memory/
    ```
 
 **`.local/pw-tools` and `.local/browser-profile`** (the Playwright install and the
