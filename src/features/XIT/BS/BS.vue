@@ -150,13 +150,6 @@ const filteredBases = computed(() => {
   <LoadingSpinner v-if="bases === undefined" />
   <template v-else>
     <div :class="C.ComExOrdersPanel.filter">
-      <RadioItem v-model="showCmds" horizontal>CMDS</RadioItem>
-      <RadioItem v-model="showBurn" horizontal>BURN</RadioItem>
-      <RadioItem v-model="showProd" horizontal>PROD</RadioItem>
-      <RadioItem v-model="showRepair" horizontal>REPAIR</RadioItem>
-      <RadioItem v-model="showInv" horizontal>INV</RadioItem>
-      <RadioItem v-model="showWar" horizontal>WAR</RadioItem>
-      <div :class="$style.spacer" />
       <div :class="$style.searchContainer">
         Planet:&nbsp;
         <TextInput v-model="planetFilter" />
@@ -168,6 +161,13 @@ const filteredBases = computed(() => {
           {{ '' }}
         </PrunButton>
       </div>
+      <RadioItem v-model="showCmds" horizontal>CMDS</RadioItem>
+      <RadioItem v-model="showBurn" horizontal>BURN</RadioItem>
+      <RadioItem v-model="showProd" horizontal>PROD</RadioItem>
+      <RadioItem v-model="showRepair" horizontal>REPAIR</RadioItem>
+      <RadioItem v-model="showInv" horizontal>INV</RadioItem>
+      <RadioItem v-model="showWar" horizontal>WAR</RadioItem>
+      <div :class="$style.spacer" />
       <PrunButton primary @click="showBuffer('XIT AGENT')">AGENT</PrunButton>
       <PrunButton primary @click="showBuffer('XIT DISPATCH')">DISPATCH</PrunButton>
     </div>
