@@ -84,6 +84,8 @@ declare namespace UserData {
 
     origin?: string;
     dest?: string;
+
+    // MTRA specific
     postToAgent?: boolean;
     noSfc?: boolean;
     sfcDestination?: string;

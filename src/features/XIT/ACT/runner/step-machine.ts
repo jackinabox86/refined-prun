@@ -18,6 +18,7 @@ interface StepMachineOptions {
 }
 
 const AssertionError = new Error('Assertion failed');
+const ExecutionStopped = new Error('Execution stopped');
 
 export class StepMachine {
   private next?: ActionStep;
@@ -106,7 +107,7 @@ export class StepMachine {
             log.error(description ?? info.description(next));
             log.error('Action Package execution failed');
             this.stop();
-            return;
+            throw ExecutionStopped;
           }
         },
         cacheDescription: () => {
@@ -137,6 +138,9 @@ export class StepMachine {
         requestTile: async command => await this.requestTile(command),
       });
     } catch (e) {
+      if (e === ExecutionStopped) {
+        return;
+      }
       if (e !== AssertionError) {
         log.runtimeError(e);
       }

@@ -153,6 +153,34 @@ interface AgentSyncEnvelope {
   p: unknown;
 }
 
+// Expand blindly maps every string leaf through valueFromSync, so a user string
+// that already equals a short code (e.g. a group named "MN") would come back
+// rewritten. Reject the package instead of corrupting it on the round trip.
+function findSyncCodeCollision(value: unknown): string | undefined {
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      const found = findSyncCodeCollision(item);
+      if (found !== undefined) {
+        return found;
+      }
+    }
+    return undefined;
+  }
+  if (value && typeof value === 'object') {
+    for (const child of Object.values(value)) {
+      const found = findSyncCodeCollision(child);
+      if (found !== undefined) {
+        return found;
+      }
+    }
+    return undefined;
+  }
+  if (typeof value === 'string' && valueFromSync[value] !== undefined) {
+    return value;
+  }
+  return undefined;
+}
+
 export function compactActionPackageForSync(pkg: UserData.ActionPackageData): AgentSyncEnvelope {
   const withShortKeys = remapKeysDeep(pkg, keyToSync);
   const withShortValues = remapValuesDeep(withShortKeys, valueToSync, compactStorageName);
@@ -266,6 +294,12 @@ export async function postActionPackageToAgent(pkg: UserData.ActionPackageData, 
   // History is needed to pick a free id; no-op when already fetched this session.
   await fetchAgentChannel();
   const resolvedId = id ?? generateAgentMessageId();
+  const collision = findSyncCodeCollision(pkg);
+  if (collision !== undefined) {
+    throw new Error(
+      `Action package can't sync: "${collision}" matches a sync short code - rename it.`,
+    );
+  }
   const { p } = compactActionPackageForSync(pkg);
   // Place `i` right after k/v so it stays near the front of the raw chat message.
   const envelope: AgentSyncEnvelope = { k: 'ap', v: 1, i: resolvedId, p };

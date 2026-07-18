@@ -32,6 +32,7 @@ import {
   mergeBills,
   regroupByShip,
 } from '@src/features/XIT/DISPATCH/utils';
+import { buildTwoPhaseMtraActions } from '@src/features/XIT/ACT/actions/mtra/two-phase';
 
 interface BaseEntry {
   siteId: string;
@@ -125,13 +126,12 @@ watchEffect(() => {
       };
     }
     // One-time migration: old default was plain getRepairThreshold; new default
-    // matches REPAIRACT (threshold − offset).
+    // matches REPAIRACT (threshold − offset). The newDefault check keeps this from
+    // re-firing forever when the offset is 0 (migrated value equals the old default).
     const oldDefault = getRepairThreshold(base.naturalId);
-    if (existing.repThreshold === oldDefault) {
-      patched = {
-        ...patched,
-        repThreshold: oldDefault - getRepairOffset(base.naturalId),
-      };
+    const newDefault = oldDefault - getRepairOffset(base.naturalId);
+    if (existing.repThreshold === oldDefault && newDefault !== oldDefault) {
+      patched = { ...patched, repThreshold: newDefault };
     }
     if (patched !== existing) {
       if (!changed) {
@@ -186,6 +186,22 @@ const rowById = computed(() => {
   const map = new Map<string, { base: BaseEntry; config: DispatchBaseConfig }>();
   for (const row of rows.value) {
     map.set(row.base.naturalId, { base: row.base, config: row.config! });
+  }
+  return map;
+});
+
+// Per-base resupply+repair bill, computed once and shared by the row display,
+// the overload check, and execute().
+const billByBase = computed(() => {
+  const map = new Map<string, Record<string, number>>();
+  for (const { base, config } of rows.value) {
+    if (!config.resupply && !config.repair) {
+      continue;
+    }
+    const bill = combinedBaseBill(base.naturalId, config, base.site);
+    if (bill) {
+      map.set(base.naturalId, bill);
+    }
   }
   return map;
 });
@@ -280,7 +296,7 @@ const overloadedShips = computed(() => {
     if (!config.ship || (!config.resupply && !config.repair)) {
       continue;
     }
-    const bill = combinedBaseBill(base.naturalId, config!, base.site);
+    const bill = billByBase.value.get(base.naturalId);
     if (!bill) {
       continue;
     }
@@ -411,8 +427,8 @@ function execute() {
   const stagedBases: IncludedBase[] = [];
 
   for (const base of includedBases.value) {
-    const { naturalId, site, config, dispatchShip } = base;
-    const bill = combinedBaseBill(naturalId, config, site);
+    const { naturalId, config, dispatchShip } = base;
+    const bill = billByBase.value.get(naturalId);
     if (!bill || Object.keys(bill).length === 0) {
       continue;
     }
@@ -492,27 +508,19 @@ function execute() {
     const agentGroups = shipBases.filter(x => x.config.agent).map(x => x.naturalId);
     const repairGroups = shipBases.filter(x => x.config.repair).map(x => x.naturalId);
 
-    mtraActions.push({
-      type: 'MTRA',
-      name: loadName,
+    const { load, finish } = buildTwoPhaseMtraActions({
+      loadName,
+      finishName: `Offload ${shipName}`,
       group: loadName,
       origin,
       dest,
-      noSfc: true,
-    });
-
-    finishActions.push({
-      type: 'MTRA',
-      name: `Offload ${shipName}`,
-      group: loadName,
-      origin,
-      dest,
-      finishOnly: true,
       sfcDestination: first.naturalId,
-      ...(offloadGroups.length > 0 ? { offloadGroups } : {}),
-      ...(agentGroups.length > 0 ? { agentGroups } : {}),
-      ...(repairGroups.length > 0 ? { repairGroups } : {}),
+      offloadGroups,
+      agentGroups,
+      repairGroups,
     });
+    mtraActions.push(load);
+    finishActions.push(finish);
   };
 
   for (const shipBases of multiShipGroups) {
@@ -628,6 +636,7 @@ function reset() {
               :natural-id="rowById.get(id)!.base.naturalId"
               :planet-name="rowById.get(id)!.base.planetName"
               :config="rowById.get(id)!.config"
+              :bill="billByBase.get(id)"
               :overloaded="
                 !!rowById.get(id)!.config.ship && overloadedShips.has(rowById.get(id)!.config.ship!)
               "

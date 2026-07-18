@@ -107,14 +107,19 @@ export const MTRA_TRANSFER = act.addActionStep<Data>({
       changeInputValue(amountInput, maxAmount.toString());
     } else {
       if (amount > maxAmount) {
-        const leftover = amount - maxAmount;
-        log.warning(
-          `${fixed0(leftover)} ${ticker} not transferred ` +
-            `(${fixed0(maxAmount)} of ${fixed0(amount)} transferred)`,
-        );
         if (maxAmount === 0) {
+          log.warning(`No ${ticker} was transferred (nothing available)`);
           skip();
           return;
+        }
+        // The playerReview pause comes next - the player picks the final amount,
+        // so a past-tense "transferred" claim here would be premature.
+        if (!playerReview) {
+          const leftover = amount - maxAmount;
+          log.warning(
+            `${fixed0(leftover)} ${ticker} not transferred ` +
+              `(${fixed0(maxAmount)} of ${fixed0(amount)} transferred)`,
+          );
         }
       }
       changeInputValue(amountInput, Math.min(amount, maxAmount).toString());

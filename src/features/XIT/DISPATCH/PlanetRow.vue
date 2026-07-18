@@ -6,23 +6,22 @@ import NumberInput from '@src/components/forms/NumberInput.vue';
 import SelectInput from '@src/components/forms/SelectInput.vue';
 import GripCell from '@src/components/grip/GripCell.vue';
 import { getPlanetBurn } from '@src/core/burn';
-import { countDays } from '@src/features/XIT/BURN/utils';
-import { userData } from '@src/store/user-data';
+import { burnDaysClass, countDays, formatBurnDays } from '@src/features/XIT/BURN/utils';
 import { getRepairOffset, getRepairThreshold } from '@src/core/buildings';
 import { getPlanetRepairAge } from '@src/features/XIT/REP/entries';
 import { timestampEachMinute } from '@src/utils/dayjs';
-import { sitesStore } from '@src/infrastructure/prun-api/data/sites';
 import { shipsStore } from '@src/infrastructure/prun-api/data/ships';
 import { fixed0 } from '@src/utils/format';
 import type { MaterialFilter } from '@src/features/XIT/ACT/material-groups/resupply/config';
-import { DispatchBaseConfig, billTotals, combinedBaseBill } from '@src/features/XIT/DISPATCH/utils';
+import { DispatchBaseConfig, billTotals } from '@src/features/XIT/DISPATCH/utils';
 
-const { siteId, naturalId, planetName, config, overloaded } = defineProps<{
+const { siteId, naturalId, planetName, config, overloaded, bill } = defineProps<{
   siteId: string;
   naturalId: string;
   planetName: string;
   config: DispatchBaseConfig;
   overloaded: boolean;
+  bill?: Record<string, number>;
 }>();
 
 const emit = defineEmits<{
@@ -36,25 +35,9 @@ const canFit = computed(() => !!config.ship);
 const burn = computed(() => getPlanetBurn(siteId));
 const days = computed(() => (burn.value ? countDays(burn.value.burn) : undefined));
 
-const burnBgClass = computed(() => {
-  if (days.value === undefined) {
-    return {};
-  }
-  const d = Math.floor(days.value);
-  return {
-    [C.Workforces.daysMissing]: d <= userData.settings.burn.red,
-    [C.Workforces.daysWarning]: d <= userData.settings.burn.yellow,
-    [C.Workforces.daysSupplied]: d > userData.settings.burn.yellow,
-  };
-});
+const burnBgClass = computed(() => (days.value === undefined ? {} : burnDaysClass(days.value)));
 
-const daysText = computed(() => {
-  if (days.value === undefined) {
-    return '-';
-  }
-  const d = Math.floor(days.value);
-  return d < 500 ? String(d) : '∞';
-});
+const daysText = computed(() => (days.value === undefined ? '-' : formatBurnDays(days.value)));
 
 const repairAge = computed(() => getPlanetRepairAge(siteId, timestampEachMinute.value));
 
@@ -81,17 +64,10 @@ const repairDaysText = computed(() => {
   return String(Math.floor(age));
 });
 
-const site = computed(() => sitesStore.getById(siteId));
-
 const loadText = computed(() => {
-  const s = site.value;
-  if (!s) {
-    return '--';
-  }
   if (!config.resupply && !config.repair) {
     return '--';
   }
-  const bill = combinedBaseBill(naturalId, config, s);
   if (!bill) {
     return '--';
   }
