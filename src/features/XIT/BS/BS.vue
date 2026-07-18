@@ -11,6 +11,7 @@ import {
   getEntityNameFromAddress,
   getEntityNaturalIdFromAddress,
 } from '@src/infrastructure/prun-api/data/addresses';
+import { showBuffer } from '@src/infrastructure/prun-ui/buffers';
 import { comparePlanets } from '@src/util';
 import { useTileState } from '@src/store/user-data-tiles';
 import { getPlanetBurn } from '@src/core/burn';
@@ -167,6 +168,8 @@ const filteredBases = computed(() => {
           {{ '' }}
         </PrunButton>
       </div>
+      <PrunButton primary @click="showBuffer('XIT AGENT')">AGENT</PrunButton>
+      <PrunButton primary @click="showBuffer('XIT DISPATCH')">DISPATCH</PrunButton>
     </div>
     <table :class="$style.table">
       <thead>
