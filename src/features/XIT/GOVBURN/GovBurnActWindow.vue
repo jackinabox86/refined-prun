@@ -259,43 +259,45 @@ function onExecuteClick() {
     </p>
   </template>
   <template v-else>
-    <Active label="Days">
-      <SelectInput v-model="resupplyDays" :options="dayOptions" />
-    </Active>
+    <div :class="$style.pane">
+      <Active label="Days">
+        <SelectInput v-model="resupplyDays" :options="dayOptions" />
+      </Active>
 
-    <table v-if="buildingRows.length > 0">
-      <thead>
-        <tr>
-          <th>Building</th>
-          <th v-for="i in Math.max(0, ...buildingRows.map(x => x.n))" :key="i">Slot {{ i }}</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr v-for="row in buildingRows" :key="row.ticker">
-          <td>{{ row.ticker }} {{ row.level }}</td>
-          <template v-if="!row.hasUpkeeps">
-            <td :colspan="row.n" :class="$style.noData">no data</td>
-          </template>
-          <template v-else>
-            <td
-              v-for="(slot, index) in slots[row.ticker]"
-              :key="index"
-              :class="{ [$style.unresolved]: slot.ticker === '' }">
-              <div :class="[C.forms.input, $style.selectWrap]">
-                <SelectInput
-                  :model-value="slot.ticker"
-                  :options="slotOptions(row.ticker, index)"
-                  @update:model-value="v => setSlot(row.ticker, index, v)" />
-              </div>
-            </td>
-          </template>
-        </tr>
-      </tbody>
-    </table>
+      <table v-if="buildingRows.length > 0">
+        <thead>
+          <tr>
+            <th>Building</th>
+            <th v-for="i in Math.max(0, ...buildingRows.map(x => x.n))" :key="i">Slot {{ i }}</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-for="row in buildingRows" :key="row.ticker">
+            <td>{{ row.ticker }} {{ row.level }}</td>
+            <template v-if="!row.hasUpkeeps">
+              <td :colspan="row.n" :class="$style.noData">no data</td>
+            </template>
+            <template v-else>
+              <td
+                v-for="(slot, index) in slots[row.ticker]"
+                :key="index"
+                :class="{ [$style.unresolved]: slot.ticker === '' }">
+                <div :class="[C.forms.input, $style.selectWrap]">
+                  <SelectInput
+                    :model-value="slot.ticker"
+                    :options="slotOptions(row.ticker, index)"
+                    @update:model-value="v => setSlot(row.ticker, index, v)" />
+                </div>
+              </td>
+            </template>
+          </tr>
+        </tbody>
+      </table>
 
-    <p v-if="captured?.cogc !== undefined" :class="$style.summary">
-      COGC: {{ cogcRefills(horizonDays) }} refill(s) included
-    </p>
+      <p v-if="captured?.cogc !== undefined" :class="$style.summary">
+        COGC: {{ cogcRefills(horizonDays) }} refill(s) included
+      </p>
+    </div>
     <p v-if="allResolved && !billNotEmpty" :class="$style.summary">
       Reserves already cover {{ horizonDays }} days — nothing to buy.
     </p>
@@ -312,6 +314,14 @@ function onExecuteClick() {
 <style module>
 .header {
   margin-left: 4px;
+}
+
+.pane {
+  margin-top: 5px;
+  margin-left: 4px;
+  padding: 4px;
+  background-color: #23282b;
+  border: 1px solid #2b485a;
 }
 
 .noData {
