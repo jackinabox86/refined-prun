@@ -277,7 +277,24 @@ largest content overflow (`scrollHeight − clientHeight` over all descendants),
 rows and the action bar are never hidden behind a scrollbar. Origin: BURNACT; also used
 by GOVBURN's planner and runner windows.
 
-### Drag-reorder with vue-draggable-plus
+### Matching the ACT runner window look
+
+A planner/companion window meant to feel like `ExecuteActionPackage` (GOVBURNEXEC, ACT
+runs) mirrors its layout: a `height: 100%` flex-column root; a main pane with
+`flex-grow: 1; margin: 5px 0 0 4px; background: #23282b; border: 1px solid #2b485a`
+(the LogWindow/ConfigureWindow look); status/summary lines below it with
+`margin-left: 5px`; and a bottom-anchored `ActionBar` with `margin-left: 2px;
+justify-content: flex-start`. The flex-grow pane is what pins the action bar to the
+window's bottom edge (see `GovBurnActWindow.vue`).
+
+### Invisible FontAwesome glyphs in templates
+
+Icon buttons like the clear-✕ (`<PrunButton :class="[fa.solid, ...]">{{ '' }}</PrunButton>`
+in `BS.vue`/`INV.vue`) hold the icon as a literal private-use glyph (U+F00D) inside the
+seemingly empty `'…'` string — it renders as nothing in file reads and diffs. Copying or
+moving such markup by retyping what you see silently drops the glyph and ships an empty
+button. Move the original bytes (cut the exact lines) instead, and after any relocation
+verify with `sed -n '<line>p' file | od -c` that the multi-byte glyph survived.
 
 The `v-draggable` directive binds once at mount, and a template binding
 (`v-draggable="[list, opts]"`) auto-unwraps a ref — the directive captures that array
@@ -1010,6 +1027,10 @@ Beat it with a compound selector using two local classes instead of one — e.g.
 ```
 
 Matching the exact header row **height** of another panel also needs more than matching font-size: the game's unstyled `<th>` carries native padding (roughly `5px 8px 2px`). A feature that sets `thead th { padding: 0 4px }` collapses its header to about half that height even with identical font-size — to match another panel's header, don't override `th` padding at all and let it inherit the native value.
+
+Body cells: the game's `td` computed padding is `2px 8px` (verified live). To left-align
+text outside a table with the table's first-column cell text (e.g. a summary line under
+the table in the same container), give it `padding-left: 8px`.
 
 ### `:has` Selector
 
