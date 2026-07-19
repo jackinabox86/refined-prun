@@ -17,11 +17,19 @@ const assignedShipIds = computed(() => {
   return ids;
 });
 
-const unassigned = computed(() => ships.filter(x => !assignedShipIds.value.has(x.ship.id)));
-const assigned = computed(() => ships.filter(x => assignedShipIds.value.has(x.ship.id)));
+const unassigned = computed(() =>
+  ships.filter(x => !assignedShipIds.value.has(x.ship.id)).sort(byShipLabel),
+);
+const assigned = computed(() =>
+  ships.filter(x => assignedShipIds.value.has(x.ship.id)).sort(byShipLabel),
+);
 
 function shipLabel(entry: DispatchShip) {
   return entry.ship.name ?? entry.ship.registration;
+}
+
+function byShipLabel(a: DispatchShip, b: DispatchShip) {
+  return shipLabel(a).localeCompare(shipLabel(b));
 }
 
 // Kept for the disabled ship tooltip (see template comment).
