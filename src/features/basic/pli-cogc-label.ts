@@ -4,13 +4,18 @@ function formatCogcLabel(programType?: string | null) {
   if (!programType) {
     return 'COGC (Inactive)';
   }
+  let program = programType;
   for (const prefix of ['ADVERTISING_', 'WORKFORCE_']) {
-    if (programType.startsWith(prefix)) {
-      const suffix = programType.slice(prefix.length);
-      return `COGC (${suffix.charAt(0) + suffix.slice(1).toLowerCase()})`;
+    if (program.startsWith(prefix)) {
+      program = program.slice(prefix.length);
+      break;
     }
   }
-  return `COGC (${programType.charAt(0) + programType.slice(1).toLowerCase()})`;
+  const words = program
+    .split('_')
+    .map(x => x.charAt(0) + x.slice(1).toLowerCase())
+    .join(' ');
+  return `COGC (${words})`;
 }
 
 function onTileReady(tile: PrunTile) {
