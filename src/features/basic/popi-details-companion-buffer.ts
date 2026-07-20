@@ -4,7 +4,7 @@ import { clickElement, changeInputValue } from '@src/util';
 import { getPrunId } from '@src/infrastructure/prun-ui/attributes';
 import { UI_TILES_CHANGE_COMMAND } from '@src/infrastructure/prun-api/client-messages';
 import { dispatchClientPrunMessage } from '@src/infrastructure/prun-api/prun-api-listener';
-import { PrunI18N } from '@src/infrastructure/prun-ui/i18n';
+import { lookupLocalization } from '@src/infrastructure/prun-ui/i18n';
 
 const infraGlobalNames: Record<string, string> = {
   planetaryProjectSafetySmall: 'SST',
@@ -26,7 +26,7 @@ const infraGlobalNames: Record<string, string> = {
 function buildNameToTicker(): Map<string, string> {
   const map = new Map<string, string>();
   for (const [globalName, ticker] of Object.entries(infraGlobalNames)) {
-    const name = PrunI18N[`Reactor.${globalName}_name`]?.[0]?.value;
+    const name = lookupLocalization(L.Reactor, `${globalName}_name`)();
     if (name) {
       map.set(name, ticker);
     }

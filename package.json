@@ -30,6 +30,7 @@
     "chartjs-plugin-zoom": "^2.2.0",
     "dayjs": "^1.11.18",
     "engine.io-parser": "^5.2.3",
+    "intl-messageformat": "^11.2.8",
     "js-cookie": "^3.0.5",
     "math-expression-evaluator": "^2.0.7",
     "one-mutation": "^3.0.1",
@@ -46,6 +47,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.34.0",
+    "@formatjs/icu-messageformat-parser": "^3.5.11",
     "@laynezh/vite-plugin-lib-assets": "^2.1.0",
     "@types/chrome": "^0.1.4",
     "@types/node": "^22.18.0",

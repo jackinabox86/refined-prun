@@ -1,9 +1,8 @@
 import { refTextContent } from '@src/utils/reactive-dom';
 import { watchEffectWhileNodeAlive } from '@src/utils/watch';
-import { PrunI18N } from '@src/infrastructure/prun-ui/i18n';
 
 function onTileReady(tile: PrunTile) {
-  const withdraw = PrunI18N['AdminCenter.upcoming.action.withdrawVote']?.[0]?.value;
+  const withdraw = L.AdminCenter.upcoming.action.withdrawVote();
   subscribe($$(tile.anchor, C.UpcomingTerm.container), container => {
     subscribe($$(container, 'table'), table => {
       subscribe($$(table, C.Button.primary), button => {

@@ -9,7 +9,6 @@ import { watchUntil } from '@src/utils/watch';
 import { cxosStore } from '@src/infrastructure/prun-api/data/cxos';
 import { fxosStore } from '@src/infrastructure/prun-api/data/fxos';
 import { refAnimationFrame } from '@src/utils/reactive-dom';
-import { PrunI18N } from '@src/infrastructure/prun-ui/i18n';
 
 export async function deleteExchangeOrderFromClick(
   event: MouseEvent,
@@ -159,11 +158,9 @@ async function setCxosFilters(window: Element, orderId: string) {
   if (materialSelector) {
     await selectMaterialInMaterialSelector(materialSelector, order.material.ticker);
   }
-  await clickFilter(localize('OrderStatusLabel.FILLED'));
+  await clickFilter(L.OrderStatusLabel.FILLED());
   await clickFilter(
-    order.type === 'BUYING'
-      ? localize('OrderTypeLabel.SELLING')
-      : localize('OrderTypeLabel.BUYING'),
+    order.type === 'BUYING' ? L.OrderTypeLabel.SELLING() : L.OrderTypeLabel.BUYING(),
   );
 
   async function clickFilter(button: string | undefined) {
@@ -177,10 +174,6 @@ async function setCxosFilters(window: Element, orderId: string) {
       await clickElement(filter);
     }
   }
-}
-
-function localize(key: string) {
-  return PrunI18N[key]?.[0]?.value;
 }
 
 async function findOrderDeleteButton(window: Element, orderId: string, orderCount: number) {

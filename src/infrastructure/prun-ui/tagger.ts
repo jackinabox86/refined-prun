@@ -1,5 +1,3 @@
-import { PrunI18N } from '@src/infrastructure/prun-ui/i18n';
-
 export enum ElementTag {
   FXPO_LOTS_FIELD = 'rp-fxpo-lots-field',
   FXPO_CURRENT_PRICE_FIELD = 'rp-fxpo-current-price-field',
@@ -13,10 +11,10 @@ export function tagUI() {
 
 function tagFxpoFields() {
   const map = buildMap([
-    [localize('ForExPlaceOrderForm.label.lots'), ElementTag.FXPO_LOTS_FIELD],
-    [localize('ForExPlaceOrderForm.label.price'), ElementTag.FXPO_CURRENT_PRICE_FIELD],
-    [localize('ForExPlaceOrderForm.limit.maximum'), ElementTag.FXPO_MAXIMUM_PRICE_FIELD],
-    [localize('ForExPlaceOrderForm.limit.minimum'), ElementTag.FXPO_MINIMUM_PRICE_FIELD],
+    [L.ForExPlaceOrderForm.label.lots(), ElementTag.FXPO_LOTS_FIELD],
+    [L.ForExPlaceOrderForm.label.price(), ElementTag.FXPO_CURRENT_PRICE_FIELD],
+    [L.ForExPlaceOrderForm.limit.maximum(), ElementTag.FXPO_MAXIMUM_PRICE_FIELD],
+    [L.ForExPlaceOrderForm.limit.minimum(), ElementTag.FXPO_MINIMUM_PRICE_FIELD],
   ]);
 
   tiles.observe('FXPO', tile => {
@@ -38,10 +36,6 @@ function tagFxpoFields() {
       }
     });
   });
-}
-
-function localize(key: string) {
-  return PrunI18N[key]?.[0]?.value;
 }
 
 function buildMap(items: [string | undefined, ElementTag][]) {

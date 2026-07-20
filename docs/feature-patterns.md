@@ -145,6 +145,7 @@ The `pkg` is a plain hardcoded object, not persisted user data — `ExecuteActio
 | Vue composables (`ref`, `computed`, `reactive`, `watch`, …) | `vue` |
 | `$`, `$$`, `_$`, `_$$` | `@src/utils/select-dom` |
 | `C` | `@src/infrastructure/prun-ui/prun-css` |
+| `L`, `applyLocalizationPatch` | `@src/infrastructure/prun-ui/i18n` |
 | `subscribe` | `@src/utils/observable` |
 | `tiles` | `@src/infrastructure/prun-ui/tiles` |
 | `features` | `@src/features/feature-registry` |
@@ -171,6 +172,37 @@ applyCssRule(`.${C.Frame.logo}`, $style.logo);
 ```
 
 ---
+
+## `L` Object
+
+`L` maps PrUn's localization dictionary into a typed tree with autocomplete down to each key.
+
+Access a key by its dotted name as nested properties, then call them as functions to get the localized string. Always prefer `L` over hardcoded English text — localized strings differ per user locale and change between game updates.
+
+Keys with no ICU placeholders take no argument; keys with placeholders require an `options` object. The generated types enforce the exact argument shape per key.
+
+```ts
+// Localization key "CompanyPanel.data.bases"
+
+// Bad: breaks for non-English users
+if (label.textContent === 'Bases') { }
+
+// Good
+if (label.textContent === L.CompanyPanel.data.bases()) { }
+
+// With placeholders (types enforce the argument shape)
+L.MaterialInformation.volume({ volume: 3 });
+```
+
+Additionally, each localization leaf provides the `.getFormat()` function that returns `IntlMessageFormat`, allowing for advanced use such as direct AST manipulation via `.getAst()`. As an example, the globally available function `applyLocalizationPatch` allows modifying the localization strings via AST.
+
+```ts
+applyLocalizationPatch(L.SiteWorkforces.table.currentWorkforce, value =>
+  value.replace('Current Workforce', 'Current'),
+);
+```
+
+Accessing a leaf that is not present in the localization tree doesn't throw, and resolves in `undefined` at a terminal op - `()`, `getFormat()`, `toString()` or `valueOf()`. This means that the code won't break if some localization string gets removed from the game, but it requires the code to account for possible `undefined` when working with the `L` object.
 
 ## DOM Helpers
 
@@ -418,7 +450,7 @@ const naturalId = getEntityNaturalIdFromAddress(site?.address);
 
 ### Localized Text
 
-Avoid matching on localized text (like "Weight", "Volume"). Use element index or `PrunI18N` lookup instead.
+Avoid matching on localized text (like "Weight", "Volume"). Use element index or the `L` localization API instead (see the `L` Object section).
 
 **Exception — fixed structural UI labels:** Matching `textContent` is acceptable for identifying fixed structural UI rows (e.g. project-type rows in `C.PlanetaryProjectsList.row`) because PrUn is English-only and these labels are static game UI strings, not user-generated game entity names. Do not extend this exception to anything that could change with a game update or user action.
 
