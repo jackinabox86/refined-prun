@@ -35,7 +35,11 @@ function getEta(pkg: UserData.ActionPackageData, destinationNaturalId: string | 
   if (!destinationNaturalId) {
     return undefined;
   }
-  const flight = flightsStore.getById(getPackageShip(pkg)?.flightId);
+  const ship = getPackageShip(pkg);
+  if (ship && !ship.flightId) {
+    return 'Landed';
+  }
+  const flight = flightsStore.getById(ship?.flightId);
   if (!flight || getEntityNaturalIdFromAddress(flight.destination) !== destinationNaturalId) {
     return undefined;
   }

@@ -106,6 +106,27 @@ async function verifiedSend(input: HTMLInputElement, text: string) {
   }
 }
 
+// Input-clear only proves the client accepted the keystroke. The game tags the sent
+// message's C.Message.text span with C.Message.unconfirmed until the server acks it
+// (~100-200ms); wait for that class to drop before treating the post as real.
+async function waitForServerConfirmation(window: Element, text: string) {
+  const deadline = Date.now() + 3000;
+  while (Date.now() < deadline) {
+    const messages = _$(window, C.MessageList.messages);
+    if (messages) {
+      const texts = _$$(messages, C.Message.text);
+      for (let i = texts.length - 1; i >= 0; i--) {
+        const span = texts[i];
+        if (span.textContent === text && !span.classList.contains(C.Message.unconfirmed)) {
+          return;
+        }
+      }
+    }
+    await sleep(100);
+  }
+  throw new Error('The game did not confirm the message was received by the server.');
+}
+
 async function waitForComposePrompt(window: Element) {
   const prompt = await Promise.race([
     $(window, C.Channel.prompt),
@@ -152,9 +173,14 @@ export async function openAgentChannel() {
   return { window, input };
 }
 
-// Prefill + verified-send recipe + local store fold on an already-open channel.
-export async function postMessageToOpenChannel(input: HTMLInputElement, text: string) {
+// Prefill + verified-send recipe + server-ack wait + local store fold on an already-open channel.
+export async function postMessageToOpenChannel(
+  window: Element,
+  input: HTMLInputElement,
+  text: string,
+) {
   await verifiedSend(input, text);
+  await waitForServerConfirmation(window, text);
   addLocalMessage(text);
 }
 
@@ -195,7 +221,7 @@ export async function openAgentChannelWithDraft(text: string) {
 // dropped - the game's handler needs a beat after the value change plus the full
 // keydown/keypress/keyup sequence. Legacy keyCode/which getters are patched onto the
 // events because the game still reads them. Success is verified by polling until the
-// compose input clears (the game clears it only after an actual send).
+// compose input clears and the message's unconfirmed class is removed by the server ack.
 export async function postAgentMessage(text: string) {
   const posted = ref(false);
   const window = await showBuffer(channelCommand, {
@@ -206,7 +232,7 @@ export async function postAgentMessage(text: string) {
   try {
     const prompt = await waitForComposePrompt(window);
     const input = _$(prompt, 'input') as HTMLInputElement;
-    await postMessageToOpenChannel(input, text);
+    await postMessageToOpenChannel(window, input, text);
   } finally {
     posted.value = true;
   }
