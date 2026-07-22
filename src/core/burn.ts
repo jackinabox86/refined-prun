@@ -208,6 +208,19 @@ export function calculatePlanetBurn(
   return burnValues;
 }
 
+// Days left of the most urgent net-consumed material. 1000 is the sentinel
+// for "no active consumer" (matches formatDays' infinity cutoff elsewhere).
+export function getMinDaysLeft(burn: BurnValues) {
+  let days = 1000;
+  for (const key of Object.keys(burn)) {
+    const mat = burn[key];
+    if (!isNaN(mat.dailyAmount) && mat.dailyAmount < 0 && mat.daysLeft < days) {
+      days = mat.daysLeft;
+    }
+  }
+  return days;
+}
+
 export function getResupplyDays(planetNaturalId?: string | null) {
   if (planetNaturalId) {
     const override = userData.settings.burn.planetResupply?.[planetNaturalId];

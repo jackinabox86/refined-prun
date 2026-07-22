@@ -5,6 +5,7 @@ import InvBar from '@src/features/XIT/BS/InvBar.vue';
 import { showBuffer } from '@src/infrastructure/prun-ui/buffers';
 import { getPlanetBurn } from '@src/core/burn';
 import { countDays } from '@src/features/XIT/BURN/utils';
+import { getStorageAlarmLevel } from '@src/core/storage-analysis';
 import { getPlanetProduction } from '@src/core/production';
 import { warehousesStore } from '@src/infrastructure/prun-api/data/warehouses';
 import { storagesStore } from '@src/infrastructure/prun-api/data/storage';
@@ -116,6 +117,12 @@ const repairDaysText = computed(() => {
   return String(Math.floor(age));
 });
 
+const storageAlarm = computed(() => getStorageAlarmLevel(siteId));
+const invBgClass = computed(() => ({
+  [C.Workforces.daysMissing]: storageAlarm.value === 'red',
+  [C.Workforces.daysWarning]: storageAlarm.value === 'yellow',
+}));
+
 const warehouse = computed(() => warehousesStore.getByEntityNaturalId(naturalId));
 const warehouseStore = computed(() =>
   storagesStore
@@ -168,7 +175,7 @@ const warehouseStore = computed(() =>
         <PrunButton dark inline @click="showBuffer(`XIT REPAIRACT ${naturalId}`)">REP</PrunButton>
       </div>
     </td>
-    <td v-if="showInv" :class="$style.invCell">
+    <td v-if="showInv" :class="[$style.invCell, invBgClass]">
       <InvBar
         :store-id="storeId"
         :natural-id="naturalId"
