@@ -736,6 +736,13 @@ reference implementation `postAgentMessage()` in
 4. Verify the send: poll until the input clears (the game empties the compose box only
    on an actual send) and throw on timeout — never assume the dispatch worked.
 
+Input clearing only proves the client dispatched the message — not that the server
+received it. If a caller treats "sent" as authoritative (e.g. folding the message into
+a local store, like the agent channel does), that's not enough: poll for the message's
+`C.Message.unconfirmed` class to clear on its `C.Message.text` span instead (see
+`docs/game/screens-comms.md` → "API Notes for Building on Channel Data", and
+`waitForServerConfirmation()` in `agent-channel.ts` for the reference implementation).
+
 ```ts
 focusElement(input);
 changeInputValue(input, text);
