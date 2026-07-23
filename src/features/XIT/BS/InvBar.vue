@@ -223,16 +223,14 @@ const alarmClass = computed(() => ({
 
 <template>
   <div
-    :class="[
-      C.ProgressBar.progress,
-      $style.container,
-      { [$style.isUpdating]: isAnimating },
-      alarmClass,
-    ]"
+    :class="[C.ProgressBar.progress, $style.container, { [$style.isUpdating]: isAnimating }]"
     :style="{ '--stripe-color': stripeAlertColor, '--stripe-width': stripeWidth }"
     :data-tooltip="alarmReason"
     data-tooltip-position="top"
     @click="showBuffer(onClickCmd)">
+    <div
+      v-if="alarmLevel === 'yellow' || alarmLevel === 'red'"
+      :class="[$style.alarmOverlay, alarmClass]" />
     <div :class="[$style.bar, miniBarClass]">
       <div
         v-for="segment in invBar.segments"
@@ -246,6 +244,7 @@ const alarmClass = computed(() => ({
 
 <style module>
 .container {
+  position: relative;
   margin: 0;
   cursor: pointer;
   display: flex;
@@ -283,18 +282,31 @@ const alarmClass = computed(() => ({
 }
 
 .bar {
-  position: relative;
   width: 100%;
   height: 100%;
   display: flex;
 }
 
+/* A dedicated sibling of .bar rather than a ::after pseudo-element on
+   .container: .container also carries data-tooltip for the alarm reason,
+   and the game's own [data-tooltip]::after rule (used for the tooltip
+   arrow) collides at equal specificity and wins, zeroing this out if it's
+   a pseudo-element on the same node. A real element sidesteps that.
+   It's a sibling of .bar (not nested inside it) so it spans .container's
+   full padding-box — .bar itself is inset by .container's own
+   padding/border (from the game's C.ProgressBar.progress class), which
+   would otherwise leave a sliver of .container's background visible at
+   each end. */
+.alarmOverlay {
+  position: absolute;
+  pointer-events: none;
+  z-index: 2;
+}
+
 /* Yellow alarm: hazard-tape strip (matches XIT STO's overflow indicator) over
    the right 20% of the bar — storage is on track to fill before next resupply.
    max() keeps the tape from shrinking to nothing on narrow bars. */
-.isAlarmYellow .bar::after {
-  content: '';
-  position: absolute;
+.isAlarmYellow {
   top: 0;
   bottom: 0;
   right: 0;
@@ -303,23 +315,16 @@ const alarmClass = computed(() => ({
   outline: 2px solid #d9534f;
   outline-offset: -2px;
   box-shadow: 0 0 6px 2px rgba(255, 242, 0, 0.6);
-  pointer-events: none;
-  z-index: 2;
 }
 
 /* Red alarm: same hazard-tape treatment as the yellow strip — opaque
-   black/red stripes with a bright outline and glow — across the whole bar.
+   black/red stripes with a matching outline — across the whole bar.
    Storage is at (or projected past) capacity. */
-.isAlarmRed .bar::after {
-  content: '';
-  position: absolute;
+.isAlarmRed {
   inset: 0;
   background-image: repeating-linear-gradient(45deg, #000 0, #000 6px, #d9534f 6px, #d9534f 12px);
-  outline: 2px solid #fff200;
+  outline: 2px solid #d9534f;
   outline-offset: -2px;
-  box-shadow: 0 0 6px 2px rgba(217, 83, 79, 0.7);
-  pointer-events: none;
-  z-index: 2;
 }
 
 .miniBar {
