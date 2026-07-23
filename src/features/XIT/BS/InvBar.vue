@@ -290,14 +290,15 @@ const alarmClass = computed(() => ({
 }
 
 /* Yellow alarm: hazard-tape strip (matches XIT STO's overflow indicator) over
-   the right 20% of the bar — storage is on track to fill before next resupply. */
+   the right 20% of the bar — storage is on track to fill before next resupply.
+   max() keeps the tape from shrinking to nothing on narrow bars. */
 .isAlarmYellow .bar::after {
   content: '';
   position: absolute;
   top: 0;
   bottom: 0;
   right: 0;
-  width: 20%;
+  width: max(20%, 14px);
   background-image: repeating-linear-gradient(45deg, #000 0, #000 6px, #fff200 6px, #fff200 12px);
   outline: 2px solid #d9534f;
   outline-offset: -2px;
@@ -306,19 +307,17 @@ const alarmClass = computed(() => ({
   z-index: 2;
 }
 
-/* Red alarm: translucent red hazard stripe across the whole bar — storage is
-   at (or projected past) capacity. */
+/* Red alarm: same hazard-tape treatment as the yellow strip — opaque
+   black/red stripes with a bright outline and glow — across the whole bar.
+   Storage is at (or projected past) capacity. */
 .isAlarmRed .bar::after {
   content: '';
   position: absolute;
   inset: 0;
-  background-image: repeating-linear-gradient(
-    45deg,
-    transparent 0,
-    transparent 6px,
-    rgba(217, 83, 79, 0.45) 6px,
-    rgba(217, 83, 79, 0.45) 12px
-  );
+  background-image: repeating-linear-gradient(45deg, #000 0, #000 6px, #d9534f 6px, #d9534f 12px);
+  outline: 2px solid #fff200;
+  outline-offset: -2px;
+  box-shadow: 0 0 6px 2px rgba(217, 83, 79, 0.7);
   pointer-events: none;
   z-index: 2;
 }
