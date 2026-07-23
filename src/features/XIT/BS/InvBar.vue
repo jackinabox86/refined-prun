@@ -5,11 +5,14 @@ import { materialCategoriesStore } from '@src/infrastructure/prun-api/data/mater
 import { fixed02 } from '@src/utils/format';
 import { showBuffer } from '@src/infrastructure/prun-ui/buffers';
 import { getInboundShipStores } from '@src/core/burn';
+import { StorageAlarmLevel } from '@src/core/storage-analysis';
 
 const props = defineProps<{
   storeId: string;
   onClickCmd: string;
   naturalId?: string;
+  alarmLevel?: StorageAlarmLevel;
+  alarmReason?: string;
 }>();
 
 const $style = useCssModule();
@@ -211,12 +214,24 @@ const stripeWidth = computed(() => {
   const normalized = (ratio - 0.7) / 0.3;
   return `${startWidth - (startWidth - smallWidth) * normalized}px`;
 });
+
+const alarmClass = computed(() => ({
+  [$style.isAlarmYellow]: props.alarmLevel === 'yellow',
+  [$style.isAlarmRed]: props.alarmLevel === 'red',
+}));
 </script>
 
 <template>
   <div
-    :class="[C.ProgressBar.progress, $style.container, { [$style.isUpdating]: isAnimating }]"
+    :class="[
+      C.ProgressBar.progress,
+      $style.container,
+      { [$style.isUpdating]: isAnimating },
+      alarmClass,
+    ]"
     :style="{ '--stripe-color': stripeAlertColor, '--stripe-width': stripeWidth }"
+    :data-tooltip="alarmReason"
+    data-tooltip-position="top"
     @click="showBuffer(onClickCmd)">
     <div :class="[$style.bar, miniBarClass]">
       <div
@@ -268,9 +283,44 @@ const stripeWidth = computed(() => {
 }
 
 .bar {
+  position: relative;
   width: 100%;
   height: 100%;
   display: flex;
+}
+
+/* Yellow alarm: hazard-tape strip (matches XIT STO's overflow indicator) over
+   the right 20% of the bar — storage is on track to fill before next resupply. */
+.isAlarmYellow .bar::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  right: 0;
+  width: 20%;
+  background-image: repeating-linear-gradient(45deg, #000 0, #000 6px, #fff200 6px, #fff200 12px);
+  outline: 2px solid #d9534f;
+  outline-offset: -2px;
+  box-shadow: 0 0 6px 2px rgba(255, 242, 0, 0.6);
+  pointer-events: none;
+  z-index: 2;
+}
+
+/* Red alarm: translucent red hazard stripe across the whole bar — storage is
+   at (or projected past) capacity. */
+.isAlarmRed .bar::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image: repeating-linear-gradient(
+    45deg,
+    transparent 0,
+    transparent 6px,
+    rgba(217, 83, 79, 0.45) 6px,
+    rgba(217, 83, 79, 0.45) 12px
+  );
+  pointer-events: none;
+  z-index: 2;
 }
 
 .miniBar {
