@@ -2,6 +2,7 @@
 import PrunLink from '@src/components/PrunLink.vue';
 import PrunButton from '@src/components/PrunButton.vue';
 import InvBar from '@src/features/XIT/BS/InvBar.vue';
+import Tooltip from '@src/components/Tooltip.vue';
 import { showBuffer } from '@src/infrastructure/prun-ui/buffers';
 import { getPlanetBurn } from '@src/core/burn';
 import { countDays } from '@src/features/XIT/BURN/utils';
@@ -14,6 +15,8 @@ import { getRepairOffset, getRepairThreshold } from '@src/core/buildings';
 import { getPlanetRepairAge } from '@src/features/XIT/REP/entries';
 import { timestampEachMinute } from '@src/utils/dayjs';
 import { store as planetContextMenu } from '../planet-context-menu';
+
+const $style = useCssModule();
 
 const {
   siteId,
@@ -119,8 +122,12 @@ const repairDaysText = computed(() => {
 
 const storageAlarm = computed(() => getStorageAlarmLevel(siteId));
 const invBgClass = computed(() => ({
-  [C.Workforces.daysMissing]: storageAlarm.value === 'red',
-  [C.Workforces.daysWarning]: storageAlarm.value === 'yellow',
+  [C.Workforces.daysMissing]: storageAlarm.value?.level === 'red',
+  [C.Workforces.daysWarning]: storageAlarm.value?.level === 'yellow',
+}));
+const invAlarmClass = computed(() => ({
+  [$style.invAlarmRed]: storageAlarm.value?.level === 'red',
+  [$style.invAlarmYellow]: storageAlarm.value?.level === 'yellow',
 }));
 
 const warehouse = computed(() => warehousesStore.getByEntityNaturalId(naturalId));
@@ -176,6 +183,11 @@ const warehouseStore = computed(() =>
       </div>
     </td>
     <td v-if="showInv" :class="[$style.invCell, invBgClass]">
+      <Tooltip
+        v-if="storageAlarm?.reason"
+        position="left"
+        :tooltip="storageAlarm.reason"
+        :class="[$style.invAlarmIcon, invAlarmClass]" />
       <InvBar
         :store-id="storeId"
         :natural-id="naturalId"
@@ -261,7 +273,25 @@ const warehouseStore = computed(() =>
 }
 
 .invCell {
+  position: relative;
   min-width: 60px;
   padding: 2px;
+}
+
+.invAlarmIcon {
+  position: absolute;
+  top: 1px;
+  right: 3px;
+  z-index: 1;
+  font-size: 10px;
+  line-height: 1;
+}
+
+.invAlarmYellow {
+  color: var(--rp-color-orange);
+}
+
+.invAlarmRed {
+  color: var(--rp-color-red);
 }
 </style>

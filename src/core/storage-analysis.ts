@@ -241,9 +241,19 @@ export function getBaseStorageAnalysis(siteOrId?: PrunApi.Site | string | null) 
 
 export type StorageAlarmLevel = 'red' | 'yellow' | 'none';
 
+export interface StorageAlarm {
+  level: StorageAlarmLevel;
+  // Short human-readable explanation, set for 'red'/'yellow' only.
+  reason?: string;
+}
+
 // Item sizes make exact 100% fill rare and overflow impossible — treat anything
 // past this as full.
 const STORAGE_FULL_THRESHOLD = 0.99;
+
+function formatDaysShort(days: number) {
+  return days >= 500 ? '∞' : `${Math.floor(days)}d`;
+}
 
 // Binary alarm for XIT BS's Inv column: red once storage is (near-)full, yellow
 // if it's on track to fill before the base's next expected resupply (the point
@@ -253,7 +263,7 @@ const STORAGE_FULL_THRESHOLD = 0.99;
 // once a ship has been dispatched.
 export function getStorageAlarmLevel(
   siteOrId?: PrunApi.Site | string | null,
-): StorageAlarmLevel | undefined {
+): StorageAlarm | undefined {
   const analysis = getBaseStorageAnalysis(siteOrId);
   if (!analysis) {
     return undefined;
@@ -269,7 +279,8 @@ export function getStorageAlarmLevel(
   const fillWeight = adjustedWeightCapacity > 0 ? analysis.weightLoad / adjustedWeightCapacity : 0;
   const fillVolume = adjustedVolumeCapacity > 0 ? analysis.volumeLoad / adjustedVolumeCapacity : 0;
   if (fillWeight >= STORAGE_FULL_THRESHOLD || fillVolume >= STORAGE_FULL_THRESHOLD) {
-    return 'red';
+    const binding = fillWeight >= fillVolume ? 'weight' : 'volume';
+    return { level: 'red', reason: `Storage full (${binding})` };
   }
 
   const availableWeight = Math.max(adjustedWeightCapacity - analysis.weightLoad, 0);
@@ -284,7 +295,13 @@ export function getStorageAlarmLevel(
   const burnDays = planetBurn ? getMinDaysLeft(planetBurn.burn) : 1000;
   const nextResupplyDays = burnDays >= 1000 ? Infinity : Math.max(burnDays - 1, 0);
 
-  return daysUntilFull < nextResupplyDays ? 'yellow' : 'none';
+  if (daysUntilFull < nextResupplyDays) {
+    return {
+      level: 'yellow',
+      reason: `Fills in ${formatDaysShort(daysUntilFull)}, before next resupply (${formatDaysShort(nextResupplyDays)})`,
+    };
+  }
+  return { level: 'none' };
 }
 
 // Returns a synthetic Store representing the base's STORE after a full resupply
