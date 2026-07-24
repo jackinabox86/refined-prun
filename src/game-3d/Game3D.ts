@@ -3,7 +3,7 @@ import { PointerLockControls } from 'three/examples/jsm/controls/PointerLockCont
 import { DualRenderer } from '@src/game-3d/Renderer';
 import { buildRoom, clampToRoom, EYE_HEIGHT } from '@src/game-3d/room';
 import { createMovement } from '@src/game-3d/movement';
-import { createTestPanel } from '@src/game-3d/panel';
+import { createBufferPanel } from '@src/game-3d/buffer-panel';
 import { createModeOverlay } from '@src/game-3d/overlay';
 
 export class Game3D {
@@ -13,6 +13,7 @@ export class Game3D {
   private readonly controls: PointerLockControls;
   private readonly movement = createMovement();
   private readonly overlay: ReturnType<typeof createModeOverlay>;
+  private readonly bufferPanel: ReturnType<typeof createBufferPanel>;
   private readonly clock = new THREE.Clock();
   private rafId = 0;
   private disposed = false;
@@ -43,7 +44,8 @@ export class Game3D {
     this.camera.position.set(0, EYE_HEIGHT, 2);
 
     this.scene.add(buildRoom());
-    this.scene.add(createTestPanel());
+    this.bufferPanel = createBufferPanel();
+    this.scene.add(this.bufferPanel.object);
 
     this.controls = new PointerLockControls(this.camera, this.renderer.canvas);
     this.controls.addEventListener('lock', this.onLock);
@@ -83,6 +85,8 @@ export class Game3D {
     }
     this.controls.dispose();
 
+    // Body-mounted bridge never auto-unmounts; tear down store subscriptions.
+    this.bufferPanel.app.unmount();
     this.renderer.dispose();
   }
 
