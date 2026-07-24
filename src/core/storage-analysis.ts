@@ -245,20 +245,27 @@ export interface StorageAlarm {
   level: StorageAlarmLevel;
   // Short human-readable explanation, set for 'red'/'yellow' only.
   reason?: string;
+  // Raw days until full, set for 'yellow' only.
+  days?: number;
 }
 
 // Item sizes make exact 100% fill rare and overflow impossible — treat anything
 // past this as full.
 const STORAGE_FULL_THRESHOLD = 0.99;
 
+// Yellow only fires this close to actually filling up — otherwise every
+// slowly-filling base would flag days out, well before it's actionable.
+const YELLOW_DAYS_THRESHOLD = 2.9;
+
 function formatDaysShort(days: number) {
   return days >= 500 ? '∞' : `${Math.floor(days)}d`;
 }
 
-// Binary alarm for XIT BS's Inv column: red once storage is (near-)full, yellow
-// if it's on track to fill before the base's next expected resupply (the point
-// its most urgent consumable burn hits 1 day left). A ship inbound to the base
-// counts its full cargo capacity as extra storage room, since it will carry
+// Alarm for XIT BS's Inv column: red once storage is (near-)full, yellow once
+// it's within YELLOW_DAYS_THRESHOLD days of filling AND on track to do so
+// before the base's next expected resupply (the point its most urgent
+// consumable burn hits 1 day left). A ship inbound to the base counts its
+// full cargo capacity as extra storage room, since it will carry
 // away produced goods once it arrives — this both prevents and clears the alarm
 // once a ship has been dispatched.
 export function getStorageAlarmLevel(
@@ -295,10 +302,11 @@ export function getStorageAlarmLevel(
   const burnDays = planetBurn ? getMinDaysLeft(planetBurn.burn) : 1000;
   const nextResupplyDays = burnDays >= 1000 ? Infinity : Math.max(burnDays - 1, 0);
 
-  if (daysUntilFull < nextResupplyDays) {
+  if (daysUntilFull <= YELLOW_DAYS_THRESHOLD && daysUntilFull < nextResupplyDays) {
     return {
       level: 'yellow',
       reason: `Fills in ${formatDaysShort(daysUntilFull)}, before next resupply (${formatDaysShort(nextResupplyDays)})`,
+      days: daysUntilFull,
     };
   }
   return { level: 'none' };

@@ -216,7 +216,6 @@ const stripeWidth = computed(() => {
 });
 
 const alarmClass = computed(() => ({
-  [$style.isAlarmYellow]: props.alarmLevel === 'yellow',
   [$style.isAlarmRed]: props.alarmLevel === 'red',
 }));
 </script>
@@ -228,9 +227,7 @@ const alarmClass = computed(() => ({
     :data-tooltip="alarmReason"
     data-tooltip-position="top"
     @click="showBuffer(onClickCmd)">
-    <div
-      v-if="alarmLevel === 'yellow' || alarmLevel === 'red'"
-      :class="[$style.alarmOverlay, alarmClass]" />
+    <div v-if="alarmLevel === 'red'" :class="[$style.alarmOverlay, alarmClass]" />
     <div :class="[$style.bar, miniBarClass]">
       <div
         v-for="segment in invBar.segments"
@@ -303,23 +300,8 @@ const alarmClass = computed(() => ({
   z-index: 2;
 }
 
-/* Yellow alarm: hazard-tape strip (matches XIT STO's overflow indicator) over
-   the right 20% of the bar — storage is on track to fill before next resupply.
-   max() keeps the tape from shrinking to nothing on narrow bars. */
-.isAlarmYellow {
-  top: 0;
-  bottom: 0;
-  right: 0;
-  width: max(20%, 14px);
-  background-image: repeating-linear-gradient(45deg, #fff200 0, #fff200 6px, #000 6px, #000 12px);
-  outline: 2px solid #000;
-  outline-offset: -2px;
-  box-shadow: 0 0 6px 2px rgba(255, 242, 0, 0.6);
-}
-
-/* Red alarm: same hazard-tape treatment as the yellow strip — opaque
-   red/black stripes with a black outline — across the whole bar.
-   Storage is at (or projected past) capacity. */
+/* Red alarm: opaque red/black hazard-tape stripes with a black outline,
+   across the whole bar. Storage is at (or projected past) capacity. */
 .isAlarmRed {
   inset: 0;
   background-image: repeating-linear-gradient(45deg, #d9534f 0, #d9534f 6px, #000 6px, #000 12px);

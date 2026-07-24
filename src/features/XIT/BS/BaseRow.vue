@@ -6,6 +6,7 @@ import { showBuffer } from '@src/infrastructure/prun-ui/buffers';
 import { getPlanetBurn } from '@src/core/burn';
 import { countDays } from '@src/features/XIT/BURN/utils';
 import { getStorageAlarmLevel } from '@src/core/storage-analysis';
+import { fixed1 } from '@src/utils/format';
 import { getPlanetProduction } from '@src/core/production';
 import { warehousesStore } from '@src/infrastructure/prun-api/data/warehouses';
 import { storagesStore } from '@src/infrastructure/prun-api/data/storage';
@@ -118,6 +119,9 @@ const repairDaysText = computed(() => {
 });
 
 const storageAlarm = computed(() => getStorageAlarmLevel(siteId));
+const fillDaysText = computed(() =>
+  storageAlarm.value?.days !== undefined ? fixed1(storageAlarm.value.days) : undefined,
+);
 
 const warehouse = computed(() => warehousesStore.getByEntityNaturalId(naturalId));
 const warehouseStore = computed(() =>
@@ -178,6 +182,13 @@ const warehouseStore = computed(() =>
         :on-click-cmd="`INV ${storeId.substring(0, 8)}`"
         :alarm-level="storageAlarm?.level"
         :alarm-reason="storageAlarm?.reason" />
+      <div
+        v-if="storageAlarm?.level === 'yellow'"
+        :class="[C.ProgressBar.progress, $style.fillWarningBox, C.Workforces.daysWarning]"
+        :data-tooltip="storageAlarm.reason"
+        data-tooltip-position="top">
+        <span :class="$style.statusNum">{{ fillDaysText }}</span>
+      </div>
     </td>
     <td v-if="showWar" :class="$style.invCell">
       <InvBar
@@ -259,7 +270,19 @@ const warehouseStore = computed(() =>
 }
 
 .invCell {
+  display: flex;
+  align-items: center;
+  gap: 2px;
   min-width: 60px;
   padding: 2px;
+}
+
+.fillWarningBox {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  height: 13px;
+  padding: 0 1px;
 }
 </style>
