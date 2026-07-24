@@ -2,7 +2,8 @@ import { Teleport } from 'vue';
 import { CSS3DObject } from 'three/examples/jsm/renderers/CSS3DRenderer.js';
 import { ROOM_HALF, ROOM_HEIGHT } from '@src/game-3d/room';
 import { tileStatePlugin } from '@src/store/user-data-tiles';
-// Spike-only cross-layer import; revisit (e.g. shared buffer location) once past spike status.
+// Game-3d is explicitly permitted to import buffer components from features/XIT/
+// (see docs/architecture.md's game-3d section) — a deliberate, permanent exception.
 import INV from '@src/features/XIT/INV/INV.vue';
 
 /**

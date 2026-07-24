@@ -3,6 +3,7 @@ import { initializeUI } from '@src/infrastructure/prun-ui';
 import { initializeUserData } from '@src/store';
 import { initAudioInterceptor } from '@src/infrastructure/prun-ui/audio-interceptor';
 import PmmgMigrationGuide from '@src/components/PmmgMigrationGuide.vue';
+import { toggleGame3D } from '@src/game-3d-launcher';
 
 async function main() {
   try {
@@ -21,20 +22,13 @@ async function main() {
     features.init();
     xit.init();
 
-    // Lazy 3D mode spike — three.js must never load unless the hotkey is used.
+    // Lazy 3D mode spike — three.js must never load unless a trigger fires.
     document.addEventListener('keydown', e => {
       if (!e.ctrlKey || !e.altKey || e.key !== '3') {
         return;
       }
       e.preventDefault();
-      void (async () => {
-        try {
-          const { launchGame3D } = await import('@src/game-3d');
-          launchGame3D();
-        } catch (err) {
-          console.error('[game-3d] failed to launch', err);
-        }
-      })();
+      void toggleGame3D();
     });
   } finally {
     finishApiInitialization();

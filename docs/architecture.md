@@ -131,18 +131,20 @@ See `docs/feature-patterns.md` for all patterns (registration, tiles, DOM helper
 
 A top-level sibling to `features/`, `infrastructure/`, etc. — a fullscreen three.js scene (WebGLRenderer room geometry + CSS3DRenderer panels hosting refined-prun buffers) that runs in the same JS realm as the rest of the extension. That's the whole reason it lives in this repo instead of a separate extension: no cross-extension messaging bridge needed to reach entity stores (`prun-api/data/*`) or mount real Vue components.
 
-**Dependency rule:** `src/game-3d/` may import from `infrastructure/`, `core/`, `store/`, `utils/` — same as `features/`. Nothing outside `src/game-3d/` may import from it, with exactly one exception: a single dynamic `import('@src/game-3d')` call in `src/main.ts`. That one line is the entire seam between the 2D extension and 3D mode:
+**Dependency rule:** `src/game-3d/` may import from `infrastructure/`, `core/`, `store/`, `utils/` — same as `features/`. Nothing outside `src/game-3d/` may import from it, with exactly one exception: a single dynamic `import('@src/game-3d')` call, in `src/game-3d-launcher.ts`'s `toggleGame3D()` function. That one call is the entire seam between the 2D extension and 3D mode — verify it with:
 
 ```
-grep -rn "game-3d" src --include=*.ts --include=*.tsx --include=*.vue | grep -v '^src/game-3d/'
+grep -rn "import(['\"]@src/game-3d['\"])" src --include=*.ts --include=*.tsx
 ```
 
-should always show just that one `import()` call (plus its error-log line).
+which should always show just that one line, in `src/game-3d-launcher.ts`.
+
+`toggleGame3D()` itself has two callers — a hotkey listener in `src/main.ts` (Ctrl+Alt+3) and a top-bar button (`src/features/basic/game-3d-launch-button.ts`) — but both funnel through the same single `import()` call rather than each dynamically importing `@src/game-3d` themselves. Any future trigger (another button, a context-menu entry, whatever) should call `toggleGame3D()` too, not add a new `import('@src/game-3d')` call site.
 
 **Why dynamic, not static import:** `three` is a few hundred KB. A static import anywhere in the base app's module graph would force every user to download and parse it, even if they never open 3D mode. The build (`vite.config.mts`) emits ES modules with `preserveModules: true`, injected as `<script type="module">` (`src/refined-prun-startup.ts`), so dynamic `import()` is natively supported — the `game-3d` module graph is only fetched once the toggle actually fires.
 
-**Isolated failure:** the dynamic import and the launch call it triggers are wrapped in try/catch in `main.ts`, logging to `console.error` on failure. A bug or exception inside `game-3d` can't take down the base 2D extension.
+**Isolated failure:** `toggleGame3D()` wraps the dynamic import and launch call in try/catch, logging to `console.error` on failure. A bug or exception inside `game-3d` can't take down the base 2D extension, regardless of which trigger fired it.
 
-**Known spike-only wrinkle:** mounting an existing buffer component (e.g. `INV.vue`, the XIT INVENTORIES panel) inside a CSS3D panel currently means importing it straight from `features/XIT/`, which crosses the dependency rule above (`game-3d` importing from `features/`). This is flagged inline at the import site and is expected to be revisited — likely by relocating shared buffer components out of `features/` into something both layers can import — once 3D mode moves past spike status.
+**Exception — `game-3d` importing from `features/`:** unlike every other module, `src/game-3d/` is explicitly permitted to import Vue components straight out of `features/XIT/` (e.g. `INV.vue`) to Teleport them into a CSS3D panel — see `src/game-3d/buffer-panel.tsx`. This is a deliberate, permanent exception for 3D-mode work, not a temporary spike shortcut to be cleaned up later: `features/XIT/` buffers are already eagerly bundled for every user (`features/index.ts`'s `import.meta.glob(..., { eager: true })`), so this import adds no bundle-size cost, and it isn't enforced by tooling (no ESLint rule polices the dependency layers in this repo). The tradeoff is purely maintenance blast-radius — a `features/XIT/` reorg could silently break `game-3d` — accepted as low-priority for now given the small surface area. Do not "fix" this by relocating buffer components unless asked.
 
 **Known spike-only wiring:** buffer components that use `useTileState()` (`src/store/user-data-tiles.ts`) expect a real XIT tile host to have installed `tileStatePlugin` on an ancestor Vue app — without it, `inject(tileStateKey())` returns `undefined` and the component throws on mount. The `game-3d` Teleport bridge installs `tileStatePlugin` itself with a synthetic tile ID (see `src/game-3d/buffer-panel.tsx`) to replicate that ambient context. Any future buffer swapped into the CSS3D panel needs the same check: does it rely on context normally supplied by the real XIT panel host, beyond just DOM position?
