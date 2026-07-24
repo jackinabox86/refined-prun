@@ -124,3 +124,23 @@ See the table in `docs/feature-patterns.md` → "Auto-Imports" (single source of
 ## Feature Development
 
 See `docs/feature-patterns.md` for all patterns (registration, tiles, DOM helpers, CSS, data stores, formatting).
+
+---
+
+## `src/game-3d/` — 3D Game Mode (Spike)
+
+A top-level sibling to `features/`, `infrastructure/`, etc. — a fullscreen three.js scene (WebGLRenderer room geometry + CSS3DRenderer panels hosting refined-prun buffers) that runs in the same JS realm as the rest of the extension. That's the whole reason it lives in this repo instead of a separate extension: no cross-extension messaging bridge needed to reach entity stores (`prun-api/data/*`) or mount real Vue components.
+
+**Dependency rule:** `src/game-3d/` may import from `infrastructure/`, `core/`, `store/`, `utils/` — same as `features/`. Nothing outside `src/game-3d/` may import from it, with exactly one exception: a single dynamic `import('@src/game-3d')` call in `src/main.ts`. That one line is the entire seam between the 2D extension and 3D mode:
+
+```
+grep -rn "game-3d" src --include=*.ts --include=*.tsx --include=*.vue | grep -v '^src/game-3d/'
+```
+
+should always show just that one `import()` call (plus its error-log line).
+
+**Why dynamic, not static import:** `three` is a few hundred KB. A static import anywhere in the base app's module graph would force every user to download and parse it, even if they never open 3D mode. The build (`vite.config.mts`) emits ES modules with `preserveModules: true`, injected as `<script type="module">` (`src/refined-prun-startup.ts`), so dynamic `import()` is natively supported — the `game-3d` module graph is only fetched once the toggle actually fires.
+
+**Isolated failure:** the dynamic import and the launch call it triggers are wrapped in try/catch in `main.ts`, logging to `console.error` on failure. A bug or exception inside `game-3d` can't take down the base 2D extension.
+
+**Known spike-only wrinkle:** mounting an existing buffer component (e.g. `HEALTH.vue`) inside a CSS3D panel currently means importing it straight from `features/XIT/`, which crosses the dependency rule above (`game-3d` importing from `features/`). This is flagged inline at the import site and is expected to be revisited — likely by relocating shared buffer components out of `features/` into something both layers can import — once 3D mode moves past spike status.
