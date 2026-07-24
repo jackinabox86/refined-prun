@@ -311,19 +311,19 @@ const alarmClass = computed(() => ({
   bottom: 0;
   right: 0;
   width: max(20%, 14px);
-  background-image: repeating-linear-gradient(45deg, #000 0, #000 6px, #fff200 6px, #fff200 12px);
-  outline: 2px solid #d9534f;
+  background-image: repeating-linear-gradient(45deg, #fff200 0, #fff200 6px, #000 6px, #000 12px);
+  outline: 2px solid #000;
   outline-offset: -2px;
   box-shadow: 0 0 6px 2px rgba(255, 242, 0, 0.6);
 }
 
 /* Red alarm: same hazard-tape treatment as the yellow strip — opaque
-   black/red stripes with a matching outline — across the whole bar.
+   red/black stripes with a black outline — across the whole bar.
    Storage is at (or projected past) capacity. */
 .isAlarmRed {
   inset: 0;
-  background-image: repeating-linear-gradient(45deg, #000 0, #000 6px, #d9534f 6px, #d9534f 12px);
-  outline: 2px solid #d9534f;
+  background-image: repeating-linear-gradient(45deg, #d9534f 0, #d9534f 6px, #000 6px, #000 12px);
+  outline: 2px solid #000;
   outline-offset: -2px;
 }
 
