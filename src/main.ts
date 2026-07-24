@@ -20,6 +20,22 @@ async function main() {
     initializeUserData();
     features.init();
     xit.init();
+
+    // Lazy 3D mode spike — three.js must never load unless the hotkey is used.
+    document.addEventListener('keydown', e => {
+      if (!e.ctrlKey || !e.altKey || e.key !== '3') {
+        return;
+      }
+      e.preventDefault();
+      void (async () => {
+        try {
+          const { launchGame3D } = await import('@src/game-3d');
+          launchGame3D();
+        } catch (err) {
+          console.error('[game-3d] failed to launch', err);
+        }
+      })();
+    });
   } finally {
     finishApiInitialization();
   }
