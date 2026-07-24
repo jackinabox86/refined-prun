@@ -613,6 +613,21 @@ process for this profile, then retry.
     keypress fires `change` correctly. Verify persistence by re-reading from a freshly
     opened buffer, not the same DOM.
 
+24. **`requestPointerLock()` fails from CDP-driven input with `WrongDocumentError`
+    even when `document.hasFocus()` is `true`.** Confirmed root cause (not a guess):
+    `connectOverCDP` + synthetic `page.mouse.click()` / `page.keyboard.press()` does
+    not establish real OS-level window focus for the Chromium window under WSLg —
+    `document.hasFocus()` is a Blink-level concept and reports `true` anyway. Pointer
+    Lock's stricter check needs the browser window to be the OS-foreground window;
+    without it Chromium rejects with `WrongDocumentError: "The root document of this
+    element is not valid for pointer lock."` (read from a monkey-patched
+    `Element.prototype.requestPointerLock` promise rejection). `pw-act.mjs` now calls
+    `page.bringToFront()` before every action, so this shouldn't recur for tests
+    driven through it — but if writing an ad-hoc `.local/scratch/*.mjs` script that
+    bypasses `pw-act.mjs`, call `page.bringToFront()` yourself before anything
+    focus-sensitive. Same class of bug likely hits any other browser API gated on
+    real OS-level window focus, not just pointer lock.
+
 ## Files
 
 - `scripts/pw-helper.mjs` — shared constants (paths, CDP port, APEX URL) and the

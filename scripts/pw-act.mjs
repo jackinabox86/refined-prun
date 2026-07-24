@@ -30,6 +30,7 @@ const [action, ...rest] = process.argv.slice(2);
 const browser = await chromium.connectOverCDP(CDP_ENDPOINT);
 const context = browser.contexts()[0];
 const page = context.pages()[0];
+await page.bringToFront();
 
 // Resolves an index argument ("last", "first", or a number) against a
 // locator — lets click-nth/fill-nth pick the top-most/last-opened window
