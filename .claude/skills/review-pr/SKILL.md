@@ -82,10 +82,10 @@ Read based on changed paths:
 
 | Changed path pattern | Read |
 |---------------------|------|
-| `src/features/` | `docs/feature-patterns.md` (full) |
+| `src/features/` | `docs/feature-patterns.md`, `docs/dom-helpers.md`, `docs/tile-ui-patterns.md`, `docs/data-reactivity.md` |
 | `src/infrastructure/` | `docs/architecture.md` (Infrastructure Details) |
-| `src/features/XIT/` | `docs/feature-patterns.md` (XIT section) |
-| Any `.css` or `.module.css` | `docs/feature-patterns.md` (CSS section) |
+| `src/features/XIT/` | `docs/xit-act-patterns.md` |
+| Any `.css` or `.module.css` | `docs/css-patterns.md` |
 | `src/core/` or `src/store/` | `docs/architecture.md` (dependency layers) |
 | `docs/game/` | Verify against existing `docs/game/` files |
 
@@ -117,7 +117,7 @@ Check these categories. For each, the source of truth is the doc file, not this 
 
 - **Code Style** — every rule in contributing.md's Code Style section
 - **Architecture** — dependency layer direction in architecture.md
-- **Feature Patterns** — registration, naming, file organization, DOM helpers, reactivity rules, CSS patterns from feature-patterns.md
+- **Feature Patterns** — registration, naming, file organization from feature-patterns.md; DOM helpers from dom-helpers.md; reactivity rules from data-reactivity.md; CSS patterns from css-patterns.md
 - **Feature Design** — one-responsibility, dependencies, settings philosophy from contributing.md
 - **UI/UX** — element justification, PrUn palette, tooltips, server comm rules from contributing.md
 - **Game Knowledge** — no undocumented game mechanic assumptions; commands match `docs/game/commands.csv`
@@ -212,7 +212,7 @@ Each item ends with:
 
 **Basis guide** — every finding must cite why it was flagged. This is a breadcrumb for `/resolve-review` to know what to read and how to fix. Use one of these forms:
 - **Doc rule:** `contributing.md > Code Style > Nullish Checks` — cite doc file, section, subsection
-- **Doc rule with quote:** `feature-patterns.md > CSS > Scoping: "always use scoped CSS rules"` — when the exact wording matters
+- **Doc rule with quote:** `css-patterns.md > Scoping: "always use scoped CSS rules"` — when the exact wording matters
 - **Code observation:** `parseFloat(null) returns NaN; NaN > x is always false` — TypeScript/JS behavior
 - **PR comment:** `maintainer comment: "match C.Contribution.contribute and traverse .previousElementSibling"` — cite the commenter
 - **Architecture:** `architecture.md > Dependency Layers: features → core → infrastructure → utils`

@@ -80,7 +80,7 @@ function addLocalMessage(text: string) {
   store.setFetched();
 }
 
-// Verified send recipe for formless chat compose inputs - see docs/feature-patterns.md
+// Verified send recipe for formless chat compose inputs - see docs/tile-ui-patterns.md
 // "Submitting a Formless Input Programmatically". Do not deviate from this sequence.
 async function verifiedSend(input: HTMLInputElement, text: string) {
   focusElement(input);

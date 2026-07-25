@@ -40,7 +40,7 @@ For **every** code review, verify compliance with:
 - Feature ID = filename (from `import.meta.url`).
 - Clear description in `features.add(...)`.
 
-### 3. Architecture & Patterns (docs/architecture.md + docs/feature-patterns.md)
+### 3. Architecture & Patterns (docs/architecture.md + docs/dom-helpers.md + docs/data-reactivity.md)
 - Respect dependency layers (features → core → infrastructure → utils; no upward imports).
 - Use **only** auto-imported symbols where possible (`$`, `$$`, `C`, `tiles`, `subscribe`, `createFragmentApp`, etc.).
 - Prefer `C.` selectors over raw class names (hashes change).
@@ -61,7 +61,7 @@ For **every** code review, verify compliance with:
 ### 5. Documentation & Workflow
 - Always check relevant docs first (`docs/README.md` lists them).
 - Do not edit `CHANGELOG.md` in PRs.
-- Follow exact patterns from `docs/feature-patterns.md` for registration, XIT commands, Vue mounting, reactive DOM, etc.
+- Follow exact patterns from `docs/feature-patterns.md` (registration) and its split-out topic docs — XIT commands (`docs/xit-act-patterns.md`), Vue mounting / reactive DOM (`docs/dom-helpers.md`), tile/window UI (`docs/tile-ui-patterns.md`).
 
 ---
 
@@ -69,7 +69,13 @@ For **every** code review, verify compliance with:
 
 | Purpose                        | File                                      |
 |--------------------------------|-------------------------------------------|
-| All feature patterns           | `docs/feature-patterns.md`                |
+| Feature registration/naming    | `docs/feature-patterns.md`                |
+| XIT commands / ACT actions     | `docs/xit-act-patterns.md`                |
+| DOM helpers / mounting Vue     | `docs/dom-helpers.md`                     |
+| Tile/window UI patterns        | `docs/tile-ui-patterns.md`                |
+| Game data access / reactivity  | `docs/data-reactivity.md`                 |
+| CSS patterns                   | `docs/css-patterns.md`                    |
+| Date/number formatting         | `docs/formatting.md`                      |
 | Style + design rules           | `docs/contributing.md`                    |
 | Architecture & layers          | `docs/architecture.md`                    |
 | Game UI concepts               | `docs/game/ui-concepts.md`                |

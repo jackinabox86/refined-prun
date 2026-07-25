@@ -6,12 +6,12 @@ the repo owner should make. Delete an entry once it is done or rejected.
 
 ## Docs structure
 
-- **Split `docs/feature-patterns.md` (~1050 lines).** It is four docs in one: feature
-  conventions (`:1-73`), XIT ACT / agent-channel internals (`:104-245` + the hidden-buffer
-  block around `:700`), DOM/Vue API reference (`:350-690`), CSS recipes (`:880-1050`).
-  Extracting `docs/act-runner.md` and `docs/css-recipes.md` would leave ~600 lines of
-  genuinely general patterns — and, more importantly, stop routing every ACT session's
-  distill output into the one file every feature task must read.
+- ~~**Split `docs/feature-patterns.md`.**~~ Done 2026-07-25: split into
+  `feature-patterns.md` (registration/naming core + index), `xit-act-patterns.md`,
+  `dom-helpers.md`, `tile-ui-patterns.md`, `data-reactivity.md`, `css-patterns.md`,
+  `formatting.md`. Went further than this entry's original suggestion (which proposed
+  keeping DOM/tile-UI/data/formatting bundled as ~600 "general" lines) — repo owner opted
+  for finer granularity instead.
 - **Compress the remaining war stories.** Already done: `ExecuteActionPackage` mount split,
   companion-buffer splitting, the localStorage preference block. Still narrative-heavy:
   component-basename collision (`### File Organization`), invisible FontAwesome glyphs,

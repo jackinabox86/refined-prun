@@ -4,7 +4,7 @@ The project is a browser extension for the game. Throughout the chat and the doc
 
 # Go-to places
 
-- **Feature development:** `docs/feature-patterns.md`. One-stop cookbook: registration, naming, DOM helpers, reactivity rules, CSS patterns, data access, formatting.
+- **Feature development:** `docs/feature-patterns.md`. Registration/naming/auto-imports, plus an index into the split-out pattern docs: `docs/xit-act-patterns.md` (XIT commands, ACT action packages), `docs/dom-helpers.md` (DOM query helpers, tile observation, mounting Vue), `docs/tile-ui-patterns.md` (window sizing, splitting, sidebar, context controls), `docs/data-reactivity.md` (game data stores, reactivity rules), `docs/css-patterns.md`, `docs/formatting.md` (date/number formatters).
 - **Code review / style:** `docs/contributing.md`. Code style rules, feature design philosophy, UI/UX guidelines, workflow rules.
 - **Architecture / infra:** `docs/architecture.md`. Build system, source layout, dependency layers, infrastructure internals.
 - **Game concepts:** `docs/game/game-concepts.md`. Factions, materials, planets, bases, production, trading, shipping.
@@ -14,3 +14,9 @@ The project is a browser extension for the game. Throughout the chat and the doc
 - **Browser testing / visual verification:** `docs/browser-testing.md`. Launch harness, pw-act actions, hard-won gotchas. Use it for anything that must be verified against the live game. (Agent-specific plumbing for driving it lives with that agent's own config.) For `src/game-3d/` specifically, also read `docs/browser-testing-3d.md`.
 - **Planetary governance:** `docs/game/planetary-governance.md`. Population, happiness, governors, CoGC, POPI.
 - **3D Game Mode progress:** `docs/game-3d-plan.md`. Phase tracker for the `src/game-3d/` spike/expansion — read before resuming that work.
+
+# Maintaining these docs
+
+When splitting or renaming a doc file, grep the whole repo for references, not just
+`docs/` — stale pointers hide in `AGENTS.md`, `.claude/skills/*`, `src/` code comments,
+and top-level files like `grok-code-review.md`.

@@ -24,7 +24,9 @@ For feature work (new feature, fix feature, refactor, PR review), create the fol
 - Analyze user request
 - Read `docs/README.md` — it indexes every doc and says what each is for
 - Read docs based on task type:
-  - **New feature / Fix feature**: `docs/feature-patterns.md`, `docs/game/ui-concepts.md`, relevant game docs
+  - **New feature / Fix feature**: `docs/feature-patterns.md` (follow its index to the
+    specific pattern doc for the area you're touching — XIT/ACT, DOM helpers, tile/window
+    UI, data & reactivity, CSS, or formatting), `docs/game/ui-concepts.md`, relevant game docs
   - **Refactor infra**: `docs/architecture.md`
   - **PR review**: `docs/contributing.md`, plus `docs/feature-patterns.md` if PR adds features
   - **Any task**: `docs/contributing.md` for style rules when writing code
@@ -68,7 +70,9 @@ session, near the end — not after every task.
 - Before writing a PR: ALWAYS distill and commit its output first. No exceptions.
 - Otherwise, when the session is wrapping up, ask the user whether to distill. Never let a session end without at least asking.
 - Distilled findings go to the doc that owns the subject: game behaviour to `docs/game/`,
-  extension patterns to `docs/feature-patterns.md`, harness traps to
+  extension patterns to whichever of `docs/feature-patterns.md`, `docs/xit-act-patterns.md`,
+  `docs/dom-helpers.md`, `docs/tile-ui-patterns.md`, `docs/data-reactivity.md`,
+  `docs/css-patterns.md`, or `docs/formatting.md` owns the subject, harness traps to
   `docs/browser-testing.md`. Compress to the rule; keep the incident only when it is the
   evidence for the rule. Cross-reference by section title, never by list number — numbered
   references break silently the moment the list is reordered.

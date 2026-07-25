@@ -135,7 +135,7 @@ See the table in `docs/feature-patterns.md` → "Auto-Imports" (single source of
 
 ## Feature Development
 
-See `docs/feature-patterns.md` for all patterns (registration, tiles, DOM helpers, CSS, data stores, formatting).
+See `docs/feature-patterns.md` for registration, and its index for the split-out topic docs (tiles/DOM helpers, tile UI, CSS, data stores, formatting).
 
 ---
 
