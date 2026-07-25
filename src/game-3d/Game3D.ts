@@ -7,6 +7,7 @@ import { createBufferWindowGuard } from '@src/game-3d/buffer-window-guard';
 import { buildConsoles } from '@src/game-3d/console-roster';
 import { buildHologram } from '@src/game-3d/hologram';
 import { buildHangar } from '@src/game-3d/hangar';
+import { createInteraction } from '@src/game-3d/interaction';
 import { createModeOverlay } from '@src/game-3d/overlay';
 import { createTestControls } from '@src/game-3d/test-controls';
 
@@ -19,6 +20,7 @@ export class Game3D {
   private readonly bufferWindowGuard = createBufferWindowGuard();
   private readonly testControls: ReturnType<typeof createTestControls>;
   private readonly overlay: ReturnType<typeof createModeOverlay>;
+  private readonly interaction: ReturnType<typeof createInteraction>;
   private readonly consoles = buildConsoles();
   private readonly clock = new THREE.Clock();
   private rafId = 0;
@@ -37,14 +39,6 @@ export class Game3D {
     this.controls.lock();
   };
 
-  private readonly onLock = () => {
-    this.overlay.setMode('walk');
-  };
-
-  private readonly onUnlock = () => {
-    this.overlay.setMode('interact');
-  };
-
   constructor(private readonly onClose: () => void) {
     this.camera = new THREE.PerspectiveCamera(75, 1, 0.1, 100);
     this.camera.position.set(0, EYE_HEIGHT, 2);
@@ -61,13 +55,12 @@ export class Game3D {
     }
 
     this.controls = new PointerLockControls(this.camera, this.renderer.canvas);
-    this.controls.addEventListener('lock', this.onLock);
-    this.controls.addEventListener('unlock', this.onUnlock);
     this.testControls = createTestControls(this.camera, this.controls);
 
     this.overlay = createModeOverlay(() => {
       this.onClose();
     });
+    this.interaction = createInteraction(this.camera, this.controls, this.consoles, this.overlay);
     this.renderer.container.append(this.overlay.root);
   }
 
@@ -79,6 +72,7 @@ export class Game3D {
     this.movement.attach();
     this.bufferWindowGuard.attach();
     this.testControls.attach();
+    this.interaction.attach();
     this.clock.start();
     this.tick();
   }
@@ -95,9 +89,8 @@ export class Game3D {
     this.movement.detach();
     this.bufferWindowGuard.detach();
     this.testControls.detach();
+    this.interaction.detach();
 
-    this.controls.removeEventListener('lock', this.onLock);
-    this.controls.removeEventListener('unlock', this.onUnlock);
     if (this.controls.isLocked) {
       this.controls.unlock();
     }
@@ -126,6 +119,7 @@ export class Game3D {
     const dt = Math.min(this.clock.getDelta(), 0.05);
     this.movement.update(this.controls, dt);
     clampToRoom(this.camera.position);
+    this.interaction.update();
     this.renderer.render(this.scene, this.camera);
     this.rafId = requestAnimationFrame(this.tick);
   };

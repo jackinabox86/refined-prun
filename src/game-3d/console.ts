@@ -87,6 +87,13 @@ export function createConsole(definition: ConsoleDefinition) {
   housing.position.set(0, 0, -0.05);
   group.add(housing);
 
+  // Invisible hitbox for raycasting — separate from housing so Phase 5 can redesign visuals.
+  const hitbox = new THREE.Mesh(new THREE.BoxGeometry(housingWidth, housingHeight, 0.6));
+  hitbox.visible = false;
+  hitbox.position.set(0, 0, -0.05);
+  hitbox.userData.consoleId = definition.id;
+  group.add(hitbox);
+
   const dispose = () => {
     for (const handle of screenHandles) {
       handle.disposeIframe();
@@ -94,7 +101,7 @@ export function createConsole(definition: ConsoleDefinition) {
     }
   };
 
-  return { definition, group, dispose };
+  return { definition, group, hitbox, dispose };
 }
 
 export type Console = ReturnType<typeof createConsole>;

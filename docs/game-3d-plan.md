@@ -195,7 +195,24 @@ driving a state machine (nothing → "facing console: <purpose>, press E" → fo
 Wire the E key to toggle focus (pointer unlock/lock, overlay prompt), scoped to
 whichever console the player is facing — reusing the spike's existing lock/unlock
 overlay-hint pattern (`overlay.ts`) rather than replacing it. Prove this with just the
-2 consoles from Expansion Phase 1 before scaling up. Not started.
+2 consoles from Expansion Phase 1 before scaling up. **Code done 2026-07-25, NOT yet
+human-verified.** New `interaction.ts` (`createInteraction()`, factory-function style
+matching `movement.ts`) owns the whole state machine and now owns the
+`controls`/`'lock'`/`'unlock'` event wiring too (moved out of `Game3D.ts`). Each
+console's hitbox (`console.ts`) is a separate invisible mesh from its housing, per the
+day-one decision. `overlay.ts` gained a `'focused'` mode and `setFacing()` for the
+walk-mode "Facing X · Press E" sub-hint. **Verification gap found, not yet closed:**
+`game-tester` confirmed the code loads and the FLT/INV consoles still show live data
+with zero regressions, but discovered that `interaction.ts`'s `update()` (the
+raycast/facing-detection step) is gated on `controls.isLocked`, and pointer lock never
+actually flips true under the CDP/Playwright harness even via the `test-controls.ts`
+rotate bypass — so *even the facing-text detection*, not just the E-focus toggle, could
+not be automatically verified this session, contrary to the assumption when this phase
+was scoped that facing-detection wouldn't depend on real lock. **Needs a human with a
+real mouse** to confirm: (1) the "Facing `<purpose>` · Press E to interact" hint
+actually appears on approach, (2) E enters/exits focused mode correctly, (3) Escape's
+old generic-interact fallback still works when nothing is focused. Do this before
+starting Expansion Phase 3.
 
 ### Expansion Phase 3 — Full console roster
 
@@ -262,3 +279,16 @@ string) rather than new constructor code per console. Delegated implementation t
 per `AGENTS.md`'s DELEGATION section; diff matched the brief closely on first pass, no
 rework needed. Next session starts Expansion Phase 2 (interaction system — Raycaster +
 E-key focus).
+
+**2026-07-25 (3)** — User feedback: CALC and (implicitly) the `WEB` shortcut commands
+are poor console test subjects (a niche calculator and static web-links respectively,
+not representative of a real bridge console). Swapped `console-roster.ts`'s second
+console from CALC to `FLT`/`FLEET` ("Fleet Ops") — confirmed `FLT.vue` only needs
+`tileStatePlugin` (same ambient context as INV), so it Teleports cleanly with no other
+changes needed; this also gets a head start on Expansion Phase 3's real "Fleet Ops"
+console. Then implemented Expansion Phase 2 (interaction system) per the section above
+— see that entry for the verification gap found (facing-detection needs a human with a
+real mouse; not yet confirmed working end-to-end, only confirmed not to have regressed
+anything or thrown errors). Both changes delegated to Grok, diffs matched their briefs
+closely. Next session: get human verification of Phase 2's interaction behavior first,
+then start Expansion Phase 3 (full console roster) if it checks out.

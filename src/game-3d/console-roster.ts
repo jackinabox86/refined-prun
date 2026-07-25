@@ -49,10 +49,10 @@ const ROSTER: RosterEntry[] = [
     screens: [{ command: 'INV', widthPx: 700 }],
   },
   {
-    id: 'calc',
-    purpose: 'Calculator',
+    id: 'flt',
+    purpose: 'Fleet Ops',
     themeColor: 0xf6ad55,
-    screens: [{ command: 'CALC', widthPx: 275, heightPx: 326 }],
+    screens: [{ command: 'FLT', widthPx: 750 }],
   },
 ];
 

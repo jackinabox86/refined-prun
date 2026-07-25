@@ -1,4 +1,4 @@
-export type ModeHint = 'walk' | 'interact';
+export type ModeHint = 'walk' | 'interact' | 'focused';
 
 export function createModeOverlay(onExit: () => void) {
   const root = document.createElement('div');
@@ -46,15 +46,48 @@ export function createModeOverlay(onExit: () => void) {
 
   root.append(hint, exit);
 
-  const setMode = (mode: ModeHint) => {
-    if (mode === 'walk') {
-      hint.textContent = 'Walk mode · Esc to interact · WASD to move · Ctrl+Alt+3 or EXIT to leave';
+  let currentMode: ModeHint = 'interact';
+  let facingPurpose: string | undefined;
+  let focusedPurpose: string | undefined;
+
+  const render = () => {
+    if (currentMode === 'walk') {
+      if (facingPurpose === undefined) {
+        hint.textContent =
+          'Walk mode · Esc to interact · WASD to move · Ctrl+Alt+3 or EXIT to leave';
+        return;
+      }
+      hint.textContent = `Walk mode · Facing ${facingPurpose} · Press E to interact · WASD to move · Ctrl+Alt+3 or EXIT to leave`;
       return;
     }
-    hint.textContent = 'Interact mode · Click canvas to look around · Ctrl+Alt+3 or EXIT to leave';
+    if (currentMode === 'interact') {
+      hint.textContent =
+        'Interact mode · Click canvas to look around · Ctrl+Alt+3 or EXIT to leave';
+      return;
+    }
+    hint.textContent = `${focusedPurpose} console · Click screens to interact · Press E to return to walk mode · Ctrl+Alt+3 or EXIT to leave`;
+  };
+
+  const setMode = (mode: ModeHint, purpose?: string) => {
+    currentMode = mode;
+    if (mode === 'focused') {
+      focusedPurpose = purpose;
+    }
+    render();
+  };
+
+  const setFacing = (purpose: string | undefined) => {
+    if (currentMode !== 'walk') {
+      return;
+    }
+    if (purpose === facingPurpose) {
+      return;
+    }
+    facingPurpose = purpose;
+    render();
   };
 
   setMode('interact');
 
-  return { root, setMode };
+  return { root, setMode, setFacing };
 }
