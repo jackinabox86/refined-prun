@@ -69,7 +69,7 @@ export function createBufferPanel() {
  */
 export function createCalcPanel() {
   // Matches CALC.ts bufferSize so the iframe (height: 100%) has a real box.
-  const { targetDiv, object } = createPanelShell(275, 326);
+  const { root, targetDiv, object } = createPanelShell(275, 326);
   // +X wall; local +Z (CSS3D front) → -X via -π/2 so the panel faces the room center.
   object.position.set(ROOM_HALF - 0.05, ROOM_HEIGHT * 0.55, 0);
   object.rotation.y = -Math.PI / 2;
@@ -81,5 +81,55 @@ export function createCalcPanel() {
   ));
   app.appendTo(document.body);
 
-  return { object, app };
+  // Chromium often fails to paint cross-origin iframes under CSS3D matrix3d; force a recomp after load.
+  let iframe: HTMLIFrameElement | undefined;
+  let observer: MutationObserver | undefined;
+
+  const onIframeLoad = () => {
+    root.style.display = 'none';
+    void root.offsetHeight;
+    requestAnimationFrame(() => {
+      root.style.display = '';
+    });
+  };
+
+  const attachToIframe = (el: HTMLIFrameElement) => {
+    if (iframe !== undefined) {
+      return;
+    }
+    iframe = el;
+    iframe.addEventListener('load', onIframeLoad);
+    if (observer !== undefined) {
+      observer.disconnect();
+      observer = undefined;
+    }
+  };
+
+  const tryFindIframe = () => {
+    const found = targetDiv.querySelector('iframe');
+    if (found === null) {
+      return;
+    }
+    attachToIframe(found);
+  };
+
+  observer = new MutationObserver(() => {
+    tryFindIframe();
+  });
+  observer.observe(targetDiv, { childList: true, subtree: true });
+  tryFindIframe();
+
+  const dispose = () => {
+    if (observer !== undefined) {
+      observer.disconnect();
+      observer = undefined;
+    }
+    if (iframe === undefined) {
+      return;
+    }
+    iframe.removeEventListener('load', onIframeLoad);
+    iframe = undefined;
+  };
+
+  return { object, app, dispose };
 }

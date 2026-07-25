@@ -186,6 +186,21 @@ path in this specific test environment. **Not resolved — needs either a real
 GPU-accelerated browser check (to rule out a WSLg-only artifact) or three.js
 CSS3D+iframe compositing research**, not more automated screenshot attempts.
 
+**2026-07-25, later same day — mitigation attempted, verification deprioritized.**
+Web research confirmed this matches a well-documented, longstanding class of Chromium
+bug (cross-origin/OOPIF content failing to paint under an ancestor's CSS 3D
+`matrix3d` transform — see three.js issues #11135, #20392, #26583 and related forum
+threads); there's no canonical upstream fix, only empirical nudges. Added a scoped
+mitigation in `createCalcPanel()` (`src/game-3d/buffer-panel.tsx`), following the same
+host-quirk-compensation pattern as `buffer-window-guard.ts`: watch for the teleported
+`<iframe>` via `MutationObserver`, attach a direct `load` listener, and on load force a
+reflow (`display: none` → force layout → restore next rAF) to nudge Chrome into
+recomputing the iframe's compositing layer. Compiles/lints clean. **Live verification
+was started then explicitly stopped mid-way by user call** — only two minor features in
+the whole extension use iframes, not worth further session time chasing. The fix is
+left in place (harmless whether or not it actually works) but its effect is unconfirmed
+either way. Don't spend more time on this without a specific reason to revisit.
+
 ## Phase 5 — Polish — IN PROGRESS
 
 Room aesthetics, movement feel, entry/exit UX, settings if any, performance tuning
@@ -199,8 +214,38 @@ box instead of one flat color), a one-shot procedural `CanvasTexture` panel-line
 walls/floor instead of flat color, and cooler-toned lighting — live-verified (ceiling
 distinct from walls, grid visible, no regression to the Phase 3 hologram).
 
-Still open: movement feel, entry/exit UX beyond the loading indicator, settings (if
-any), and multi-element performance tuning — none started yet.
+**Shipped (2026-07-25, later same day):** movement feel — `src/game-3d/movement.ts`'s
+WASD now ramps via acceleration/deceleration (`ACCEL = 18`, `DECEL = 24`, top speed
+unchanged at `MOVE_SPEED = 4.5`) instead of snapping instantly to full speed/stop.
+**Not live-verifiable under this harness**: it only takes effect when
+`PointerLockControls.isLocked`, which requires real pointer lock (broken under CDP,
+gotcha #24) — the `game3d-test-move` bypass calls `PointerLockControls.moveForward`/
+`moveRight` directly and skips this code entirely. Compiles/lints clean; needs a human
+with a real mouse to actually feel it.
+
+Entry/exit UX: reviewed, no change made. Toggle is already idempotent (`launchGame3D()`
+in `src/game-3d/index.ts` — first call opens, second call or in-scene EXIT tears down
+cleanly), has a contextual overlay hint that updates per mode
+(`src/game-3d/overlay.ts`), and the loading indicator already covers the one real gap
+(slow dynamic import). No concrete UX complaint on record to fix; adding more chrome
+(e.g. fade transitions) would be exactly the kind of unjustified new element
+`docs/contributing.md`'s "Minimize New Elements" warns against. Treating this item as
+closed absent a specific future complaint.
+
+Multi-element perf: **checked for the first time this session** with room + hologram +
+hangar + INV panel + CALC panel all live simultaneously — measured 4.2-4.7 FPS via
+`game-tester`, confirmed not a harness-wide freeze (a blank tab in the same browser hit
+60fps at the same moment). Root cause found: this test browser's WebGL context reports
+`ANGLE (Google, Vulkan (SwiftShader Device...), SwiftShader driver)` — a pure software
+rasterizer, no real GPU, confirmed via `WEBGL_debug_renderer_info`. This is the same
+environment-level cause already suspected for the CALC panel's compositing bug (below).
+Software-rendering a combined WebGL+CSS3D scene is expected to be 10-50x slower than
+real GPU hardware, so the 4.2-4.7 FPS number is not a trustworthy perf signal — no code
+optimization is justified from this reading alone. **Needs a real-GPU browser check
+before any perf work is undertaken**; don't spend further session time chasing FPS
+numbers produced by this harness.
+
+No settings added — nothing so far has needed one.
 
 ## Open questions (deferred, not blocking early phases)
 
@@ -295,3 +340,23 @@ not yet root-caused. Next session: either get a real-GPU browser check on the CA
 panel to rule out a harness-only artifact, or research the three.js CSS3D+iframe
 compositing issue directly. All code changes (grok-authored, human-reviewed) compile
 and lint clean; nothing committed yet this session.
+
+**2026-07-25, later same day** — Researched the CALC iframe compositing bug (web
+search: matches a known Chromium/three.js class of issue, no canonical fix) and shipped
+a scoped empirical mitigation (reflow-on-load nudge) in `buffer-panel.tsx`, following
+the `buffer-window-guard.ts` host-quirk-compensation precedent. Live verification of
+that fix was interrupted mid-way by explicit user call — iframes are a minor part of
+the extension (two features total), not worth more time. Pivoted to the rest of Phase
+5: shipped WASD acceleration/deceleration smoothing (`movement.ts`), reviewed
+entry/exit UX and found no concrete gap to close, and ran the first-ever combined-scene
+FPS check (room + hologram + hangar + both panels together) — found 4.2-4.7 FPS, then
+root-caused it to this test browser having no real GPU (`SwiftShader` software
+rasterizer, confirmed via `WEBGL_debug_renderer_info`), the same environment cause
+already suspected for the CALC bug. That makes the FPS number untrustworthy as a real
+signal — no code perf work started, none is justified without a real-GPU baseline
+first. All other live checks passed clean: hologram, hangar (low-to-floor per existing
+gotcha #27), INV panel live data, and exit/re-entry all regression-free, no new console
+errors. Phase 5 is now close to done — the only remaining concrete gaps are the
+still-unverified CALC fix and getting a real-GPU perf baseline; both need hardware this
+harness doesn't have. Next session: get a human/real-GPU check for those two items, or
+decide they're acceptable to ship unverified for a spike.

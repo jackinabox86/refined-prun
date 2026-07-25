@@ -107,6 +107,7 @@ export class Game3D {
 
     // Body-mounted bridges never auto-unmount; tear down store subscriptions.
     this.bufferPanel.app.unmount();
+    this.calcPanel.dispose();
     this.calcPanel.app.unmount();
     this.renderer.dispose();
   }
