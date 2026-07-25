@@ -12,7 +12,7 @@ pnpm prettier
 
 changed=$(git diff --name-only)
 if [[ -n "$changed" ]]; then
-  echo "$changed" | xargs git add
+  git add -u
   git commit -m "prettier"
   echo "PRETTIER_COMMITTED"
 else

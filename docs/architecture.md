@@ -4,6 +4,18 @@ Browser extension for Prosperous Universe. Intercepts the game's WebSocket and D
 
 Stack: TypeScript, Vue 3, Vite (content scripts), CSS Modules. Package manager: pnpm.
 
+## Commands
+
+| Command | Does |
+|---------|------|
+| `pnpm run compile` | `tsc --noEmit` + eslint. **The check to run on any change** — some rules (e.g. `strict-boolean-expressions`) fail only here, not in tsc. |
+| `pnpm run build` | clean + compile + `vite build` → `dist/` |
+| `pnpm run build:fast` | clean + `vite build`, skipping the checks — for the browser-test loop |
+| `pnpm run fix` | eslint `--fix` |
+| `pnpm run dev` | watch-mode development build |
+
+Verifying UI-visible behaviour against the live game: `docs/browser-testing.md`.
+
 ## Path Aliases
 
 | Alias | Resolves to |

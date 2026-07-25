@@ -1,38 +1,82 @@
-// Attaches to the already-running browser via CDP and runs one action, then
-// takes a screenshot. Actions: click <selector>, ctrl-click <selector>,
-// type <selector> <text>, press <key>, screenshot <path>, list-windows,
-// window-text <match> [maxChars], select-option <selector> <value>,
-// styles <selector> <props-csv>, local-storage-get <key>,
-// webgl-renderer-info, fps-check [seconds],
-// game3d-test-rotate <yawDeg> <pitchDeg>, game3d-test-move <forward> <right>,
-// mouse-drag <x1> <y1> <x2> <y2> [steps],
-// drag-stack <ticker> <amount-box-label>, reload, eval <js-expression>
+// Attaches to the already-running browser via CDP and runs one action.
+// `node scripts/pw-act.mjs help` prints every action — ACTIONS below is the
+// single source of truth for that list; docs point here instead of copying it.
 //
-// Prefer click/click-nth/type/fill-nth/list-windows/window-text/select-option/
-// styles/local-storage-get over eval whenever possible. Playwright selectors
-// support :has-text("...") directly, so most "find this button/row by its
-// text and click it" or "which window has X" tasks don't need a bespoke eval
-// at all — e.g.
+// Every action but `eval` takes plain data (a selector, a path, a key) with
+// the JS fixed in this file, so one rule covers every call and the behaviour
+// is reviewable here. `eval` instead ships a *different* piece of arbitrary JS
+// to a live logged-in session each time. Prefer a fixed action; Playwright
+// selectors support :has-text("...") directly, so most "find this thing by its
+// text and act on it" tasks need no eval at all — e.g.
 //   click '[class*="Window__window"]:has-text("CD-1234") button:has-text("Select Template")'
 //   window-text 'GOVBURN DATA'         # dump run log / table text of one window
-//   window-text 'GOVERNMENT BURN' 2000
 //   select-option '[class*="Window__window"]:has-text("GOVERNMENT BURN") tr:has-text("SST") select' '2'
-// Every eval call passes a *different* piece of arbitrary JS to run against a
-// live logged-in session, which is a fundamentally different (and pricier,
-// approval-wise) thing than a fixed action taking plain string arguments —
-// see gotcha #8 in .claude/skills/run/SKILL.md. If you catch yourself
-// reaching for eval to read/check *anything*, stop and add a fixed action for
-// it instead — that mistake has already happened once (see gotcha #8).
+// If you reach for eval to read or check anything, add a fixed action instead.
 import { readFileSync } from 'node:fs';
-import { playwright, CDP_ENDPOINT } from './pw-helper.mjs';
+import { connect } from './pw-helper.mjs';
 
-const { chromium } = playwright;
+// Action name -> one-line usage. Keep in sync with the switch below; `help`
+// and the unknown-action error both print it, so this is the only list that
+// has to exist.
+const ACTIONS = {
+  'reload': 'reload — reload the game tab (also clears floating-buffer clutter)',
+  'reload-extension': 'reload-extension — reload the unpacked extension, then the game tab',
+  'open-buffer': "open-buffer '<CMD>' — open any tile (XIT ACT, PROD, CONTD, ...)",
+  'click': "click '<selector>'",
+  'click-force': "click-force '<selector>' — bypass actionability checks",
+  'click-nth': "click-nth '<selector>' <index|first|last>",
+  'ctrl-click': "ctrl-click '<selector>' — real Control+click (inventory multi-select)",
+  'type': "type '<selector>' <text> — page.fill",
+  'fill-nth': "fill-nth '<selector>' <index|first|last> <text>",
+  'fill-file': "fill-file '<selector>' <path> — fill from a file (large/multiline text)",
+  'press': "press '<key>' — keyboard.press, global focus",
+  'press-on': "press-on '<selector>' '<key>' — press targeted at one element",
+  'select-option': "select-option '<selector>' '<value>' — set a native <select> (Vue-safe)",
+  'list-windows': 'list-windows — index + leading text of every open floating buffer',
+  'dump-windows': 'dump-windows [index] — structured dump (cmd, context bar, columns, buttons)',
+  'window-text': "window-text '<match>' [maxChars] — full innerText of one window",
+  'styles': "styles '<selector>' 'prop1,prop2' — computed style values",
+  'local-storage-get': "local-storage-get '<key>'",
+  'webgl-renderer-info': 'webgl-renderer-info — GPU vendor/renderer string (game-3d)',
+  'fps-check': 'fps-check [seconds] — measured frame rate over N seconds (game-3d)',
+  'game3d-test-rotate': "game3d-test-rotate <yawDeg> <pitchDeg> — camera bypass (game-3d)",
+  'game3d-test-move': "game3d-test-move <forward> <right> — camera bypass (game-3d)",
+  'screenshot': 'screenshot <absolute-path> — full page',
+  'screenshot-window': "screenshot-window '<match>' <absolute-path> — clip to one buffer",
+  'move-window': "move-window '<match>' <left> <top>",
+  'resize-window': "resize-window '<match>' <width> <height> — via the real resize handle",
+  'close-window': "close-window '<match>' — click one buffer's X (clears test clutter)",
+  'mouse-drag': 'mouse-drag <x1> <y1> <x2> <y2> [steps] — real mouse down/move/up',
+  'drag-stack': "drag-stack '<ticker>' '<box>' — synthetic HTML5 drag (CONTD Drag tab)",
+  'real-drag-stack': "real-drag-stack '<ticker>' '<box>' — REAL mouse drag; use for final proof",
+  'drag-probe': "drag-probe '<ticker>' '<window-text>' [shot] ['<hover-sel>'] — hover mid-drag",
+  'open-contd-template': "open-contd-template ['<draft substring>'] — CONTD draft -> template",
+  'contd-template-fields': "contd-template-fields ['<draft substring>'] — dump template values",
+  'eval': 'eval "() => { ...; return x; }" — last resort, not first reach',
+  'help': 'help — print this list',
+};
+
+function printActions(stream) {
+  for (const usage of Object.values(ACTIONS)) stream(`  ${usage}`);
+}
+
 const [action, ...rest] = process.argv.slice(2);
 
-const browser = await chromium.connectOverCDP(CDP_ENDPOINT);
-const context = browser.contexts()[0];
-const page = context.pages()[0];
-await page.bringToFront();
+if (action === undefined || action === 'help') {
+  console.log('Usage: node scripts/pw-act.mjs <action> [args]');
+  printActions(console.log);
+  process.exit(0);
+}
+
+// Checked before attaching, so a typo fails instantly instead of looking like a
+// dead browser.
+if (!(action in ACTIONS)) {
+  console.error(`Unknown action: ${action}. Available actions:`);
+  printActions(console.error);
+  process.exit(1);
+}
+
+const { context, page } = await connect();
 
 // Resolves an index argument ("last", "first", or a number) against a
 // locator — lets click-nth/fill-nth pick the top-most/last-opened window
@@ -145,8 +189,9 @@ switch (action) {
   case 'ctrl-click': {
     // Holds Control while clicking — the game's ctrl-click multi-stack
     // selection in inventory grids. Real keydown+click+keyup (not a
-    // synthetic MouseEvent with ctrlKey set), per gotcha #8's "don't
-    // reach for eval" — this is a fixed, data-only (just a selector)
+    // synthetic MouseEvent with ctrlKey set), per the "prefer a fixed
+    // action over eval" rule in docs/browser-testing.md — this is a fixed,
+    // data-only (just a selector)
     // action like click/click-force.
     await page.keyboard.down('Control');
     await page.click(rest[0]);
@@ -265,6 +310,40 @@ switch (action) {
   case 'screenshot': {
     await page.screenshot({ path: rest[0] });
     console.log('Saved screenshot to', rest[0]);
+    break;
+  }
+  case 'screenshot-window': {
+    // Screenshots ONE floating buffer instead of the whole page. A cropped
+    // shot of the buffer under test is both easier to read and far cheaper to
+    // hand to a model than a full 1080p page — prefer it whenever the thing
+    // being verified lives inside a single window.
+    const [match, outPath] = rest;
+    const window = page.locator('[class*="Window__window"]').filter({ hasText: match }).first();
+    if ((await window.count()) === 0) {
+      console.error(`No window matching "${match}".`);
+      process.exit(1);
+    }
+    await window.screenshot({ path: outPath });
+    console.log('Saved screenshot to', outPath);
+    break;
+  }
+  case 'close-window': {
+    // Closes one floating buffer by clicking its real 'x' control (same click
+    // the extension itself performs, see LINKEDBUFFERS closeAllChildren) —
+    // for cleaning up test clutter without a full `reload`.
+    const closed = await page.evaluate(match => {
+      const windows = [...document.querySelectorAll('[class*="Window__window"]')];
+      const w = windows.find(el => el.innerText.toLowerCase().includes(match.toLowerCase()));
+      if (!w) return false;
+      const button = [...w.querySelectorAll('[class*="Window__button"]')].find(
+        x => x.textContent === 'x',
+      );
+      if (!button) return false;
+      button.click();
+      return true;
+    }, rest[0]);
+    console.log(closed ? 'Closed.' : `No closable window matching "${rest[0]}".`);
+    if (!closed) process.exit(1);
     break;
   }
   case 'list-windows': {
@@ -411,7 +490,7 @@ switch (action) {
     // Reports whether WebGL is backed by a real GPU or a software rasterizer
     // (e.g. SwiftShader) — data-only, no arguments, unlike a bespoke `eval`
     // snippet reading WEBGL_debug_renderer_info. Check this before trusting
-    // any FPS/perf number out of this harness (gotcha #28).
+    // any FPS/perf number out of a game-3d verification.
     const info = await page.evaluate(() => {
       const c = document.createElement('canvas');
       const gl = c.getContext('webgl') || c.getContext('webgl2');
@@ -430,9 +509,9 @@ switch (action) {
   case 'fps-check': {
     // Measures actual rendered frame rate over N seconds via
     // requestAnimationFrame counting — data-only (one optional numeric
-    // argument), replaces the bespoke `eval` snippet used to check game-3d's
+    // argument), replaces a bespoke `eval` snippet used to check game-3d's
     // frame rate. Cross-check with webgl-renderer-info before treating a low
-    // number as a real perf bug (gotcha #28).
+    // number as a real perf bug.
     const seconds = Number(rest[0] ?? '2');
     const result = await page.evaluate(
       s =>
@@ -457,9 +536,9 @@ switch (action) {
   }
   case 'game3d-test-rotate': {
     // Rotates the game-3d camera directly, bypassing pointer lock (which
-    // doesn't work under this CDP harness — gotcha #24). Requires 3D mode to
-    // already be open; errors clearly if window.__rpGame3DTest isn't present
-    // instead of silently no-oping.
+    // doesn't work under this CDP harness — see docs/browser-testing-3d.md).
+    // Requires 3D mode to already be open; errors clearly if
+    // window.__rpGame3DTest isn't present instead of silently no-oping.
     const [yawDeg, pitchDeg] = rest.map(Number);
     const ok = await page.evaluate(([yaw, pitch]) => {
       const api = window.__rpGame3DTest;
@@ -784,7 +863,7 @@ switch (action) {
   case 'move-window': {
     // Repositions a floating buffer by its text (style.left/top on the outer
     // Window__window div is safe — unlike size, position isn't mirrored in
-    // framework state; see gotcha #10/#11). Use before multi-buffer drag
+    // framework state; see docs/browser-testing.md). Use before multi-buffer drag
     // tests so windows don't overlap.
     const [windowText, left, top] = rest;
     const moved = await page.evaluate(
@@ -805,7 +884,8 @@ switch (action) {
   case 'resize-window': {
     // Resizes a floating buffer to a target size by dragging its real
     // bottom-right se-resize handle — setting style.width/height on
-    // Window__window desyncs the framework's own layout state (gotcha #10).
+    // Window__window desyncs the framework's own layout state (see
+    // docs/browser-testing.md → "Drag and drop").
     // Probes several points inside the handle's rect for one where the handle
     // is genuinely on top (siblings overlap most of its box) before dragging.
     const [windowText, targetW, targetH] = rest;
@@ -887,7 +967,8 @@ switch (action) {
     break;
   }
   default: {
-    console.error('Unknown action:', action);
+    console.error(`Unknown action: ${action}. Available actions:`);
+    printActions(console.error);
     process.exit(1);
   }
 }

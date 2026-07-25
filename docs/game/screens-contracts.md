@@ -10,7 +10,7 @@ Sections: **Preamble** (partner, negotiated terms) and **Contract conditions** t
 
 ## CONTD — Contract Drafts
 
-List of contract drafts; `View` on a row opens the draft editor (re-focuses an existing window if that draft is already open). **`Create New` is a server action** — it creates a real draft on the account (see run-skill gotcha #6); never click it in tests.
+List of contract drafts; `View` on a row opens the draft editor (re-focuses an existing window if that draft is already open). **`Create New` is a server action** — it creates a real draft on the account, despite looking like navigation; never click it in tests (`docs/browser-testing.md` → "Hard rule: never trigger a server action").
 
 The draft editor's "Select Template" leads to the template screen. The template type `<select>` offers `BUY`, `SELL`, `SHIP`, `LOAN_INTEREST`, `LOAN_ANNUITY`, `LOAN_STABLE`. Each template keeps its own form state — switching types back and forth does not lose entered values.
 
