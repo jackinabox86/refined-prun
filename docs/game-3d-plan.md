@@ -88,15 +88,16 @@ Carried over from Phase 1:
   (2026-07-24): Escape does unlock pointer lock correctly outside the automation
   harness. The Phase 1 concern was a CDP-synthesized-input limitation of the test
   harness, not a `game-3d` bug, as suspected.
-- **Iframe-embedding buffer — CODE ADDED, NOT LIVE-VERIFIED.** Added
+- **Iframe-embedding buffer — CODE ADDED, STILL NOT LIVE-VERIFIED.** Added
   `createCalcPanel()` in `src/game-3d/buffer-panel.tsx`, hosting `XIT CALC`
   (`src/features/XIT/CALC.vue`, a static iframe, no ambient Vue context deps) on the
   room's +X wall, wired into `Game3D.ts` alongside the existing INV panel. Compiles and
-  lints clean. Live verification (does the iframe render/scale correctly under the
-  CSS3D transform, accept clicks, avoid unexpected reloads) was started via
-  `game-tester` but interrupted by the user for taking too long — **not confirmed
-  either way**. Don't treat this as resolved; re-run the live check before relying on
-  iframe buffers working.
+  lints clean. Two live-verification attempts so far: the first was interrupted by the
+  user for taking too long; the second (2026-07-25) couldn't reach the panel at all —
+  see the harness limitation noted under Phase 4 below (turning the camera requires
+  pointer lock, which doesn't work under this CDP-driven harness). **Still not
+  confirmed either way.** Needs either a manual human check, or a test-only way to
+  rotate the camera without pointer lock.
 
 Also likely work before Phase 2 is done (none of this started):
 
@@ -113,7 +114,7 @@ met** — moved on to Phase 3 by explicit user direction rather than closing thi
 first. Anyone resuming Phase 2 should pick up: live-verify the CALC iframe panel, then
 the "also likely work" list above.
 
-## Phase 3 — Region map hologram — CODE ADDED, NOT LIVE-VERIFIED
+## Phase 3 — Region map hologram — LIVE-VERIFIED
 
 Goal: a 3D representation of a region of the star map, driven by real data.
 
@@ -131,24 +132,45 @@ floating at `(0, 1.4, 0)` — room center, doesn't collide with the INV/CALC wal
 panels. Falls back to an empty group (renders nothing) if the player has no bases yet,
 or star data hasn't loaded — no throw.
 
-Compiles/lints clean, but **the local browser test harness was down when this was
-built (CDP connection refused) and live verification was explicitly deferred by the
-user** — not confirmed to actually render correctly, be positioned sensibly, or run at
-an acceptable frame rate. Verify this before treating Phase 3 as under way for real:
-does it render at all, is `HOLOGRAM_SPAN`/position reasonable to look at while walking
-the room, does sphere count for a typical sector stay cheap.
+**Confirmed live (2026-07-25) via game-tester:** visible from spawn without turning —
+correctly colored spheres connected by faint lines, matching the design. Frame rate
+and full-scene layout (relative to the hangar/CALC panel, added afterward) not
+separately re-checked.
 
 Open design question: is it just a visual, or can you click a system in the hologram
 to do something (open its buffer, navigate)? Decided NO for this pass — deferred,
 matches the still-open Phase 2 panel-interaction/selection work, revisit once that
 lands.
 
-## Phase 4 — Ship hangar — NOT STARTED
+## Phase 4 — Ship hangar — CODE ADDED, NOT LIVE-VERIFIED
 
 Goal: a viewable hangar showing the player's ships, driven by `ships.ts`.
 
-PrUn exposes no 3D ship models, so hangar ships need stylized placeholder meshes keyed
-by ship type — not "real" ship models. Scope the visual ambition down accordingly.
+PrUn exposes no 3D ship models, so hangar ships need stylized placeholder meshes — not
+"real" ship models. `PrunApi.Ship` turned out to have no reliable type/class field to
+key placeholders on (the game's own SHP screen shows a "Type" like "Freighter", but
+it's not present in the raw entity data we have), so — explicit decision this session —
+placeholder size is driven by real cargo-hold `volumeCapacity`
+(`warehousesStore` entry matching the ship's `idShipStore`) instead of a guessed
+taxonomy.
+
+Shipped: `src/game-3d/hangar.ts`'s `buildHangar()` — one-shot snapshot, same
+non-reactive pattern as the hologram. Each ship is a box hull + smaller "bridge" box,
+sized (length 0.35–1.1 world units) from its cargo capacity relative to the rest of the
+fleet, laid out in wrapped rows along the +Z wall (mirroring the -Z wall INV panel).
+Falls back to an empty group if there are no ships. Compiles clean.
+
+**Not live-verified.** A verification attempt (2026-07-25) confirmed 3D mode
+enters/exits cleanly and found the Phase 3 hologram correct, but couldn't reach either
+the hangar (opposite wall) or the CALC panel (side wall) to check them — turning the
+camera requires `PointerLockControls.isLocked`, and pointer lock doesn't engage under
+this CDP-driven test harness (`document.pointerLockElement` stayed `null` after a
+canvas click; matches the pre-existing `WrongDocumentError` gotcha in
+`.claude/skills/run/SKILL.md`, gotcha #24 — a harness limitation, not a confirmed
+`game-3d` defect). **Next session: verify the hangar and CALC panel via a manual human
+check** (a real mouse can turn the camera; the automation harness cannot), or add a
+test-only way to rotate the camera without pointer lock if automated coverage matters
+enough to invest in it.
 
 ## Phase 5 — Polish — NOT STARTED
 
@@ -210,3 +232,20 @@ than wait. **Not confirmed to render correctly.** Next session: relaunch the har
 verify the hologram live (rendering, position/scale, frame rate) before building
 anything further on top of it, then decide whether to close out Phase 2's leftovers or
 continue Phase 3.
+
+**2026-07-25** — Distilled prior session findings into `docs/architecture.md` (z-index
+gotcha), `docs/feature-patterns.md` (`xit.get()`), and `.claude/skills/run/SKILL.md`
+(2 new test-harness gotchas). Discovered mid-fix that three protected files
+(`settings.json`, `run/SKILL.md`, `game-tester.md`) had silently failed to update
+during this session's initial branch checkout (sandbox file lock) — restored them from
+HEAD before re-applying new content, so nothing from intervening commits was lost.
+User approved allowlisting the `grok -p` delegation command (turned out already
+present at HEAD). Started and shipped Phase 4: `src/game-3d/hangar.ts`
+(`buildHangar()`), placeholder ships sized off real cargo-hold capacity since `Ship`
+has no type/class field. Relaunched the browser harness and live-verified: the Phase 3
+hologram renders correctly. The CALC panel and hangar could not be reached for
+verification — camera turning needs pointer lock, which doesn't engage under this
+CDP-driven harness (same root cause as the pre-existing gotcha #24). Next session:
+verify the hangar and CALC panel via a manual human check (real mouse can turn the
+camera), then decide whether to close out Phase 2/3/4's remaining unverified items or
+continue to Phase 5.
