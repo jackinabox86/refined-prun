@@ -1,6 +1,8 @@
 import * as THREE from 'three';
 import { CSS3DRenderer } from 'three/examples/jsm/renderers/CSS3DRenderer.js';
 
+export const OVERLAY_Z_INDEX = 2147483646;
+
 /**
  * Stacks a WebGLRenderer and CSS3DRenderer in a fullscreen overlay, both driven
  * by the same PerspectiveCamera each frame.
@@ -16,7 +18,7 @@ export class DualRenderer {
     Object.assign(this.container.style, {
       position: 'fixed',
       inset: '0',
-      zIndex: '2147483646',
+      zIndex: String(OVERLAY_Z_INDEX),
       overflow: 'hidden',
       background: '#111',
     });

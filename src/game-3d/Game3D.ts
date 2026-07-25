@@ -3,6 +3,7 @@ import { PointerLockControls } from 'three/examples/jsm/controls/PointerLockCont
 import { DualRenderer } from '@src/game-3d/Renderer';
 import { buildRoom, clampToRoom, EYE_HEIGHT } from '@src/game-3d/room';
 import { createMovement } from '@src/game-3d/movement';
+import { createBufferWindowGuard } from '@src/game-3d/buffer-window-guard';
 import { createBufferPanel } from '@src/game-3d/buffer-panel';
 import { createModeOverlay } from '@src/game-3d/overlay';
 
@@ -12,6 +13,7 @@ export class Game3D {
   private readonly camera: THREE.PerspectiveCamera;
   private readonly controls: PointerLockControls;
   private readonly movement = createMovement();
+  private readonly bufferWindowGuard = createBufferWindowGuard();
   private readonly overlay: ReturnType<typeof createModeOverlay>;
   private readonly bufferPanel: ReturnType<typeof createBufferPanel>;
   private readonly clock = new THREE.Clock();
@@ -63,6 +65,7 @@ export class Game3D {
     window.addEventListener('resize', this.onResize);
     this.renderer.canvas.addEventListener('click', this.onCanvasClick);
     this.movement.attach();
+    this.bufferWindowGuard.attach();
     this.clock.start();
     this.tick();
   }
@@ -77,6 +80,7 @@ export class Game3D {
     window.removeEventListener('resize', this.onResize);
     this.renderer.canvas.removeEventListener('click', this.onCanvasClick);
     this.movement.detach();
+    this.bufferWindowGuard.detach();
 
     this.controls.removeEventListener('lock', this.onLock);
     this.controls.removeEventListener('unlock', this.onUnlock);
