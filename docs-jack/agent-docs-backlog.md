@@ -31,11 +31,6 @@ the repo owner should make. Delete an entry once it is done or rejected.
 
 ## `.claude/` surface
 
-- **`bootstrap-docs`, `explore-project`, `restructure-docs` (595 lines) look dead.** All
-  three revolve around `docs/exploration-manifest.md`, which has never existed —
-  `explore-project` hard-stops in its first phase because of it. None has been touched
-  since the original import; the doc-maintenance workflow actually in use is `distill`.
-  Either delete them or collapse to one small manifest-free `docs-audit` skill.
 - **`create-skill` (544 lines)** duplicates the harness's own skill-creator with no
   repo-specific content.
 - **The review trio** (`review-pr` → `augment-review` → `resolve-review`) is coherent, but
