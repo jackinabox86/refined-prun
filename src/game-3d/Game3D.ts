@@ -1,11 +1,12 @@
 import * as THREE from 'three';
 import { PointerLockControls } from 'three/examples/jsm/controls/PointerLockControls.js';
 import { DualRenderer } from '@src/game-3d/Renderer';
-import { buildRoom, clampToRoom, EYE_HEIGHT } from '@src/game-3d/room';
+import { buildRoom, clampToRoom, EYE_HEIGHT, ROOM_HALF } from '@src/game-3d/room';
 import { createMovement } from '@src/game-3d/movement';
 import { createBufferWindowGuard } from '@src/game-3d/buffer-window-guard';
 import { createBufferPanel, createCalcPanel } from '@src/game-3d/buffer-panel';
 import { buildHologram } from '@src/game-3d/hologram';
+import { buildHangar } from '@src/game-3d/hangar';
 import { createModeOverlay } from '@src/game-3d/overlay';
 
 export class Game3D {
@@ -51,6 +52,9 @@ export class Game3D {
     const hologram = buildHologram();
     hologram.position.set(0, 1.4, 0);
     this.scene.add(hologram);
+    const hangar = buildHangar();
+    hangar.position.set(0, 0, ROOM_HALF - 0.05);
+    this.scene.add(hangar);
     this.bufferPanel = createBufferPanel();
     this.scene.add(this.bufferPanel.object);
     this.calcPanel = createCalcPanel();
