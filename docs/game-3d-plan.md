@@ -173,6 +173,18 @@ the floor) and are easy to miss without pitching down close to the wall. Worth a
 follow-up (raise the ships, or angle a light at them) so they're visible from a normal
 eye-level glance, but the underlying render logic works.
 
+**Fixed and live-verified (2026-07-25, later same day):** added `HANGAR_DISPLAY_HEIGHT
+= 0.8` in `hangar.ts`, raising every ship's Y position by that amount (half of
+`room.ts`'s `EYE_HEIGHT`) — a pure vertical-offset change, no other layout/sizing logic
+touched. `game-tester` confirmed at a modest -8° to -15° pitch (well short of the
+previous steep-pitch requirement) the hull boxes are now clearly visible along the wall,
+with no floating/disconnected look and no ceiling clipping. One minor unresolved
+cosmetic detail, not a regression from this change: the smaller "bridge" boxes on top of
+each hull aren't visually distinguishable from a head-on angle (camera looks down the
+ship's long axis, same axis the bridge's offset is on) — would need a broadside/
+perpendicular viewing angle to confirm, not chased further as it doesn't affect the
+height fix.
+
 **CALC panel: real issue, not yet root-caused.** Same pointer-lock bypass used to
 inspect it directly. The panel shell (CSS3D-transformed rectangle) renders correctly
 with proper 3D perspective. DOM inspection confirmed the iframe's `@load` event fired
@@ -362,3 +374,13 @@ errors. Phase 5 is now close to done — the only remaining concrete gaps are th
 still-unverified CALC fix and getting a real-GPU perf baseline; both need hardware this
 harness doesn't have. Next session: get a human/real-GPU check for those two items, or
 decide they're acceptable to ship unverified for a spike.
+
+**2026-07-25, later same day (continued)** — Both remaining Phase 5 gaps needed hardware
+this harness doesn't have, so picked the one concrete, hardware-independent follow-up
+explicitly flagged under Phase 4: hangar ships sitting almost on the floor, invisible
+without a steep camera pitch. Fixed with a single vertical-offset constant
+(`HANGAR_DISPLAY_HEIGHT = 0.8` in `hangar.ts`) and live-verified via `game-tester` — now
+visible at a normal glance-down angle. Minor unrelated cosmetic finding (bridge boxes
+hard to distinguish head-on) noted but not chased. Phase 5's only remaining open items
+are the CALC fix and real-GPU perf baseline, both blocked on hardware/human access this
+session doesn't have.

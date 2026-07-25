@@ -10,6 +10,8 @@ const SHIP_MAX_LENGTH = 1.1;
 const SHIP_GAP = 0.25;
 const ROW_DEPTH = 0.9;
 const WALL_MARGIN = 0.6;
+// Half of eye height so ships sit in a natural glance-down band, not on the floor.
+const HANGAR_DISPLAY_HEIGHT = 0.8;
 
 const HULL_COLOR = 0x718096;
 const BRIDGE_COLOR = 0x4a5568;
@@ -121,7 +123,11 @@ export function buildHangar(): THREE.Group {
     }
     let x = -rowWidth / 2;
     for (const layout of row) {
-      layout.mesh.position.set(x + layout.width / 2, layout.height / 2, -rowIndex * ROW_DEPTH);
+      layout.mesh.position.set(
+        x + layout.width / 2,
+        HANGAR_DISPLAY_HEIGHT + layout.height / 2,
+        -rowIndex * ROW_DEPTH,
+      );
       group.add(layout.mesh);
       x += layout.width + SHIP_GAP;
     }
