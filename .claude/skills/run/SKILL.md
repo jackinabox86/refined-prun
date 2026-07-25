@@ -628,6 +628,20 @@ process for this profile, then retry.
     focus-sensitive. Same class of bug likely hits any other browser API gated on
     real OS-level window focus, not just pointer lock.
 
+25. **Global hotkeys (e.g. `game-3d`'s Ctrl+Alt+3) sent via `press` can silently fail to
+    fire if focus is on an open buffer's command input.** The input appears to capture
+    the keydown before it reaches the `document`-level listener. Use the on-screen
+    button equivalent (e.g. the overlay's "EXIT 3D" button) instead of relying on the
+    hotkey during automated tests.
+
+26. **A fullscreen `<canvas>` (e.g. `game-3d`'s WebGL/CSS3D overlay) intercepts real
+    mouse-coordinate clicks across its ENTIRE viewport, even fully transparent/unpainted
+    regions.** `document.elementFromPoint()` at a spot that visually shows something else
+    "behind" the canvas (a 2D floating window, say) still returns the canvas, not that
+    element — coordinate-based clicks aimed there hit the canvas instead. Dispatch
+    events/`.click()` directly on the target element rather than clicking by viewport
+    coordinates when testing anything layered with or behind a fullscreen canvas.
+
 ## Files
 
 - `scripts/pw-helper.mjs` — shared constants (paths, CDP port, APEX URL) and the

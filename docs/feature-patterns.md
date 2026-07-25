@@ -118,6 +118,13 @@ xit.add({
 });
 ```
 
+`xit.get(command)` (`src/features/XIT/xit-registry.ts`) looks up a command's descriptor,
+including `.component(parameters)` — the raw Vue component, with no DOM/window
+machinery involved. Useful whenever code needs to tell whether a command string is one
+of our own XIT commands (with a component we could render directly) versus a native
+APEX screen we don't own (not in this registry at all, e.g. `SHPI`) and can only ever
+exist as the game's own 2D UI.
+
 The file is auto-imported via `import.meta.glob` in `src/features/index.ts` — no manual registration needed.
 
 The command should be short. Refer to `docs/game/commands.csv` for an example of game commands. Alias is usually added for backwards compatibility or if the community REALLY wants it.
