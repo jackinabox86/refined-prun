@@ -3,6 +3,7 @@
 // type <selector> <text>, press <key>, screenshot <path>, list-windows,
 // window-text <match> [maxChars], select-option <selector> <value>,
 // styles <selector> <props-csv>, local-storage-get <key>,
+// game3d-test-rotate <yawDeg> <pitchDeg>, game3d-test-move <forward> <right>,
 // mouse-drag <x1> <y1> <x2> <y2> [steps],
 // drag-stack <ticker> <amount-box-label>, reload, eval <js-expression>
 //
@@ -403,6 +404,34 @@ switch (action) {
     // `eval "() => localStorage.getItem(...)"` snippet.
     const [key] = rest;
     console.log(await page.evaluate(k => localStorage.getItem(k), key));
+    break;
+  }
+  case 'game3d-test-rotate': {
+    // Rotates the game-3d camera directly, bypassing pointer lock (which
+    // doesn't work under this CDP harness — gotcha #24). Requires 3D mode to
+    // already be open; errors clearly if window.__rpGame3DTest isn't present
+    // instead of silently no-oping.
+    const [yawDeg, pitchDeg] = rest.map(Number);
+    const ok = await page.evaluate(([yaw, pitch]) => {
+      const api = window.__rpGame3DTest;
+      if (!api) return false;
+      api.rotate(yaw, pitch);
+      return true;
+    }, [yawDeg, pitchDeg]);
+    if (!ok) throw new Error('window.__rpGame3DTest not found — is 3D mode open?');
+    break;
+  }
+  case 'game3d-test-move': {
+    // Moves the game-3d camera directly, bypassing pointer lock. Same
+    // requirement/error behavior as game3d-test-rotate.
+    const [forward, right] = rest.map(Number);
+    const ok = await page.evaluate(([f, r]) => {
+      const api = window.__rpGame3DTest;
+      if (!api) return false;
+      api.move(f, r);
+      return true;
+    }, [forward, right]);
+    if (!ok) throw new Error('window.__rpGame3DTest not found — is 3D mode open?');
     break;
   }
   case 'mouse-drag': {

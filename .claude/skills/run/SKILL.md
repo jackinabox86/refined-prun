@@ -218,6 +218,14 @@ node scripts/pw-act.mjs styles '<selector>' 'prop1,prop2'    # computed style va
 node scripts/pw-act.mjs local-storage-get '<key>'            # reads one localStorage key — use
                                                              # this instead of an eval
                                                              # localStorage.getItem snippet
+node scripts/pw-act.mjs game3d-test-rotate <yawDeg> <pitchDeg>
+                                                             # game-3d only: rotates the camera
+                                                             # directly, bypassing pointer lock
+                                                             # (which doesn't work under this
+                                                             # harness — gotcha #24). Requires
+                                                             # 3D mode already open.
+node scripts/pw-act.mjs game3d-test-move <forward> <right>   # game-3d only: moves the camera,
+                                                             # same pointer-lock bypass as above.
 node scripts/pw-act.mjs real-drag-stack '<ticker>' '<box>'   # CONTD Drag tab via a REAL mouse
                                                              # drag (Playwright mouse down/
                                                              # move/up) — exercises the full
@@ -639,6 +647,19 @@ process for this profile, then retry.
     panels, a hangar) cannot be reached by an automated `game-tester` run. Don't spend
     an agent's turn budget retrying this; report it as blocked and ask for a manual
     human check (a real mouse engages pointer lock fine) instead.
+
+    **Update (2026-07-25, workaround added):** `src/game-3d/test-controls.ts` exposes
+    `window.__rpGame3DTest.{rotate,move}` while a `Game3D` instance is alive (attached
+    in `start()`, detached in `dispose()`), bypassing pointer lock entirely —
+    `rotate(yawDeg, pitchDeg)` sets the camera's orientation directly, `move(forward,
+    right)` calls `PointerLockControls.moveForward`/`moveRight` (those work regardless
+    of `isLocked`; only our own `movement.ts` gate needed pointer lock, not three.js
+    itself). Use the corresponding `pw-act.mjs` actions —
+    `game3d-test-rotate <yawDeg> <pitchDeg>` and `game3d-test-move <forward> <right>`
+    — instead of clicking the canvas to lock. This unblocks automated verification of
+    any wall/panel/hangar content; the *original* pointer-lock-itself behavior (real
+    click-to-lock walk mode) is still unverifiable under this harness and still needs
+    a manual human check if that specific mechanic is what's under test.
 
 25. **Global hotkeys (e.g. `game-3d`'s Ctrl+Alt+3) sent via `press` can silently fail to
     fire if focus is on an open buffer's command input.** The input appears to capture

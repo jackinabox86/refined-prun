@@ -8,6 +8,7 @@ import { createBufferPanel, createCalcPanel } from '@src/game-3d/buffer-panel';
 import { buildHologram } from '@src/game-3d/hologram';
 import { buildHangar } from '@src/game-3d/hangar';
 import { createModeOverlay } from '@src/game-3d/overlay';
+import { createTestControls } from '@src/game-3d/test-controls';
 
 export class Game3D {
   private readonly renderer = new DualRenderer();
@@ -16,6 +17,7 @@ export class Game3D {
   private readonly controls: PointerLockControls;
   private readonly movement = createMovement();
   private readonly bufferWindowGuard = createBufferWindowGuard();
+  private readonly testControls: ReturnType<typeof createTestControls>;
   private readonly overlay: ReturnType<typeof createModeOverlay>;
   private readonly bufferPanel: ReturnType<typeof createBufferPanel>;
   private readonly calcPanel: ReturnType<typeof createCalcPanel>;
@@ -63,6 +65,7 @@ export class Game3D {
     this.controls = new PointerLockControls(this.camera, this.renderer.canvas);
     this.controls.addEventListener('lock', this.onLock);
     this.controls.addEventListener('unlock', this.onUnlock);
+    this.testControls = createTestControls(this.camera, this.controls);
 
     this.overlay = createModeOverlay(() => {
       this.onClose();
@@ -77,6 +80,7 @@ export class Game3D {
     this.renderer.canvas.addEventListener('click', this.onCanvasClick);
     this.movement.attach();
     this.bufferWindowGuard.attach();
+    this.testControls.attach();
     this.clock.start();
     this.tick();
   }
@@ -92,6 +96,7 @@ export class Game3D {
     this.renderer.canvas.removeEventListener('click', this.onCanvasClick);
     this.movement.detach();
     this.bufferWindowGuard.detach();
+    this.testControls.detach();
 
     this.controls.removeEventListener('lock', this.onLock);
     this.controls.removeEventListener('unlock', this.onUnlock);

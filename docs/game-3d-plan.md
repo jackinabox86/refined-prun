@@ -142,7 +142,7 @@ to do something (open its buffer, navigate)? Decided NO for this pass — deferr
 matches the still-open Phase 2 panel-interaction/selection work, revisit once that
 lands.
 
-## Phase 4 — Ship hangar — CODE ADDED, NOT LIVE-VERIFIED
+## Phase 4 — Ship hangar — CODE ADDED, STILL NOT LIVE-VERIFIED
 
 Goal: a viewable hangar showing the player's ships, driven by `ships.ts`.
 
@@ -160,22 +160,47 @@ sized (length 0.35–1.1 world units) from its cargo capacity relative to the re
 fleet, laid out in wrapped rows along the +Z wall (mirroring the -Z wall INV panel).
 Falls back to an empty group if there are no ships. Compiles clean.
 
-**Not live-verified.** A verification attempt (2026-07-25) confirmed 3D mode
-enters/exits cleanly and found the Phase 3 hologram correct, but couldn't reach either
-the hangar (opposite wall) or the CALC panel (side wall) to check them — turning the
-camera requires `PointerLockControls.isLocked`, and pointer lock doesn't engage under
-this CDP-driven test harness (`document.pointerLockElement` stayed `null` after a
-canvas click; matches the pre-existing `WrongDocumentError` gotcha in
-`.claude/skills/run/SKILL.md`, gotcha #24 — a harness limitation, not a confirmed
-`game-3d` defect). **Next session: verify the hangar and CALC panel via a manual human
-check** (a real mouse can turn the camera; the automation harness cannot), or add a
-test-only way to rotate the camera without pointer lock if automated coverage matters
-enough to invest in it.
+**Hangar: LIVE-VERIFIED, working.** As of 2026-07-25, `src/game-3d/test-controls.ts`
+added a pointer-lock bypass (`window.__rpGame3DTest.{rotate,move}`, driven via
+`pw-act.mjs`'s `game3d-test-rotate`/`game3d-test-move` actions — pointer lock itself
+still doesn't work under this CDP harness, gotcha #24) that unblocked turning the
+camera and moving without a real mouse. A first `game-tester` pass with it reported the
+hangar as empty despite confirmed ship ownership (9 ships via `FLT`) — but a direct
+follow-up check (steep downward pitch close to the +Z wall) found the ship placeholder
+meshes rendering correctly. The first pass's "empty" result was a viewing-angle
+artifact, not a bug: ships sit very low (`SHIP_MIN_LENGTH * 0.22` ≈ 0.08 world units off
+the floor) and are easy to miss without pitching down close to the wall. Worth a Phase 5
+follow-up (raise the ships, or angle a light at them) so they're visible from a normal
+eye-level glance, but the underlying render logic works.
 
-## Phase 5 — Polish — NOT STARTED
+**CALC panel: real issue, not yet root-caused.** Same pointer-lock bypass used to
+inspect it directly. The panel shell (CSS3D-transformed rectangle) renders correctly
+with proper 3D perspective. DOM inspection confirmed the iframe's `@load` event fired
+(its sibling `LoadingSpinner` — rendered as `v-if="loading"`, not `v-else`, in
+`CALC.vue` — is gone from the DOM), ruling out a load/CSP failure. But the content area
+renders as a flat solid dark-gray box with no visible calculator UI across multiple
+close-range screenshots. Suspected cause: a known class of Chromium bug where iframe
+content fails to composite/paint when nested inside a `CSS3DRenderer`-transformed
+ancestor (`matrix3d` transforms) — possibly aggravated by WSLg's software-rendered GPU
+path in this specific test environment. **Not resolved — needs either a real
+GPU-accelerated browser check (to rule out a WSLg-only artifact) or three.js
+CSS3D+iframe compositing research**, not more automated screenshot attempts.
+
+## Phase 5 — Polish — IN PROGRESS
 
 Room aesthetics, movement feel, entry/exit UX, settings if any, performance tuning
 once several panels + hologram + hangar are live simultaneously.
+
+**Shipped (2026-07-25):** a brief delayed "Loading 3D mode…" indicator in
+`src/game-3d-launcher.ts` (only shows if the dynamic `import('@src/game-3d')` takes
+>150ms, so it doesn't flash on a warm cache) — live-verified. Room aesthetics in
+`src/game-3d/room.ts`: ceiling split into its own darker/cooler material (multi-material
+box instead of one flat color), a one-shot procedural `CanvasTexture` panel-line grid on
+walls/floor instead of flat color, and cooler-toned lighting — live-verified (ceiling
+distinct from walls, grid visible, no regression to the Phase 3 hologram).
+
+Still open: movement feel, entry/exit UX beyond the loading indicator, settings (if
+any), and multi-element performance tuning — none started yet.
 
 ## Open questions (deferred, not blocking early phases)
 
@@ -249,3 +274,24 @@ CDP-driven harness (same root cause as the pre-existing gotcha #24). Next sessio
 verify the hangar and CALC panel via a manual human check (real mouse can turn the
 camera), then decide whether to close out Phase 2/3/4's remaining unverified items or
 continue to Phase 5.
+
+**2026-07-25** — User chose to skip the manual-check/pointer-lock-fix decision for
+Phase 4 and move to Phase 5 instead. Shipped a first Phase 5 slice (scoped to what's
+verifiable without pointer lock): a delayed "Loading 3D mode…" indicator in
+`src/game-3d-launcher.ts`, and room aesthetics in `src/game-3d/room.ts` (distinct
+ceiling material, procedural `CanvasTexture` panel-grid on walls/floor, cooler
+lighting) — both live-verified by `game-tester`. Then, since the pointer-lock blocker
+had now hit three separate phases, built the test-only bypass infrastructure the plan
+had flagged as an option: `src/game-3d/test-controls.ts`
+(`window.__rpGame3DTest.{rotate,move}`) plus `pw-act.mjs` actions
+`game3d-test-rotate`/`game3d-test-move`, documented in `run/SKILL.md`. Used it to
+finally verify Phase 4's hangar and CALC panel: hangar renders correctly (a first
+automated pass wrongly reported it empty — root-caused to a viewing-angle artifact,
+ships sit very low near the floor); CALC panel shell renders but its iframe content
+area stays a blank dark box despite the iframe's `@load` firing (loading spinner
+confirmed gone from DOM) — a real unresolved issue, suspected Chromium
+CSS3D-transform+iframe compositing quirk, possibly WSLg-software-rendering-specific,
+not yet root-caused. Next session: either get a real-GPU browser check on the CALC
+panel to rule out a harness-only artifact, or research the three.js CSS3D+iframe
+compositing issue directly. All code changes (grok-authored, human-reviewed) compile
+and lint clean; nothing committed yet this session.
