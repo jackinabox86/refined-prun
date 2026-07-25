@@ -5,16 +5,13 @@ import { tileStatePlugin } from '@src/store/user-data-tiles';
 // Game-3d is explicitly permitted to import buffer components from features/XIT/
 // (see docs/architecture.md's game-3d section) — a deliberate, permanent exception.
 import INV from '@src/features/XIT/INV/INV.vue';
+import CALC from '@src/features/XIT/CALC.vue';
 
-/**
- * Wall-mounted CSS3D panel hosting a teleported INV buffer.
- * Returns the scene object plus the FragmentApp so the caller can unmount it
- * (appendTo(document.body) never auto-unmounts).
- */
-export function createBufferPanel() {
+function createPanelShell(widthPx: number, heightPx?: number) {
   const root = document.createElement('div');
   Object.assign(root.style, {
-    width: '700px',
+    width: `${widthPx}px`,
+    ...(heightPx === undefined ? {} : { height: `${heightPx}px` }),
     padding: '16px 20px',
     boxSizing: 'border-box',
     background: 'rgba(20, 28, 40, 0.92)',
@@ -25,17 +22,31 @@ export function createBufferPanel() {
     fontSize: '14px',
     pointerEvents: 'auto',
     userSelect: 'none',
+    position: 'relative',
   });
 
   const targetDiv = document.createElement('div');
   Object.assign(targetDiv.style, {
     width: '100%',
+    height: heightPx === undefined ? 'auto' : '100%',
+    position: 'relative',
   });
   root.append(targetDiv);
 
   const object = new CSS3DObject(root);
   // Pixel → world scale so the panel reads as wall-sized.
   object.scale.setScalar(0.01);
+
+  return { root, targetDiv, object };
+}
+
+/**
+ * Wall-mounted CSS3D panel hosting a teleported INV buffer.
+ * Returns the scene object plus the FragmentApp so the caller can unmount it
+ * (appendTo(document.body) never auto-unmounts).
+ */
+export function createBufferPanel() {
+  const { targetDiv, object } = createPanelShell(700);
   // Mount on the -Z wall, facing the room center.
   object.position.set(0, ROOM_HEIGHT * 0.55, -ROOM_HALF + 0.05);
   object.rotation.y = 0;
@@ -47,6 +58,27 @@ export function createBufferPanel() {
       <INV />
     </Teleport>
   )).use(tileStatePlugin, { tile: 'game-3d-inv-panel' });
+  app.appendTo(document.body);
+
+  return { object, app };
+}
+
+/**
+ * Wall-mounted CSS3D panel hosting XIT CALC (static iframe) for Phase 2 iframe-in-CSS3D
+ * verification. No tileStatePlugin — CALC has no ambient Vue context deps.
+ */
+export function createCalcPanel() {
+  // Matches CALC.ts bufferSize so the iframe (height: 100%) has a real box.
+  const { targetDiv, object } = createPanelShell(275, 326);
+  // +X wall; local +Z (CSS3D front) → -X via -π/2 so the panel faces the room center.
+  object.position.set(ROOM_HALF - 0.05, ROOM_HEIGHT * 0.55, 0);
+  object.rotation.y = -Math.PI / 2;
+
+  const app = createFragmentApp(() => (
+    <Teleport to={targetDiv}>
+      <CALC />
+    </Teleport>
+  ));
   app.appendTo(document.body);
 
   return { object, app };

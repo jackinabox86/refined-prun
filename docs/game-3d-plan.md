@@ -58,38 +58,47 @@ Key finding: Teleported buffers can depend on ambient Vue context (provide/injec
 future buffer candidate needs this same check before assuming a Teleport will "just
 work."
 
-## Phase 2 — Buffer panels, hardened — IN PROGRESS
+## Phase 2 — Buffer panels, hardened — PAUSED (not fully done; moved to Phase 3 by explicit call)
 
 Goal: go from "one buffer survives being teleported" to "arbitrary buffers can be
 placed as wall panels reliably."
 
 Carried over from Phase 1:
 
-- **Side-effect leakage.** Clicking a row in `INV.vue` calls `showBuffer(cmd)`
-  (`src/infrastructure/prun-ui/buffers.ts`), which creates a real 2D floating window.
-  Root cause confirmed: the 3D overlay container sets `zIndex: 2147483646`
-  (`src/game-3d/Renderer.ts`), so the new window paints underneath it — invisible
-  until 3D mode exits. Not a logic bug, a stacking-context bug.
-  - Fix direction chosen: make windows opened this way render **on top of** the 3D
-    overlay (like a popup floating in front of the room) instead of building a
-    parallel "redirect into another 3D panel" system. Works uniformly for both XIT
-    commands and native APEX commands (see below), and needs far less code.
+- **Side-effect leakage — RESOLVED.** Clicking a row in `INV.vue` calls
+  `showBuffer(cmd)` (`src/infrastructure/prun-ui/buffers.ts`), which creates a real 2D
+  floating window. Root cause confirmed live: the 3D overlay container sets
+  `zIndex: 2147483646` (`src/game-3d/Renderer.ts`), so the new window painted
+  underneath it — invisible until 3D mode exited. Fixed by
+  `src/game-3d/buffer-window-guard.ts`, wired into `Game3D.ts`'s `start()`/`dispose()`:
+  bumps new `.Window.window` elements to `OVERLAY_Z_INDEX + 1`, and — because the
+  game's own window manager rewrites that same element's `style` attribute on every
+  focus click/drag, clobbering a one-time bump — also watches `style` attribute
+  mutations and re-applies the z-index every time the game overwrites it. Live-verified
+  via game-tester: creation, title-bar click, real drag, and clean deactivation on exit
+  (a fresh 2D-only buffer afterward gets an ordinary z-index again, no leak).
   - Note: some `onClickCmd` targets (e.g. `INV`) are our own XIT commands, registered
     in `src/features/XIT/xit-registry.ts` — `xit.get(cmd).component(params)` hands
     back a real Vue component we could Teleport directly instead. Others (e.g.
     `SHPI`, a native ship-cargo screen) are not ours at all and can only ever exist as
-    a real 2D window — no component to Teleport. The chosen z-index fix handles both
-    cases the same way, so this distinction doesn't block it, but keep it in mind if a
-    future "open XIT commands as a new 3D panel instead" enhancement is considered.
-- **Escape-to-unlock**, confirmed only under CDP-synthesized automation input
-  (Ctrl+Alt+3 used as the practical escape hatch during Phase 1 testing) — suspected
-  browser-chrome trusted-input distinction, not a `game-3d` bug, but unconfirmed on
-  real hardware. Needs an actual human at a real keyboard — automation harnesses share
-  the same CDP limitation, so this can't be verified by an agent.
-- **Iframe-embedding buffer** — untested. No buffer tried in Phase 1 embeds one; still
-  unknown whether Teleport avoids an iframe-reload-on-reparent problem.
+    a real 2D window — no component to Teleport. The z-index fix handles both cases
+    the same way, so this distinction didn't block it, but keep it in mind if a future
+    "open XIT commands as a new 3D panel instead" enhancement is considered.
+- **Escape-to-unlock — CONFIRMED.** User confirmed manually on real hardware
+  (2026-07-24): Escape does unlock pointer lock correctly outside the automation
+  harness. The Phase 1 concern was a CDP-synthesized-input limitation of the test
+  harness, not a `game-3d` bug, as suspected.
+- **Iframe-embedding buffer — CODE ADDED, NOT LIVE-VERIFIED.** Added
+  `createCalcPanel()` in `src/game-3d/buffer-panel.tsx`, hosting `XIT CALC`
+  (`src/features/XIT/CALC.vue`, a static iframe, no ambient Vue context deps) on the
+  room's +X wall, wired into `Game3D.ts` alongside the existing INV panel. Compiles and
+  lints clean. Live verification (does the iframe render/scale correctly under the
+  CSS3D transform, accept clicks, avoid unexpected reloads) was started via
+  `game-tester` but interrupted by the user for taking too long — **not confirmed
+  either way**. Don't treat this as resolved; re-run the live check before relying on
+  iframe buffers working.
 
-Also likely work before Phase 2 is done:
+Also likely work before Phase 2 is done (none of this started):
 
 - Multiple simultaneous panels without perf falling over.
 - A way to choose which buffer/command goes on which panel.
@@ -99,7 +108,10 @@ Also likely work before Phase 2 is done:
 
 **Definition of done:** at least 3-4 meaningfully different buffer types work as
 panels simultaneously, at an acceptable frame rate, without visual/interaction
-glitches, and all three carried-over items above are resolved (not just noted).
+glitches, and all three carried-over items above are resolved (not just noted). **Not
+met** — moved on to Phase 3 by explicit user direction rather than closing this out
+first. Anyone resuming Phase 2 should pick up: live-verify the CALC iframe panel, then
+the "also likely work" list above.
 
 ## Phase 3 — Region map hologram — NOT STARTED
 
@@ -158,3 +170,15 @@ XIT commands — meaning not every `showBuffer()` target can ever become a 3D pa
 which is why the z-index fix (general) was chosen over redirect-to-panel (XIT-only).
 Next: implement the z-index fix, verify live, find an iframe-embedding buffer
 candidate to test, and get a human to confirm Escape-to-unlock on real hardware.
+
+**2026-07-24** — Implemented and live-verified the z-index fix
+(`buffer-window-guard.ts`): first pass only bumped z-index at window-creation time,
+which `game-tester` caught failing on a plain title-bar click (game's window manager
+clobbers the element's `style` attribute on focus/drag); second pass added a `style`
+attribute-mutation observer to re-apply the bump, confirmed passing on click, drag, and
+clean exit. User confirmed Escape-to-unlock manually on real hardware. Added a second
+wall panel (`createCalcPanel()`, XIT CALC) as an iframe test candidate — compiles
+clean, but live verification was interrupted before completing (not confirmed working
+or broken). Per explicit user direction, moving on to Phase 3 without closing out
+Phase 2's remaining items (iframe live-check, multi-panel work, panel-selection
+mechanism, close/reopen behavior) — those remain open for whoever returns to Phase 2.

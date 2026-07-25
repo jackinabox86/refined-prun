@@ -4,7 +4,7 @@ import { DualRenderer } from '@src/game-3d/Renderer';
 import { buildRoom, clampToRoom, EYE_HEIGHT } from '@src/game-3d/room';
 import { createMovement } from '@src/game-3d/movement';
 import { createBufferWindowGuard } from '@src/game-3d/buffer-window-guard';
-import { createBufferPanel } from '@src/game-3d/buffer-panel';
+import { createBufferPanel, createCalcPanel } from '@src/game-3d/buffer-panel';
 import { createModeOverlay } from '@src/game-3d/overlay';
 
 export class Game3D {
@@ -16,6 +16,7 @@ export class Game3D {
   private readonly bufferWindowGuard = createBufferWindowGuard();
   private readonly overlay: ReturnType<typeof createModeOverlay>;
   private readonly bufferPanel: ReturnType<typeof createBufferPanel>;
+  private readonly calcPanel: ReturnType<typeof createCalcPanel>;
   private readonly clock = new THREE.Clock();
   private rafId = 0;
   private disposed = false;
@@ -48,6 +49,8 @@ export class Game3D {
     this.scene.add(buildRoom());
     this.bufferPanel = createBufferPanel();
     this.scene.add(this.bufferPanel.object);
+    this.calcPanel = createCalcPanel();
+    this.scene.add(this.calcPanel.object);
 
     this.controls = new PointerLockControls(this.camera, this.renderer.canvas);
     this.controls.addEventListener('lock', this.onLock);
@@ -89,8 +92,9 @@ export class Game3D {
     }
     this.controls.dispose();
 
-    // Body-mounted bridge never auto-unmounts; tear down store subscriptions.
+    // Body-mounted bridges never auto-unmount; tear down store subscriptions.
     this.bufferPanel.app.unmount();
+    this.calcPanel.app.unmount();
     this.renderer.dispose();
   }
 
