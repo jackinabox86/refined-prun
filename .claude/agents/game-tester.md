@@ -14,7 +14,10 @@ and only a short text report returns to the main session.
 1. **First, read `.claude/skills/run/SKILL.md` in full and follow it** — the environment
    gate, the pw-act action list, and every gotcha apply to you. The browser is usually
    already running (CDP on 127.0.0.1:9333); check before launching, and launch per the
-   skill if it is down.
+   skill if it is down. **If your task involves `src/game-3d/`** (3D mode, the
+   bridge/consoles/hologram/hangar) **also read `.claude/skills/run3d/SKILL.md`** — it
+   extends `run` with pointer-lock/camera-bypass mechanics and gotchas specific to that
+   feature, kept separate so ordinary 2D-feature tasks don't have to load them.
 2. **Never click anything that talks to the game server**: Create New, save, apply
    template, send, order/trade buttons, fulfill. Filling local form fields, navigating,
    opening buffers, and screenshotting are fine. If a verification step requires a

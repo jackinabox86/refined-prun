@@ -31,6 +31,11 @@ window is visible on the Windows desktop via WSLg) with the built extension, usi
 persistent profile so login survives across runs. It exposes a CDP
 debug port so follow-up steps can attach and drive the page without relaunching.
 
+**Testing `src/game-3d/` (the 3D Game Mode spike) specifically?** Read the `run3d`
+skill instead of hunting for 3D content here — it extends this skill with the
+pointer-lock-broken-under-CDP limitation, a test-only camera bypass, and 3D-specific
+gotchas, kept separate so normal 2D-feature testing sessions never have to load them.
+
 ## Prerequisites (one-time per machine)
 
 1. **pnpm on PATH.** Install the version pinned in `package.json`'s `packageManager`
@@ -218,14 +223,6 @@ node scripts/pw-act.mjs styles '<selector>' 'prop1,prop2'    # computed style va
 node scripts/pw-act.mjs local-storage-get '<key>'            # reads one localStorage key — use
                                                              # this instead of an eval
                                                              # localStorage.getItem snippet
-node scripts/pw-act.mjs game3d-test-rotate <yawDeg> <pitchDeg>
-                                                             # game-3d only: rotates the camera
-                                                             # directly, bypassing pointer lock
-                                                             # (which doesn't work under this
-                                                             # harness — gotcha #24). Requires
-                                                             # 3D mode already open.
-node scripts/pw-act.mjs game3d-test-move <forward> <right>   # game-3d only: moves the camera,
-                                                             # same pointer-lock bypass as above.
 node scripts/pw-act.mjs real-drag-stack '<ticker>' '<box>'   # CONTD Drag tab via a REAL mouse
                                                              # drag (Playwright mouse down/
                                                              # move/up) — exercises the full
@@ -621,105 +618,9 @@ process for this profile, then retry.
     keypress fires `change` correctly. Verify persistence by re-reading from a freshly
     opened buffer, not the same DOM.
 
-24. **`requestPointerLock()` fails from CDP-driven input with `WrongDocumentError`
-    even when `document.hasFocus()` is `true`.** Confirmed root cause (not a guess):
-    `connectOverCDP` + synthetic `page.mouse.click()` / `page.keyboard.press()` does
-    not establish real OS-level window focus for the Chromium window under WSLg —
-    `document.hasFocus()` is a Blink-level concept and reports `true` anyway. Pointer
-    Lock's stricter check needs the browser window to be the OS-foreground window;
-    without it Chromium rejects with `WrongDocumentError: "The root document of this
-    element is not valid for pointer lock."` (read from a monkey-patched
-    `Element.prototype.requestPointerLock` promise rejection). `pw-act.mjs` now calls
-    `page.bringToFront()` before every action, so this shouldn't recur for tests
-    driven through it — but if writing an ad-hoc `.local/scratch/*.mjs` script that
-    bypasses `pw-act.mjs`, call `page.bringToFront()` yourself before anything
-    focus-sensitive. Same class of bug likely hits any other browser API gated on
-    real OS-level window focus, not just pointer lock.
-
-    **Update (2026-07-25, confirmed twice):** `bringToFront()` does not actually fix
-    this for `game-3d`'s pointer lock in practice — `document.pointerLockElement`
-    stayed `null` after clicking the canvas via `pw-act.mjs`, and WASD/turning had no
-    effect (movement and camera rotation both gate on `PointerLockControls.isLocked`,
-    see `src/game-3d/movement.ts` and `Game3D.ts`). This means **any verification that
-    requires turning the camera or walking around the 3D room is currently blocked
-    entirely** under this CDP-driven harness, not just the original pointer-unlock
-    check — content on any wall other than the one facing spawn (e.g. side/rear wall
-    panels, a hangar) cannot be reached by an automated `game-tester` run. Don't spend
-    an agent's turn budget retrying this; report it as blocked and ask for a manual
-    human check (a real mouse engages pointer lock fine) instead.
-
-    **Update (2026-07-25, workaround added):** `src/game-3d/test-controls.ts` exposes
-    `window.__rpGame3DTest.{rotate,move}` while a `Game3D` instance is alive (attached
-    in `start()`, detached in `dispose()`), bypassing pointer lock entirely —
-    `rotate(yawDeg, pitchDeg)` sets the camera's orientation directly, `move(forward,
-    right)` calls `PointerLockControls.moveForward`/`moveRight` (those work regardless
-    of `isLocked`; only our own `movement.ts` gate needed pointer lock, not three.js
-    itself). Use the corresponding `pw-act.mjs` actions —
-    `game3d-test-rotate <yawDeg> <pitchDeg>` and `game3d-test-move <forward> <right>`
-    — instead of clicking the canvas to lock. This unblocks automated verification of
-    any wall/panel/hangar content; the *original* pointer-lock-itself behavior (real
-    click-to-lock walk mode) is still unverifiable under this harness and still needs
-    a manual human check if that specific mechanic is what's under test.
-
-25. **Global hotkeys (e.g. `game-3d`'s Ctrl+Alt+3) sent via `press` can silently fail to
-    fire if focus is on an open buffer's command input.** The input appears to capture
-    the keydown before it reaches the `document`-level listener. Use the on-screen
-    button equivalent (e.g. the overlay's "EXIT 3D" button) instead of relying on the
-    hotkey during automated tests.
-
-26. **A fullscreen `<canvas>` (e.g. `game-3d`'s WebGL/CSS3D overlay) intercepts real
-    mouse-coordinate clicks across its ENTIRE viewport, even fully transparent/unpainted
-    regions.** `document.elementFromPoint()` at a spot that visually shows something else
-    "behind" the canvas (a 2D floating window, say) still returns the canvas, not that
-    element — coordinate-based clicks aimed there hit the canvas instead. Dispatch
-    events/`.click()` directly on the target element rather than clicking by viewport
-    coordinates when testing anything layered with or behind a fullscreen canvas.
-
-27. **A screenshot showing "nothing there" in a sparse 3D scene (e.g. `game-3d`) is not
-    proof the content failed to render** — it's equally consistent with a viewing-angle
-    or scale artifact. This happened for real: a `game-tester` run concluded the
-    `hangar.ts` ship placeholders were missing/broken after checking several angles,
-    but a direct follow-up (steep downward pitch, close to the wall, using the
-    `game3d-test-rotate`/`-move` actions from gotcha #24) found them rendering
-    correctly — they just sit very low (a few centimeters off the floor) and are easy
-    to miss without pitching down close to the wall. Before concluding a 3D element
-    isn't rendering: try a steep-angle/close-distance pass first, or check the
-    element's actual world position/scale against the camera's rather than trusting an
-    absence-of-content screenshot at a "reasonable" viewing angle.
-
-    **Related, for iframes specifically:** a blank/unpainted iframe inside a CSS3D
-    panel doesn't mean it failed to load — check the DOM directly to distinguish "never
-    loaded" from "loaded but not painted." E.g. `CALC.vue` renders a `LoadingSpinner` as
-    a sibling of the iframe (`v-if="loading"`, not `v-else`) that only disappears once
-    the iframe's `@load` fires; if that sibling is gone from the DOM but the panel still
-    looks blank, the load succeeded and the real issue is downstream (rendering/paint,
-    not network/CSP) — confirmed once this way for the `game-3d` CALC panel, which
-    turned out to still not paint despite a confirmed successful load (suspected
-    Chromium CSS3D-transform+iframe compositing quirk, not yet root-caused — see
-    `docs/game-3d-plan.md` Phase 4).
-
-28. **This harness's browser has no real GPU — WebGL runs on `SwiftShader`, a software
-    rasterizer.** Confirmed via `webgl-renderer-info`: `ANGLE (Google, Vulkan (SwiftShader
-    Device...), SwiftShader driver)`. Software-rendering a WebGL+CSS3D scene is expected
-    to be 10-50x slower than real GPU hardware, so any FPS number measured here (use
-    `fps-check [seconds]`) is not a trustworthy signal of real-world performance on its
-    own. This happened for real: a combined `game-3d` scene (room + hologram + hangar +
-    two CSS3D panels, live simultaneously for the first time) measured 4.2-4.7 FPS —
-    confirmed not a harness-wide freeze (a blank tab hit 60fps at the same moment) before
-    running `webgl-renderer-info` and finding the software-rasterizer cause. Always run
-    `webgl-renderer-info` alongside any `fps-check` and report both together — a low
-    number without it is not enough to diagnose a real perf regression, and don't start
-    optimizing product code off an `fps-check` number alone.
-
-    **Related, for pointer-lock-gated code specifically:** the `game3d-test-rotate`/
-    `-move` bypass from gotcha #24 calls three.js's `PointerLockControls` methods
-    directly — it does NOT exercise any of `game-3d`'s own code layered on top that
-    normally gates on `controls.isLocked` (e.g. `movement.ts`'s WASD acceleration/
-    deceleration smoothing). The bypass proves geometry/position/rendering works: it
-    cannot verify movement *feel*, input handling, or any other logic that only runs
-    through the real pointer-lock path. Report that class of change as compiles-clean-
-    but-unverified and needing a human with a real mouse, rather than trying to route it
-    through the bypass.
+**Gotchas #24 and up, all specific to `src/game-3d/` (pointer lock, the 3D canvas, and
+the test-only camera bypass), moved to the `run3d` skill** — see that skill if you're
+testing 3D mode.
 
 ## Files
 
