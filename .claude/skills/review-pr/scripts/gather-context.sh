@@ -14,7 +14,6 @@ gh pr view --json comments,reviews --jq '.comments[].body, .reviews[].body' > "$
 pid_comments=$!
 
 files=$(gh pr view --json files --jq '.files[].path')
-pid_files=$!
 
 wait $pid_diff
 wait $pid_comments

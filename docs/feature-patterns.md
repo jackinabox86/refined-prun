@@ -157,25 +157,17 @@ const pkg: UserData.ActionPackageData = {
 
 The `pkg` is a plain hardcoded object, not persisted user data — `ExecuteActionPackage` runs it exactly like a saved package (CONFIGURE only appears if an action still needs runtime input; PREVIEW/EXECUTE always available). Trigger it from anywhere with `showBuffer('XIT REFUELACT')` (see `PlanetHeader.vue`'s `XIT BURNACT` button for a row-level example, or `FLT.vue`'s Fuel-column header button for another).
 
-**Never embed `ExecuteActionPackage` inside a long-lived planner tile.** The split
-happens **at mount**, not at run time: `ActionRunner`'s constructor builds its
-`TileAllocator`, which immediately splits a solo buffer. So rendering
-`ExecuteActionPackage` behind a `v-if` splits and remounts the host the instant the
-condition flips true — non-persisted planner state resets before any run starts (this
-broke DISPATCH's first embedded-run design and wiped GOVBURNACT's slot picks). Instead
-stage the built package in a module-level ref and open a dedicated
-XIT command whose window renders `ExecuteActionPackage` (see
-`src/features/XIT/DISPATCH/staged.ts` + `DISPATCHACT.ts`, or GOVBURN's `staged.ts` +
-`GOVBURNEXEC.ts`). To consume the planner window instead of stranding it behind a new
-runner window, change the planner tile's own command in place:
-`dispatchClientPrunMessage(UI_TILES_CHANGE_COMMAND(tile.id, null))` then
-`(tile.id, 'XIT <CMD>')` — the null-then-command two-step is required, and keep
-`showBuffer` as the fallback when the first dispatch fails (see
-`GovBurnActWindow.vue`'s `onExecuteClick`). Besides `afterExecute`,
-`ExecuteActionPackage` accepts `beforeExecute` — logs emitted there land at the top of
-the run log. (DISPATCH used to print its offload JSONs that way; they now go through
-`LOG_JSON` steps emitted by MTRA's `offloadGroups` path, with `agentGroups` controlling
-the agent-channel posts.)
+**Never embed `ExecuteActionPackage` inside a long-lived planner tile.** It splits its
+host buffer at **mount** (`ActionRunner` → `TileAllocator`), so a `v-if` reveal remounts
+the host and wipes non-persisted planner state before the run starts (this broke
+DISPATCH's first embedded-run design and wiped GOVBURNACT's slot picks). Stage the built
+package in a module-level ref and open a dedicated XIT command that renders
+`ExecuteActionPackage` (`DISPATCH/staged.ts` + `DISPATCHACT.ts`; GOVBURN's `staged.ts` +
+`GOVBURNEXEC.ts`). To reuse the planner window rather than strand it, change that tile's
+command in place — `dispatchClientPrunMessage(UI_TILES_CHANGE_COMMAND(tile.id, null))`
+then `(tile.id, 'XIT <CMD>')`; the null-then-command two-step is required, with
+`showBuffer` as the fallback if the first dispatch fails (`GovBurnActWindow.vue`).
+Hooks: `beforeExecute` (logs land at the top of the run log) and `afterExecute`.
 
 **A host `v-if`/`v-else` gating `ExecuteActionPackage` must not depend on data the run
 itself mutates.** `XIT AGENT`'s `ExecuteStoredPackage.vue` used to resolve its `pkg` via
@@ -389,7 +381,7 @@ Four auto-imported functions for finding elements by CSS class name (`C.X.y`) or
 | Function | Returns | Mechanism | Use When |
 |----------|---------|-----------|----------|
 | `$` | `Promise<Element>` | MutationObserver — resolves when first match appears | Waiting for element to render (gate pattern) |
-| `$$` | `AsyncIterable<Element>` | MutationObserver — yields existing + future matches | Processing current and dynamically added elements |
+| `$$` | `Observable<Element>` | MutationObserver — emits existing + future matches | Processing current and dynamically added elements |
 | `_$` | `Element \| undefined` | Sync `getElementsByClassName` / `getElementsByTagName` | Element is guaranteed to exist already |
 | `_$$` | `Element[]` | Sync snapshot of all matches | All target elements exist already |
 
@@ -413,9 +405,9 @@ const container = await $(tile.anchor, C.StoreView.container);
 const text = await $(container, C.CommodityAd.text);
 ```
 
-### `$$` — Async Iterable (Subscribe Pattern)
+### `$$` — Observable (Subscribe Pattern)
 
-`AsyncIterable` that yields existing matches immediately, then watches for new ones via MutationObserver. Almost always paired with `subscribe()`.
+`Observable` (`src/utils/observable.ts`) that emits existing matches immediately, then watches for new ones via MutationObserver. Always paired with `subscribe()` — it is not an async iterable, so `for await` does not work on it.
 
 ```ts
 // Process each row as it appears (current + future)
@@ -666,22 +658,12 @@ for the established pattern. Don't reach for the tile-state store (`useTileState
 `user-data-tiles.ts`) for this; that's for state scoped to a specific saved tile instance
 (used by XIT panels), not a general feature preference.
 
-**Don't use `removeItem` to represent a falsy/off state if the key's absence already means
-something else (like "never configured, use the default").** `getItem` returns `null` for
-both "key was removed" and "key was never set" — those collapse into the same value, so a
-`?? defaultValue` fallback silently overrides an explicit off state on the next load. Store
-an explicit value (e.g. `''`) for the off state instead, so presence vs. absence of the key
-stays meaningful:
+**Always `setItem` an explicit off-value; never `removeItem`.** `getItem` returns `null`
+for both "removed" and "never set", so a `?? defaultValue` fallback silently overrides an
+explicit off state on the next load. Keep absence of the key meaning only "never
+configured":
 
 ```ts
-// Bad: hiding removes the key, so the next `getItem` returns null and falls
-// through to the "open by default" default — the hidden state doesn't stick.
-watch(isOpen, value => {
-  if (value) localStorage.setItem(key, value);
-  else localStorage.removeItem(key);
-});
-
-// Good: always set — absence of the key only ever means "never configured".
 const state = ref(localStorage.getItem(key) ?? 'default');
 watch(state, value => localStorage.setItem(key, value));
 ```
@@ -763,67 +745,20 @@ for (const type of ['keydown', 'keypress', 'keyup'] as const) {
 
 ### Companion Buffers (Splitting)
 
-To split a tile and set a companion command, click the tile's split button then wait for the node and change the companion's command.
+Use `openCompanionBuffer(tile, command)` (see above) — it owns the whole sequence.
+Splitting by hand is a trap: `tile.frame` is destroyed by the split, so anything read
+from the tile has to be captured first, and the companion has to be located and
+commanded after a MutationObserver wait. The split control characters (found via
+`C.TileControls.control`) are `'–'` for a vertical split and `'|'` for a horizontal one.
 
-Split button characters (found via `C.TileControls.control`):
-- `'–'` (en-dash) = vertical split (top / bottom)
-- `'|'` = horizontal split (left / right)
-
-**Important:** `tile.frame` may be destroyed after a split. Capture `windowEl` and read `tile.container` / `tile.id` *before* clicking.
-
-```ts
-import { setBufferSize } from '@src/infrastructure/prun-ui/buffers';
-import { clickElement, changeInputValue } from '@src/util';
-import { getPrunId } from '@src/infrastructure/prun-ui/attributes';
-import { UI_TILES_CHANGE_COMMAND } from '@src/infrastructure/prun-api/client-messages';
-import { dispatchClientPrunMessage } from '@src/infrastructure/prun-api/prun-api-listener';
-
-async function splitVertically(tile: PrunTile, companionCommand: string) {
-  // Capture window reference before the split destroys tile.frame.
-  const windowEl = tile.frame.closest(`.${C.Window.window}`) as HTMLElement;
-
-  if (tile.container.classList.contains(C.Window.body)) {
-    // Solo floating buffer: make taller, then split.
-    const w = parseInt(tile.container.style.width, 10) || 600;
-    const h = parseInt(tile.container.style.height, 10) || 400;
-    setBufferSize(tile.id, w, h + 450);
-
-    const splitBtn = _$$(tile.frame, C.TileControls.control).find(x => x.textContent === '–');
-    await clickElement(splitBtn);
-
-    // MutationObserver waits for the Node to appear after the split.
-    const node = await $(windowEl, C.Node.node);
-    const companion = _$$(node, C.Node.child)[1]; // new tile is always the second child
-    if (companion) await setTileCommand(companion, companionCommand);
-  } else if (tile.container.classList.contains(C.Node.child)) {
-    // Already in a split: reuse the sibling.
-    const node = tile.container.parentElement!;
-    const sibling = _$$(node, C.Node.child).find(x => x !== tile.container);
-    if (sibling) await setTileCommand(sibling, companionCommand);
-  }
-}
-
-async function setTileCommand(child: Element, command: string) {
-  const tileEl = _$(child, C.Tile.tile) as HTMLElement | null;
-  if (!tileEl) return;
-  const id = getPrunId(tileEl)!;
-  if (!dispatchClientPrunMessage(UI_TILES_CHANGE_COMMAND(id, command))) {
-    const input = (await $(child, C.PanelSelector.input)) as HTMLInputElement;
-    changeInputValue(input, command);
-    input.form!.requestSubmit();
-  }
-}
-```
-
-See also `src/features/XIT/ACT/runner/tile-allocator.ts` for the full horizontal-split companion pattern used by ACT.
-
-> **Note:** `openCompanionBuffer` + `setChildCommand` (horizontal variant of the above) is duplicated across `inv-analysis-button.tsx`, `shpi-base-inv-button.tsx`, and `shpi-warehouse-button.tsx`. Consider extracting to a shared utility in `buffers.ts` if a fourth caller appears.
+ACT allocates its runner panes the same way — see
+`src/features/XIT/ACT/runner/tile-allocator.ts` for the multi-pane variant.
 
 ---
 
 ## Left Sidebar Replacement
 
-The `custom-left-sidebar` feature hides the base-game sidebar buttons (`#TOUR_TARGET_SIDEBAR_LEFT_02`) and renders its own configurable set from `userData.settings.sidebar` (label → command pairs, drag-reorderable). Defaults remap several labels to XIT buffers (CONT → `XIT CONTS`, FIN → `XIT FIN`, MAP → `MU`) and append extension-only entries (ACT, BURN, REP, SET, HELP → `XIT *`). Consequence for testing: sidebar clicks in the harness hit extension buttons, not base-game ones — the base mapping is documented in `docs/game/sidebar-screens.md`.
+The `custom-left-sidebar` feature hides the base-game sidebar buttons (`#TOUR_TARGET_SIDEBAR_LEFT_02`) and renders its own configurable set from `userData.settings.sidebar` (label → command pairs, drag-reorderable). Defaults remap several labels to XIT buffers (CONT → `XIT CONTS`, FIN → `XIT FIN`, MAP → `MU`) and append extension-only entries (ACT, BURN, REP, SET, HELP → `XIT *`). Consequence for testing: sidebar clicks in a browser with the extension loaded hit extension buttons, not base-game ones — the base mapping is documented in `docs/game/sidebar-screens.md`.
 
 ## Context Controls
 
@@ -1076,6 +1011,7 @@ Signature: `(value: number) => string`. Do **not** accept `undefined`.
 | `fixed02` | 0–2 | `"1,234"`, `"1,234.56"` | Values where trailing zeros are noise |
 | `fixed1` | 1 | `"1,234.6"` | Always 1 decimal |
 | `fixed2` | 2 | `"1,234.56"` | Prices, always exactly 2 decimals |
+| `fixed4` | 4 | `"1,234.5678"` | Rates and per-unit factors |
 | `percent0` | 0 | `"43%"` | Large percentages (>100%) |
 | `percent1` | 1 | `"42.5%"` | Medium percentages (10–100%) |
 | `percent2` | 2 | `"3.45%"` | Small percentages (<10%) |

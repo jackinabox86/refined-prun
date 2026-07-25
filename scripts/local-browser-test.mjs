@@ -7,20 +7,38 @@
 // browser stays alive; it also opens a CDP port (see pw-helper.mjs CDP_PORT) so
 // follow-up scripts can attach via chromium.connectOverCDP() without relaunching
 // the browser or touching the profile lock.
-import { playwright, distDir, profileDir, APEX_URL, CDP_PORT } from './pw-helper.mjs';
+import { existsSync } from 'node:fs';
+import { loadPlaywright, distDir, profileDir, APEX_URL, CDP_PORT } from './pw-helper.mjs';
 
-const { chromium } = playwright;
+const { chromium } = loadPlaywright();
 
-const context = await chromium.launchPersistentContext(profileDir, {
-  // No `channel`: use Playwright's own downloaded Chromium (Linux-native under WSL2,
-  // visible via WSLg) instead of a system browser — see docs-jack/wsl-migration-guide.md.
-  headless: false,
-  args: [
-    `--disable-extensions-except=${distDir}`,
-    `--load-extension=${distDir}`,
-    `--remote-debugging-port=${CDP_PORT}`,
-  ],
-});
+// Chromium loads an unpacked extension from disk once, at launch. A missing dist/
+// starts a browser with no extension at all, which looks exactly like a broken
+// feature — fail here instead.
+if (!existsSync(distDir)) {
+  console.error(`No build at ${distDir}. Run: pnpm run build:fast`);
+  process.exit(1);
+}
+
+let context;
+try {
+  context = await chromium.launchPersistentContext(profileDir, {
+    // No `channel`: use Playwright's own downloaded Chromium (Linux-native under WSL2,
+    // visible via WSLg) instead of a system browser — see docs-jack/wsl-migration-guide.md.
+    headless: false,
+    args: [
+      `--disable-extensions-except=${distDir}`,
+      `--load-extension=${distDir}`,
+      `--remote-debugging-port=${CDP_PORT}`,
+    ],
+  });
+} catch (error) {
+  if (String(error).includes('Opening in existing browser session')) {
+    console.error('A previous browser still holds this profile. Run: node scripts/pw-kill.mjs');
+    process.exit(1);
+  }
+  throw error;
+}
 
 const page = context.pages()[0] ?? (await context.newPage());
 await page.goto(APEX_URL);

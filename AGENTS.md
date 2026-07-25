@@ -1,6 +1,9 @@
 # AGENTS.md
 
 This file provides guidance to AI agents when working with code in this repository.
+It is deliberately agent-neutral: anything true only of one CLI, one model, or one
+machine belongs in that tool's own config (for Claude Code, `.claude/harness-notes.md`),
+not here.
 
 ## YOUR ROLE
 
@@ -19,8 +22,7 @@ Refined PrUn (rprun) is a browser extension for Prosperous Universe (PrUn) that 
 For feature work (new feature, fix feature, refactor, PR review), create the following to-do list immediately. ALL STEPS ARE MANDATORY. DO NOT SKIP ANY.
 
 - Analyze user request
-- Run `find docs/ -name "*.md" | sort` for available docs
-- Read `docs/README.md`
+- Read `docs/README.md` — it indexes every doc and says what each is for
 - Read docs based on task type:
   - **New feature / Fix feature**: `docs/feature-patterns.md`, `docs/game/ui-concepts.md`, relevant game docs
   - **Refactor infra**: `docs/architecture.md`
@@ -29,69 +31,47 @@ For feature work (new feature, fix feature, refactor, PR review), create the fol
 - Analyze examples from docs
 - Revise the plan and present todo items to the user
 - Once the user accepts, create revised todo items
-- Execute — delegate per `## DELEGATION` below; use skills and commands that can help solve the task
-- Verify UI-visible changes in the real game via the run skill (`.claude/skills/run/SKILL.md`)
+- Execute — delegate per `## DELEGATION` below
+- Check your work: `pnpm run compile` (types + lint) always; verify UI-visible changes
+  against the real game per `docs/browser-testing.md`
 
 For small tasks (one-line fixes, running tests, infra chores, questions): skip the plan-approval round trip. Still read the docs relevant to whatever you touch.
 
 ## DELEGATION
 
-Implementation and verification are delegated, not done in the main session — one place for both:
+Implementation and verification are both delegated, not done in the orchestrating session:
 
-- **Coding tasks (writing/editing code):** delegate to Grok Build (`grok` CLI, xAI's Grok 4.5)
-  instead of editing files directly or spawning a Claude subagent for it:
+- **Coding tasks (writing/editing code):** delegate to Grok Build (`grok` CLI) rather than
+  editing files yourself:
   ```
   grok --no-auto-update --no-alt-screen --always-approve -p "<task description>"
   ```
-  Give it the same context you'd give a subagent — file paths, which doc sections apply, what
-  "done" looks like. Review its diff (`git diff`) against `docs/contributing.md` and the plan
-  before calling the task done; Grok writes, Claude verifies. Keep direct edits for one-line
-  fixes, `AGENTS.md` itself, and cleaning up whatever Grok gets wrong. Auth
-  (`GROK_CODE_XAI_API_KEY` env var, or an already-completed `grok login`) is set up once per
-  machine by the user — never run `grok login` on their behalf.
-- **Browser/UI verification:** delegate to the `game-tester` agent
-  (`.claude/agents/game-tester.md`), per `.claude/skills/run/SKILL.md`. Screenshots and DOM
-  dumps stay in its context, not the main session's.
-
-## SANDBOX & GIT
-
-The Bash sandbox denies writes to `.claude/` control files (skills, hooks, settings) by design. Some of those files are also git-tracked and differ between branches, so a sandboxed `git checkout`/`git stash` crossing them fails **midway** ("Read-only file system"), leaving git half-done. You can't know in advance whether `.claude/` files differ, so never attempt the sandboxed version first: run any `git checkout`/`git stash` crossing main unsandboxed from the start.
-
-The sandbox also denies writes to `.git/config`, so any git command that writes repo
-config (`git push -u`, `git branch --set-upstream-to`, `git config --local`,
-`git remote add/set-url`) fails sandboxed with a **misleading** error:
-`could not lock config file .git/config: File exists`. There is no stale lock — don't
-hunt for one (a sandboxed `ls` even shows a phantom `config.lock` that doesn't exist
-outside the sandbox). Sneakiest case: sandboxed `git push -u` pushes successfully but
-silently drops the tracking config, leaving the branch pushed but untracked. Run
-config-writing git commands unsandboxed from the start; the `.git/config` deny is
-intentional, so never work around it by widening the allowlist.
-
-`grok` also refreshes its OAuth token against `auth.x.ai` on every invocation, not just at
-`grok login` — that host needs to be in `sandbox.network.allowedDomains` in
-`.claude/settings.json`, or every call falls back to a manual sandbox-bypass approval. That
-setting isn't exposed through the `/sandbox` command; edit `.claude/settings.json` directly.
-
-When invoking `grok -p`, never build the prompt with command substitution (`-p "$(cat
-brief.md)"`) — `$(...)` trips Claude Code's injection detection and forces a manual
-approval even though the `grok --no-auto-update --no-alt-screen --always-approve -p *`
-prefix is allowlisted. Write the brief to a file and pass a literal prompt instead:
-`-p "Read <absolute path> and implement it exactly."`. Also start the prompt with an
-explicit "IMPLEMENT NOW, do not ask for confirmation" — in `-p` mode grok otherwise tends
-to restate the plan and end with "OK to proceed?" without touching any files.
-
-The same injection detection flags heredoc-fed interpreter code (`python3 - <<'EOF'`),
-bypassing both the allowlist and sandboxed auto-allow. Use `python3 -c '...'` for
-one-liners, or write the script to the scratchpad or `.local/scratch/` and run the
-path — `python3 -c *`, `python3 /tmp/claude-1000/*`, and `python3 .local/scratch/*`
-are allowlisted.
+  Give it what you'd give any sub-agent — file paths, which doc sections apply, what "done"
+  looks like — and start the prompt with an explicit "IMPLEMENT NOW, do not ask for
+  confirmation"; in `-p` mode it otherwise restates the plan and stops. For anything longer
+  than a couple of sentences, write the brief to a file and point at it
+  (`-p "Read <absolute path> and implement it exactly."`). Then review its diff
+  (`git diff`) against `docs/contributing.md` and the plan: Grok writes, you verify. Keep
+  direct edits for one-line fixes, this file, and cleaning up whatever Grok gets wrong.
+  Auth is set up once per machine by the user — never run `grok login` on their behalf.
+  If the `grok` CLI isn't available in the current environment, say so once and implement
+  directly instead of working around it.
+- **Browser/UI verification:** drive the harness in `docs/browser-testing.md` from a
+  sub-agent where your tooling has one (Claude Code: the `game-tester` agent), so
+  screenshots and DOM dumps stay out of the orchestrating session's context.
 
 ## DISTILL
 
-The distill skill captures session learnings into the docs. Run it once per session, near the end — not after every task.
+Capture session learnings into the docs (Claude Code: the `distill` skill) once per
+session, near the end — not after every task.
 
-- Before writing a PR: ALWAYS run distill and commit its output first. No exceptions.
-- Otherwise, when the session is wrapping up, ask the user whether to run distill. Never let a session end without at least asking.
+- Before writing a PR: ALWAYS distill and commit its output first. No exceptions.
+- Otherwise, when the session is wrapping up, ask the user whether to distill. Never let a session end without at least asking.
+- Distilled findings go to the doc that owns the subject: game behaviour to `docs/game/`,
+  extension patterns to `docs/feature-patterns.md`, harness traps to
+  `docs/browser-testing.md`. Compress to the rule; keep the incident only when it is the
+  evidence for the rule. Cross-reference by section title, never by list number — numbered
+  references break silently the moment the list is reordered.
 
 ## MEMORY
 

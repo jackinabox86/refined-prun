@@ -1,5 +1,5 @@
 // Force-kills any leftover browser process tree still holding the
-// .local/browser-profile lock (see .claude/skills/run/SKILL.md gotcha #9).
+// .local/browser-profile lock (see docs/browser-testing.md → "Launch").
 // A stale process here blocks local-browser-test.mjs from launching even right
 // after a clean pw-close.mjs, with no other symptom than a launch error.
 // Windows finds msedge.exe processes via PowerShell + taskkill; Linux/WSL2

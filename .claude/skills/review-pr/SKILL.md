@@ -56,9 +56,7 @@ If `.tmp/pr/<number>/pr-review.md` exists, this is an incremental re-review. Rea
 
 If the file does not exist, this is a fresh review.
 
-## Phase 3: Prettier + Commit
-
-## Phase 4: Gather Context
+## Phase 4: Prettier, Lint, Gather Context
 
 Run formatting, linting, and context gathering in parallel:
 
@@ -113,7 +111,7 @@ The worktree is a detached HEAD snapshot of the current commit (post-merge, post
 
 **File reading:** When reading source files referenced in the diff, read from `.tmp/pr/<number>/workspace/<path>` (the worktree), not from the main worktree. This ensures you see the clean PR state regardless of the user's concurrent edits. Docs (`docs/`) can be read from either location. Artifacts (`pr-diff.txt`, `eslint-output.txt`) are at `.tmp/pr/<number>/` on the main worktree.
 
-Review the diff against **every rule in the docs you read in Phase 3**. The docs contain Good/Bad examples — use those as the reference. Only flag items that actually appear in the diff. Do not invent issues.
+Review the diff against **every rule in the docs you read in Phase 4**. The docs contain Good/Bad examples — use those as the reference. Only flag items that actually appear in the diff. Do not invent issues.
 
 Check these categories. For each, the source of truth is the doc file, not this list:
 
