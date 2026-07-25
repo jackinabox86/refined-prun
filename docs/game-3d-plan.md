@@ -260,7 +260,9 @@ No settings added — nothing so far has needed one.
 
 Append a short entry at the end of any session that does real work here — date, what
 happened, what was learned, what's next. Read the whole log before starting work, not
-just the Vision section.
+just the Vision section. This is separate from running the `/distill` skill (which
+captures reusable cross-session learnings into `AGENTS.md`/`docs/architecture.md`/
+`.claude/skills/*`) — updating this log is normal work on this plan, not a distill run.
 
 **2026-07-24** — Phase 1 spike built on `3d-game-mode-spike`, pushed, no PR yet.
 Core mechanic proven: walkable room, WebGL+CSS3D combo, real buffer (`INV.vue`)

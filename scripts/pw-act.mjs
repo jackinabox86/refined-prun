@@ -3,6 +3,7 @@
 // type <selector> <text>, press <key>, screenshot <path>, list-windows,
 // window-text <match> [maxChars], select-option <selector> <value>,
 // styles <selector> <props-csv>, local-storage-get <key>,
+// webgl-renderer-info, fps-check [seconds],
 // game3d-test-rotate <yawDeg> <pitchDeg>, game3d-test-move <forward> <right>,
 // mouse-drag <x1> <y1> <x2> <y2> [steps],
 // drag-stack <ticker> <amount-box-label>, reload, eval <js-expression>
@@ -404,6 +405,54 @@ switch (action) {
     // `eval "() => localStorage.getItem(...)"` snippet.
     const [key] = rest;
     console.log(await page.evaluate(k => localStorage.getItem(k), key));
+    break;
+  }
+  case 'webgl-renderer-info': {
+    // Reports whether WebGL is backed by a real GPU or a software rasterizer
+    // (e.g. SwiftShader) — data-only, no arguments, unlike a bespoke `eval`
+    // snippet reading WEBGL_debug_renderer_info. Check this before trusting
+    // any FPS/perf number out of this harness (gotcha #28).
+    const info = await page.evaluate(() => {
+      const c = document.createElement('canvas');
+      const gl = c.getContext('webgl') || c.getContext('webgl2');
+      if (!gl) return { error: 'no webgl context' };
+      const dbg = gl.getExtension('WEBGL_debug_renderer_info');
+      return {
+        vendor: dbg ? gl.getParameter(dbg.UNMASKED_VENDOR_WEBGL) : gl.getParameter(gl.VENDOR),
+        renderer: dbg
+          ? gl.getParameter(dbg.UNMASKED_RENDERER_WEBGL)
+          : gl.getParameter(gl.RENDERER),
+      };
+    });
+    console.log(JSON.stringify(info));
+    break;
+  }
+  case 'fps-check': {
+    // Measures actual rendered frame rate over N seconds via
+    // requestAnimationFrame counting — data-only (one optional numeric
+    // argument), replaces the bespoke `eval` snippet used to check game-3d's
+    // frame rate. Cross-check with webgl-renderer-info before treating a low
+    // number as a real perf bug (gotcha #28).
+    const seconds = Number(rest[0] ?? '2');
+    const result = await page.evaluate(
+      s =>
+        new Promise(resolve => {
+          const start = performance.now();
+          let frames = 0;
+          const tick = () => {
+            frames++;
+            const elapsed = performance.now() - start;
+            if (elapsed < s * 1000) {
+              requestAnimationFrame(tick);
+              return;
+            }
+            resolve({ frames, ms: elapsed, fps: frames / (elapsed / 1000) });
+          };
+          requestAnimationFrame(tick);
+        }),
+      seconds,
+    );
+    console.log(JSON.stringify(result));
     break;
   }
   case 'game3d-test-rotate': {

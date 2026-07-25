@@ -698,6 +698,29 @@ process for this profile, then retry.
     Chromium CSS3D-transform+iframe compositing quirk, not yet root-caused — see
     `docs/game-3d-plan.md` Phase 4).
 
+28. **This harness's browser has no real GPU — WebGL runs on `SwiftShader`, a software
+    rasterizer.** Confirmed via `webgl-renderer-info`: `ANGLE (Google, Vulkan (SwiftShader
+    Device...), SwiftShader driver)`. Software-rendering a WebGL+CSS3D scene is expected
+    to be 10-50x slower than real GPU hardware, so any FPS number measured here (use
+    `fps-check [seconds]`) is not a trustworthy signal of real-world performance on its
+    own. This happened for real: a combined `game-3d` scene (room + hologram + hangar +
+    two CSS3D panels, live simultaneously for the first time) measured 4.2-4.7 FPS —
+    confirmed not a harness-wide freeze (a blank tab hit 60fps at the same moment) before
+    running `webgl-renderer-info` and finding the software-rasterizer cause. Always run
+    `webgl-renderer-info` alongside any `fps-check` and report both together — a low
+    number without it is not enough to diagnose a real perf regression, and don't start
+    optimizing product code off an `fps-check` number alone.
+
+    **Related, for pointer-lock-gated code specifically:** the `game3d-test-rotate`/
+    `-move` bypass from gotcha #24 calls three.js's `PointerLockControls` methods
+    directly — it does NOT exercise any of `game-3d`'s own code layered on top that
+    normally gates on `controls.isLocked` (e.g. `movement.ts`'s WASD acceleration/
+    deceleration smoothing). The bypass proves geometry/position/rendering works: it
+    cannot verify movement *feel*, input handling, or any other logic that only runs
+    through the real pointer-lock path. Report that class of change as compiles-clean-
+    but-unverified and needing a human with a real mouse, rather than trying to route it
+    through the bypass.
+
 ## Files
 
 - `scripts/pw-helper.mjs` — shared constants (paths, CDP port, APEX URL) and the
