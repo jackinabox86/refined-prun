@@ -675,6 +675,29 @@ process for this profile, then retry.
     events/`.click()` directly on the target element rather than clicking by viewport
     coordinates when testing anything layered with or behind a fullscreen canvas.
 
+27. **A screenshot showing "nothing there" in a sparse 3D scene (e.g. `game-3d`) is not
+    proof the content failed to render** — it's equally consistent with a viewing-angle
+    or scale artifact. This happened for real: a `game-tester` run concluded the
+    `hangar.ts` ship placeholders were missing/broken after checking several angles,
+    but a direct follow-up (steep downward pitch, close to the wall, using the
+    `game3d-test-rotate`/`-move` actions from gotcha #24) found them rendering
+    correctly — they just sit very low (a few centimeters off the floor) and are easy
+    to miss without pitching down close to the wall. Before concluding a 3D element
+    isn't rendering: try a steep-angle/close-distance pass first, or check the
+    element's actual world position/scale against the camera's rather than trusting an
+    absence-of-content screenshot at a "reasonable" viewing angle.
+
+    **Related, for iframes specifically:** a blank/unpainted iframe inside a CSS3D
+    panel doesn't mean it failed to load — check the DOM directly to distinguish "never
+    loaded" from "loaded but not painted." E.g. `CALC.vue` renders a `LoadingSpinner` as
+    a sibling of the iframe (`v-if="loading"`, not `v-else`) that only disappears once
+    the iframe's `@load` fires; if that sibling is gone from the DOM but the panel still
+    looks blank, the load succeeded and the real issue is downstream (rendering/paint,
+    not network/CSP) — confirmed once this way for the `game-3d` CALC panel, which
+    turned out to still not paint despite a confirmed successful load (suspected
+    Chromium CSS3D-transform+iframe compositing quirk, not yet root-caused — see
+    `docs/game-3d-plan.md` Phase 4).
+
 ## Files
 
 - `scripts/pw-helper.mjs` — shared constants (paths, CDP port, APEX URL) and the
