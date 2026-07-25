@@ -113,17 +113,35 @@ met** — moved on to Phase 3 by explicit user direction rather than closing thi
 first. Anyone resuming Phase 2 should pick up: live-verify the CALC iframe panel, then
 the "also likely work" list above.
 
-## Phase 3 — Region map hologram — NOT STARTED
+## Phase 3 — Region map hologram — CODE ADDED, NOT LIVE-VERIFIED
 
 Goal: a 3D representation of a region of the star map, driven by real data.
 
-Data sources already exist and are reactive: `stars.ts`, `sectors.ts`, `planets.ts` in
-`src/infrastructure/prun-api/data/`. No new data plumbing needed — this phase is a
-rendering layer (likely instanced points/spheres) consuming stores that already exist.
+Decided: visual only for this pass, no click interaction (deferred, see below).
+
+Shipped: `src/game-3d/hologram.ts`'s `buildHologram()` — a one-shot (non-reactive;
+universe topology doesn't change mid-session) snapshot render. Picks a reference star
+from the player's first `sitesStore` entry (via `getEntityNaturalIdFromAddress` →
+`starsStore.getByPlanetNaturalId`), filters `starsStore.all` to that reference's
+`sectorId` (the region), fits the bounding box of those positions to a `HOLOGRAM_SPAN`
+of 2.4 world units, renders each star as a small emissive sphere colored by
+`StarType` (standard stellar classification colors), and draws de-duplicated
+`LineSegments` for in-region `connections`. Wired into `Game3D.ts`'s constructor,
+floating at `(0, 1.4, 0)` — room center, doesn't collide with the INV/CALC wall
+panels. Falls back to an empty group (renders nothing) if the player has no bases yet,
+or star data hasn't loaded — no throw.
+
+Compiles/lints clean, but **the local browser test harness was down when this was
+built (CDP connection refused) and live verification was explicitly deferred by the
+user** — not confirmed to actually render correctly, be positioned sensibly, or run at
+an acceptable frame rate. Verify this before treating Phase 3 as under way for real:
+does it render at all, is `HOLOGRAM_SPAN`/position reasonable to look at while walking
+the room, does sphere count for a typical sector stay cheap.
 
 Open design question: is it just a visual, or can you click a system in the hologram
-to do something (open its buffer, navigate)? Decide when the phase starts, based on
-what Phase 2 teaches about panel interaction.
+to do something (open its buffer, navigate)? Decided NO for this pass — deferred,
+matches the still-open Phase 2 panel-interaction/selection work, revisit once that
+lands.
 
 ## Phase 4 — Ship hangar — NOT STARTED
 
@@ -182,3 +200,13 @@ clean, but live verification was interrupted before completing (not confirmed wo
 or broken). Per explicit user direction, moving on to Phase 3 without closing out
 Phase 2's remaining items (iframe live-check, multi-panel work, panel-selection
 mechanism, close/reopen behavior) — those remain open for whoever returns to Phase 2.
+
+**2026-07-25** — Started Phase 3: added `src/game-3d/hologram.ts` (`buildHologram()`),
+a one-shot star-region hologram centered on the player's home sector, colored by star
+type, with connection lines; visual-only for this pass per explicit user decision.
+Compiles clean. Live verification blocked — the local test browser harness had died
+(CDP `ECONNREFUSED`) and the user chose to skip relaunching/verifying for now rather
+than wait. **Not confirmed to render correctly.** Next session: relaunch the harness,
+verify the hologram live (rendering, position/scale, frame rate) before building
+anything further on top of it, then decide whether to close out Phase 2's leftovers or
+continue Phase 3.

@@ -5,6 +5,7 @@ import { buildRoom, clampToRoom, EYE_HEIGHT } from '@src/game-3d/room';
 import { createMovement } from '@src/game-3d/movement';
 import { createBufferWindowGuard } from '@src/game-3d/buffer-window-guard';
 import { createBufferPanel, createCalcPanel } from '@src/game-3d/buffer-panel';
+import { buildHologram } from '@src/game-3d/hologram';
 import { createModeOverlay } from '@src/game-3d/overlay';
 
 export class Game3D {
@@ -47,6 +48,9 @@ export class Game3D {
     this.camera.position.set(0, EYE_HEIGHT, 2);
 
     this.scene.add(buildRoom());
+    const hologram = buildHologram();
+    hologram.position.set(0, 1.4, 0);
+    this.scene.add(hologram);
     this.bufferPanel = createBufferPanel();
     this.scene.add(this.bufferPanel.object);
     this.calcPanel = createCalcPanel();
