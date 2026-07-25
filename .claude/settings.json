@@ -14,20 +14,18 @@
       "Bash(head *)",
       "Bash(wc *)",
       "Bash(find *)",
-      "Bash(curl *)",
+      "Bash(curl http://127.0.0.1:9333*)",
       "Bash(pnpm *)",
       "Bash(npx eslint *)",
       "Bash(npx prettier *)",
       "Bash(pnpm exec eslint *)",
-      "Bash(tasklist *)",
       "Bash(node .local/scratch/*)",
-      "Bash(python3 -c *)",
-      "Bash(python3 /tmp/claude-1000/*)",
       "Bash(python3 .local/scratch/*)",
       "Bash(pgrep *)",
       "Bash(grok --no-auto-update --no-alt-screen --always-approve -p *)",
       "Bash(git merge-base *)",
       "Edit",
+      "Write",
       "Agent",
       "SendMessage",
       "ToolSearch",
@@ -54,7 +52,8 @@
       "node .local/scratch/*",
       "sleep *",
       "pgrep *",
-      "curl *"
+      "curl http://127.0.0.1:9333*",
+      "curl -s http://127.0.0.1:9333*"
     ]
   }
 }
