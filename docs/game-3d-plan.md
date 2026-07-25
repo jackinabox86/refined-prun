@@ -175,7 +175,18 @@ Define `ConsoleDefinition` and the generic `createConsole()` builder (reusing
 existing INV and CALC panels into this shape as the first two consoles, and reposition
 them into the arc-facing-center layout (a `room.ts`/`Game3D.ts` layout change, not just
 a code reshape). Housing mesh stays a plain placeholder frame at this stage — no visual
-investment yet. Not started.
+investment yet. **Done, live-verified 2026-07-25.** `console.ts` (`ConsoleDefinition`,
+`createConsole()` — resolves each screen via the `xit` registry (`xit.get(command)`)
+rather than hardcoded per-command imports, so Expansion Phase 3's full roster is pure
+data, no new panel-constructor code per console) + `console-roster.ts` (arc math,
+`buildConsoles()`). INV and CALC are now freestanding (off the walls) on a 140° arc,
+radius 3.0, centered on the room's front-center, at ±70°. The CALC-specific
+iframe-repaint workaround (Phase 2 of the spike) was generalized into
+`attachIframeRepaintWorkaround()` in `buffer-panel.tsx`, applied to every console screen
+unconditionally — cheap since it's a no-op when no iframe is present, and needed since
+any future XIT command screen could render one. `themeColor` and `controlSurface` exist
+in `ConsoleDefinition` per the day-one decision above, unconsumed until Phase 5/4
+respectively.
 
 ### Expansion Phase 2 — Interaction system
 
@@ -239,3 +250,15 @@ recorded above (arc-facing-center layout, press-E-to-focus-in-place, declarative
 console data model, control-surface screen reserved now but wired to the real
 action-runner later, `themeColor` reserved from day one). No code written yet — next
 session starts Expansion Phase 1.
+
+**2026-07-25 (2)** — Implemented and live-verified Expansion Phase 1 (see that section
+above for what shipped). Notable design decision made mid-implementation, not
+pre-recorded above: `createConsole()` resolves screens generically through the existing
+`xit` command registry (`src/features/XIT/xit-registry.ts`) instead of hardcoded
+per-command Vue imports like the spike's `createBufferPanel`/`createCalcPanel` did —
+found this registry already existed and is exactly what the real 2D XIT host uses, so
+Expansion Phase 3 (full roster) becomes pure data (add a roster entry with a command
+string) rather than new constructor code per console. Delegated implementation to Grok
+per `AGENTS.md`'s DELEGATION section; diff matched the brief closely on first pass, no
+rework needed. Next session starts Expansion Phase 2 (interaction system — Raycaster +
+E-key focus).

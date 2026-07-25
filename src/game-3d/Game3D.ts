@@ -4,7 +4,7 @@ import { DualRenderer } from '@src/game-3d/Renderer';
 import { buildRoom, clampToRoom, EYE_HEIGHT, ROOM_HALF } from '@src/game-3d/room';
 import { createMovement } from '@src/game-3d/movement';
 import { createBufferWindowGuard } from '@src/game-3d/buffer-window-guard';
-import { createBufferPanel, createCalcPanel } from '@src/game-3d/buffer-panel';
+import { buildConsoles } from '@src/game-3d/console-roster';
 import { buildHologram } from '@src/game-3d/hologram';
 import { buildHangar } from '@src/game-3d/hangar';
 import { createModeOverlay } from '@src/game-3d/overlay';
@@ -19,8 +19,7 @@ export class Game3D {
   private readonly bufferWindowGuard = createBufferWindowGuard();
   private readonly testControls: ReturnType<typeof createTestControls>;
   private readonly overlay: ReturnType<typeof createModeOverlay>;
-  private readonly bufferPanel: ReturnType<typeof createBufferPanel>;
-  private readonly calcPanel: ReturnType<typeof createCalcPanel>;
+  private readonly consoles = buildConsoles();
   private readonly clock = new THREE.Clock();
   private rafId = 0;
   private disposed = false;
@@ -57,10 +56,9 @@ export class Game3D {
     const hangar = buildHangar();
     hangar.position.set(0, 0, ROOM_HALF - 0.05);
     this.scene.add(hangar);
-    this.bufferPanel = createBufferPanel();
-    this.scene.add(this.bufferPanel.object);
-    this.calcPanel = createCalcPanel();
-    this.scene.add(this.calcPanel.object);
+    for (const c of this.consoles) {
+      this.scene.add(c.group);
+    }
 
     this.controls = new PointerLockControls(this.camera, this.renderer.canvas);
     this.controls.addEventListener('lock', this.onLock);
@@ -106,9 +104,9 @@ export class Game3D {
     this.controls.dispose();
 
     // Body-mounted bridges never auto-unmount; tear down store subscriptions.
-    this.bufferPanel.app.unmount();
-    this.calcPanel.dispose();
-    this.calcPanel.app.unmount();
+    for (const c of this.consoles) {
+      c.dispose();
+    }
     this.renderer.dispose();
   }
 
