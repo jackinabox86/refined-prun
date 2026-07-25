@@ -628,6 +628,18 @@ process for this profile, then retry.
     focus-sensitive. Same class of bug likely hits any other browser API gated on
     real OS-level window focus, not just pointer lock.
 
+    **Update (2026-07-25, confirmed twice):** `bringToFront()` does not actually fix
+    this for `game-3d`'s pointer lock in practice — `document.pointerLockElement`
+    stayed `null` after clicking the canvas via `pw-act.mjs`, and WASD/turning had no
+    effect (movement and camera rotation both gate on `PointerLockControls.isLocked`,
+    see `src/game-3d/movement.ts` and `Game3D.ts`). This means **any verification that
+    requires turning the camera or walking around the 3D room is currently blocked
+    entirely** under this CDP-driven harness, not just the original pointer-unlock
+    check — content on any wall other than the one facing spawn (e.g. side/rear wall
+    panels, a hangar) cannot be reached by an automated `game-tester` run. Don't spend
+    an agent's turn budget retrying this; report it as blocked and ask for a manual
+    human check (a real mouse engages pointer lock fine) instead.
+
 25. **Global hotkeys (e.g. `game-3d`'s Ctrl+Alt+3) sent via `press` can silently fail to
     fire if focus is on an open buffer's command input.** The input appears to capture
     the keydown before it reaches the `document`-level listener. Use the on-screen

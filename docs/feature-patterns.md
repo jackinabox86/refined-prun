@@ -614,6 +614,7 @@ Map getters are keyed by API values, which don't always match what the game UI s
 
 - `materialsStore.getByName` is keyed by the API's camelCase internal name (`basicRations`). UI text holds the i18n **display** name ("Basic Rations") — resolve that with `getMaterialByName` from `@src/infrastructure/prun-ui/i18n` instead (reverse direction: `getMaterialName`).
 - `stationsStore.getByNaturalId` is keyed by the station's **own** natural id (`MOR`), but game address fields canonicalize stations to their **system** id (`OT-580`). To resolve a system id to its station, search `stationsStore.all.value` by `getSystemLineFromAddress(x.address)?.entity.naturalId`.
+- `PrunApi.Ship` has no type/class field (no "Freighter" vs. "Shuttle" distinction), even though the game's own `SHP` screen shows one — it's not present in the raw entity data. A ship's cargo-hold capacity is a reliable stand-in for "how big is this ship": resolve it via `warehousesStore.all.value?.find(x => x.storeId === ship.idShipStore)`, then read `.volumeCapacity`/`.weightCapacity` off the matched `Warehouse`.
 
 ---
 
