@@ -1,6 +1,10 @@
 import * as THREE from 'three';
 import { h, Teleport } from 'vue';
-import { attachIframeRepaintWorkaround, createPanelShell } from '@src/game-3d/buffer-panel';
+import {
+  attachIframeRepaintWorkaround,
+  createPanelShell,
+  SCREEN_SCALE,
+} from '@src/game-3d/buffer-panel';
 import { tileStatePlugin } from '@src/store/user-data-tiles';
 
 export interface ConsoleScreenDefinition {
@@ -20,8 +24,6 @@ export interface ConsoleDefinition {
   controlSurface?: { widthPx: number; heightPx: number };
 }
 
-/** Pixel → world scale used by createPanelShell (CSS3DObject.scale). */
-const SCREEN_SCALE = 0.01;
 /** World-unit gap between adjacent screens so panel borders don't touch. */
 const SCREEN_GAP = 0.2;
 

@@ -49,6 +49,24 @@ const ROSTER: RosterEntry[] = [
     screens: [{ command: 'INV', widthPx: 700 }],
   },
   {
+    id: 'baseplanning',
+    purpose: 'Base Planning',
+    themeColor: 0x68d391,
+    screens: [
+      { command: 'BS', widthPx: 480 },
+      { command: 'PROD', widthPx: 480 },
+    ],
+  },
+  {
+    id: 'companyops',
+    purpose: 'Company Ops',
+    themeColor: 0xb794f4,
+    screens: [
+      { command: 'CONTS', widthPx: 480 },
+      { command: 'FIN', widthPx: 420 },
+    ],
+  },
+  {
     id: 'flt',
     purpose: 'Fleet Ops',
     themeColor: 0xf6ad55,

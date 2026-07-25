@@ -97,6 +97,20 @@ force it through the bypass.
   two minor features in the whole extension use iframes at all, don't over-invest here
   without a specific reason to revisit.
 
+- **`getBoundingClientRect()` on a CSS3D panel div returns coordinates that don't match
+  where it actually paints.** Confirmed by outlining a panel and comparing the reported
+  rect against a pixel-measured bounding box from a screenshot — they disagreed on both
+  size and position (e.g. one panel: rect said `(50,86)-(195,313)`, actual paint was
+  `(70,206)-(200,432)`). Root cause is presumed to be a `transform-style: preserve-3d`
+  flattening quirk in how Chromium computes layout-geometry APIs for `CSS3DRenderer`'s
+  nested `matrix3d`+`perspective()` transforms — the compositor paints correctly, the
+  geometry query just doesn't match it. **To check whether two panels overlap, measure
+  actual painted pixels from a screenshot (e.g. decode the PNG and find each panel's
+  distinct border/background color), not `getBoundingClientRect`.** Also: toggling
+  `display: none` on a panel to isolate it in a screenshot doesn't work either —
+  `CSS3DRenderer`'s render loop re-syncs the element's visibility every frame and
+  silently reverts the mutation.
+
 - **This harness's browser has no real GPU — WebGL runs on `SwiftShader`, a software
   rasterizer.** Confirmed via `webgl-renderer-info`:
   `ANGLE (Google, Vulkan (SwiftShader Device...), SwiftShader driver)`.

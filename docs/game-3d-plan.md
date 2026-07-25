@@ -221,7 +221,34 @@ Base Planning, Fleet Ops, plus whatever else earns a station). Each new buffer t
 needs the Phase-1-established ambient-context check before assuming it Teleports
 cleanly. Re-run a combined-scene sanity/perf pass once the full roster is live,
 remembering the SwiftShader/no-real-GPU caveat above — don't chase FPS numbers from this
-harness without a renderer check alongside them. Not started.
+harness without a renderer check alongside them. **Done, live-verified 2026-07-25.**
+Roster is now 4 consoles on the arc: `inv` (Inventory, unchanged), `baseplanning`
+(Base Planning — BS + PROD, two screens), `companyops` (Company Ops — CONTS + FIN, two
+screens), `flt` (Fleet Ops, unchanged). BS/PROD/CONTS/FIN all passed the ambient-context
+check (grepped their entire component folders, not just the top-level `.vue` file, for
+`useTile()`/`useXitCommand()`/raw `inject()` — none found; `useXitParameters()` is safe
+without a provider since it falls back to `[]`). `DISPATCH` was considered and rejected
+as a candidate — its `.vue` calls `useTile()` (`inject(tileKey)!`), which we don't
+provide, so it would throw on mount; revisit only if `createConsole()` is extended to
+also provide `tileKey` with a synthetic tile.
+
+**Real bug found and fixed, not just a data problem:** the initial 4-console layout had
+severe overlap across every screen — traced to `SCREEN_SCALE`, which was `0.01`
+(pixel→world) in both `buffer-panel.tsx` and `console.ts` as two independent literals
+that happened to match. That value was a leftover from the original spike, where it was
+correct — panels were mounted flat on 5-unit-radius walls, meant to read as wall-sized
+screens. Expansion Phase 1 changed the geometry model to freestanding human-scale
+consoles at radius 3.0 without revisiting this constant, so a 700px panel was rendering
+7 world-units wide in a 10-unit room — almost certainly already overlapping in Phase
+1/2's 2-console layout too, just not caught because only 2 widely-separated,
+differently-rotated consoles didn't make it visually obvious. Fixed by exporting one
+`SCREEN_SCALE` constant from `buffer-panel.tsx` (now `0.0016`, tuned so a 700px panel
+reads as ~1.1 world-units — a console monitor, not a movie screen) and having
+`console.ts` import it instead of holding its own copy. Re-verified with
+pixel-measured (not `getBoundingClientRect` — see `docs/browser-testing-3d.md` for why)
+bounding boxes: no overlap between any of the 6 screens, the hologram, or each
+multi-screen console's own two screens; text still legible after the ~6x size
+reduction.
 
 ### Expansion Phase 4 — Functional control surface
 
@@ -290,5 +317,16 @@ console. Then implemented Expansion Phase 2 (interaction system) per the section
 — see that entry for the verification gap found (facing-detection needs a human with a
 real mouse; not yet confirmed working end-to-end, only confirmed not to have regressed
 anything or thrown errors). Both changes delegated to Grok, diffs matched their briefs
-closely. Next session: get human verification of Phase 2's interaction behavior first,
-then start Expansion Phase 3 (full console roster) if it checks out.
+closely.
+
+**2026-07-25 (4)** — User said to keep going rather than wait for manual verification of
+Phase 2, so proceeded straight into Expansion Phase 3 (full console roster — see that
+section above for what shipped and the real `SCREEN_SCALE` bug found/fixed along the
+way). This was pure roster data (no `console.ts`/`interaction.ts` changes needed —
+Phase 1's genericization paid off exactly as hoped), so implemented directly rather than
+delegating to Grok. Also added a `getBoundingClientRect()`-is-unreliable-for-CSS3D-panels
+gotcha to `docs/browser-testing-3d.md`, found while re-verifying the scale fix. **Phase
+2's interaction behavior (facing-hint text, E-focus toggle, Escape fallback) is still
+not human-verified** — that gap from the previous entry is unchanged, just no longer
+blocking. Next session: Expansion Phase 4 (functional control surface) or human
+verification of Phase 2, whichever the user prioritizes.

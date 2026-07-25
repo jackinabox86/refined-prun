@@ -1,5 +1,12 @@
 import { CSS3DObject } from 'three/examples/jsm/renderers/CSS3DRenderer.js';
 
+/**
+ * Pixel → world scale for CSS3D screens. Tuned for a console you walk up to
+ * (a ~700px panel reads as ~1.1 world-unit/meter monitor), not the original
+ * spike's flat wall-mounted panels (which is what the old 0.01 was tuned for).
+ */
+export const SCREEN_SCALE = 0.0016;
+
 export function createPanelShell(widthPx: number, heightPx?: number) {
   const root = document.createElement('div');
   Object.assign(root.style, {
@@ -27,8 +34,7 @@ export function createPanelShell(widthPx: number, heightPx?: number) {
   root.append(targetDiv);
 
   const object = new CSS3DObject(root);
-  // Pixel → world scale so the panel reads as wall-sized.
-  object.scale.setScalar(0.01);
+  object.scale.setScalar(SCREEN_SCALE);
 
   return { root, targetDiv, object };
 }
