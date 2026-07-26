@@ -61,6 +61,13 @@ wall/floor geometry into a dark, textured-up-close near-clip view. Not a product
 move in small increments (~2-3 world units at a time) and back off if the frame goes
 uniformly dark.
 
+**Both bypass actions are relative-only — there's no absolute teleport.** Reaching a
+specific console from spawn (e.g. `baseplanning` on the arc) takes repeated small
+`rotate`/`move` calls with visual checking in between, which cost real iterations during
+Expansion Phase 7 verification. If a future session finds itself testing one console
+repeatedly, adding an absolute-position/rotation test action (set camera position/yaw
+directly, bypassing incremental movement entirely) would be worth the small effort.
+
 ## Entering/exiting 3D mode in tests
 
 - Open via the top-bar "3D" button.

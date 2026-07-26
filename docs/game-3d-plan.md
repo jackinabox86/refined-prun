@@ -124,6 +124,25 @@ unless noted otherwise.
   inside the box looking out) would cull those standalone frame boxes' room-facing side.
   First used for Expansion Phase 6's viewscreen window; reusable for any future wall
   opening.
+- **Real native 2D game DOM can be reparented into a CSS3D panel, not just Vue-Teleported
+  content.** A single `appendChild`/`replaceChildren` move (not a clone) preserves DOM
+  identity, so Vue's own reconciliation on the moved subtree (status text, log lines,
+  button `disabled` state) keeps patching correctly wherever the node ends up — and the
+  game's own (non-Vue) window/tile manager tolerated the move too, with zero console
+  errors across open/interact/close. Two conditions made this work, both worth keeping:
+  park the source window off-screen (`position: fixed; left/top: -9999px`) rather than
+  hiding it some other way, and close it later via its own real close button
+  (`closePrunWindow()`) rather than assuming it can just be discarded — its body may be
+  empty after the move, but the header/close control is untouched. First proven for
+  Expansion Phase 7's control-surface (a real `XIT ACT` window); reusable for any future
+  feature needing genuine native-window behavior a synthetic Teleport can't provide.
+- **Reparented real-DOM content can rely on percentage-height ancestor chains that
+  collapse to 0 under a CSS3D panel's `auto`-height container.** Unlike Teleported Vue
+  screens (which size themselves intrinsically off their own content), real native
+  window DOM was built assuming a window of a known pixel size — give any panel hosting
+  reparented real DOM an explicit `heightPx` in `createPanelShell`, don't assume it can
+  be omitted the way normal screens omit it. Found via Expansion Phase 7 (a panel
+  collapsing to an unreadable ~36px sliver until this was set).
 - **Spawn always faces -Z (three.js's default camera forward), not whichever wall a new
   feature gets added to.** The console arc/hologram sit toward -Z, so anything meant to
   be seen without turning around belongs on -Z too — the old wall-mounted `hangar.ts`
@@ -516,6 +535,48 @@ this session never executed, not a rendering bug. A future session wiring a real
 base-linked package (or manually walking one step of a run, human-confirmed) would be
 needed to see the companion tile show real content.
 
+### Expansion Phase 8 — Real control-surface content (proposed)
+
+**Not started — assistant's proposal for what's next, requested by the user
+2026-07-26 but not yet a design locked in through conversation the way Phases 1-6
+were.** Treat it as a starting point to confirm or redirect, not a decided plan.
+
+**Why this over other candidates:** Phase 7 proved the *mechanism* (a real ACT window's
+DOM can be reparented into a console, both tiles visible, cleanly disposed) but
+deliberately used a placeholder package (`XIT REFUELACT` on `baseplanning`, chosen only
+because it was already spike-verified and needed no per-row parameters) that isn't
+semantically tied to base planning and isn't something the player actually asked to run.
+The companion tile also only ever shows the game's generic empty-tile placeholder,
+because nothing has ever executed against it. Making the control surface feel like part
+of the *actual* bridge experience — not a tech-demo package sitting on a console it
+doesn't belong on — is the natural next step now that the plumbing is proven.
+
+**Open questions to resolve before implementation, not yet decided:**
+
+1. **Fixed demo package vs. the player's own real package?** The original Vision text
+   ("a control-surface screen for running action packages") reads as the player's own
+   packages, not a hardcoded demo — but that's a meaningfully bigger feature: it means
+   surfacing whatever the player has staged/saved (per the `DISPATCH`/`GOVBURN`
+   `staged.ts` module-level-ref pattern documented in `docs/xit-act-patterns.md`) rather
+   than a fixed `pkg` object like `RefuelActWindow.vue`'s. Decide which this phase is
+   actually building before writing code — they're different scopes.
+2. **What's the right package for `baseplanning` specifically?** Investigate whether a
+   base-production-linked one-click package already exists or needs to be built (the
+   existing one-click packages — `BURNACT`, `REFUELACT`, `GOVBURNACT` — are all
+   ship/fleet actions, not base/production ones). A production-queue action package
+   would be the natural fit given `BS`/`PROD` are already on that console.
+3. **Roll out to the other three consoles, or stay at one?** `inv`, `companyops`, `flt`
+   don't have a control surface yet. Each would need its own natural package pick
+   (e.g. `flt` pairs naturally with the existing ship-fleet packages) — worth doing only
+   once question 1 is settled, so it isn't rolled out three more times under the wrong
+   model.
+4. **Verification will eventually need a real EXECUTE**, once real content is wired —
+   unlike Phase 7 (which only ever needed `PREVIEW`), confirming a real package's
+   companion tile populates correctly requires actually running at least one step. Per
+   `docs/contributing.md`'s server-communication rule, that must be a human-confirmed
+   click, not something `game-tester` does unsupervised — plan the verification pass
+   around that constraint from the start rather than discovering it mid-session.
+
 ## Open questions — resolved 2026-07-25
 
 All four were investigated and closed; none needed a code change. Keeping the record
@@ -714,3 +775,18 @@ base-linked package and/or wiring the other three consoles is unstarted follow-u
 scoped as its own phase yet. Phase 2's interaction facing-hint text and Escape's
 generic-interact fallback remain the one still-open item from earlier sessions,
 untouched this session.
+
+Ran `/distill` after Phase 7 landed, capturing two cross-session-reusable technique facts
+into "Reusable facts for future work" above (real native DOM can be reparented into a
+CSS3D panel and survives Vue's own patching; such reparented content needs an explicit
+`heightPx` since it can depend on percentage-height ancestors that collapse under an
+`auto`-height panel) and a gotcha into `docs/browser-testing-3d.md` (the
+`game3d-test-rotate`/`game3d-test-move` bypasses are relative-only, no absolute
+teleport — costly for repeatedly testing one console; a follow-up task to add one was
+filed but not implemented). Also wrote up **Expansion Phase 8 — Real control-surface
+content (proposed)** above at the user's request: replacing Phase 7's placeholder
+`REFUELACT` package with something real, and deciding whether the control surface should
+show a fixed demo package or the player's own staged/saved package (a materially
+different scope) before rolling it out to the other three consoles. Explicitly flagged
+as a proposal, not yet agreed the way Phases 1-7 were — confirm or redirect before
+starting implementation.
