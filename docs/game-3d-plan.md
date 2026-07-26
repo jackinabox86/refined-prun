@@ -535,11 +535,30 @@ this session never executed, not a rendering bug. A future session wiring a real
 base-linked package (or manually walking one step of a run, human-confirmed) would be
 needed to see the companion tile show real content.
 
-### Expansion Phase 8 — Real control-surface content (proposed)
+### Expansion Phase 8 — Real control-surface content
 
-**Not started — assistant's proposal for what's next, requested by the user
-2026-07-26 but not yet a design locked in through conversation the way Phases 1-6
-were.** Treat it as a starting point to confirm or redirect, not a decided plan.
+**Done, live-verified 2026-07-26.** User resolved the three open questions below before
+implementation: (1) fixed real package, not the player's own staged packages — smaller
+scope, matches Phase 7's mechanism; (2) `baseplanning`'s `REFUELACT` mismatch (see Phase 7)
+resolved by **relocating** the control surface to `flt` instead of building a new
+base/production action type — `REFUELACT` is genuinely a fleet action (its trigger button
+lives on `FLT.vue`'s Fuel column in the normal 2D UI), so once moved it's no longer a
+placeholder, it's the real, correct fit; (3) stay at one console, don't roll out further
+this phase. Net change: `console-roster.ts`'s `controlSurface` field moved from
+`baseplanning` (now back to just its BS/PROD screens, no control surface) to `flt`
+(now FLT screen + the `XIT REFUELACT` control surface) — same command, same
+`heightPx: 420` requirement, zero changes to `console.ts`/`control-surface.ts`/anything
+else, since Phase 7 already built the mechanism generically. Pure roster data, implemented
+directly rather than delegated to Grok (same precedent as Phase 3). `game-tester`
+confirmed: `baseplanning` shows exactly 2 screens with no control panel; `flt` shows FLT +
+a working "REFUEL ALL EXCHANGES" control surface (real ACT log, PREVIEW/EXECUTE/SKIP,
+companion tile); PREVIEW produced real computed local steps; zero console errors; clean
+exit with no leftover floating window. Only `PREVIEW` was clicked (server-communication
+rule); `EXECUTE`/`ACT`/`SKIP` still need a human-confirmed click before the companion tile
+would ever show real (non-placeholder) content — this remains the one still-open item if
+a future session wants to see that end-to-end.
+
+Original proposal (kept for context on how the questions below were framed):
 
 **Why this over other candidates:** Phase 7 proved the *mechanism* (a real ACT window's
 DOM can be reparented into a console, both tiles visible, cleanly disposed) but
@@ -790,3 +809,21 @@ show a fixed demo package or the player's own staged/saved package (a materially
 different scope) before rolling it out to the other three consoles. Explicitly flagged
 as a proposal, not yet agreed the way Phases 1-7 were — confirm or redirect before
 starting implementation.
+
+**2026-07-26 (2)** — Ran Phase 8. Before writing any code, checked whether a
+base/production-linked one-click package actually exists (it doesn't — grepped
+`ACT/actions/*`: only `refuel`, `cont-trade`, `cont-ship`, `mtra`, `cx-buy`,
+`govburn-data`, none base/production-related; confirmed `BURNACT`/`REFUELACT`/
+`REPAIRACT` all trigger from `FLT.vue`, i.e. they're fleet actions, not base ones) and
+put that finding in front of the user as one of three open questions before touching
+code. User chose: fixed real package (not player-staged), resolve the mismatch by moving
+the control surface to `flt` rather than inventing a new base/production action type, and
+stay at one console. See the Phase 8 section above for what shipped and how
+`game-tester` verified it — a small, low-risk roster-only change (Phase 7's mechanism was
+already generic enough to need zero other code changes). Every phase from the original
+sequencing (1-8) is now done; the only standing open item across the whole Expansion
+track is Phase 2's facing-hint-text/Escape-fallback human-verification gap (E-focus
+toggle itself was confirmed by the user in session (9) on 2026-07-25) and Phase 8's own
+EXECUTE-needs-a-human note above. No new Expansion Phase is currently proposed — next
+session should either close one of those two verification gaps or ask the user what
+comes next.

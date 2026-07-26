@@ -57,11 +57,6 @@ const ROSTER: RosterEntry[] = [
       { command: 'BS', widthPx: 480 },
       { command: 'PROD', widthPx: 480 },
     ],
-    // Placeholder/testbed package: generic, spike-verified open; not base-linked. Swap later.
-    // heightPx is required here (unlike the xit-registry screens above): the reparented
-    // native window DOM relies on percentage-height ancestors that collapse to 0 against
-    // createPanelShell's 'auto'-height targetDiv when heightPx is omitted.
-    controlSurface: { command: 'XIT REFUELACT', widthPx: 900, heightPx: 420 },
   },
   {
     id: 'companyops',
@@ -77,6 +72,12 @@ const ROSTER: RosterEntry[] = [
     purpose: 'Fleet Ops',
     themeColor: 0xf6ad55,
     screens: [{ command: 'FLT', widthPx: 750 }],
+    // Real fleet action, triggered for real from FLT.vue's Fuel-column header button —
+    // no longer a semantic mismatch the way it was parked on baseplanning (Phase 7).
+    // heightPx is required here (unlike the xit-registry screens above): the reparented
+    // native window DOM relies on percentage-height ancestors that collapse to 0 against
+    // createPanelShell's 'auto'-height targetDiv when heightPx is omitted.
+    controlSurface: { command: 'XIT REFUELACT', widthPx: 900, heightPx: 420 },
   },
 ];
 
