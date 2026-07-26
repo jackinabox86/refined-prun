@@ -24,6 +24,15 @@ silently drops the tracking config, leaving the branch pushed but untracked. Run
 config-writing git commands unsandboxed from the start; the `.git/config` deny is
 intentional, so never work around it by widening the allowlist.
 
+More generally, sandbox-denied paths can surface as phantom character-device stubs
+(`crw-rw-rw-`, owned by `nobody:nogroup`) that show up as untracked entries in `git
+status` — not just the `.git/config.lock` case above. Seen for HOME dotfiles
+(`.bashrc`, `.gitconfig`, `.profile`) and `.claude/` control paths, and not just at the
+repo root: they can appear recursively at nested directory levels too (e.g.
+`src/.claude/`, `src/features/.claude/`, `src/features/XIT/.claude/`). These are
+sandbox artifacts, not real repo content — never `git add -A`/investigate/delete them;
+just ignore them and stage files by explicit name as usual.
+
 ## Approvals are the scarce resource
 
 Allowlisted prefixes in `.claude/settings.json` only help when the command matches

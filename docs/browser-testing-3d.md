@@ -54,6 +54,13 @@ Expansion-track interaction logic gated the same way). Report that class of chan
 compiles-clean-but-unverified, needing a human with a real mouse, rather than trying to
 force it through the bypass.
 
+**`game3d-test-move` doesn't run through `movement.ts`'s `clampToRoom`** — real WASD
+movement stays clamped inside the room, but this bypass calls `PointerLockControls`
+directly, so pushing it too far in one call clips the camera straight through
+wall/floor geometry into a dark, textured-up-close near-clip view. Not a product bug;
+move in small increments (~2-3 world units at a time) and back off if the frame goes
+uniformly dark.
+
 ## Entering/exiting 3D mode in tests
 
 - Open via the top-bar "3D" button.

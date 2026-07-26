@@ -117,6 +117,18 @@ unless noted otherwise.
   DOM for the buffer's own loading-state indicator (e.g. `CALC.vue`'s `LoadingSpinner`)
   to distinguish "never loaded" from "loaded but not painted" before debugging the
   wrong layer.
+- **Cutting a real opening in a box-room wall:** hide that face's material
+  (`visible: false`) rather than removing/rebuilding the box geometry itself, then
+  reconstruct the surrounding wall as separate freestanding frame meshes using
+  `DoubleSide` — `BackSide` (used by the shared wall material, since the camera sits
+  inside the box looking out) would cull those standalone frame boxes' room-facing side.
+  First used for Expansion Phase 6's viewscreen window; reusable for any future wall
+  opening.
+- **Spawn always faces -Z (three.js's default camera forward), not whichever wall a new
+  feature gets added to.** The console arc/hologram sit toward -Z; the +Z wall (hangar,
+  then the Phase 6 viewscreen) has always been behind the player at spawn, requiring a
+  180° turn to face it. Don't assume "spawn faces it" for anything placed on +Z without
+  checking.
 - Files: `room.ts` (room geometry, `ROOM_HALF`/`ROOM_HEIGHT`/`EYE_HEIGHT` constants),
   `movement.ts` (WASD), `Renderer.ts` (`DualRenderer`, WebGL+CSS3D combo, overlay
   z-index), `buffer-panel.tsx` (`createPanelShell` — reusable CSS3D screen
