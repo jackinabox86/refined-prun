@@ -176,18 +176,20 @@ const warehouseStore = computed(() =>
       </div>
     </td>
     <td v-if="showInv" :class="$style.invCell">
-      <InvBar
-        :store-id="storeId"
-        :natural-id="naturalId"
-        :on-click-cmd="`INV ${storeId.substring(0, 8)}`"
-        :alarm-level="storageAlarm?.level"
-        :alarm-reason="storageAlarm?.reason" />
-      <div
-        v-if="storageAlarm?.level === 'yellow'"
-        :class="[C.ProgressBar.progress, $style.fillWarningBox, C.Workforces.daysWarning]"
-        :data-tooltip="storageAlarm.reason"
-        data-tooltip-position="top">
-        <span :class="$style.statusNum">{{ fillDaysText }}</span>
+      <div :class="$style.invCellContent">
+        <InvBar
+          :store-id="storeId"
+          :natural-id="naturalId"
+          :on-click-cmd="`INV ${storeId.substring(0, 8)}`"
+          :alarm-level="storageAlarm?.level"
+          :alarm-reason="storageAlarm?.reason" />
+        <div
+          v-if="storageAlarm?.level === 'yellow'"
+          :class="[C.ProgressBar.progress, $style.fillWarningBox, C.Workforces.daysWarning]"
+          :data-tooltip="storageAlarm.reason"
+          data-tooltip-position="top">
+          <span :class="$style.statusNum">{{ fillDaysText }}</span>
+        </div>
       </div>
     </td>
     <td v-if="showWar" :class="$style.invCell">
@@ -270,11 +272,14 @@ const warehouseStore = computed(() =>
 }
 
 .invCell {
+  min-width: 60px;
+  padding: 2px;
+}
+
+.invCellContent {
   display: flex;
   align-items: center;
   gap: 2px;
-  min-width: 60px;
-  padding: 2px;
 }
 
 .fillWarningBox {
