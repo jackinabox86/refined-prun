@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { createConsole, type Console, type ConsoleDefinition } from '@src/game-3d/console';
+import type { ControlSurfaceSlot } from '@src/game-3d/control-surface';
 import { ROOM_HEIGHT } from '@src/game-3d/room';
 
 /** Freestanding arc radius — clears hologram (~1.2) and hangar (+Z wall). */
@@ -39,7 +40,6 @@ interface RosterEntry {
   purpose: string;
   themeColor: number;
   screens: ConsoleDefinition['screens'];
-  controlSurface?: ConsoleDefinition['controlSurface'];
 }
 
 const ROSTER: RosterEntry[] = [
@@ -72,26 +72,26 @@ const ROSTER: RosterEntry[] = [
     purpose: 'Fleet Ops',
     themeColor: 0xf6ad55,
     screens: [{ command: 'FLT', widthPx: 750 }],
-    // Real fleet action, triggered for real from FLT.vue's Fuel-column header button —
-    // no longer a semantic mismatch the way it was parked on baseplanning (Phase 7).
-    // heightPx is required here (unlike the xit-registry screens above): the reparented
-    // native window DOM relies on percentage-height ancestors that collapse to 0 against
-    // createPanelShell's 'auto'-height targetDiv when heightPx is omitted.
-    controlSurface: { command: 'XIT REFUELACT', widthPx: 900, heightPx: 420 },
   },
 ];
 
-export function buildConsoles(): Console[] {
+export function buildConsoles(): {
+  consoles: Console[];
+  controlSurfaceSlots: Map<string, ControlSurfaceSlot>;
+} {
   const angles = arcAngles(ROSTER.length);
-  return ROSTER.map((entry, i) => {
+  const controlSurfaceSlots = new Map<string, ControlSurfaceSlot>();
+  const consoles = ROSTER.map((entry, i) => {
     const pose = arcPose(angles[i]!);
-    return createConsole({
+    const console = createConsole({
       id: entry.id,
       purpose: entry.purpose,
       themeColor: entry.themeColor,
       screens: entry.screens,
-      controlSurface: entry.controlSurface,
       ...pose,
     });
+    controlSurfaceSlots.set(entry.id, console.controlSurfaceSlot);
+    return console;
   });
+  return { consoles, controlSurfaceSlots };
 }

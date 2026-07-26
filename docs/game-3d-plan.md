@@ -596,6 +596,77 @@ doesn't belong on — is the natural next step now that the plumbing is proven.
    click, not something `game-tester` does unsupervised — plan the verification pass
    around that constraint from the start rather than discovering it mid-session.
 
+### Expansion Phase 9 — Generic dynamic control surface (supersedes Phase 7/8's fixed-package model)
+
+**Done, structurally verified 2026-07-26; dynamic capture itself still needs a human.**
+User rejected Phase 8's premise (a fixed package hardcoded per console, `MTRAACT`/
+`CONTTRADEACT` built new) after clarifying two things: (1) the "quasi-preconfigured
+action package" candidates they actually wanted — `RESUPPLYACT` (the command is
+literally `BURNACT`, titled "BURN RESUPPLY") and `REPAIRACT` — already exist and are
+both per-base actions triggered from `BS.vue`'s `BaseRow.vue` (`RES`/`REP` buttons,
+`showBuffer('XIT BURNACT <naturalId>')`/`showBuffer('XIT REPAIRACT <naturalId>')`); no
+new action type needed. (2) More importantly, consoles shouldn't be tied to *any*
+specific command at all — stated design intent for the long term is **player-configurable
+console screens**, so hardcoding a package per console (what Phase 7/8 did) works against
+that goal. Instead: every console gets a generic **dormant** control-surface slot: idle by
+default, and dynamically activated whenever the player triggers a real action-package
+window from one of that console's own screens while that console is focused — not wired
+up front. Confirmed this reframing is architecturally sound before writing code (traced
+`interaction.ts`'s existing focused-console tracking, `buffer-window-guard.ts`'s
+MutationObserver technique, and `tile-allocator.ts`'s `Window.body`/`Node.node`/
+`Node.child` split classes as the building blocks).
+
+**What shipped**, delegated to Grok per `AGENTS.md`'s DELEGATION section (brief:
+`.local/scratch/phase9-control-surface-router-brief.md`; diff matched it closely, no
+rework needed):
+
+- `ConsoleDefinition.controlSurface` removed entirely — no roster entry (including
+  `flt`'s prior `XIT REFUELACT`) references a command for its control surface anymore.
+  `createConsole()` now unconditionally gives every console one identical
+  `CONTROL_SURFACE_WIDTH_PX`/`CONTROL_SURFACE_HEIGHT_PX` (900×420) dormant slot.
+- `control-surface.ts` rewritten from "open a specific command and reparent it" to
+  `createControlSurfaceSlot()` — just builds a placeholder ("No action running") panel
+  and exposes `activate(node)`/`deactivate()`/`dispose()`. It no longer calls
+  `showBuffer()` itself.
+- `interaction.ts` gained a `getFocusedConsoleId()` getter on its returned object (the
+  focus state already existed as a private closure var — Phase 2 built it, this phase
+  just needed to read it from outside).
+- New `control-surface-router.ts`: a `MutationObserver` on `document.body`, same
+  technique as `buffer-window-guard.ts` (mirrored, not merged/modified). On any newly
+  added `.Window.window` node: if no console is currently focused, does nothing — the
+  window behaves as an ordinary floating 2D window, completely untouched, exactly as
+  today. If a console *is* focused, synchronously checks for a `C.Node.node` child via
+  `_$` (the synchronous get-or-undefined helper — deliberately not `$`, which waits
+  indefinitely and would hang forever on a window that will never split, e.g. a plain
+  non-ACT buffer link clicked from inside a console's screen). If present, it's a real
+  `ExecuteActionPackage` window: park it off-screen and `activate()` the focused
+  console's slot with the split node. A previous capture on the same console is closed
+  (`closePrunWindow`) before the new one takes over, so a rapid replace can't orphan a
+  window. `dispose()` (called on 3D-mode exit) closes every still-active capture across
+  all consoles, generalizing what Phase 7/8's fixed-package cleanup used to do for just
+  `flt`.
+- **Default behavior decided without a separate question round** (flagged to the user,
+  no objection raised): walking away from a focused console leaves any active capture
+  running — it is not auto-closed. Only exiting 3D mode, or triggering a *new* capture on
+  that same console, tears one down. Matches the codebase's existing caution elsewhere
+  about not disrupting a real action mid-run.
+
+**Verified (`game-tester`, structural only — see next paragraph for what's still
+open):** all 4 consoles (`inv`, `baseplanning`, `companyops`, `flt`) show exactly one
+"No action running" panel each, trailing their normal screens; existing screens
+(INV/BS/PROD/CONTS/FIN/FLT) all still show live data with zero regressions from the
+shared `console.ts` refactor; no console errors; clean exit with no orphaned windows.
+
+**Known verification gap, same shape as Phase 2's:** the actual dynamic-capture flow —
+walk up to a console, press E to focus, click a real action button inside one of that
+console's screens (e.g. `BS.vue`'s `RES`/`REP`), watch the resulting `ExecuteActionPackage`
+window get captured into that console's slot — could **not** be exercised this session.
+`interaction.ts`'s E-key handler is gated on `controls.isLocked`, and pointer lock never
+actually flips true in this CDP/Playwright harness; `test-controls.ts`'s bypass only
+fakes camera rotate/move, not lock state, so there is no way to drive a console into
+"focused" through automation. This needs a human with a real mouse to confirm end-to-end
+— same standing limitation as Phase 2's still-unconfirmed facing-hint/Escape fallback.
+
 ## Open questions — resolved 2026-07-25
 
 All four were investigated and closed; none needed a code change. Keeping the record
@@ -827,3 +898,25 @@ toggle itself was confirmed by the user in session (9) on 2026-07-25) and Phase 
 EXECUTE-needs-a-human note above. No new Expansion Phase is currently proposed — next
 session should either close one of those two verification gaps or ask the user what
 comes next.
+
+**2026-07-26 (3)** — User asked for "another phase." Proposed rolling Phase 8's
+fixed-package model out to `companyops`/`inv` (new `CONTTRADEACT`/`MTRAACT` one-click
+windows) and flagged `baseplanning` as still having no fitting action type. User rejected
+this: they didn't want new action-type/window pairs built at all, and pointed out
+`RESUPPLYACT` (the actual command is `BURNACT`) and `REPAIRACT` already exist as
+quasi-preconfigured packages — **correcting the previous session-log entry above**,
+which said `BURNACT`/`REFUELACT`/`REPAIRACT` "all trigger from `FLT.vue`": that's only
+true for `REFUELACT`. `BURNACT`/`REPAIRACT` are per-base, triggered from `BS.vue`'s
+`BaseRow.vue` (`RES`/`REP` buttons) and `REP.vue`. More importantly, the user reframed
+the whole model: consoles shouldn't be hardcoded to a specific command at all, since the
+long-term intent is player-configurable console screens — a control surface should just
+sit dormant until the player triggers a real action from a button inside that console's
+own screens. Investigated feasibility against the actual code (`interaction.ts`'s
+already-tracked-but-unexposed `focusedConsoleId`, `buffer-window-guard.ts`'s
+`MutationObserver` pattern, `tile-allocator.ts`'s split classes) before proposing it back
+as **Expansion Phase 9** — user confirmed the focus-based correlation approach was
+correct. See that section above for the full design and what shipped. Delegated to Grok
+per `AGENTS.md`; diff matched the brief closely. `game-tester` confirmed the structural
+part (dormant slot on all 4 consoles, zero regressions to existing screens, clean exit);
+the dynamic-capture flow itself remains unverified pending a human with a real mouse, on
+top of Phase 2's still-open gap. Distill requested for after this lands.

@@ -84,5 +84,5 @@ export function createInteraction(
     overlay.setFacing(purpose);
   };
 
-  return { attach, detach, update };
+  return { attach, detach, update, getFocusedConsoleId: () => focusedConsoleId };
 }

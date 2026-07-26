@@ -3,8 +3,9 @@ import { PointerLockControls } from 'three/examples/jsm/controls/PointerLockCont
 import { DualRenderer } from '@src/game-3d/Renderer';
 import { buildRoom, clampToRoom, EYE_HEIGHT, ROOM_HALF } from '@src/game-3d/room';
 import { createMovement } from '@src/game-3d/movement';
-import { createBufferWindowGuard } from '@src/game-3d/buffer-window-guard';
 import { buildConsoles } from '@src/game-3d/console-roster';
+import { createControlSurfaceRouter } from '@src/game-3d/control-surface-router';
+import { createBufferWindowGuard } from '@src/game-3d/buffer-window-guard';
 import { buildHologram } from '@src/game-3d/hologram';
 import { createInteraction } from '@src/game-3d/interaction';
 import { createModeOverlay } from '@src/game-3d/overlay';
@@ -21,7 +22,8 @@ export class Game3D {
   private readonly testControls: ReturnType<typeof createTestControls>;
   private readonly overlay: ReturnType<typeof createModeOverlay>;
   private readonly interaction: ReturnType<typeof createInteraction>;
-  private readonly consoles = buildConsoles();
+  private readonly controlSurfaceRouter: ReturnType<typeof createControlSurfaceRouter>;
+  private readonly consoles: ReturnType<typeof buildConsoles>['consoles'];
   private readonly clock = new THREE.Clock();
   private rafId = 0;
   private disposed = false;
@@ -50,6 +52,9 @@ export class Game3D {
     const viewscreen = buildViewscreen();
     viewscreen.position.set(0, 1.2, -(ROOM_HALF + 45));
     this.scene.add(viewscreen);
+
+    const { consoles, controlSurfaceSlots } = buildConsoles();
+    this.consoles = consoles;
     for (const c of this.consoles) {
       this.scene.add(c.group);
     }
@@ -61,6 +66,9 @@ export class Game3D {
       this.onClose();
     });
     this.interaction = createInteraction(this.camera, this.controls, this.consoles, this.overlay);
+    this.controlSurfaceRouter = createControlSurfaceRouter(controlSurfaceSlots, () =>
+      this.interaction.getFocusedConsoleId(),
+    );
     this.renderer.container.append(this.overlay.root);
   }
 
@@ -71,6 +79,7 @@ export class Game3D {
     this.renderer.canvas.addEventListener('click', this.onCanvasClick);
     this.movement.attach();
     this.bufferWindowGuard.attach();
+    this.controlSurfaceRouter.attach();
     this.testControls.attach();
     this.interaction.attach();
     this.clock.start();
@@ -88,6 +97,7 @@ export class Game3D {
     this.renderer.canvas.removeEventListener('click', this.onCanvasClick);
     this.movement.detach();
     this.bufferWindowGuard.detach();
+    this.controlSurfaceRouter.dispose();
     this.testControls.detach();
     this.interaction.detach();
 
