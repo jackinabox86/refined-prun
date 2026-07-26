@@ -428,12 +428,12 @@ Design decided in conversation with the user 2026-07-25, before any code was wri
   then work through those specifics the same way Phase 1-5 sessions worked through
   their own numeric/layout unknowns (build, verify with `game-tester`, adjust).
 
-### Expansion Phase 7 — Functional control surface (proposed)
+### Expansion Phase 7 — Functional control surface
 
-**Not started — recommendation, not yet discussed/agreed with the user beyond "write
-this down as the Phase 7 proposal."** Unlike Phases 1-6, this section is the assistant's
-own suggestion for what to tackle next, not a design locked in through conversation —
-treat it as a starting point to confirm or redirect, not a decided plan.
+**Done, live-verified 2026-07-26.** Confirmed with the user before implementation (they
+approved proceeding as scoped, with one added requirement folded in below). Unlike
+Phases 1-6, this phase started as the assistant's own suggestion rather than a
+user-driven design — see the original proposal rationale kept below for context.
 
 **Why this over other candidates:** every other plausible "what's next" (more consoles,
 hologram interactivity, ambient audio/sound design, further visual polish, a second
@@ -457,33 +457,64 @@ trading/production actions.** Path (b) (refactor `TileAllocator` itself) stays r
 for the same reason Phase 4 rejected it: touching that code is a real-money-action
 regression risk this track shouldn't take on for a cosmetic/UX feature.
 
-**Concretely, in order:**
+**User requirement added during confirmation (2026-07-26), not in the original
+proposal:** the control-surface screen must show the ACT buffer's real companion tile
+alongside it, not just the control panel in isolation — a player needs to see what
+they're about to execute, not just an Act/Skip button in a vacuum. This shaped the
+implementation below: the whole split (`Node.node`, both `Node.child` tiles), not just
+the first tile, gets reparented as one panel.
 
-1. **Spike first, no console wiring yet.** From `game-3d`, call `showBuffer()` to open
-   one real `XIT ACT` window and confirm `TileAllocator` doesn't throw — establishes the
-   baseline (a genuine native window, no synthetic tile) before attempting anything
-   fancier.
-2. **Then attempt DOM re-parenting**: move that real window's rendered content DOM node
-   into the console's CSS3D panel `targetDiv` (a single `appendChild` after creation),
-   keeping the window itself positioned off-screen/hidden so it never appears as a
-   native 2D floating window. This is the open technical question this phase exists to
-   answer — Vue's internal bookkeeping (the component's own DOM references, `Teleport`
-   internals if the real component uses one) or the window manager's own tracking of
-   that DOM node's position may not tolerate being moved. **If re-parenting breaks
-   something, don't push through it** — fall back to leaving the native window fully
-   parked off-screen and treat the 3D panel as a live *mirror* of its state rather than
-   the actual interactive surface. That fallback is a real scope reduction (state
-   visible in 3D, but Act/Skip clicks still happen in an invisible native window) —
-   confirm with the user before committing to it, since it changes what "functional
-   control surface" means.
-3. **Wire ONE console first**, not all four — `baseplanning` (BS/PROD) is a reasonable
-   pick since building/production queues are a natural fit for action packages. Don't
-   roll out to the other three consoles until the one testbed is confirmed working.
-4. **Real-money-action caution applies to testing, not just implementation:** any
-   `game-tester` pass against this must not click Act/Skip and actually execute steps
-   against the live game without explicit human confirmation first — re-read
-   `docs/contributing.md`'s "explicit click gates server communication" rule before
-   writing any verification script that could trigger a real action step.
+**What shipped:**
+
+1. **Devtools spike (no code)**: via `game-tester`, opened `XIT REFUELACT` as a plain
+   native window (`pw-act.mjs open-buffer "XIT REFUELACT"`) and inspected the DOM.
+   Confirmed `TileAllocator`'s mount-time split fires synchronously, with zero console
+   errors: `Window.body` → `Node__horizontal Node__node` → two `Node.child` divs, first
+   holding the real ACT tile (`PREVIEW`/`EXECUTE`, no `CONFIGURE` needed for this
+   package), second an empty/unconfigured placeholder tile (the companion `ActionRunner`
+   later fills via `ctx.requestTile()` mid-run). Mounting alone never touches the
+   server — only `PREVIEW`/`EXECUTE`/`ACT`/`SKIP` clicks do — so this observation step
+   was itself inert.
+2. **DOM re-parenting — the open technical bet paid off.** New
+   `src/game-3d/control-surface.ts`'s `createControlSurfacePanel()`: opens the real
+   window via `showBuffer()`, parks it off-screen (`position: fixed; left/top: -9999px`
+   — never visible as a floating 2D window), awaits the `Node.node` split wrapper via
+   the global `$()` helper, then `targetDiv.replaceChildren(node)` — a single DOM move,
+   not a clone. Vue's own reconciliation (status text, log lines, ACT/SKIP `disabled`
+   state) kept patching correctly post-move, confirming the plan's optimistic bet about
+   Vue's DOM-reference-based patching. The pessimistic worry — the game's own
+   (non-Vue) window/tile manager choking on content moved out of its window — didn't
+   materialize either: `game-tester` found no console errors across enter → navigate →
+   `PREVIEW`-click → exit, and exiting 3D mode (which calls `closePrunWindow()` on the
+   parked, now-empty window) closed cleanly with no leftover floating window. The
+   mirror-only fallback was never needed.
+3. **One real bug found and fixed along the way**: the first live pass showed the
+   reparented split panel collapsing to a ~36px unreadable sliver. Root cause: the
+   `controlSurface` roster entry had no `heightPx`, so `createPanelShell`'s `targetDiv`
+   got `height: auto` — but the reparented native-window DOM depends on a
+   percentage-height ancestor chain (it was built assuming a window of a known pixel
+   size), and percentage heights resolve to 0 against an `auto`-height ancestor. Fixed
+   by giving `controlSurface` an explicit `heightPx: 420` (`console-roster.ts`), same
+   requirement `screens` entries don't have since Teleported Vue content there sizes
+   itself intrinsically. **Any future control-surface console needs this same explicit
+   `heightPx`** — don't assume it can be omitted like a normal screen.
+4. **Wired ONE console only**: `baseplanning`'s roster entry gained
+   `controlSurface: { command: 'XIT REFUELACT', widthPx: 900, heightPx: 420 }`.
+   `REFUELACT` is a placeholder/testbed package chosen for being generic and
+   already spike-verified to open cleanly — it isn't semantically tied to base
+   planning. Swapping in a real base-linked action package is unstarted follow-up work,
+   not part of what this phase proved. `inv`/`companyops`/`flt` are untouched.
+5. **Real-money-action caution held throughout testing**: both `game-tester` passes
+   only clicked `PREVIEW` (confirmed local-only per `docs/xit-act-patterns.md` — computes
+   steps, no server call) to prove interactivity survives the reparenting; `EXECUTE`,
+   `ACT`, `SKIP`, `CANCEL` were never clicked.
+
+**Known non-blocking limitation**: the companion tile (second `Node.child`) renders as
+the game's own generic "empty tile" diagonal-hash placeholder until a running package
+actually calls `ctx.requestTile()` — expected given `REFUELACT` is a placeholder package
+this session never executed, not a rendering bug. A future session wiring a real
+base-linked package (or manually walking one step of a run, human-confirmed) would be
+needed to see the companion tile show real content.
 
 ## Open questions — resolved 2026-07-25
 
@@ -650,3 +681,36 @@ original Vision and Phase 4 already scoped it down to two paths with (a) being t
 production-code-risk one. Explicitly flagged in that section as the assistant's proposal,
 not yet agreed to the way Phases 1-6 were — confirm or redirect before starting
 implementation.
+
+**2026-07-26** — User confirmed proceeding with Expansion Phase 7 as scoped, adding one
+requirement not in the original proposal: the control-surface panel must show the ACT
+buffer's real companion tile next to it, not just the control panel alone (a player
+needs to see what they're executing). Investigated the real `showBuffer()`/
+`TileAllocator` mechanics first (read `tile-allocator.ts`, `buffers.ts`,
+`ExecuteActionPackage.vue`, `xit-act-patterns.md` — found and accounted for an
+undocumented-in-the-plan constraint: `TileAllocator` splits its host window **at
+mount**, not on any click, so the real ACT window must stay a genuine standalone window
+for that split to happen against real DOM). Ran an inert devtools spike via
+`game-tester` (open `XIT REFUELACT`, inspect the resulting split DOM, no clicks) before
+writing any code, confirming the mount-time split behaves exactly as the source
+predicts. Wrote a detailed implementation brief
+(`.local/scratch/phase7-control-surface-brief.md`) and delegated to Grok per
+`AGENTS.md`'s DELEGATION section; diff matched the brief closely (new
+`src/game-3d/control-surface.ts`, extended `ConsoleDefinition.controlSurface` to a full
+`ConsoleScreenDefinition`, folded the control surface into `console.ts`'s existing
+screen-layout loop). `pnpm run compile` clean on the first pass. First `game-tester`
+verification found the reparenting mechanism itself sound (correct DOM split, no
+console errors, clean disposal on exit, click handlers survived the move) but caught a
+real bug: the panel rendered as an unreadable ~36px sliver. Root-caused and fixed
+directly (a one-line roster change, not re-delegated) — see the Phase 7 section above
+for the `heightPx`/percentage-height-collapse detail. Re-verified clean on the second
+pass: both tiles render side by side at the correct size, `PREVIEW` click works
+post-reparenting, exit cleanup leaves no orphaned window, zero console errors across
+either pass. This closes out the last unimplemented piece of the original Vision
+("a control-surface screen for running action packages") — every Expansion phase
+through 7 is now done. Only `baseplanning` is wired; `REFUELACT` is an explicitly
+placeholder/testbed package, not a real base-planning action — swapping in a real
+base-linked package and/or wiring the other three consoles is unstarted follow-up, not
+scoped as its own phase yet. Phase 2's interaction facing-hint text and Escape's
+generic-interact fallback remain the one still-open item from earlier sessions,
+untouched this session.
