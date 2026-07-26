@@ -5,6 +5,7 @@ import {
   createPanelShell,
   SCREEN_SCALE,
 } from '@src/game-3d/buffer-panel';
+import { ROOM_HEIGHT } from '@src/game-3d/room';
 import { tileStatePlugin } from '@src/store/user-data-tiles';
 
 export interface ConsoleScreenDefinition {
@@ -72,22 +73,58 @@ export function createConsole(definition: ConsoleDefinition) {
     screenHandles.push({ app, disposeIframe });
   }
 
-  // Placeholder housing — plain panel behind the screens; real design is Expansion Phase 5.
   const housingWidth = totalWidth + 0.3;
   const housingHeight = maxHeightWorld + 0.3;
-  const housing = new THREE.Mesh(
-    new THREE.PlaneGeometry(housingWidth, housingHeight),
+  // Matches console-roster.ts; local so we don't create a circular import.
+  const CONSOLE_Y = ROOM_HEIGHT * 0.55;
+
+  // Stops just below the screens (local Y ≈ -0.4).
+  const pedestalHeight = CONSOLE_Y - 0.4;
+  const pedestal = new THREE.Mesh(
+    new THREE.BoxGeometry(housingWidth * 0.5, pedestalHeight, 0.3),
     new THREE.MeshStandardMaterial({
       color: 0x1a2332,
       emissive: definition.themeColor,
-      emissiveIntensity: 0.15,
-      metalness: 0.2,
-      roughness: 0.8,
-      side: THREE.DoubleSide,
+      emissiveIntensity: 0.12,
+      metalness: 0.3,
+      roughness: 0.75,
     }),
   );
-  housing.position.set(0, 0, -0.05);
-  group.add(housing);
+  pedestal.position.set(0, -CONSOLE_Y + pedestalHeight / 2, -0.15);
+  group.add(pedestal);
+
+  const desk = new THREE.Mesh(
+    new THREE.BoxGeometry(housingWidth * 0.85, 0.06, 0.45),
+    new THREE.MeshStandardMaterial({
+      color: 0x232f42,
+      emissive: definition.themeColor,
+      emissiveIntensity: 0.2,
+      metalness: 0.25,
+      roughness: 0.7,
+    }),
+  );
+  desk.position.set(0, -0.42, 0.12);
+  desk.rotation.x = -0.25;
+  group.add(desk);
+
+  // +0.02 avoids z-fighting with the room floor.
+  const floorMarker = new THREE.Mesh(
+    new THREE.CircleGeometry(0.9, 32),
+    new THREE.MeshStandardMaterial({
+      color: 0x111820,
+      emissive: definition.themeColor,
+      emissiveIntensity: 0.3,
+      roughness: 0.7,
+      metalness: 0.1,
+    }),
+  );
+  floorMarker.rotation.x = -Math.PI / 2;
+  floorMarker.position.set(0, -CONSOLE_Y + 0.02, 0.3);
+  group.add(floorMarker);
+
+  const accentLight = new THREE.PointLight(definition.themeColor, 0.6, 2.5);
+  accentLight.position.set(0, 0.3, 0.4);
+  group.add(accentLight);
 
   // Invisible hitbox for raycasting — separate from housing so Phase 5 can redesign visuals.
   const hitbox = new THREE.Mesh(new THREE.BoxGeometry(housingWidth, housingHeight, 0.6));

@@ -256,7 +256,22 @@ Wire the reserved control-surface screen to the real action-runner component(s) 
 `src/features/XIT/ACT/` (log display, Act button, Skip button) on whichever consoles
 need it. Confirm the ambient-context check and the "explicit click gates server
 communication" rule (`docs/contributing.md`) both hold for the Teleported version, same
-as any other buffer. Not started.
+as any other buffer. **Blocked — investigated 2026-07-25, needs a design decision before
+implementation starts.** `ExecuteActionPackage.vue` (the real Act/Skip/log component) is
+not a display-only buffer like every other console screen so far — its `ActionRunner`
+constructs a `TileAllocator` (`runner/tile-allocator.ts`) that, on construction,
+inspects `tile.container.classList` for real window/node DOM ancestry
+(`C.Window.body`, `C.Node.child`) and calls `showBuffer()`/`setBufferSize()`/simulated
+clicks to open and drive **real native 2D PrUn buffer windows** as part of executing
+action steps. It needs a genuine `PrunTile` wired into the live 2D tile-management DOM,
+not the synthetic tile-ID string `createConsole()`'s `tileStatePlugin` bridge currently
+fakes. Teleporting it as-is throws immediately (`tile.container` undefined) or worse.
+Two real paths forward, neither attempted yet: (a) back the control-surface screen with
+an actual live 2D `XIT ACT` buffer (opened hidden via `showBuffer()`) and reflect that
+real instance into the 3D panel instead of an independent Teleport, or (b) refactor
+`TileAllocator` to support a non-DOM-backed mode — touches code real users depend on for
+live trading/production actions, higher regression risk. User chose to skip to Phase 5
+rather than pursue this now; revisit as its own dedicated investigation.
 
 ### Expansion Phase 5 — Visual polish (bridge vibe)
 
@@ -264,7 +279,17 @@ Real console housings (angled podium/desk instead of a flat rectangle), per-cons
 accent lighting/color driven by the already-reserved `themeColor`, floor markings or
 whatever else sells the "operations center" feel. Deliberately last, so it lands on a
 proven interaction skeleton instead of getting reworked when the interaction model
-changes underneath it. Not started.
+changes underneath it. **Done, live-verified 2026-07-25.** `console.ts`'s flat
+placeholder `housing` plate replaced with four meshes per console (all children of the
+same group, inheriting its arc position/rotation): `pedestal` (floor-to-under-screens
+support column), `desk` (a thin ~14°-tilted shelf just under the screens, reading as a
+console podium surface), `floorMarker` (a tinted floor disc), and `accentLight` (a
+low-intensity, short-range `THREE.PointLight` tinted with the console's `themeColor`).
+`hitbox` (interaction raycasting) was untouched, confirming the Phase 1 decision to keep
+it independent of the visual housing paid off — no interaction-code changes needed for
+this visual redesign. Verified via `game-tester`: no clipping/z-fighting, all 4 consoles
+read as podiums rather than flat plates, accent lights correctly tinted per console and
+not overpowering, screens still live.
 
 ## Open questions (deferred, not blocking)
 
@@ -328,5 +353,19 @@ delegating to Grok. Also added a `getBoundingClientRect()`-is-unreliable-for-CSS
 gotcha to `docs/browser-testing-3d.md`, found while re-verifying the scale fix. **Phase
 2's interaction behavior (facing-hint text, E-focus toggle, Escape fallback) is still
 not human-verified** — that gap from the previous entry is unchanged, just no longer
-blocking. Next session: Expansion Phase 4 (functional control surface) or human
-verification of Phase 2, whichever the user prioritizes.
+blocking.
+
+**2026-07-25 (5)** — User said to keep going without waiting on manual testing.
+Investigated Expansion Phase 4 (functional control surface) and found it's genuinely
+blocked on an architectural question, not just more implementation — see that section
+above for the detail (the real ACT component needs a live 2D DOM tile, not a synthetic
+one). Presented this to the user rather than guessing at a fix, given it's real-money/
+real-server-action code with a hard ToS rule attached. User chose to skip to Expansion
+Phase 5 (visual polish) instead. Implemented and live-verified Phase 5 (see that section
+above) — pedestal/desk/floor-marker/accent-light per console, replacing the flat
+placeholder plate. All 5 Expansion phases from the original sequencing are now either
+done (1, 2 code-complete pending human-verify, 3, 5) or explicitly blocked-pending-design
+(4). **Phase 2's interaction behavior is still not human-verified** — this is now the
+main open item before considering the Expansion track "solid." Next session: get a human
+to test Phase 2 (facing hint, E-focus toggle, Escape fallback) with a real mouse, or
+pursue one of Phase 4's two paths if the user wants to unblock it.
