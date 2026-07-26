@@ -135,6 +135,13 @@ directly, bypassing incremental movement entirely) would be worth the small effo
   `CSS3DRenderer`'s render loop re-syncs the element's visibility every frame and
   silently reverts the mutation.
 
+- **Console housing accent colors (blue/green/purple/orange, one per console) are hard
+  to reliably tell apart from a screenshot under the scene's dark ambient lighting.** A
+  verification pass misidentified `companyops` (purple) as `inv` (blue) by desk color
+  alone before catching it by checking on-screen content instead (FIN's bar chart vs.
+  INV's item grid). When identifying which console a screenshot shows, check the
+  screen's actual content, not the housing/accent-light color.
+
 - **This harness's browser has no real GPU — WebGL runs on `SwiftShader`, a software
   rasterizer.** Confirmed via `webgl-renderer-info`:
   `ANGLE (Google, Vulkan (SwiftShader Device...), SwiftShader driver)`.
