@@ -149,6 +149,17 @@ unless noted otherwise.
   and Phase 6's viewscreen (initially, until corrected the same day) both learned this
   the hard way by launching on +Z, behind spawn. Don't assume "spawn faces it" for
   anything placed on a wall without checking which side -Z actually is.
+- **A `MutationObserver` callback on `document.body` fires only after the synchronous
+  DOM-mutation batch that triggered it completes** — so a newly-added element's own
+  synchronous mount-time side effects (e.g. `TileAllocator`'s tile split into
+  `Node.node`/`Node.child`, which the source establishes happens at mount, not on a later
+  click) are already done by the time the observer callback runs. That means a
+  **synchronous** existence check (`_$`, not the indefinitely-waiting `$` — see
+  `docs/dom-helpers.md`) inside the callback is enough to tell "did this really split"
+  from "this is some other kind of window that will never split," with no polling or
+  timeout needed. First used by Expansion Phase 9's `control-surface-router.ts` to detect
+  `ExecuteActionPackage` windows opening dynamically; reusable for any future
+  MutationObserver-based detection of another component's synchronous mount behavior.
 - Files: `room.ts` (room geometry, `ROOM_HALF`/`ROOM_HEIGHT`/`EYE_HEIGHT` constants),
   `movement.ts` (WASD), `Renderer.ts` (`DualRenderer`, WebGL+CSS3D combo, overlay
   z-index), `buffer-panel.tsx` (`createPanelShell` — reusable CSS3D screen
