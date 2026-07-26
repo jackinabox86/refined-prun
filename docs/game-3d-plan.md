@@ -146,53 +146,53 @@ the whole extension use iframes at all.
 
 ---
 
-## KNOWN BLOCKING BUG (found 2026-07-26, not fixed) — CSS3D panel clicks mostly don't reach panel content
+## CSS3D panel click-hit-testing bug — fixed 2026-07-26
 
-**Top priority for whoever picks this track up next.** While unlocked (`interact` or
-`focused` mode), clicking *anywhere* on a console's screen content instantly re-locks
-into walk mode instead of the click reaching the button/link underneath — this blocks
-essentially all real mouse interaction with buffer content in 3D mode.
+Previously: while unlocked (`interact` or `focused` mode), clicking anywhere on a
+console's screen content instantly re-locked into walk mode instead of reaching the
+button/link underneath. Root cause: `document.elementFromPoint()` at real screen pixels
+over most panels returns the `CANVAS` element, not the panel — a Chromium hit-test/paint
+mismatch under the CSS3D `matrix3d`/`preserve-3d` transform chain (same underlying
+flattening quirk as the `getBoundingClientRect()` note below, but corrupting real click
+*delivery* rather than just a JS coordinate *query*). `Game3D.ts`'s `onCanvasClick`
+re-locked on any click landing on canvas, reproducing the symptom exactly. This also
+retroactively meant every earlier "PREVIEW click works" verification (Phase 7/8) never
+tested real click interaction — those used `element.click()`, bypassing browser
+hit-testing entirely.
 
-**Confirmed root cause** via a read-only `game-tester` diagnostic (`elementFromPoint()` +
-computed-style queries, no real clicks made): the `pointer-events: auto` override on each
-panel's root div (`createPanelShell`) is wired correctly — computed style confirms it
-takes effect over its ancestor `css3dLayer`'s `pointer-events: none` (`Renderer.ts`). The
-bug is one level down: `document.elementFromPoint()` at real screen pixels over most
-panels' visible area returns the `CANVAS` element, not the panel — Chromium's hit-test
-geometry doesn't agree with what it visually painted. **Geometry-dependent, not
-universal**: the one panel closest to camera (least visually skewed) hit-tested
-correctly across a dense coordinate grid; every more central/distant panel (larger
-`matrix3d` skew) hit-tested as pure canvas across its entire visible area. Since
-`Game3D.ts`'s `onCanvasClick` re-locks on any click landing on the canvas, a broken
-hit-test there reproduces the symptom exactly.
+**Fix**: bypass native screen-space hit-testing. `panel-hit-test.ts` raycasts in 3D
+space (camera through the click's screen coordinates) against an invisible hit-plane
+mesh matching each CSS3D panel's exact position/size, giving a hit-test that isn't
+subject to the flattening bug. The exact DOM element is then resolved via a temporary
+reparent-to-`document.body` + `position: fixed; transform: none` + `elementFromPoint`
+trick (escapes the corrupting transform chain for the query, synchronous so nothing
+paints in between; safe against three.js's own `CSS3DRenderer.render()`, which
+self-heals both parentage and the cached transform string every frame regardless). A
+real `.click()` is dispatched on the resolved element instead of re-locking; only
+clicks that hit no panel at all still fall through to the walk-mode relock.
 
-Same underlying flattening quirk already on record below for `getBoundingClientRect()`
-(nested `preserve-3d` + `matrix3d`+`perspective()` geometry not matching Chromium's
-simplified layout-geometry computation) — but this is a stronger, previously-unconfirmed
-consequence: it corrupts real click *delivery*, not just a JS coordinate *query*. **This
-also retroactively means every earlier "PREVIEW click works" verification (Phase 7/8 in
-git history) never actually tested real click interaction** — those used `element.click()`
-(a direct JS call bypassing browser hit-testing), per the existing testing-technique
-gotcha about coordinate clicks and the fullscreen canvas below. They proved the Vue click
-handler *works when invoked*, not that a real mouse click *reaches it*.
+Verified end-to-end by `game-tester` with real `page.mouse.click()` coordinate clicks
+(not `element.click()`): a click on a base-list row's expand toggle inside a
+base-planning console panel reached the real Vue handler and visibly expanded the row,
+while `requestPointerLock` (instrumented via patch) stayed uncalled; a click on empty
+canvas with no panel behind it still triggered the relock fallback correctly.
 
-**Not fixed.** Two candidate approaches, neither attempted:
+**Residual, non-blocking edge case found during verification**: at steep oblique
+viewing angles (looking at a far-arc console well off-axis), the invisible hit-plane
+raycast can still miss a point that visually sits inside the panel's rendered content —
+a milder recurrence of the same flattening-quirk family, now on the raycast/geometry
+side rather than the browser hit-test side. Not a regression (a miss just falls through
+to the same relock-on-empty-space fallback, not incorrect behavior), and doesn't
+reproduce at normal/near-frontal angles. Not investigated further — revisit only if it
+proves disruptive in practice.
 
-- **Cheap experiment, not guaranteed:** reduce transform extremity (tighter camera FOV,
-  smaller arc radius/angles) to see whether less skew narrows or eliminates the affected
-  region. Unknown whether there's a skew threshold below which Chromium's hit-test stays
-  accurate, or whether this is broken at any non-trivial angle.
-- **Real fix, more work:** bypass native hit-testing entirely — reuse the raycaster
-  already built for console-facing detection (`interaction.ts`) to compute, in 3D space,
-  exactly which panel/pixel a click's ray intersects, then dispatch a synthetic click at
-  the correct DOM element ourselves rather than relying on the browser's click delivery
-  through the CSS3D transform chain.
-
-**Practical fallout:** confirming a real package's companion tile populates via `EXECUTE`
-(needs a human click, per `docs/contributing.md`'s server-communication rule) and the
-whole dynamic-capture flow (walk up, focus, click a real action button, watch it get
-captured into the console's slot) are both **untestable until this is fixed** — not
-merely pending a verification pass.
+**Testing-technique note**: this harness's pointer lock always fails silently
+(`WrongDocumentError` under the hood), so `controls.lock()` can be called without the
+on-screen mode banner changing — screenshot-only verification of "did a click cause a
+relock" is not discriminating. `game-tester` verified by patching
+`canvas.requestPointerLock` to count real invocations and adding a capture-phase
+`document` click listener to observe which element (if any) received a synthetic
+`.click()`. Worth reusing for any future click/relock verification in this harness.
 
 ---
 
@@ -256,13 +256,8 @@ merely pending a verification pass.
 
 ## Proposed next steps
 
-**1. Fix the click-hit-testing bug (top priority, blocking).** See Known Blocking Bug
-above. Nothing else that depends on real mouse interaction with a console screen should
-be built or claimed "verified" until this lands — it isn't a nice-to-have, it currently
-makes most of the bridge un-clickable.
-
-**2. Once fixed, finish the verification this bug is currently blocking** — not new
-work, just confirming what's already built actually behaves:
+**1. Finish the verification the click-hit-testing bug was blocking** — now that it's
+fixed (see above), not new work, just confirming what's already built actually behaves:
    - A real `EXECUTE` click on a captured control-surface package, to confirm the
      companion tile populates with real content (human-only, per the
      server-communication rule).
@@ -270,7 +265,7 @@ work, just confirming what's already built actually behaves:
      action from one of its screens, confirm capture/replace/dispose all behave as
      designed).
 
-**3. Open candidates for whatever comes after that — none scoped or agreed yet, pick
+**2. Open candidates for whatever comes after that — none scoped or agreed yet, pick
 with the user before starting any of them:**
 
    - **Player-configurable console screens.** The stated long-term intent behind Phase
@@ -302,5 +297,10 @@ session log down to current architecture + decisions + known issues, at the user
 request. No functional change. Last functional work: Expansion Phase 9 (generic dynamic
 control surface, replacing the fixed-per-console model) landed and was structurally
 verified; a real, serious click-hit-testing bug was found via live human testing right
-after and is now the top blocking item (see above) — nothing else is safely testable by
-click until it's addressed.
+after and was the top blocking item.
+
+**2026-07-26 (later same day)** — Fixed the click-hit-testing bug: raycast-based
+hit-plane + temporary-reparent DOM resolution replaces broken native hit-testing (see
+above). Verified end-to-end by `game-tester` with real coordinate clicks. A minor
+residual edge case at steep viewing angles was found and is noted above, not blocking.
+Console-screen click interaction is now considered testable/usable going forward.

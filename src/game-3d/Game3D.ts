@@ -9,6 +9,7 @@ import { createBufferWindowGuard } from '@src/game-3d/buffer-window-guard';
 import { buildHologram } from '@src/game-3d/hologram';
 import { createInteraction } from '@src/game-3d/interaction';
 import { createModeOverlay } from '@src/game-3d/overlay';
+import { createPanelRaycaster } from '@src/game-3d/panel-hit-test';
 import { createTestControls } from '@src/game-3d/test-controls';
 import { buildViewscreen } from '@src/game-3d/viewscreen';
 
@@ -24,6 +25,7 @@ export class Game3D {
   private readonly interaction: ReturnType<typeof createInteraction>;
   private readonly controlSurfaceRouter: ReturnType<typeof createControlSurfaceRouter>;
   private readonly consoles: ReturnType<typeof buildConsoles>['consoles'];
+  private readonly panelHitTest: ReturnType<typeof createPanelRaycaster>;
   private readonly clock = new THREE.Clock();
   private rafId = 0;
   private disposed = false;
@@ -36,7 +38,15 @@ export class Game3D {
     if (this.controls.isLocked) {
       return;
     }
-    // Clicks that land on the CSS3D panel never reach the canvas.
+    const target = this.panelHitTest.findClickTarget(e.clientX, e.clientY);
+    if (target !== undefined) {
+      e.preventDefault();
+      if (target instanceof HTMLElement) {
+        target.click();
+      }
+      return;
+    }
+    // Clicks that land on empty canvas (no panel underneath) re-lock into walk mode.
     e.preventDefault();
     this.controls.lock();
   };
@@ -53,8 +63,9 @@ export class Game3D {
     viewscreen.position.set(0, 1.2, -(ROOM_HALF + 45));
     this.scene.add(viewscreen);
 
-    const { consoles, controlSurfaceSlots } = buildConsoles();
+    const { consoles, controlSurfaceSlots, panelHitTargets } = buildConsoles();
     this.consoles = consoles;
+    this.panelHitTest = createPanelRaycaster(this.camera, panelHitTargets);
     for (const c of this.consoles) {
       this.scene.add(c.group);
     }

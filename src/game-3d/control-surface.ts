@@ -14,6 +14,7 @@ export const CONTROL_SURFACE_HEIGHT_PX = 420;
 
 export interface ControlSurfaceSlot {
   object: CSS3DObject;
+  root: HTMLElement;
   /** Reparents `node` (a real window's C.Node.node wrapper) into this slot, replacing the placeholder. */
   activate: (node: Element) => void;
   /** Reverts to the dormant placeholder. Does NOT close any window — caller's job. */
@@ -47,5 +48,5 @@ export function createControlSurfaceSlot(
     deactivate();
   };
 
-  return { object, activate, deactivate, dispose };
+  return { object, root, activate, deactivate, dispose };
 }

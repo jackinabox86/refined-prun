@@ -154,6 +154,18 @@ directly, bypassing incremental movement entirely) would be worth the small effo
   number without a renderer check is not enough to diagnose a real perf regression, and
   don't start optimizing product code off an `fps-check` number alone.
 
+- **The on-screen mode banner ("Interact mode" / walk / focused) is not a reliable
+  signal for whether a click actually caused a relock in this harness.** It's driven
+  entirely by `PointerLockControls`'s `lock`/`unlock` events, which only fire on a
+  *successful* browser pointer lock — and pointer lock always fails here (see above),
+  so `controls.lock()` can be called and silently do nothing while the banner stays
+  unchanged either way. Screenshot-only verification of "did this click cause a relock"
+  is not discriminating. Instead, patch `canvas.requestPointerLock` (via an injected
+  script) to count real invocations, and add a capture-phase `document` click listener
+  to observe which element (if any) received a synthetic `.click()`. This combination
+  gave a reliable, non-visual signal when verifying the CSS3D click-hit-testing fix (see
+  `docs/game-3d-plan.md`) and should be reused for any future click/relock verification.
+
 ## Files
 
 Same shared scripts as the base manual (`pw-helper.mjs`, `local-browser-test.mjs`,

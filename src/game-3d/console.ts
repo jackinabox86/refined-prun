@@ -11,6 +11,7 @@ import {
   createControlSurfaceSlot,
   type ControlSurfaceSlot,
 } from '@src/game-3d/control-surface';
+import { createPanelHitPlane, type PanelHitTarget } from '@src/game-3d/panel-hit-test';
 import { ROOM_HEIGHT } from '@src/game-3d/room';
 import { tileStatePlugin } from '@src/store/user-data-tiles';
 
@@ -69,16 +70,21 @@ export function createConsole(definition: ConsoleDefinition) {
   let cursorX = -totalWidth / 2;
   let maxHeightWorld = 0;
   let controlSurfaceSlot: ControlSurfaceSlot | undefined;
+  const panelHitTargets: PanelHitTarget[] = [];
 
   for (let i = 0; i < slots.length; i++) {
     const slot = slots[i]!;
 
     let object: THREE.Object3D;
     let heightPx: number;
+    let root: HTMLElement;
+    let widthPx: number;
 
     if (slot.kind === 'control') {
       const panel = createControlSurfaceSlot(slot.widthPx, slot.heightPx);
       object = panel.object;
+      root = panel.root;
+      widthPx = slot.widthPx;
       controlSurfaceSlot = panel;
       screenHandles.push({ dispose: panel.dispose });
       heightPx = slot.heightPx;
@@ -92,7 +98,7 @@ export function createConsole(definition: ConsoleDefinition) {
 
       const maxHeightPx = Math.round(SCREEN_MAX_HEIGHT_WORLD / SCREEN_SCALE);
       const {
-        root,
+        root: panelRoot,
         targetDiv,
         object: panelObject,
       } = createPanelShell(screen.widthPx, screen.heightPx, maxHeightPx);
@@ -103,8 +109,10 @@ export function createConsole(definition: ConsoleDefinition) {
       );
       app.appendTo(document.body);
 
-      const disposeIframe = attachIframeRepaintWorkaround(root, targetDiv);
+      const disposeIframe = attachIframeRepaintWorkaround(panelRoot, targetDiv);
       object = panelObject;
+      root = panelRoot;
+      widthPx = screen.widthPx;
       screenHandles.push({ app, disposeIframe });
       heightPx = screen.heightPx ?? 400;
     }
@@ -115,6 +123,11 @@ export function createConsole(definition: ConsoleDefinition) {
     group.add(object);
 
     const heightWorld = heightPx * SCREEN_SCALE;
+    const hitPlane = createPanelHitPlane(root, widthPx, heightPx, widthWorld, heightWorld);
+    hitPlane.mesh.position.copy(object.position);
+    group.add(hitPlane.mesh);
+    panelHitTargets.push(hitPlane);
+
     if (heightWorld > maxHeightWorld) {
       maxHeightWorld = heightWorld;
     }
@@ -193,7 +206,7 @@ export function createConsole(definition: ConsoleDefinition) {
     }
   };
 
-  return { definition, group, hitbox, controlSurfaceSlot, dispose };
+  return { definition, group, hitbox, controlSurfaceSlot, panelHitTargets, dispose };
 }
 
 export type Console = ReturnType<typeof createConsole>;

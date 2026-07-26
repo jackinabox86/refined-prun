@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { createConsole, type Console, type ConsoleDefinition } from '@src/game-3d/console';
 import type { ControlSurfaceSlot } from '@src/game-3d/control-surface';
+import type { PanelHitTarget } from '@src/game-3d/panel-hit-test';
 import { ROOM_HEIGHT } from '@src/game-3d/room';
 
 /** Freestanding arc radius — clears hologram (~1.2) and hangar (+Z wall). */
@@ -78,6 +79,7 @@ const ROSTER: RosterEntry[] = [
 export function buildConsoles(): {
   consoles: Console[];
   controlSurfaceSlots: Map<string, ControlSurfaceSlot>;
+  panelHitTargets: PanelHitTarget[];
 } {
   const angles = arcAngles(ROSTER.length);
   const controlSurfaceSlots = new Map<string, ControlSurfaceSlot>();
@@ -93,5 +95,9 @@ export function buildConsoles(): {
     controlSurfaceSlots.set(entry.id, console.controlSurfaceSlot);
     return console;
   });
-  return { consoles, controlSurfaceSlots };
+  return {
+    consoles,
+    controlSurfaceSlots,
+    panelHitTargets: consoles.flatMap(c => c.panelHitTargets),
+  };
 }
