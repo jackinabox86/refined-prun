@@ -5,6 +5,7 @@ import {
   createPanelShell,
   SCREEN_SCALE,
 } from '@src/game-3d/buffer-panel';
+import { createControlSurfacePanel } from '@src/game-3d/control-surface';
 import { ROOM_HEIGHT } from '@src/game-3d/room';
 import { tileStatePlugin } from '@src/store/user-data-tiles';
 
@@ -21,8 +22,7 @@ export interface ConsoleDefinition {
   rotationY: number;
   themeColor: number;
   screens: ConsoleScreenDefinition[];
-  // Reserved for Expansion Phase 4 (action-runner log + Act/Skip). Not wired yet.
-  controlSurface?: { widthPx: number; heightPx: number };
+  controlSurface?: ConsoleScreenDefinition;
 }
 
 /** World-unit gap between adjacent screens so panel borders don't touch. */
@@ -31,42 +31,68 @@ const SCREEN_GAP = 0.2;
 /** Screens must not visually extend below the desk (top ≈ y=-0.4); small clearance kept. */
 export const SCREEN_MAX_HEIGHT_WORLD = 0.7;
 
+type ScreenSlot =
+  | { kind: 'xit'; screen: ConsoleScreenDefinition }
+  | { kind: 'control'; screen: ConsoleScreenDefinition };
+
 export function createConsole(definition: ConsoleDefinition) {
   const group = new THREE.Group();
   group.position.copy(definition.position);
   group.rotation.y = definition.rotationY;
 
-  const screenHandles: { app: { unmount(): void }; disposeIframe: () => void }[] = [];
+  const screenHandles: {
+    app?: { unmount(): void };
+    disposeIframe?: () => void;
+    dispose?: () => void;
+  }[] = [];
 
-  const screenWidths = definition.screens.map(x => x.widthPx * SCREEN_SCALE);
-  const totalWidth =
-    sumBy(screenWidths, x => x) + Math.max(0, definition.screens.length - 1) * SCREEN_GAP;
+  const slots: ScreenSlot[] = [
+    ...definition.screens.map(s => ({ kind: 'xit' as const, screen: s })),
+    ...(definition.controlSurface
+      ? [{ kind: 'control' as const, screen: definition.controlSurface }]
+      : []),
+  ];
+
+  const screenWidths = slots.map(x => x.screen.widthPx * SCREEN_SCALE);
+  const totalWidth = sumBy(screenWidths, x => x) + Math.max(0, slots.length - 1) * SCREEN_GAP;
 
   let cursorX = -totalWidth / 2;
   let maxHeightWorld = 0;
 
-  for (let i = 0; i < definition.screens.length; i++) {
-    const screen = definition.screens[i]!;
-    const command = screen.command;
-    const descriptor = xit.get(command);
-    if (descriptor === undefined) {
-      throw new Error(`Unknown XIT command in console roster: ${command}`);
+  for (let i = 0; i < slots.length; i++) {
+    const slot = slots[i]!;
+    const screen = slot.screen;
+
+    let object: THREE.Object3D;
+
+    if (slot.kind === 'control') {
+      const panel = createControlSurfacePanel(screen);
+      object = panel.object;
+      screenHandles.push({ dispose: panel.dispose });
+    } else {
+      const command = screen.command;
+      const descriptor = xit.get(command);
+      if (descriptor === undefined) {
+        throw new Error(`Unknown XIT command in console roster: ${command}`);
+      }
+
+      const maxHeightPx = Math.round(SCREEN_MAX_HEIGHT_WORLD / SCREEN_SCALE);
+      const {
+        root,
+        targetDiv,
+        object: panelObject,
+      } = createPanelShell(screen.widthPx, screen.heightPx, maxHeightPx);
+      const ScreenComponent = descriptor.component([]);
+      const app = createFragmentApp(() => h(Teleport, { to: targetDiv }, [h(ScreenComponent)])).use(
+        tileStatePlugin,
+        { tile: `game-3d-${definition.id}-${command}` },
+      );
+      app.appendTo(document.body);
+
+      const disposeIframe = attachIframeRepaintWorkaround(root, targetDiv);
+      object = panelObject;
+      screenHandles.push({ app, disposeIframe });
     }
-
-    const maxHeightPx = Math.round(SCREEN_MAX_HEIGHT_WORLD / SCREEN_SCALE);
-    const { root, targetDiv, object } = createPanelShell(
-      screen.widthPx,
-      screen.heightPx,
-      maxHeightPx,
-    );
-    const ScreenComponent = descriptor.component([]);
-    const app = createFragmentApp(() => h(Teleport, { to: targetDiv }, [h(ScreenComponent)])).use(
-      tileStatePlugin,
-      { tile: `game-3d-${definition.id}-${command}` },
-    );
-    app.appendTo(document.body);
-
-    const disposeIframe = attachIframeRepaintWorkaround(root, targetDiv);
 
     const widthWorld = screenWidths[i]!;
     object.position.set(cursorX + widthWorld / 2, 0, 0);
@@ -77,8 +103,6 @@ export function createConsole(definition: ConsoleDefinition) {
     if (heightWorld > maxHeightWorld) {
       maxHeightWorld = heightWorld;
     }
-
-    screenHandles.push({ app, disposeIframe });
   }
 
   const housingWidth = totalWidth + 0.3;
@@ -143,8 +167,9 @@ export function createConsole(definition: ConsoleDefinition) {
 
   const dispose = () => {
     for (const handle of screenHandles) {
-      handle.disposeIframe();
-      handle.app.unmount();
+      handle.disposeIframe?.();
+      handle.app?.unmount();
+      handle.dispose?.();
     }
   };
 

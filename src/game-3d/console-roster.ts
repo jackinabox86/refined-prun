@@ -39,6 +39,7 @@ interface RosterEntry {
   purpose: string;
   themeColor: number;
   screens: ConsoleDefinition['screens'];
+  controlSurface?: ConsoleDefinition['controlSurface'];
 }
 
 const ROSTER: RosterEntry[] = [
@@ -56,6 +57,11 @@ const ROSTER: RosterEntry[] = [
       { command: 'BS', widthPx: 480 },
       { command: 'PROD', widthPx: 480 },
     ],
+    // Placeholder/testbed package: generic, spike-verified open; not base-linked. Swap later.
+    // heightPx is required here (unlike the xit-registry screens above): the reparented
+    // native window DOM relies on percentage-height ancestors that collapse to 0 against
+    // createPanelShell's 'auto'-height targetDiv when heightPx is omitted.
+    controlSurface: { command: 'XIT REFUELACT', widthPx: 900, heightPx: 420 },
   },
   {
     id: 'companyops',
@@ -83,6 +89,7 @@ export function buildConsoles(): Console[] {
       purpose: entry.purpose,
       themeColor: entry.themeColor,
       screens: entry.screens,
+      controlSurface: entry.controlSurface,
       ...pose,
     });
   });
