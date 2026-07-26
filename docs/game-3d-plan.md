@@ -291,6 +291,59 @@ this visual redesign. Verified via `game-tester`: no clipping/z-fighting, all 4 
 read as podiums rather than flat plates, accent lights correctly tinted per console and
 not overpowering, screens still live.
 
+### Expansion Phase 6 — Hangar viewscreen (docking-arms diorama)
+
+Not started. Replaces the current wall-mounted `hangar.ts` display (placeholder ships
+sitting on a flat surface, compact/toy scale) with a window looking out into a distant
+space diorama: a station with spindly docking arms that the player's fleet is attached
+to, seen through an opening in the room's wall — not a flat screen rendering data.
+
+Design decided in conversation with the user 2026-07-25, before any code was written:
+
+- **Real 3D geometry placed far outside the room, seen through a wall opening — not a
+  rendered/textured screen.** The user was explicit that a flat "screen displaying
+  data" is not what they want here; it needs to feel like looking out a window at
+  something actually there, sharp and dimensional, not "cheap and dull." Reuse the
+  existing single-camera/single-scene render pipeline (`Renderer.ts`) — no
+  render-to-texture, no second camera or scene. The diorama is genuine WebGL geometry
+  positioned well outside the room (roughly 40-50+ world units past the wall, exact
+  number TBD at implementation time) and made visible through an opening cut into the
+  wall geometry.
+  - **Known unsolved technical step, flagged honestly rather than hand-waved:**
+    `room.ts`'s walls are currently one solid `THREE.BoxGeometry` per room (six-material
+    box). Cutting a window into a face of that isn't a simple property change — it
+    likely needs either splitting that wall into separate segments with a gap between
+    them, or a `THREE.Shape`-with-a-hole via `ExtrudeGeometry`/`ShapeGeometry`, or a
+    frame mesh that merely looks like an opening. Whoever picks this up should treat
+    "how does the wall get an opening" as the first implementation question, not assume
+    it's trivial.
+- **Ships attached to spindly station docking arms**, not sitting on a flat surface.
+  A station hub with several thin radiating arms (procedural primitives — `BoxGeometry`/
+  `CylinderGeometry` composition, the same no-external-models idiom already used
+  throughout `room.ts`/`hangar.ts`/`console.ts` — don't introduce asset loading), each
+  arm terminating in a ship. Reuse/scale up `hangar.ts`'s existing placeholder
+  hull+bridge ship-mesh construction rather than designing new ship geometry from
+  scratch.
+- **Significant scale.** Ships and station should read as large and distant — a
+  deliberate departure from the current hangar's compact, close-up, toy-model scale.
+  This pairs with the "seen through a window, far outside the room" placement above.
+- **"Cold space" mood:** a dark starfield backdrop, and a glowing sun in the distance.
+- **Sun glow via a billboarded sprite using a procedural radial-gradient canvas
+  texture** (same technique as `room.ts`'s `createPanelTexture` — draw a gradient to an
+  offscreen `<canvas>`, wrap it as a `THREE.CanvasTexture`), **not** true bloom
+  post-processing. Real bloom needs an `EffectComposer` pass added to `Renderer.ts`'s
+  render pipeline — meaningfully more rendering infrastructure than a single glowing
+  dot warrants; a bright emissive sprite with a soft falloff texture gets a
+  similar-reading glow far more cheaply.
+- **Relationship to the existing `hangar.ts` is undecided** — whether this replaces it
+  outright or the two coexist wasn't resolved in this conversation. Decide at
+  implementation time; not a blocker to writing the rest of this design down.
+- Not yet scoped: exact wall-opening location/size, exact diorama distance/scale
+  numbers, how many docking arms/ships to show, whether the starfield is a skybox,
+  point cloud, or something else. First implementation session should read this section,
+  then work through those specifics the same way Phase 1-5 sessions worked through
+  their own numeric/layout unknowns (build, verify with `game-tester`, adjust).
+
 ## Open questions — resolved 2026-07-25
 
 All four were investigated and closed; none needed a code change. Keeping the record
@@ -398,3 +451,14 @@ the other three were policy calls formalized in the doc. Added a one-line commen
 `hangar.ts` recording the ship-scope finding. **Phase 2's interaction behavior is still
 the one open item needing a human with a real mouse** before the Expansion track can be
 called fully verified.
+
+**2026-07-25 (7)** — Talked through what to do about the hangar with the user. They
+want ships to feel like a real, explorable 3D presence rather than data on a panel, but
+agreed a full second walkable room (reopening the just-closed single-room decision) is
+more than this stage warrants. Landed on a middle path: a window in the room wall
+looking out onto a real (not rendered-to-texture) diorama of the player's ships docked
+to spindly station arms, placed far outside the room at real WebGL depth so it reads as
+sharp/dimensional rather than a flat "cheap and dull" screen — full design captured as
+the new Expansion Phase 6 above. No code written this session; purely a design
+conversation, written down in detail specifically so the next session (or a future
+context-refreshed one) doesn't have to reconstruct it. Start there next.
