@@ -254,6 +254,44 @@ merely pending a verification pass.
   idempotent toggle), `game-3d-launcher.ts` (`toggleGame3D()`, the single dynamic-import
   seam).
 
+## Proposed next steps
+
+**1. Fix the click-hit-testing bug (top priority, blocking).** See Known Blocking Bug
+above. Nothing else that depends on real mouse interaction with a console screen should
+be built or claimed "verified" until this lands — it isn't a nice-to-have, it currently
+makes most of the bridge un-clickable.
+
+**2. Once fixed, finish the verification this bug is currently blocking** — not new
+work, just confirming what's already built actually behaves:
+   - A real `EXECUTE` click on a captured control-surface package, to confirm the
+     companion tile populates with real content (human-only, per the
+     server-communication rule).
+   - The full Phase 9 dynamic-capture flow end-to-end (focus a console, trigger a real
+     action from one of its screens, confirm capture/replace/dispose all behave as
+     designed).
+
+**3. Open candidates for whatever comes after that — none scoped or agreed yet, pick
+with the user before starting any of them:**
+
+   - **Player-configurable console screens.** The stated long-term intent behind Phase
+     9's "don't hardcode a command into a console" design — let the player choose which
+     XIT command occupies a console's screen/control-surface slot, rather than a fixed
+     roster. Meaningfully bigger than anything built so far (needs a UI for picking, and
+     probably `userData` persistence); the natural big next feature if the vision is
+     still to build toward it.
+   - **Hologram interactivity** — click a star/planet on the hologram for info, or use
+     it to navigate, rather than a static snapshot.
+   - **Expand the console roster** beyond the current 4, or let a console show more than
+     one screen combination.
+   - **Ambient audio/sound design** for the bridge.
+   - **Docking-arm spread fix** (cosmetic, non-blocking) — bias the viewscreen station's
+     arm angles for more lateral spread so more than ~2 of 5 read as distinct ships from
+     straight through the window.
+   - **CALC iframe repaint fix** — explicitly low priority; revisit only if a specific
+     reason comes up, not proactively.
+   - **A second walkable area** — explicitly decided against for now (see Decisions
+     above); only revisit if a concrete feature need arises that a single room can't fit.
+
 ## Session log
 
 Keep this short — one or two lines per session, current state lives above. For detail on
