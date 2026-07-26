@@ -300,11 +300,19 @@ const alarmClass = computed(() => ({
   z-index: 2;
 }
 
-/* Red alarm: opaque red/black hazard-tape stripes with a black outline,
-   across the whole bar. Storage is at (or projected past) capacity. */
+/* Red alarm: black/red hazard-tape stripes with a black outline, across
+   the whole bar. Storage is at (or projected past) capacity. The black
+   stripes stay opaque; the red stripes are 70% translucent so the bar
+   underneath still shows through. */
 .isAlarmRed {
   inset: 0;
-  background-image: repeating-linear-gradient(45deg, #d9534f 0, #d9534f 6px, #000 6px, #000 12px);
+  background-image: repeating-linear-gradient(
+    45deg,
+    #000 0,
+    #000 6px,
+    rgba(217, 83, 79, 0.3) 6px,
+    rgba(217, 83, 79, 0.3) 12px
+  );
   outline: 2px solid #000;
   outline-offset: -2px;
 }
