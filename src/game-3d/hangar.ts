@@ -19,6 +19,9 @@ const BRIDGE_COLOR = 0x4a5568;
 /**
  * One-shot snapshot of the player's ships as stylized placeholder meshes.
  * Not reactive — ship roster does not need live updates for this spike.
+ * shipsStore is inherently scoped to the player's own company (same source the real
+ * 2D FLT screen uses) — the API never sends other companies' ship data to this client,
+ * so there's no "show fleet-mates' ships too" option to add.
  */
 export function buildHangar(): THREE.Group {
   const group = new THREE.Group();

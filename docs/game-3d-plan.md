@@ -291,15 +291,33 @@ this visual redesign. Verified via `game-tester`: no clipping/z-fighting, all 4 
 read as podiums rather than flat plates, accent lights correctly tinted per console and
 not overpowering, screens still live.
 
-## Open questions (deferred, not blocking)
+## Open questions — resolved 2026-07-25
 
-- Does the hangar show only the player's own ships, or fleet-mates/company ships too?
-- Any accessibility/non-desktop story? (Pointer lock assumes a desktop mouse — likely
-  an accepted non-goal, but not formally decided.)
-- Where does the on/off toggle live in the UI, and is it a userData setting or
-  something else?
-- Beyond the arc of consoles, is this always a single room, or could the ops-center
-  concept expand to multiple/connected areas later?
+All four were investigated and closed; none needed a code change. Keeping the record
+here rather than deleting it — future sessions shouldn't have to re-derive these.
+
+- **Does the hangar show only the player's own ships, or fleet-mates/company ships
+  too?** Already correct, and not actually a choice — `shipsStore` (`hangar.ts`) is
+  built from the `SHIP_SHIPS` API message, the same source the real 2D `FLT` screen
+  uses (`docs/game/screens-fleet.md`: "Table of all ships", no cross-company filter
+  exists anywhere in the game or extension). PrUn's API only ever sends your own
+  company's ship data to your client — other companies'/corp-mates' ships aren't
+  something we could show even if we wanted to. Not a deferred design decision, a hard
+  constraint. Added a one-line comment to `hangar.ts` recording this so a future reader
+  doesn't have to re-derive it.
+- **Any accessibility/non-desktop story?** Formally decided: accepted non-goal.
+  Pointer Lock inherently requires a real desktop mouse; 3D mode is strictly opt-in
+  (top-bar button + hotkey) and never replaces the 2D UI, which stays fully accessible
+  for everyone who doesn't enable it.
+- **Where does the on/off toggle live, and is it a userData setting?** Confirmed as
+  final: the top-bar "3D" button (`game-3d-launch-button.tsx`, next to FULL) plus the
+  Ctrl+Alt+3 hotkey (`main.ts`), both funneling through `toggleGame3D()`. Deliberately
+  NOT a persisted `userData` setting — 3D mode is an occasional excursion, not something
+  you'd want to auto-resume on every page load.
+- **Single room, or could the ops-center expand to multiple/connected areas later?**
+  Decided to stay single-room for the foreseeable future. No concrete feature has come
+  up that needs a second area (room transitions, navigation between them, etc.) to
+  justify that complexity — revisit only if one does.
 
 ## Session log
 
@@ -369,3 +387,14 @@ done (1, 2 code-complete pending human-verify, 3, 5) or explicitly blocked-pendi
 main open item before considering the Expansion track "solid." Next session: get a human
 to test Phase 2 (facing hint, E-focus toggle, Escape fallback) with a real mouse, or
 pursue one of Phase 4's two paths if the user wants to unblock it.
+
+**2026-07-25 (6)** — Asked the user what came after Phase 5 since no Phase 6 exists;
+they chose to resolve the plan's four-item "Open questions" list (see that section,
+now retitled "resolved") rather than start new scene features. All four closed without
+needing new game logic — the hangar's ship-scope question turned out to be a hard API
+constraint rather than a deferred design choice (PrUn's `SHIP_SHIPS` message only ever
+contains the player's own company's ships, matching the real 2D `FLT` screen exactly),
+the other three were policy calls formalized in the doc. Added a one-line comment to
+`hangar.ts` recording the ship-scope finding. **Phase 2's interaction behavior is still
+the one open item needing a human with a real mouse** before the Expansion track can be
+called fully verified.
