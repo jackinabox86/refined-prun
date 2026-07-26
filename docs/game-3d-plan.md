@@ -678,6 +678,59 @@ fakes camera rotate/move, not lock state, so there is no way to drive a console 
 "focused" through automation. This needs a human with a real mouse to confirm end-to-end
 — same standing limitation as Phase 2's still-unconfirmed facing-hint/Escape fallback.
 
+### KNOWN BLOCKING BUG (found 2026-07-26, not fixed) — CSS3D panel clicks mostly don't reach panel content
+
+**Top priority for whoever picks this track up next.** Discovered by the user during
+their first real-mouse attempt to click inside a console screen (previously, only
+keyboard-driven state transitions — E-focus, Escape — had been human-tested; see Phase
+2's history above). Symptom: while unlocked (`interact` or `focused` mode), clicking
+*anywhere* on a console's screen content instantly re-locks into walk mode instead of the
+click reaching the button/link underneath — this blocks essentially all mouse
+interaction with buffer content in 3D mode, not just this session's Phase 8/9 testing
+goals.
+
+**Confirmed root cause via `game-tester` diagnostic** (read-only `elementFromPoint()` +
+computed-style queries, no real clicks made): the `pointer-events: auto` override on each
+panel's root div (`createPanelShell`, `buffer-panel.tsx`) is wired correctly — computed
+style confirms it takes effect over its ancestor `css3dLayer`'s `pointer-events: none`
+(`Renderer.ts`). The bug is one level down: `document.elementFromPoint()` at real screen
+pixels over most panels' visible area returns the `CANVAS` element, not the panel — i.e.
+Chromium's hit-test geometry doesn't agree with what it visually painted. This is
+**geometry-dependent, not universal**: the one panel closest to camera (least visually
+skewed) hit-tested correctly across a dense coordinate grid; every more central/distant
+panel tested (larger `matrix3d` skew) hit-tested as pure canvas across its *entire*
+visible area. Since `Game3D.ts`'s `onCanvasClick` re-locks on any click landing on the
+canvas, a broken hit-test there reproduces the reported symptom exactly.
+
+This is the same underlying flattening quirk already on record in
+`docs/browser-testing-3d.md` for `getBoundingClientRect()` (nested `preserve-3d` +
+`matrix3d`+`perspective()` geometry not matching Chromium's simplified layout-geometry
+computation) — but this is a **stronger, previously-unconfirmed consequence**: that
+quirk doesn't just corrupt a JS coordinate *query*, it corrupts real click *delivery*.
+**This also retroactively means every earlier "PREVIEW click works" verification (Phase
+7, 8) never actually tested real click interaction** — those used `element.click()`
+(a direct JS method call bypassing browser hit-testing entirely), per the existing
+testing-technique gotcha about coordinate clicks and the fullscreen canvas. They proved
+the Vue click handler *works when invoked*, not that a real mouse click *reaches it*.
+
+**Not fixed — user chose to flag and stop rather than scope a fix this session.** Two
+candidate approaches were identified, neither attempted:
+
+- **Cheap experiment, not guaranteed:** reduce transform extremity (tighter camera FOV,
+  smaller arc radius/angles) to see whether less skew narrows or eliminates the affected
+  region. Unknown whether there's a skew threshold below which Chromium's hit-test stays
+  accurate, or whether this is broken at any non-trivial angle.
+- **Real fix, more work:** bypass native hit-testing entirely — reuse the raycaster
+  already built for console-facing detection (`interaction.ts`) to compute, in 3D space,
+  exactly which panel/pixel a click's ray intersects, then dispatch a synthetic click at
+  the correct DOM element ourselves rather than relying on the browser's click delivery
+  through the CSS3D transform chain.
+
+**Practical fallout for this track right now:** Phase 8's real-`EXECUTE` verification and
+Phase 9's whole dynamic-capture flow (both requiring a real click inside a console
+screen) are effectively **untestable by the user until this is fixed**, not merely
+pending a verification pass — this supersedes those items' "needs a human" framing above.
+
 ## Open questions — resolved 2026-07-25
 
 All four were investigated and closed; none needed a code change. Keeping the record
@@ -931,3 +984,26 @@ per `AGENTS.md`; diff matched the brief closely. `game-tester` confirmed the str
 part (dormant slot on all 4 consoles, zero regressions to existing screens, clean exit);
 the dynamic-capture flow itself remains unverified pending a human with a real mouse, on
 top of Phase 2's still-open gap. Distill requested for after this lands.
+
+**2026-07-26 (4)** — Asked the user for a full list of everything still needing manual
+verification (compiled from every "needs a human"/"unconfirmed" note across the doc).
+User confirmed WASD smoothing, E-focus, and Escape's fallback all work fine, and doesn't
+care about the CALC iframe issue at this stage — but reported a new, serious problem
+while trying to test Phase 8/9's click-based flows: clicking anywhere on a console
+screen while unlocked instantly re-locks into walk mode instead of the click reaching
+the button underneath, blocking real mouse interaction with any buffer content.
+Investigated via a read-only `game-tester` diagnostic before proposing any fix — see the
+new **KNOWN BLOCKING BUG** section above for the full write-up. Confirmed root cause:
+Chromium's hit-test geometry for CSS3D-transformed panels doesn't match what it visually
+paints, for panels beyond a certain skew — `elementFromPoint()` resolves to the
+underlying canvas instead of the panel across most of the console arc. This is the same
+flattening quirk already on record for `getBoundingClientRect()`, now confirmed to also
+break real click delivery, and it retroactively means every prior "PREVIEW click works"
+finding (Phase 7, 8) only ever proved the Vue handler runs when invoked directly, not
+that a real click reaches it. Presented two candidate fixes (cheap FOV/geometry
+experiment vs. a real fix bypassing native hit-testing via the existing raycaster) plus
+a "just log it" option; user chose to stop here rather than scope a fix this session.
+**This is now the top-priority item for the Expansion track** — it blocks real
+verification of both Phase 8's EXECUTE step and Phase 9's entire dynamic-capture flow,
+not just this session's testing goals. Next session should pick one of the two candidate
+approaches (or investigate further) before any more click-dependent feature work lands.
