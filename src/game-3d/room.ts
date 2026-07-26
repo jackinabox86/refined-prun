@@ -5,6 +5,13 @@ export const ROOM_HALF = 5;
 export const ROOM_HEIGHT = 3.5;
 export const EYE_HEIGHT = 1.6;
 
+/** +Z wall viewscreen opening (world units). */
+export const WINDOW_WIDTH = 4;
+export const WINDOW_HEIGHT = 2.2;
+export const WINDOW_CENTER_Y = 1.8;
+
+const FRAME_DEPTH = 0.15;
+
 /** Procedural panel-line grid for walls/floor (generated once, not per-frame). */
 function createPanelTexture(lineColor: string, fillColor: string): THREE.CanvasTexture {
   const size = 256;
@@ -66,6 +73,8 @@ export function buildRoom(): THREE.Group {
     roughness: 0.88,
     metalness: 0.08,
   });
+  // +Z face is cut open for the viewscreen; frame segments rebuild the wall around the hole.
+  const wallMatOpen = new THREE.MeshStandardMaterial({ visible: false });
   const ceilingMat = new THREE.MeshStandardMaterial({
     color: 0x2a3545,
     side: THREE.BackSide,
@@ -78,11 +87,50 @@ export function buildRoom(): THREE.Group {
     wallMat,
     ceilingMat,
     wallMat,
-    wallMat,
+    wallMatOpen,
     wallMat,
   ]);
   room.position.y = ROOM_HEIGHT / 2;
   group.add(room);
+
+  // Freestanding frame boxes — DoubleSide so inward faces render (BackSide would cull them).
+  const frameMat = new THREE.MeshStandardMaterial({
+    color: 0x8a9aaa,
+    map: wallMap,
+    side: THREE.DoubleSide,
+    roughness: 0.88,
+    metalness: 0.08,
+  });
+  // Room-facing face flush with the hidden +Z plane at z = ROOM_HALF; thickness extends outward.
+  const frameZ = ROOM_HALF + FRAME_DEPTH / 2;
+
+  const topHeight = ROOM_HEIGHT - (WINDOW_CENTER_Y + WINDOW_HEIGHT / 2);
+  const frameTop = new THREE.Mesh(new THREE.BoxGeometry(size, topHeight, FRAME_DEPTH), frameMat);
+  frameTop.position.set(0, ROOM_HEIGHT - topHeight / 2, frameZ);
+  group.add(frameTop);
+
+  const bottomHeight = WINDOW_CENTER_Y - WINDOW_HEIGHT / 2;
+  const frameBottom = new THREE.Mesh(
+    new THREE.BoxGeometry(size, bottomHeight, FRAME_DEPTH),
+    frameMat,
+  );
+  frameBottom.position.set(0, bottomHeight / 2, frameZ);
+  group.add(frameBottom);
+
+  const sideWidth = (size - WINDOW_WIDTH) / 2;
+  const frameLeft = new THREE.Mesh(
+    new THREE.BoxGeometry(sideWidth, WINDOW_HEIGHT, FRAME_DEPTH),
+    frameMat,
+  );
+  frameLeft.position.set(-(WINDOW_WIDTH / 2 + sideWidth / 2), WINDOW_CENTER_Y, frameZ);
+  group.add(frameLeft);
+
+  const frameRight = new THREE.Mesh(
+    new THREE.BoxGeometry(sideWidth, WINDOW_HEIGHT, FRAME_DEPTH),
+    frameMat,
+  );
+  frameRight.position.set(WINDOW_WIDTH / 2 + sideWidth / 2, WINDOW_CENTER_Y, frameZ);
+  group.add(frameRight);
 
   const floor = new THREE.Mesh(
     new THREE.PlaneGeometry(size - 0.05, size - 0.05),

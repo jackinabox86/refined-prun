@@ -293,10 +293,55 @@ not overpowering, screens still live.
 
 ### Expansion Phase 6 — Hangar viewscreen (docking-arms diorama)
 
-Not started. Replaces the current wall-mounted `hangar.ts` display (placeholder ships
-sitting on a flat surface, compact/toy scale) with a window looking out into a distant
-space diorama: a station with spindly docking arms that the player's fleet is attached
-to, seen through an opening in the room's wall — not a flat screen rendering data.
+**Done, live-verified 2026-07-25.** Replaced the wall-mounted `hangar.ts` display
+(placeholder ships sitting on a flat surface, compact/toy scale) with a window looking
+out into a distant space diorama: a station with spindly docking arms that the player's
+fleet is attached to, seen through an opening in the room's wall — not a flat screen
+rendering data. `buildHangar()` itself was left in place (still exported, just no longer
+called from `Game3D.ts`) since its ship-mesh construction was extracted into a shared
+`buildShipMesh(length, hullMaterial, bridgeMaterial)` helper that the new diorama reuses
+at a much larger scale — the user resolved the "coexist or replace" open question in
+favor of replace, so ships now only appear in the new diorama.
+
+Implementation, delegated to Grok per `AGENTS.md`'s DELEGATION section (diff matched the
+brief closely, one TS fix needed for a const comparison):
+
+- `room.ts`: the +Z wall's box face (the same face `hangar.ts` used to sit against) is
+  now `visible: false` — a true geometry hole, not a texture trick — and rebuilt as 4
+  freestanding framing boxes (top/bottom/left/right; new exported constants
+  `WINDOW_WIDTH` (4), `WINDOW_HEIGHT` (2.2), `WINDOW_CENTER_Y` (1.8)) using `DoubleSide`
+  material (BackSide, used by the rest of the box-interior walls, would have culled the
+  inward-facing side of these separate boxes). Live-verified: clean rectangular opening,
+  all 4 frame edges align with no visible gaps/seams from inside the room.
+- `viewscreen.ts` (new): `buildViewscreen()` assembles a starfield (`THREE.Points`, ~1200
+  stars on a sphere shell radius 120-180), a sun (additive-blended `Sprite` with a
+  radial-gradient canvas texture, same offscreen-canvas idiom as `room.ts`'s
+  `createPanelTexture`), and a station (stacked-cylinder hub + 5 arms radiating at even
+  72° spacing, ships attached via `buildShipMesh()` at length 4-8, one per arm up to
+  however many ships the company has — a mood diorama, not a literal 1:1 fleet
+  inventory like the old hangar was). Builds the station even with zero ship data.
+- `Game3D.ts`: swapped `buildHangar()`'s wall placement for `buildViewscreen()` at
+  `(0, 1.2, ROOM_HALF + 45)`, and widened the camera far clip plane from 100 to 300 so
+  the diorama/starfield aren't clipped.
+
+**Live-verified via `game-tester`:** no console errors across an extended session; the
+opening reads unambiguously as "wall with a window," not a solid or fully-missing wall;
+starfield/sun/station are all distinct and visible through it; rest of the room (other
+walls, floor, ceiling, hologram, consoles) unaffected — confirmed via a full 360° sweep.
+`SwiftShader` software rendering confirmed again (same caveat as every prior FPS number
+in this doc). Two non-blocking findings from that pass:
+
+- **Spawn faces away from the new opening, not toward it.** Camera spawns at `(0,
+  EYE_HEIGHT, 2)` looking toward -Z (three.js's default forward), i.e. toward the
+  hologram/console arc — the same direction spawn always faced, including when the old
+  wall-mounted hangar occupied the +Z wall pre-Phase-6. Seeing the viewscreen requires
+  turning around (180° yaw) first. Not a regression, just worth remembering next time
+  someone assumes spawn already faces whatever's on +Z.
+- **Only ~2 of the 5 arms read as distinct ships from straight on.** The even 72°
+  spacing means most arms point toward/away from the camera rather than laterally, so
+  they're mostly hidden behind the hub from the default straight-through-the-window
+  viewing angle. Cosmetic only — not fixed this session; revisit by biasing arm angles
+  toward more lateral spread if a future session wants more ships readable at a glance.
 
 Design decided in conversation with the user 2026-07-25, before any code was written:
 
@@ -462,3 +507,24 @@ sharp/dimensional rather than a flat "cheap and dull" screen — full design cap
 the new Expansion Phase 6 above. No code written this session; purely a design
 conversation, written down in detail specifically so the next session (or a future
 context-refreshed one) doesn't have to reconstruct it. Start there next.
+
+**2026-07-25 (8)** — Implemented and live-verified Expansion Phase 6 (see that section
+above for the full detail). User resolved the one design gap left open in the previous
+session's write-up — replace the wall-mounted hangar outright rather than have both
+coexist. Delegated implementation to Grok per `AGENTS.md`'s DELEGATION section (wrote a
+detailed brief to `.local/scratch/phase6-brief.md` given the geometry work involved);
+diff matched the brief closely, one TS const-comparison fix needed on Grok's end. Real
+technical question the design doc flagged as unsolved — "how does a wall get an
+opening" — resolved as: hide the box face (`visible: false`) entirely rather than
+removing geometry, then rebuild most of the wall with 4 freestanding framing boxes
+around the gap, using `DoubleSide` material since the shared `BackSide` wall material
+would have culled those boxes' inward faces. Verified via `game-tester`: clean opening,
+starfield/sun/station diorama all distinct and visible, no regressions to the rest of
+the room, no console errors. Two minor non-blocking findings recorded in the Phase 6
+section (spawn faces away from the new window by default; only ~2 of 5 station arms
+read as distinct ships from straight on) — neither fixed this session, both cosmetic.
+**Phase 2's interaction behavior is still the one open item needing a human with a real
+mouse** before the Expansion track can be called fully verified — unchanged from prior
+sessions, not touched this session. Next session: either that human-verification pass,
+or pick a new Expansion Phase 7 topic with the user (no more phases are currently
+planned past 6).

@@ -16,6 +16,31 @@ const HANGAR_DISPLAY_HEIGHT = 0.8;
 const HULL_COLOR = 0x718096;
 const BRIDGE_COLOR = 0x4a5568;
 
+/** Hull + bridge placeholder mesh; length drives overall scale. */
+export function buildShipMesh(
+  length: number,
+  hullMaterial: THREE.Material,
+  bridgeMaterial: THREE.Material,
+): THREE.Group {
+  const width = length * 0.32;
+  const height = length * 0.22;
+
+  const shipGroup = new THREE.Group();
+
+  const hull = new THREE.Mesh(new THREE.BoxGeometry(width, height, length), hullMaterial);
+  shipGroup.add(hull);
+
+  const bridgeH = height * 0.6;
+  const bridge = new THREE.Mesh(
+    new THREE.BoxGeometry(width * 0.5, bridgeH, length * 0.25),
+    bridgeMaterial,
+  );
+  bridge.position.set(0, height * 0.5 + bridgeH / 2, length * 0.25);
+  shipGroup.add(bridge);
+
+  return shipGroup;
+}
+
 /**
  * One-shot snapshot of the player's ships as stylized placeholder meshes.
  * Not reactive — ship roster does not need live updates for this spike.
@@ -76,20 +101,7 @@ export function buildHangar(): THREE.Group {
     const length = SHIP_MIN_LENGTH + t * (SHIP_MAX_LENGTH - SHIP_MIN_LENGTH);
     const width = length * 0.32;
     const height = length * 0.22;
-
-    const shipGroup = new THREE.Group();
-
-    const hull = new THREE.Mesh(new THREE.BoxGeometry(width, height, length), hullMaterial);
-    shipGroup.add(hull);
-
-    const bridgeH = height * 0.6;
-    const bridge = new THREE.Mesh(
-      new THREE.BoxGeometry(width * 0.5, bridgeH, length * 0.25),
-      bridgeMaterial,
-    );
-    bridge.position.set(0, height * 0.5 + bridgeH / 2, length * 0.25);
-    shipGroup.add(bridge);
-
+    const shipGroup = buildShipMesh(length, hullMaterial, bridgeMaterial);
     layouts.push({ mesh: shipGroup, width, height });
   }
 

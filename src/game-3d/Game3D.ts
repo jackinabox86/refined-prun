@@ -6,10 +6,10 @@ import { createMovement } from '@src/game-3d/movement';
 import { createBufferWindowGuard } from '@src/game-3d/buffer-window-guard';
 import { buildConsoles } from '@src/game-3d/console-roster';
 import { buildHologram } from '@src/game-3d/hologram';
-import { buildHangar } from '@src/game-3d/hangar';
 import { createInteraction } from '@src/game-3d/interaction';
 import { createModeOverlay } from '@src/game-3d/overlay';
 import { createTestControls } from '@src/game-3d/test-controls';
+import { buildViewscreen } from '@src/game-3d/viewscreen';
 
 export class Game3D {
   private readonly renderer = new DualRenderer();
@@ -40,16 +40,16 @@ export class Game3D {
   };
 
   constructor(private readonly onClose: () => void) {
-    this.camera = new THREE.PerspectiveCamera(75, 1, 0.1, 100);
+    this.camera = new THREE.PerspectiveCamera(75, 1, 0.1, 300);
     this.camera.position.set(0, EYE_HEIGHT, 2);
 
     this.scene.add(buildRoom());
     const hologram = buildHologram();
     hologram.position.set(0, 1.4, 0);
     this.scene.add(hologram);
-    const hangar = buildHangar();
-    hangar.position.set(0, 0, ROOM_HALF - 0.05);
-    this.scene.add(hangar);
+    const viewscreen = buildViewscreen();
+    viewscreen.position.set(0, 1.2, ROOM_HALF + 45);
+    this.scene.add(viewscreen);
     for (const c of this.consoles) {
       this.scene.add(c.group);
     }
