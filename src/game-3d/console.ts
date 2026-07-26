@@ -28,6 +28,9 @@ export interface ConsoleDefinition {
 /** World-unit gap between adjacent screens so panel borders don't touch. */
 const SCREEN_GAP = 0.2;
 
+/** Screens must not visually extend below the desk (top ≈ y=-0.4); small clearance kept. */
+export const SCREEN_MAX_HEIGHT_WORLD = 0.7;
+
 export function createConsole(definition: ConsoleDefinition) {
   const group = new THREE.Group();
   group.position.copy(definition.position);
@@ -50,7 +53,12 @@ export function createConsole(definition: ConsoleDefinition) {
       throw new Error(`Unknown XIT command in console roster: ${command}`);
     }
 
-    const { root, targetDiv, object } = createPanelShell(screen.widthPx, screen.heightPx);
+    const maxHeightPx = Math.round(SCREEN_MAX_HEIGHT_WORLD / SCREEN_SCALE);
+    const { root, targetDiv, object } = createPanelShell(
+      screen.widthPx,
+      screen.heightPx,
+      maxHeightPx,
+    );
     const ScreenComponent = descriptor.component([]);
     const app = createFragmentApp(() => h(Teleport, { to: targetDiv }, [h(ScreenComponent)])).use(
       tileStatePlugin,
@@ -104,7 +112,7 @@ export function createConsole(definition: ConsoleDefinition) {
     }),
   );
   desk.position.set(0, -0.42, 0.12);
-  desk.rotation.x = -0.25;
+  desk.rotation.x = 0.25;
   group.add(desk);
 
   // +0.02 avoids z-fighting with the room floor.

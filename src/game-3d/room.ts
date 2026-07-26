@@ -5,7 +5,7 @@ export const ROOM_HALF = 5;
 export const ROOM_HEIGHT = 3.5;
 export const EYE_HEIGHT = 1.6;
 
-/** +Z wall viewscreen opening (world units). */
+/** -Z wall viewscreen opening (world units). */
 export const WINDOW_WIDTH = 4;
 export const WINDOW_HEIGHT = 2.2;
 export const WINDOW_CENTER_Y = 1.8;
@@ -73,7 +73,7 @@ export function buildRoom(): THREE.Group {
     roughness: 0.88,
     metalness: 0.08,
   });
-  // +Z face is cut open for the viewscreen; frame segments rebuild the wall around the hole.
+  // -Z face is cut open for the viewscreen; frame segments rebuild the wall around the hole.
   const wallMatOpen = new THREE.MeshStandardMaterial({ visible: false });
   const ceilingMat = new THREE.MeshStandardMaterial({
     color: 0x2a3545,
@@ -87,8 +87,8 @@ export function buildRoom(): THREE.Group {
     wallMat,
     ceilingMat,
     wallMat,
-    wallMatOpen,
     wallMat,
+    wallMatOpen,
   ]);
   room.position.y = ROOM_HEIGHT / 2;
   group.add(room);
@@ -101,8 +101,8 @@ export function buildRoom(): THREE.Group {
     roughness: 0.88,
     metalness: 0.08,
   });
-  // Room-facing face flush with the hidden +Z plane at z = ROOM_HALF; thickness extends outward.
-  const frameZ = ROOM_HALF + FRAME_DEPTH / 2;
+  // Room-facing face flush with the hidden -Z plane at z = -ROOM_HALF; thickness extends outward.
+  const frameZ = -(ROOM_HALF + FRAME_DEPTH / 2);
 
   const topHeight = ROOM_HEIGHT - (WINDOW_CENTER_Y + WINDOW_HEIGHT / 2);
   const frameTop = new THREE.Mesh(new THREE.BoxGeometry(size, topHeight, FRAME_DEPTH), frameMat);

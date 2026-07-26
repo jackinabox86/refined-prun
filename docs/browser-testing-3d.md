@@ -70,6 +70,16 @@ uniformly dark.
 
 ## Gotchas learned the hard way
 
+- **A tab that already had 3D mode loaded can keep running a stale module after a
+  rebuild, even though `dist/` on disk is current.** Confirmed for real: a geometry/
+  placement fix (moving the viewscreen wall) showed the OLD behavior on first check
+  after `build:fast`, despite `dist/` grepping clean for the fix — a plain
+  `reload-extension` (which also refreshes the game tab, per the base doc) made it show
+  correctly. If a fix that changes static geometry/placement doesn't appear to have
+  taken effect, `reload-extension` before concluding the fix is broken — this applies
+  even when nothing about the extension's own load sequence changed, just re-entering
+  3D mode is not enough to pick up a new build in an already-open tab.
+
 - **Global hotkeys (Ctrl+Alt+3) sent via a synthetic keypress can silently fail to fire**
   if focus is on an open buffer's command input — the input appears to capture the
   keydown before it reaches the `document`-level listener. Use the on-screen button

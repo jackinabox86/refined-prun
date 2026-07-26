@@ -48,7 +48,7 @@ export class Game3D {
     hologram.position.set(0, 1.4, 0);
     this.scene.add(hologram);
     const viewscreen = buildViewscreen();
-    viewscreen.position.set(0, 1.2, ROOM_HALF + 45);
+    viewscreen.position.set(0, 1.2, -(ROOM_HALF + 45));
     this.scene.add(viewscreen);
     for (const c of this.consoles) {
       this.scene.add(c.group);

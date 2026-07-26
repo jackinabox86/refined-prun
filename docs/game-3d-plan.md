@@ -125,10 +125,11 @@ unless noted otherwise.
   First used for Expansion Phase 6's viewscreen window; reusable for any future wall
   opening.
 - **Spawn always faces -Z (three.js's default camera forward), not whichever wall a new
-  feature gets added to.** The console arc/hologram sit toward -Z; the +Z wall (hangar,
-  then the Phase 6 viewscreen) has always been behind the player at spawn, requiring a
-  180° turn to face it. Don't assume "spawn faces it" for anything placed on +Z without
-  checking.
+  feature gets added to.** The console arc/hologram sit toward -Z, so anything meant to
+  be seen without turning around belongs on -Z too — the old wall-mounted `hangar.ts`
+  and Phase 6's viewscreen (initially, until corrected the same day) both learned this
+  the hard way by launching on +Z, behind spawn. Don't assume "spawn faces it" for
+  anything placed on a wall without checking which side -Z actually is.
 - Files: `room.ts` (room geometry, `ROOM_HALF`/`ROOM_HEIGHT`/`EYE_HEIGHT` constants),
   `movement.ts` (WASD), `Renderer.ts` (`DualRenderer`, WebGL+CSS3D combo, overlay
   z-index), `buffer-panel.tsx` (`createPanelShell` — reusable CSS3D screen
@@ -318,13 +319,13 @@ favor of replace, so ships now only appear in the new diorama.
 Implementation, delegated to Grok per `AGENTS.md`'s DELEGATION section (diff matched the
 brief closely, one TS fix needed for a const comparison):
 
-- `room.ts`: the +Z wall's box face (the same face `hangar.ts` used to sit against) is
-  now `visible: false` — a true geometry hole, not a texture trick — and rebuilt as 4
-  freestanding framing boxes (top/bottom/left/right; new exported constants
-  `WINDOW_WIDTH` (4), `WINDOW_HEIGHT` (2.2), `WINDOW_CENTER_Y` (1.8)) using `DoubleSide`
-  material (BackSide, used by the rest of the box-interior walls, would have culled the
-  inward-facing side of these separate boxes). Live-verified: clean rectangular opening,
-  all 4 frame edges align with no visible gaps/seams from inside the room.
+- `room.ts`: a wall's box face is `visible: false` — a true geometry hole, not a texture
+  trick — and rebuilt as 4 freestanding framing boxes (top/bottom/left/right; new
+  exported constants `WINDOW_WIDTH` (4), `WINDOW_HEIGHT` (2.2), `WINDOW_CENTER_Y` (1.8))
+  using `DoubleSide` material (BackSide, used by the rest of the box-interior walls,
+  would have culled the inward-facing side of these separate boxes). **Originally built
+  on the +Z face, moved to -Z** in a same-day follow-up (see below) — the opening is on
+  whichever wall the console arc sits near, not the one behind spawn.
 - `viewscreen.ts` (new): `buildViewscreen()` assembles a starfield (`THREE.Points`, ~1200
   stars on a sphere shell radius 120-180), a sun (additive-blended `Sprite` with a
   radial-gradient canvas texture, same offscreen-canvas idiom as `room.ts`'s
@@ -332,28 +333,54 @@ brief closely, one TS fix needed for a const comparison):
   72° spacing, ships attached via `buildShipMesh()` at length 4-8, one per arm up to
   however many ships the company has — a mood diorama, not a literal 1:1 fleet
   inventory like the old hangar was). Builds the station even with zero ship data.
-- `Game3D.ts`: swapped `buildHangar()`'s wall placement for `buildViewscreen()` at
-  `(0, 1.2, ROOM_HALF + 45)`, and widened the camera far clip plane from 100 to 300 so
-  the diorama/starfield aren't clipped.
+- `Game3D.ts`: swapped `buildHangar()`'s wall placement for `buildViewscreen()`
+  (originally at `(0, 1.2, ROOM_HALF + 45)`, moved to `(0, 1.2, -(ROOM_HALF + 45))` — see
+  below), and widened the camera far clip plane from 100 to 300 so the diorama/starfield
+  aren't clipped.
 
-**Live-verified via `game-tester`:** no console errors across an extended session; the
+**Live-verified via `game-tester`:** no console errors across an extended session;
 opening reads unambiguously as "wall with a window," not a solid or fully-missing wall;
 starfield/sun/station are all distinct and visible through it; rest of the room (other
 walls, floor, ceiling, hologram, consoles) unaffected — confirmed via a full 360° sweep.
 `SwiftShader` software rendering confirmed again (same caveat as every prior FPS number
-in this doc). Two non-blocking findings from that pass:
+in this doc). One cosmetic, non-blocking finding survives from that first pass: **only
+~2 of the 5 station arms read as distinct ships from straight on** — the even 72°
+spacing means most arms point toward/away from the camera rather than laterally, so
+they're mostly hidden behind the hub from the default straight-through-the-window
+viewing angle. Not fixed; revisit by biasing arm angles toward more lateral spread if a
+future session wants more ships readable at a glance.
 
-- **Spawn faces away from the new opening, not toward it.** Camera spawns at `(0,
-  EYE_HEIGHT, 2)` looking toward -Z (three.js's default forward), i.e. toward the
-  hologram/console arc — the same direction spawn always faced, including when the old
-  wall-mounted hangar occupied the +Z wall pre-Phase-6. Seeing the viewscreen requires
-  turning around (180° yaw) first. Not a regression, just worth remembering next time
-  someone assumes spawn already faces whatever's on +Z.
-- **Only ~2 of the 5 arms read as distinct ships from straight on.** The even 72°
-  spacing means most arms point toward/away from the camera rather than laterally, so
-  they're mostly hidden behind the hub from the default straight-through-the-window
-  viewing angle. Cosmetic only — not fixed this session; revisit by biasing arm angles
-  toward more lateral spread if a future session wants more ships readable at a glance.
+**Same-day follow-up fixes (session (9) below), from human playtesting with a real
+mouse** — all three delegated to Grok, all confirmed by `game-tester`:
+
+- **Window wall was wrong.** The initial build put the opening on +Z, which turned out
+  to be *behind* spawn when facing the console arc (spawn faces -Z by default, toward
+  the consoles — see the "Reusable facts" list above) — the opposite of "beyond the
+  consoles." Moved to -Z: `room.ts`'s material-array indices swapped (index 4 → solid,
+  index 5 → open) and `frameZ` negated; `Game3D.ts`'s `viewscreen.position` Z term
+  negated to match. Confirmed: spawn's default forward view now shows the console arc
+  *and* the diorama beyond it together, with no turn required; the +Z wall (now behind
+  spawn) is solid with no leftover opening.
+- **Console desk (`console.ts`) tilted the wrong way** — read as a ramp rising toward
+  the player instead of a podium surface sloping down toward them. Fixed by flipping
+  `desk.rotation.x` from `-0.25` to `0.25`. Confirmed via geometry math (the tilt is too
+  subtle a rotation on a thin 0.06-unit box to read reliably from screenshots at this
+  scale/distance) rather than pixel inspection alone.
+- **Console screens could grow taller than the desk.** Data-heavy screens (INV, FLT,
+  etc.) size to their real content, which can extend past the desk since screens are
+  vertically centered at local Y=0. Added a hard cap: new `SCREEN_MAX_HEIGHT_WORLD =
+  0.7` constant (`console.ts`) converted to pixels and passed to `createPanelShell`
+  (`buffer-panel.tsx`, gained an optional `maxHeightPx` param → CSS `max-height` +
+  `overflow-y: auto`), applied uniformly to every screen. Confirmed via computed-style
+  inspection: all 6 screens show `max-height: 437px`; INV/BS/PROD/FIN (whose content
+  exceeds that) are correctly clamped with a scrollbar, CONTS/FLT (short enough content)
+  are unaffected — no artificial clamping when it isn't needed.
+
+**Harness trap hit during this verification, not a product bug:** the game tab was
+running a stale module from before the follow-up `build:fast`, even though `dist/` on
+disk already had the fix — `reload-extension` was required before the wall-swap showed
+correctly. See `docs/browser-testing-3d.md`'s Gotchas section for the general rule this
+produced.
 
 Design decided in conversation with the user 2026-07-25, before any code was written:
 
@@ -400,6 +427,63 @@ Design decided in conversation with the user 2026-07-25, before any code was wri
   point cloud, or something else. First implementation session should read this section,
   then work through those specifics the same way Phase 1-5 sessions worked through
   their own numeric/layout unknowns (build, verify with `game-tester`, adjust).
+
+### Expansion Phase 7 — Functional control surface (proposed)
+
+**Not started — recommendation, not yet discussed/agreed with the user beyond "write
+this down as the Phase 7 proposal."** Unlike Phases 1-6, this section is the assistant's
+own suggestion for what to tackle next, not a design locked in through conversation —
+treat it as a starting point to confirm or redirect, not a decided plan.
+
+**Why this over other candidates:** every other plausible "what's next" (more consoles,
+hologram interactivity, ambient audio/sound design, further visual polish, a second
+walkable area) is incremental garnish on a bridge that already works. Phase 4
+("Functional control surface") is the one piece of the original Vision
+("a control-surface screen for running action packages") still entirely unimplemented —
+consoles are read-only today, they can't act. It was investigated once (2026-07-25),
+found genuinely blocked on an architecture question, and explicitly deferred twice
+since (skipped for Phase 5, skipped again for Phase 6). This is that investigation's
+own two-paths-forward finding, picked up as its own phase rather than left open
+indefinitely.
+
+**Approach — resume Phase 4's path (a), not (b).** Path (a) (see Phase 4 above): back
+the control-surface screen with a REAL, live 2D `XIT ACT` buffer window — opened via the
+same `showBuffer()` call every native screen link already uses — instead of an
+independent synthetic Teleport. This keeps the window a genuine DOM/tile-manager
+citizen, so `TileAllocator`'s `tile.container.classList` ancestry checks
+(`C.Window.body`, `C.Node.child`) pass unmodified; **zero changes to
+`runner/tile-allocator.ts`or any other code real users depend on for live
+trading/production actions.** Path (b) (refactor `TileAllocator` itself) stays rejected
+for the same reason Phase 4 rejected it: touching that code is a real-money-action
+regression risk this track shouldn't take on for a cosmetic/UX feature.
+
+**Concretely, in order:**
+
+1. **Spike first, no console wiring yet.** From `game-3d`, call `showBuffer()` to open
+   one real `XIT ACT` window and confirm `TileAllocator` doesn't throw — establishes the
+   baseline (a genuine native window, no synthetic tile) before attempting anything
+   fancier.
+2. **Then attempt DOM re-parenting**: move that real window's rendered content DOM node
+   into the console's CSS3D panel `targetDiv` (a single `appendChild` after creation),
+   keeping the window itself positioned off-screen/hidden so it never appears as a
+   native 2D floating window. This is the open technical question this phase exists to
+   answer — Vue's internal bookkeeping (the component's own DOM references, `Teleport`
+   internals if the real component uses one) or the window manager's own tracking of
+   that DOM node's position may not tolerate being moved. **If re-parenting breaks
+   something, don't push through it** — fall back to leaving the native window fully
+   parked off-screen and treat the 3D panel as a live *mirror* of its state rather than
+   the actual interactive surface. That fallback is a real scope reduction (state
+   visible in 3D, but Act/Skip clicks still happen in an invisible native window) —
+   confirm with the user before committing to it, since it changes what "functional
+   control surface" means.
+3. **Wire ONE console first**, not all four — `baseplanning` (BS/PROD) is a reasonable
+   pick since building/production queues are a natural fit for action packages. Don't
+   roll out to the other three consoles until the one testbed is confirmed working.
+4. **Real-money-action caution applies to testing, not just implementation:** any
+   `game-tester` pass against this must not click Act/Skip and actually execute steps
+   against the live game without explicit human confirmation first — re-read
+   `docs/contributing.md`'s "explicit click gates server communication" rule before
+   writing any verification script that could trigger a real action step.
 
 ## Open questions — resolved 2026-07-25
 
@@ -540,3 +624,29 @@ mouse** before the Expansion track can be called fully verified — unchanged fr
 sessions, not touched this session. Next session: either that human-verification pass,
 or pick a new Expansion Phase 7 topic with the user (no more phases are currently
 planned past 6).
+
+**2026-07-25 (9)** — User human-tested Phase 2 with a real mouse and confirmed the
+E-focus toggle works — the first piece of that long-standing verification gap actually
+closed (facing-hint text and Escape's generic-interact fallback are still unconfirmed).
+Then applied three follow-up fixes to the just-shipped Phase 6, all delegated to Grok
+per `AGENTS.md`: (1) flipped the console desk's tilt direction (`rotation.x` sign,
+`console.ts`) since it read as sloping up toward the player instead of down; (2) swapped
+the viewscreen window from the +Z wall to -Z per user correction — it needs to be beyond
+the console arc (which sits near -Z) in the same forward view from spawn, not behind the
+player looking at the consoles, which is where it landed in session (8); (3) added a
+`SCREEN_MAX_HEIGHT_WORLD` cap + CSS `max-height`/`overflow-y: auto` to console screen
+panels (`buffer-panel.tsx`/`console.ts`) so tall buffer content clips at the desk with a
+scrollbar instead of visually overlapping it. `game-tester` verification confirmed all
+three (see the Phase 6 section's "Same-day follow-up fixes" for the detail) — one
+harness trap surfaced along the way (stale module in an already-open tab after
+`build:fast`, needing `reload-extension`; now documented in
+`docs/browser-testing-3d.md`) and two stale doc comments in `room.ts`/`viewscreen.ts`
+still saying "+Z" were fixed to say "-Z". Also asked by the user to recommend a genuine
+Phase 7 (not just verification of the above) — wrote up **Expansion Phase 7 —
+Functional control surface (proposed)** above: resuming Phase 4's path (a) (a real live
+`XIT ACT` buffer window backing the control-surface screen, DOM-reparented into the CSS3D
+panel, native window otherwise hidden) since it's the last unimplemented piece of the
+original Vision and Phase 4 already scoped it down to two paths with (a) being the lower
+production-code-risk one. Explicitly flagged in that section as the assistant's proposal,
+not yet agreed to the way Phases 1-6 were — confirm or redirect before starting
+implementation.

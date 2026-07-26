@@ -148,7 +148,7 @@ function buildStation(): THREE.Group {
 }
 
 /**
- * Distant docking-arm diorama seen through the room's +Z wall opening.
+ * Distant docking-arm diorama seen through the room's -Z wall opening.
  * Station sits at local origin; caller positions the whole group outside the room.
  */
 export function buildViewscreen(): THREE.Group {

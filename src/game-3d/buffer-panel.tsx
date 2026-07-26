@@ -7,11 +7,12 @@ import { CSS3DObject } from 'three/examples/jsm/renderers/CSS3DRenderer.js';
  */
 export const SCREEN_SCALE = 0.0016;
 
-export function createPanelShell(widthPx: number, heightPx?: number) {
+export function createPanelShell(widthPx: number, heightPx?: number, maxHeightPx?: number) {
   const root = document.createElement('div');
   Object.assign(root.style, {
     width: `${widthPx}px`,
     ...(heightPx === undefined ? {} : { height: `${heightPx}px` }),
+    ...(maxHeightPx === undefined ? {} : { maxHeight: `${maxHeightPx}px`, overflowY: 'auto' }),
     padding: '16px 20px',
     boxSizing: 'border-box',
     background: 'rgba(20, 28, 40, 0.92)',
