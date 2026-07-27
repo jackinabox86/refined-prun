@@ -93,6 +93,16 @@ wall-mounted hangar display it replaced. `hangar.ts` itself is no longer called 
 read as distinct ships from straight through the window (even 72° spacing points most
 arms toward/away from the camera) — not fixed.
 
+**Known cosmetic bug, found 2026-07-26 during the visual pass's `game-tester`
+verification:** the sun sprite (`buildSun()`) is placed on the wrong side of the room.
+Its local position `(60, 20, 140)` sits inside the viewscreen group positioned at
+`(0, 1.2, -(ROOM_HALF+45)) = (0, 1.2, -50)`, giving a world position of roughly
+`(60, 21.2, +90)` — behind the room's solid, unopened `+Z` wall, opposite the actual
+window (`-Z`). Confirmed empirically: rotating to the exact computed line-of-sight angle
+from spawn shows only a plain wall, nothing else. Likely just a sign error on the
+sprite's local Z offset. Not fixed yet — low priority, purely cosmetic, `viewscreen.ts`
+untouched otherwise.
+
 **Consoles** (`console.ts`, `console-roster.ts`): 4 consoles on a 140° arc (radius 3.0,
 centered on -Z): `inv` (INV), `baseplanning` (BS + PROD), `companyops` (CONTS + FIN),
 `flt` (FLT). Each `ConsoleDefinition` (id, purpose, position, rotationY, themeColor,
@@ -138,6 +148,25 @@ for `pw-act.mjs`'s `game3d-test-rotate`/`game3d-test-move` — calls `PointerLoc
 methods directly, proving geometry/rendering/position but unable to exercise anything
 gated on `controls.isLocked` (see Known Issues).
 
+**Visual pass (2026-07-26, procedural-only, no downloaded assets)**: `Renderer.ts`'s
+`DualRenderer` now runs an `EffectComposer` (`RenderPass` + `UnrealBloomPass`, built
+lazily on first `render()` call since `scene`/`camera` don't exist yet at
+`DualRenderer`'s own construction) instead of a bare `webgl.render()` call, making
+emissive materials (console pedestal/desk/floor markers, hologram star spheres, the
+viewscreen sun sprite) glow without haloing the non-emissive walls. `Game3D.ts`'s
+constructor builds a PMREM environment map once (`RoomEnvironment` + `PMREMGenerator`)
+and assigns it to `scene.environment`, giving existing `metalness`-bearing materials
+subtle reflections with no material changes needed. `room.ts`'s `createPanelBumpMaps()`
+generates matching normal/roughness maps for the procedural wall/frame/floor panel-line
+texture (height-field canvas → finite-difference normal map), read as embossed seam
+relief under lighting. New `greebles.ts` scatters ~60 rivet/vent/pipe instances
+(`THREE.InstancedMesh`) along the room's wall base — purely decorative, never added to
+`panelHitTargets` or any hitbox list. All four verified visually by `game-tester`;
+bloom alone costs a real, measurable 2-4x further slowdown on this harness's
+software-rendered `SwiftShader` baseline (~2 fps → ~0.5-1 fps) — not blocking on real
+GPU hardware, but worth knowing before trusting any FPS number from this harness on a
+bloom-enabled build.
+
 **Known, deliberately low-priority cosmetic issue:** `XIT CALC`'s cross-origin iframe
 still doesn't reliably paint inside a CSS3D panel (a known Chromium/three.js bug class,
 no canonical upstream fix). A scoped mitigation exists in `buffer-panel.tsx` but its
@@ -146,7 +175,7 @@ the whole extension use iframes at all.
 
 ---
 
-## CSS3D panel click-hit-testing bug — fixed 2026-07-26
+## CSS3D panel click-hit-testing bug — fixed for moderate skew, open at extreme arc angles (2026-07-26)
 
 Previously: while unlocked (`interact` or `focused` mode), clicking anywhere on a
 console's screen content instantly re-locked into walk mode instead of reaching the
@@ -177,14 +206,35 @@ base-planning console panel reached the real Vue handler and visibly expanded th
 while `requestPointerLock` (instrumented via patch) stayed uncalled; a click on empty
 canvas with no panel behind it still triggered the relock fallback correctly.
 
-**Residual, non-blocking edge case found during verification**: at steep oblique
-viewing angles (looking at a far-arc console well off-axis), the invisible hit-plane
-raycast can still miss a point that visually sits inside the panel's rendered content —
-a milder recurrence of the same flattening-quirk family, now on the raycast/geometry
-side rather than the browser hit-test side. Not a regression (a miss just falls through
-to the same relock-on-empty-space fallback, not incorrect behavior), and doesn't
-reproduce at normal/near-frontal angles. Not investigated further — revisit only if it
-proves disruptive in practice.
+**Residual gap, root-caused 2026-07-26 (later session): the fix does not cover
+steeply-angled panels.** A later verification pass initially flagged what looked like a
+full regression (0 hits across broad sampling) — turned out to be partly a measurement
+artifact (many sampled points were simply outside any panel's actual on-screen footprint,
+or landed on points where native hit-testing already succeeds, e.g. the control-surface
+placeholder's "No action running" text, which was never broken) — but a real, reproducible
+gap survived once confirmed against an actual screenshot: at `inv`/`flt` (the two
+consoles at the ends of the 140° arc, ~±70° from center), viewed from spawn or any
+similarly oblique angle, a click squarely inside the panel's *visibly rendered* content
+(confirmed via screenshot pixel inspection, not guesswork) returns `hitCount: 0` from the
+raycaster itself — not just from native `elementFromPoint`. Root cause: at this much
+skew, Chromium's CSS `matrix3d`/`perspective()` rendering of the CSS3D panel div
+diverges from the *true* 3D transform of the invisible hit-plane mesh sharing the same
+`object.position` — the same flattening-quirk family as the known `getBoundingClientRect()`
+issue below, but this time affecting the panel's actual visual paint, not just a
+coordinate query. Since the raycast fix assumes visual paint matches true 3D geometry
+(true at moderate skew, confirmed twice: the original row-expand verification and a
+direct follow-up test both against more face-on consoles), it inherits this mismatch at
+extreme skew rather than fixing it — bypassing native `elementFromPoint` doesn't help
+when the *visual position itself*, not just the hit-test query, has diverged from the
+geometry. Not a regression from any later session's changes (confirmed unaffected by
+the bloom/reflections/greebles visual pass) and not something a better hit-plane
+position/size can fix on its own — the panel's own visible paint is the thing that's
+wrong at this angle. Two console screens (`inv`, `flt`) are affected when viewed at
+their natural arc angle; `baseplanning`/`companyops` (nearer the arc's center, more
+face-on from spawn) are not. **Next step if picked up**: the plan doc's original "cheap
+experiment, not guaranteed" idea (narrower arc span/smaller radius, reducing the worst
+skew angles) is the most promising untried lever, since the root cause is specifically
+skew severity, not a fixable code defect in the hit-plane math.
 
 **Testing-technique note**: this harness's pointer lock always fails silently
 (`WrongDocumentError` under the hood), so `controls.lock()` can be called without the
@@ -256,8 +306,13 @@ relock" is not discriminating. `game-tester` verified by patching
 
 ## Proposed next steps
 
-**1. Finish the verification the click-hit-testing bug was blocking** — now that it's
-fixed (see above), not new work, just confirming what's already built actually behaves:
+**1. Close the click-hit-testing gap at extreme arc angles** — see above. Affects
+`inv`/`flt` specifically when viewed near their natural spawn-facing angle; try the
+narrower-arc/reduced-skew experiment first, since the root cause is skew severity, not a
+hit-plane math bug.
+
+**2. Finish the verification the click-hit-testing bug was blocking** — for
+`baseplanning`/`companyops` this is unblocked already; for `inv`/`flt` it depends on #1:
    - A real `EXECUTE` click on a captured control-surface package, to confirm the
      companion tile populates with real content (human-only, per the
      server-communication rule).
@@ -265,7 +320,7 @@ fixed (see above), not new work, just confirming what's already built actually b
      action from one of its screens, confirm capture/replace/dispose all behave as
      designed).
 
-**2. Open candidates for whatever comes after that — none scoped or agreed yet, pick
+**3. Open candidates for whatever comes after that — none scoped or agreed yet, pick
 with the user before starting any of them:**
 
    - **Player-configurable console screens.** The stated long-term intent behind Phase
@@ -301,6 +356,15 @@ after and was the top blocking item.
 
 **2026-07-26 (later same day)** — Fixed the click-hit-testing bug: raycast-based
 hit-plane + temporary-reparent DOM resolution replaces broken native hit-testing (see
-above). Verified end-to-end by `game-tester` with real coordinate clicks. A minor
-residual edge case at steep viewing angles was found and is noted above, not blocking.
-Console-screen click interaction is now considered testable/usable going forward.
+above). Verified end-to-end by `game-tester` with real coordinate clicks for the two
+arc-center consoles.
+
+**2026-07-26 (later still)** — Added a procedural-only visual pass (bloom, PMREM
+reflections, normal/roughness maps, instanced greebles — see above), verified by
+`game-tester`. That verification also flagged what first looked like a full regression
+of the click-hit-testing fix; a focused follow-up investigation (including manual
+raycast math cross-checked against real screenshots) found the true picture: the fix
+is solid for moderately-angled consoles (confirmed twice) but has a real, unfixed gap
+at the arc's extreme ends (`inv`/`flt`, ~±70°) where Chromium's CSS3D rendering itself
+diverges from the true 3D transform — see the corrected section above. Also found (and
+left unfixed, low priority): the viewscreen sun sprite is placed behind the wrong wall.

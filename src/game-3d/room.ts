@@ -54,6 +54,102 @@ function createPanelTexture(lineColor: string, fillColor: string): THREE.CanvasT
   return texture;
 }
 
+/**
+ * Normal + roughness maps matching createPanelTexture's grid — same 256px/32px-step
+ * layout, generated once. Seams read as shallow recessed grooves.
+ */
+function createPanelBumpMaps(): {
+  normalMap: THREE.CanvasTexture;
+  roughnessMap: THREE.CanvasTexture;
+} {
+  const size = 256;
+  const step = 32;
+
+  const heightCanvas = document.createElement('canvas');
+  heightCanvas.width = size;
+  heightCanvas.height = size;
+  const hctx = heightCanvas.getContext('2d')!;
+  hctx.fillStyle = '#ffffff';
+  hctx.fillRect(0, 0, size, size);
+  hctx.strokeStyle = '#404040';
+  hctx.lineWidth = 2;
+  hctx.beginPath();
+  for (let i = 0; i <= size; i += step) {
+    hctx.moveTo(i, 0);
+    hctx.lineTo(i, size);
+    hctx.moveTo(0, i);
+    hctx.lineTo(size, i);
+  }
+  hctx.stroke();
+  hctx.lineWidth = 3;
+  hctx.strokeStyle = '#202020';
+  hctx.beginPath();
+  for (let i = 0; i <= size; i += step * 4) {
+    hctx.moveTo(i, 0);
+    hctx.lineTo(i, size);
+    hctx.moveTo(0, i);
+    hctx.lineTo(size, i);
+  }
+  hctx.stroke();
+
+  const heightData = hctx.getImageData(0, 0, size, size).data;
+  const heightAt = (x: number, y: number) => {
+    const xi = ((x % size) + size) % size;
+    const yi = ((y % size) + size) % size;
+    return heightData[(yi * size + xi) * 4]! / 255;
+  };
+
+  const normalCanvas = document.createElement('canvas');
+  normalCanvas.width = size;
+  normalCanvas.height = size;
+  const nctx = normalCanvas.getContext('2d')!;
+  const normalImage = nctx.createImageData(size, size);
+  const strength = 2.5;
+  for (let y = 0; y < size; y++) {
+    for (let x = 0; x < size; x++) {
+      const dx = (heightAt(x + 1, y) - heightAt(x - 1, y)) * strength;
+      const dy = (heightAt(x, y + 1) - heightAt(x, y - 1)) * strength;
+      const nx = -dx;
+      const ny = -dy;
+      const nz = 1;
+      const len = Math.sqrt(nx * nx + ny * ny + nz * nz);
+      const idx = (y * size + x) * 4;
+      normalImage.data[idx] = ((nx / len) * 0.5 + 0.5) * 255;
+      normalImage.data[idx + 1] = ((ny / len) * 0.5 + 0.5) * 255;
+      normalImage.data[idx + 2] = ((nz / len) * 0.5 + 0.5) * 255;
+      normalImage.data[idx + 3] = 255;
+    }
+  }
+  nctx.putImageData(normalImage, 0, 0);
+
+  const roughCanvas = document.createElement('canvas');
+  roughCanvas.width = size;
+  roughCanvas.height = size;
+  const rctx = roughCanvas.getContext('2d')!;
+  rctx.fillStyle = '#a0a0a0';
+  rctx.fillRect(0, 0, size, size);
+  rctx.strokeStyle = '#e0e0e0';
+  rctx.lineWidth = 2;
+  rctx.beginPath();
+  for (let i = 0; i <= size; i += step) {
+    rctx.moveTo(i, 0);
+    rctx.lineTo(i, size);
+    rctx.moveTo(0, i);
+    rctx.lineTo(size, i);
+  }
+  rctx.stroke();
+
+  const normalMap = new THREE.CanvasTexture(normalCanvas);
+  normalMap.wrapS = THREE.RepeatWrapping;
+  normalMap.wrapT = THREE.RepeatWrapping;
+
+  const roughnessMap = new THREE.CanvasTexture(roughCanvas);
+  roughnessMap.wrapS = THREE.RepeatWrapping;
+  roughnessMap.wrapT = THREE.RepeatWrapping;
+
+  return { normalMap, roughnessMap };
+}
+
 /** Builds an enclosed box room with ambient + directional lighting. */
 export function buildRoom(): THREE.Group {
   const group = new THREE.Group();
@@ -66,9 +162,22 @@ export function buildRoom(): THREE.Group {
   const floorMap = createPanelTexture('rgba(0, 0, 0, 0.4)', '#3a4555');
   floorMap.repeat.set(size / 2, size / 2);
 
+  const wallBump = createPanelBumpMaps();
+  wallBump.normalMap.repeat.set(size / 2, ROOM_HEIGHT / 2);
+  wallBump.roughnessMap.repeat.set(size / 2, ROOM_HEIGHT / 2);
+
+  const floorBump = createPanelBumpMaps();
+  floorBump.normalMap.repeat.set(size / 2, size / 2);
+  floorBump.roughnessMap.repeat.set(size / 2, size / 2);
+
+  const normalScale = new THREE.Vector2(0.6, 0.6);
+
   const wallMat = new THREE.MeshStandardMaterial({
     color: 0x8a9aaa,
     map: wallMap,
+    normalMap: wallBump.normalMap,
+    normalScale,
+    roughnessMap: wallBump.roughnessMap,
     side: THREE.BackSide,
     roughness: 0.88,
     metalness: 0.08,
@@ -97,6 +206,9 @@ export function buildRoom(): THREE.Group {
   const frameMat = new THREE.MeshStandardMaterial({
     color: 0x8a9aaa,
     map: wallMap,
+    normalMap: wallBump.normalMap,
+    normalScale,
+    roughnessMap: wallBump.roughnessMap,
     side: THREE.DoubleSide,
     roughness: 0.88,
     metalness: 0.08,
@@ -137,6 +249,9 @@ export function buildRoom(): THREE.Group {
     new THREE.MeshStandardMaterial({
       color: 0x6a7a8a,
       map: floorMap,
+      normalMap: floorBump.normalMap,
+      normalScale,
+      roughnessMap: floorBump.roughnessMap,
       roughness: 0.92,
       metalness: 0.04,
     }),

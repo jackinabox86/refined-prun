@@ -1,7 +1,9 @@
 import * as THREE from 'three';
 import { PointerLockControls } from 'three/examples/jsm/controls/PointerLockControls.js';
+import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import { DualRenderer } from '@src/game-3d/Renderer';
 import { buildRoom, clampToRoom, EYE_HEIGHT, ROOM_HALF } from '@src/game-3d/room';
+import { buildGreebles } from '@src/game-3d/greebles';
 import { createMovement } from '@src/game-3d/movement';
 import { buildConsoles } from '@src/game-3d/console-roster';
 import { createControlSurfaceRouter } from '@src/game-3d/control-surface-router';
@@ -16,6 +18,7 @@ import { buildViewscreen } from '@src/game-3d/viewscreen';
 export class Game3D {
   private readonly renderer = new DualRenderer();
   private readonly scene = new THREE.Scene();
+  private readonly envTexture: THREE.Texture;
   private readonly camera: THREE.PerspectiveCamera;
   private readonly controls: PointerLockControls;
   private readonly movement = createMovement();
@@ -55,7 +58,13 @@ export class Game3D {
     this.camera = new THREE.PerspectiveCamera(75, 1, 0.1, 300);
     this.camera.position.set(0, EYE_HEIGHT, 2);
 
+    const pmremGenerator = new THREE.PMREMGenerator(this.renderer.webgl);
+    this.envTexture = pmremGenerator.fromScene(new RoomEnvironment(), 0.04).texture;
+    this.scene.environment = this.envTexture;
+    pmremGenerator.dispose();
+
     this.scene.add(buildRoom());
+    this.scene.add(buildGreebles());
     const hologram = buildHologram();
     hologram.position.set(0, 1.4, 0);
     this.scene.add(hologram);
@@ -121,6 +130,7 @@ export class Game3D {
     for (const c of this.consoles) {
       c.dispose();
     }
+    this.envTexture.dispose();
     this.renderer.dispose();
   }
 

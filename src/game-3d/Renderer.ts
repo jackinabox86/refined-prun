@@ -1,5 +1,8 @@
 import * as THREE from 'three';
 import { CSS3DRenderer } from 'three/examples/jsm/renderers/CSS3DRenderer.js';
+import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
 
 export const OVERLAY_Z_INDEX = 2147483646;
 
@@ -12,6 +15,7 @@ export class DualRenderer {
   readonly webgl: THREE.WebGLRenderer;
   readonly css3d: CSS3DRenderer;
   readonly canvas: HTMLCanvasElement;
+  private composer?: EffectComposer;
 
   constructor() {
     this.container = document.createElement('div');
@@ -62,10 +66,23 @@ export class DualRenderer {
   setSize(width: number, height: number) {
     this.webgl.setSize(width, height, false);
     this.css3d.setSize(width, height);
+    this.composer?.setSize(width, height);
   }
 
   render(scene: THREE.Scene, camera: THREE.Camera) {
-    this.webgl.render(scene, camera);
+    if (this.composer === undefined) {
+      this.composer = new EffectComposer(this.webgl);
+      this.composer.addPass(new RenderPass(scene, camera));
+      // Strength 0.7 / radius 0.4 / threshold 0.35 — tuned for emissive console/hologram materials.
+      const bloomPass = new UnrealBloomPass(
+        new THREE.Vector2(window.innerWidth, window.innerHeight),
+        0.7,
+        0.4,
+        0.35,
+      );
+      this.composer.addPass(bloomPass);
+    }
+    this.composer.render();
     this.css3d.render(scene, camera);
   }
 
