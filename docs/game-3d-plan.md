@@ -46,7 +46,10 @@ normal 2D UI, which keeps working exactly as it does today for everyone who does
   enforces the layering boundary anyway.
 - **Console layout: arc facing center.** Consoles curve around facing inward toward the
   room center (where the hologram floats) — crew stations facing a plot table, not
-  panels bolted to flat walls.
+  panels bolted to flat walls. **Under reconsideration as of 2026-07-26** — see "Human
+  playtest feedback" below; the user finds the narrow arc confusing/limiting and wants
+  consoles spread around the room instead. Don't treat this bullet as settled until that
+  discussion resolves.
 - **Focus model: press E to focus in place.** Walk up, face a console, press E: pointer
   unlocks, that console's screens become clickable, camera stays put. Press E again (or
   walk away) to return to walk mode.
@@ -81,6 +84,9 @@ viewscreen both sit there).
 
 **Hologram** (`hologram.ts`): one-shot, non-reactive snapshot of the player's home star
 sector at room center `(0, 1.4, 0)`, stars colored by type, connection lines drawn.
+**Placement under reconsideration as of 2026-07-26** — see "Human playtest feedback"
+below; the user wants it in a room corner instead of the center, where it currently
+sits in the middle of everything else.
 
 **Viewscreen** (`viewscreen.ts`, `room.ts`): a real geometric window cut into the -Z
 wall (`visible: false` on that box face + 4 freestanding `DoubleSide` framing boxes
@@ -246,6 +252,34 @@ relock" is not discriminating. `game-tester` verified by patching
 
 ---
 
+## KNOWN BUG — control-surface capture missed a real action package (found 2026-07-26, human playtest, not investigated)
+
+Reported directly by the user (not yet reproduced/diagnosed by an agent): starting an
+action runner (RepairAct) at the `baseplanning` console did **not** get captured into
+that console's control-surface slot. A normal 2D floating buffer window appeared
+instead (i.e. it stayed a regular window, exactly like `control-surface-router.ts`'s
+"not focused / not an ACT split / leave it alone" fallback paths), and the console's
+control-surface slot itself showed no change (still whatever it was before — dormant
+"No action running" or a prior capture).
+
+**Not yet diagnosed.** `control-surface-router.ts`'s `tryCapture()` only proceeds if
+`getFocusedConsoleId()` returns that console's id at the moment the window's DOM node
+mutates in — two candidate causes worth checking first, neither confirmed:
+
+- The console may not actually have been in `focused` state (per `interaction.ts`) at
+  the exact moment the window opened — e.g. if the click that launched the action
+  happened while merely `interact`-mode-unlocked rather than truly `focused` on
+  `baseplanning` specifically.
+- The synchronous `_$(win, C.Node.node)` split-detection check may not find a match for
+  this specific action package's DOM shape/timing — the comment above it assumes
+  `TileAllocator`'s split always completes before the `MutationObserver` callback fires,
+  which may not hold for every action-package variant.
+
+Needs a live human repro with devtools open (check `getFocusedConsoleId()`'s value and
+whether `tryCapture` even runs) before attempting a fix — don't guess-fix this blind.
+
+---
+
 ## Reusable facts for future work
 
 - **Pointer lock is broken under the CDP/Playwright test harness.** `test-controls.ts`'s
@@ -306,13 +340,42 @@ relock" is not discriminating. `game-tester` verified by patching
 
 ## Proposed next steps
 
-**1. Close the click-hit-testing gap at extreme arc angles** — see above. Affects
-`inv`/`flt` specifically when viewed near their natural spawn-facing angle; try the
-narrower-arc/reduced-skew experiment first, since the root cause is skew severity, not a
-hit-plane math bug.
+**1. Human playtest feedback (2026-07-26) — pick these up first, session paused here
+deliberately so the user can work through them fresh:**
 
-**2. Finish the verification the click-hit-testing bug was blocking** — for
-`baseplanning`/`companyops` this is unblocked already; for `inv`/`flt` it depends on #1:
+   - **Reconsider the console arc layout.** User feedback, direct quote territory: "the
+     consoles should all be spread around the room, not just in a perfect arc from where
+     one spawns" — the narrow 140°-arc-facing-center layout (see Decisions above, now
+     flagged under reconsideration) reads as confusing in practice. Spreading consoles
+     around the room (different walls/positions, not one arc) is the proposed
+     alternative — **and may also reduce or eliminate the extreme-skew click-hit-testing
+     gap below**, since that gap's root cause is specifically the steep viewing angle to
+     the arc's two end consoles (`inv`/`flt`) — a layout change could obsolete the need
+     for a separate skew fix entirely. Worth exploring layout first, before spending more
+     effort on the hit-testing gap in isolation.
+   - **Move the hologram to a room corner**, not the center — user finds it "in the
+     middle of everything," presumably because a walkable room with a room-center
+     obstacle plus an arc of consoles all facing that same center feels cluttered/awkward
+     once you're actually walking around in it. Likely ties into the same layout
+     reconsideration above.
+   - **Fix the control-surface capture bug** — RepairAct at `baseplanning` wasn't
+     captured (see the KNOWN BUG section above). Needs a live human repro with devtools
+     before attempting a fix; don't guess-fix blind.
+   - **Decide on bloom's default state.** Confirmed real cost: ~2-4x further slowdown on
+     this harness's software-rendered baseline (~2fps → ~0.5-1fps) — not meaningful on
+     real GPU hardware, but genuinely slows down *iteration* in this test harness.
+     Recommended (not yet implemented, no code changed): disable bloom by default for
+     now, add it back when doing visual-polish-focused work specifically — a cheap
+     toggle (env var, keybinding, or just temporarily removing the `EffectComposer` call
+     in `Renderer.ts`) would avoid re-litigating this each session.
+
+**2. Close the click-hit-testing gap at extreme arc angles** — see above. Affects
+`inv`/`flt` specifically when viewed near their natural spawn-facing angle. Hold off on
+the narrower-arc/reduced-skew experiment until the layout reconsideration above (#1)
+resolves — a full layout change might address this for free.
+
+**3. Finish the verification the click-hit-testing bug was blocking** — for
+`baseplanning`/`companyops` this is unblocked already; for `inv`/`flt` it depends on #2:
    - A real `EXECUTE` click on a captured control-surface package, to confirm the
      companion tile populates with real content (human-only, per the
      server-communication rule).
@@ -320,7 +383,7 @@ hit-plane math bug.
      action from one of its screens, confirm capture/replace/dispose all behave as
      designed).
 
-**3. Open candidates for whatever comes after that — none scoped or agreed yet, pick
+**4. Open candidates for whatever comes after that — none scoped or agreed yet, pick
 with the user before starting any of them:**
 
    - **Player-configurable console screens.** The stated long-term intent behind Phase
@@ -368,3 +431,13 @@ is solid for moderately-angled consoles (confirmed twice) but has a real, unfixe
 at the arc's extreme ends (`inv`/`flt`, ~±70°) where Chromium's CSS3D rendering itself
 diverges from the true 3D transform — see the corrected section above. Also found (and
 left unfixed, low priority): the viewscreen sun sprite is placed behind the wrong wall.
+
+**2026-07-26 (session end)** — User playtested live and paused the session deliberately
+to think through several findings before continuing: the console arc layout reads as
+confusing and should probably be consoles-spread-around-the-room instead (which may
+also resolve the extreme-skew hit-testing gap for free — see Proposed next steps); the
+hologram should move from room-center to a corner; a real action package (RepairAct) at
+`baseplanning` failed to get captured into its control-surface slot (new bug, not yet
+diagnosed); and bloom's ~2-4x perf cost on this harness is worth disabling by default for
+faster iteration, re-enabling only for visual-polish work. No code changed this round —
+purely doc updates capturing the feedback for a focused follow-up session.
