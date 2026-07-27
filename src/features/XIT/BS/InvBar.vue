@@ -302,7 +302,7 @@ const alarmClass = computed(() => ({
 
 /* Red alarm: black/red hazard-tape stripes with a black outline, across
    the whole bar. Storage is at (or projected past) capacity. The black
-   stripes are fully transparent and the red stripes are 70% translucent,
+   stripes are fully transparent and the red stripes are 20% translucent,
    so the bar underneath always shows through. */
 .isAlarmRed {
   inset: 0;
@@ -310,8 +310,8 @@ const alarmClass = computed(() => ({
     45deg,
     transparent 0,
     transparent 6px,
-    rgba(217, 83, 79, 0.3) 6px,
-    rgba(217, 83, 79, 0.3) 12px
+    rgba(217, 83, 79, 0.8) 6px,
+    rgba(217, 83, 79, 0.8) 12px
   );
   outline: 2px solid #000;
   outline-offset: -2px;
