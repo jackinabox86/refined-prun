@@ -8,7 +8,7 @@ import { createMovement } from '@src/game-3d/movement';
 import { buildConsoles } from '@src/game-3d/console-roster';
 import { createControlSurfaceRouter } from '@src/game-3d/control-surface-router';
 import { createBufferWindowGuard } from '@src/game-3d/buffer-window-guard';
-import { buildHologram } from '@src/game-3d/hologram';
+import { buildHologram, HOLOGRAM_POSITION } from '@src/game-3d/hologram';
 import { createInteraction } from '@src/game-3d/interaction';
 import { createModeOverlay } from '@src/game-3d/overlay';
 import { createPanelRaycaster } from '@src/game-3d/panel-hit-test';
@@ -66,13 +66,13 @@ export class Game3D {
     this.scene.add(buildRoom());
     this.scene.add(buildGreebles());
     const hologram = buildHologram();
-    hologram.position.set(0, 1.4, 0);
+    hologram.position.copy(HOLOGRAM_POSITION);
     this.scene.add(hologram);
     const viewscreen = buildViewscreen();
     viewscreen.position.set(0, 1.2, -(ROOM_HALF + 45));
     this.scene.add(viewscreen);
 
-    const { consoles, controlSurfaceSlots, panelHitTargets } = buildConsoles();
+    const { consoles, controlSurfacePanels, panelHitTargets } = buildConsoles();
     this.consoles = consoles;
     this.panelHitTest = createPanelRaycaster(this.camera, panelHitTargets);
     for (const c of this.consoles) {
@@ -86,7 +86,7 @@ export class Game3D {
       this.onClose();
     });
     this.interaction = createInteraction(this.camera, this.controls, this.consoles, this.overlay);
-    this.controlSurfaceRouter = createControlSurfaceRouter(controlSurfaceSlots, () =>
+    this.controlSurfaceRouter = createControlSurfaceRouter(controlSurfacePanels, () =>
       this.interaction.getFocusedConsoleId(),
     );
     this.renderer.container.append(this.overlay.root);

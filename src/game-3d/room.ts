@@ -10,10 +10,15 @@ export const ROOM_HALF = 8;
 export const ROOM_HEIGHT = 3.5;
 export const EYE_HEIGHT = 1.6;
 
-/** -Z wall viewscreen opening (world units). */
-export const WINDOW_WIDTH = 4;
-export const WINDOW_HEIGHT = 2.2;
-export const WINDOW_CENTER_Y = 1.8;
+/**
+ * -Z wall viewscreen opening (world units). Sized to 80% of that wall's own width/height
+ * (2026-07-26 playtest feedback: "make the viewport take up 80% of the available area of
+ * the wall it is currently on"), centered both ways.
+ */
+const WINDOW_WALL_FRACTION = 0.8;
+export const WINDOW_WIDTH = ROOM_HALF * 2 * WINDOW_WALL_FRACTION;
+export const WINDOW_HEIGHT = ROOM_HEIGHT * WINDOW_WALL_FRACTION;
+export const WINDOW_CENTER_Y = ROOM_HEIGHT / 2;
 
 const FRAME_DEPTH = 0.15;
 

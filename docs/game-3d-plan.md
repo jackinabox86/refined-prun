@@ -84,16 +84,20 @@ non-walk states: `interact` (unlocked, nothing focused — Escape's generic fall
 viewscreen both sit there).
 
 **Hologram** (`hologram.ts`): one-shot, non-reactive snapshot of the player's home star
-sector at room center `(0, 1.4, 0)`, stars colored by type, connection lines drawn.
-**Placement under reconsideration as of 2026-07-26** — see "Human playtest feedback"
-below; the user wants it in a room corner instead of the center, where it currently
-sits in the middle of everything else.
+sector, stars colored by type, connection lines drawn. Positioned at `HOLOGRAM_POSITION`
+— the room corner diagonally opposite the -Z viewscreen wall (`(ROOM_HALF-2.4, 1.4,
+ROOM_HALF-2.4)`), clear of the `flt`/`companyops` consoles on the adjacent walls. Moved
+here 2026-07-26 (second round) from room-center, per playtest feedback that it read as
+"in the middle of everything."
 
 **Viewscreen** (`viewscreen.ts`, `room.ts`): a real geometric window cut into the -Z
 wall (`visible: false` on that box face + 4 freestanding `DoubleSide` framing boxes
-around the gap — the box itself isn't split), looking out onto a distant (40-50+ world
-units away) starfield/sun/station diorama built from genuine WebGL geometry (not a
-render-to-texture screen). The station's docking arms hold the player's ships, built via
+around the gap — the box itself isn't split), sized to 80% of that wall's own width/height
+(`WINDOW_WIDTH`/`WINDOW_HEIGHT` = `ROOM_HALF*2`/`ROOM_HEIGHT` × `WINDOW_WALL_FRACTION`,
+centered — bumped from a small fixed 4×2.2 opening 2026-07-26, second round, per playtest
+feedback), looking out onto a distant (40-50+ world units away) starfield/sun/station
+diorama built from genuine WebGL geometry (not a render-to-texture screen). The station's
+docking arms hold the player's ships, built via
 `hangar.ts`'s shared `buildShipMesh()` helper at a much larger scale than the old
 wall-mounted hangar display it replaced. `hangar.ts` itself is no longer called from
 `Game3D.ts` but stays for that shared helper. Cosmetic, non-blocking: only ~2 of 5 arms
@@ -116,13 +120,48 @@ the center (`wallPose()`, inset `WALL_INSET` from its wall): `inv` (INV) on -X,
 (FLT) on +X, `companyops` (CONTS + FIN) on +Z. Each `ConsoleDefinition` (id, purpose, position, rotationY, themeColor,
 `screens: [{command, widthPx, heightPx?}]`) is built by the generic `createConsole()`,
 which resolves each screen via the `xit` command registry (`xit.get(command)`) — adding
-a console is pure roster data, never new constructor code. Visual housing per console:
-`pedestal`, `desk` (podium surface), `floorMarker`, `accentLight` (tinted by
-`themeColor`) — all independent of the invisible raycasting `hitbox`. Every console also
-gets one identical, unconditional **dormant control-surface slot** (900×420,
-`CONTROL_SURFACE_WIDTH_PX`/`HEIGHT_PX` in `control-surface.ts`) showing "No action
-running" until dynamically activated (see below) — no console has a command hardcoded
-into it.
+a console is pure roster data, never new constructor code. Console height (`CONSOLE_Y`,
+shared between `console.ts` and `console-roster.ts` — duplicated on purpose to avoid a
+circular import) dropped from `ROOM_HEIGHT*0.55` to `ROOM_HEIGHT*0.55*0.7` — 30% shorter,
+2026-07-26 second round, per playtest feedback. Visual housing per console: `pedestal`,
+`desk` (angled podium surface, `DESK_TILT = 0.25` rad), `floorMarker`, `accentLight`
+(tinted by `themeColor`) — all independent of the invisible raycasting `hitbox`.
+
+**Desk-mounted control-surface panels** (2026-07-26, second round): previously each
+console's dormant control-surface placeholder ("No action running") lived in the same
+top row as its buffer screens, sized to fit the whole split window's combined width. Now
+the top row holds only the console's own buffer screens (`definition.screens`), and two
+separate `ControlSurfaceSlot`s (`primary` + `companion`, `createControlSurfacePanels()`
+in `control-surface.ts`) sit below, tilted to `DESK_TILT` (0.25 rad, matching the desk
+mesh). Reasoning for the split: an `ExecuteActionPackage` window's `Node.node` always
+contains exactly two `Node.child` tiles (the action config + its companion buffer, per
+`getCompanionTile()` in `tile-allocator.ts`) — previously both were squeezed as one DOM
+subtree into a single placeholder; now each gets its own dedicated slot.
+
+Positioning is **top-edge-anchored, not desk-center-anchored**: `console.ts`'s
+`CONTROL_ROW_TOP` (local Y = -0.45) sits just below the lowest a screen's bottom edge can
+ever reach (-0.35, derived from `SCREEN_MAX_HEIGHT_WORLD`), and the row's center Y is
+computed backward from that top edge and the panel's own height — so the panel can never
+creep upward into the screen row above regardless of a screen's actual rendered height,
+and resizing `CONTROL_SURFACE_HEIGHT_PX` later can't silently reintroduce that. Per-panel
+size is 460×460 (`CONTROL_SURFACE_WIDTH_PX`/`HEIGHT_PX`) — narrower than the old combined
+900px (each panel now hosts one `Node.child` tile instead of both), chosen specifically to
+fit inside the vertical gap between `CONTROL_ROW_TOP` and the floor at the current
+(30%-shorter) `CONSOLE_Y`; a first attempt at 560px tall, and a desk-surface-relative
+center instead of a top-edge anchor, both had to be corrected after `game-tester` found a
+real overlap with `companyops`'s screens — re-derive by hand before changing either
+constant. Each panel's border now uses the console's own `themeColor` (previously a fixed
+blue for all four) plus a slightly thicker 3px border, after `game-tester` also found the
+original fixed-blue/dark-background styling blending into the similarly dark pedestal
+mesh directly behind it for `baseplanning`. Both fixes re-verified by `game-tester`.
+
+**Still not human-verified**: reparenting the two `Node.child` siblings to two separate
+DOM locations (rather than moving their shared `Node.node` parent as one unit, as the
+original single-panel design did) is an unverified assumption riding on the existing
+"real native DOM tolerates reparenting" fact below; it's possible the native
+tile/split-resize logic assumes both children stay under one parent. Needs a live human
+test of an actual action run once the still-open control-surface capture bug (below) is
+separately fixed enough to reach that point.
 
 **Interaction** (`interaction.ts`): a `Raycaster` from camera-forward each frame, checked
 against each console's hitbox, drives a state machine (nothing → "Facing `<purpose>` ·
@@ -137,10 +176,11 @@ console is wired to a specific command. `control-surface-router.ts` runs a
 a real window opens while a console is focused, it synchronously checks (via `_$`, not
 the indefinitely-waiting `$`) whether that window already split into the
 `ExecuteActionPackage` two-tile shape (`Node.node`/two `Node.child`, per
-`tile-allocator.ts`). If so, it parks the window off-screen and reparents the split node
-into that console's slot, replacing the placeholder; a previous capture on the same
-console is closed first. Exiting 3D mode closes every still-active capture. **This flow
-is currently untestable — see Known Issues below.**
+`tile-allocator.ts`). If so (and only if exactly two `Node.child` tiles are found via
+`_$$`), it parks the window off-screen and reparents each child individually into that
+console's `primary`/`companion` desk panel (see above), replacing both placeholders; a
+previous capture on the same console is closed first. Exiting 3D mode closes every
+still-active capture. **This flow is currently untestable — see Known Issues below.**
 
 **Renderer/overlay** (`Renderer.ts`, `overlay.ts`, `buffer-window-guard.ts`,
 `buffer-panel.tsx`): `DualRenderer` stacks `WebGLRenderer` + `CSS3DRenderer` in one
@@ -332,6 +372,26 @@ whether `tryCapture` even runs) before attempting a fix — don't guess-fix this
   paints**, and this same flattening quirk also corrupts real click hit-testing for
   sufficiently-skewed panels — see the Known Blocking Bug above. To check whether panels
   overlap visually, measure painted pixels from a screenshot, not `getBoundingClientRect`.
+- **A CSS3D panel and its raycasting hit-plane can be tilted together to angle-match a
+  sloped mesh** (console.ts's desk panels, 2026-07-26 third round): set matching
+  `rotation.x` on both the `CSS3DObject` and the hit-plane mesh — `panel-hit-test.ts`'s
+  intersect logic needs no changes, three.js raycasting already respects arbitrary mesh
+  transforms. Untested against the known extreme-skew click-hit-testing bug above — a
+  tilt adds a rotation axis no earlier verification exercised, so don't assume it's immune
+  to that flattening quirk.
+- **Anchor a variable-height panel row by its own top (or bottom) edge, not by a fixed
+  center point, whenever it sits next to another element whose size can vary** (the desk
+  panels above, first attempt centered them on the desk's own position and a `game-tester`
+  pass caught real overlap with a console's screens once content rendered taller than
+  assumed). Compute the row's center from `edgeConstant - (height/2)*cos(tilt)` so
+  retuning the height later can't silently reintroduce the overlap — a fixed-center
+  placement has to be re-derived by hand every time either sibling's size changes.
+- **A placeholder panel's fixed background/border can blend into a nearby mesh of a
+  similar dark color** (the desk panels' original fixed blue border against the console
+  pedestal's dark navy, `baseplanning`/`companyops`, 2026-07-26 third round) — check
+  contrast against whatever's actually behind a panel from likely viewing angles, not just
+  against the room's general wall/floor tone the rest of a console's screens are silhouetted
+  against.
 - Files: `room.ts`, `movement.ts`, `Renderer.ts`, `buffer-panel.tsx`, `buffer-window-guard.ts`,
   `hologram.ts`, `hangar.ts` (ship-mesh helper only, no longer wall-mounted),
   `viewscreen.ts`, `console.ts`, `console-roster.ts`, `interaction.ts`,
@@ -342,7 +402,7 @@ whether `tryCapture` even runs) before attempting a fix — don't guess-fix this
 
 ## Proposed next steps
 
-**1. Human playtest feedback (2026-07-26) — first two items done, two still open:**
+**1. Human playtest feedback (2026-07-26) — three done, one still open:**
 
    - ~~Reconsider the console arc layout~~ — **done (2026-07-26, second round).** Replaced
      the arc with one console per wall (see Decisions/Architecture above). Room
@@ -350,14 +410,29 @@ whether `tryCapture` even runs) before attempting a fix — don't guess-fix this
    - ~~Decide on bloom's default state~~ — **done.** `Renderer.ts` now has a
      `BLOOM_ENABLED = false` const gating the `EffectComposer`/`UnrealBloomPass`; flip it
      to re-enable for visual-polish-focused work.
-   - **Move the hologram to a room corner**, not the center — still open. User finds it
-     "in the middle of everything." Now that consoles no longer share a single arc facing
-     one center point, worth re-confirming this still reads as cluttered before moving it
-     — re-evaluate against the new one-per-wall layout rather than assuming the original
-     complaint still applies unchanged.
+   - ~~Move the hologram to a room corner~~ — **done (2026-07-26, third round).** See
+     Architecture above (`HOLOGRAM_POSITION`).
    - **Fix the control-surface capture bug** — still open. RepairAct at `baseplanning`
      wasn't captured (see the KNOWN BUG section above). Needs a live human repro with
-     devtools before attempting a fix; don't guess-fix blind.
+     devtools before attempting a fix; don't guess-fix blind. The desk-panel split below
+     changes *where* a capture lands but not the `tryCapture()` gating logic this bug
+     lives in — still needs its own diagnosis.
+
+**1b. Second round of layout requests (2026-07-26, third round) — done, `game-tester`-
+verified in their dormant/placeholder state:**
+
+   - **Viewscreen window enlarged to 80% of its wall** (`room.ts`'s `WINDOW_WIDTH`/
+     `WINDOW_HEIGHT`, see Architecture above). Verified.
+   - **Consoles 30% shorter** (`CONSOLE_Y` factor, see Architecture above). Verified.
+   - **Control-surface capture split into two desk-mounted panels** instead of one
+     top-row placeholder (see "Desk-mounted control-surface panels" above). First
+     implementation had two real bugs (`companyops` screen/panel overlap,
+     `baseplanning` panel illegible against the pedestal) — both caught by `game-tester`
+     and fixed (top-edge-anchored positioning, per-console `themeColor` borders), then
+     re-verified. **Still open**: an actual action run through these panels is
+     untestable until the KNOWN BUG above (control-surface capture not always firing) is
+     separately diagnosed and fixed — today's verification only covers the dormant "No
+     action running" placeholders, not real `Node.child` content reparented into them.
 
 **2. Re-evaluate the click-hit-testing gap now that the arc is gone** — the original gap
 (see the dedicated section above) was rooted in extreme *viewing angle* to the arc's two
@@ -441,3 +516,17 @@ console per wall, all facing the room center (`console-roster.ts`'s `wallPose()`
 `ROOM_HALF` 5→8 for clearance. Hologram-to-corner and the control-surface capture bug
 remain open (see Proposed next steps). The old extreme-skew click-hit-testing gap's root
 geometry (the arc) no longer exists, but this hasn't been re-tested — don't assume fixed.
+
+**2026-07-26 (third round)** — User confirmed the focus hint and room movement-clamp
+bounds both work correctly (human-only checks the automated harness can't exercise).
+Acted on the remaining live feedback: moved the hologram to the room corner opposite the
+viewscreen (`HOLOGRAM_POSITION`); enlarged the viewscreen window to 80% of its wall
+(`WINDOW_WIDTH`/`WINDOW_HEIGHT` in `room.ts`); shrank console height 30% (`CONSOLE_Y`);
+and split each console's single dormant control-surface placeholder into two panels
+(`primary`/`companion`) mounted tilted on the desk below the buffer screens instead of
+squeezed into the top row. All four changes verified by `game-tester`; the desk-panel
+split initially had two real bugs (`companyops` panels overlapping its live CONTS/FIN
+screens, `baseplanning` panels illegible against the pedestal) — both found and fixed in
+the same round (top-edge-anchored row positioning, per-console `themeColor` borders), then
+re-verified passing on all four consoles. Does not fix the still-open control-surface
+capture bug — only changes where a successful capture would land once that's fixed.

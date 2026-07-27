@@ -1,12 +1,13 @@
 import * as THREE from 'three';
 import { createConsole, type Console, type ConsoleDefinition } from '@src/game-3d/console';
-import type { ControlSurfaceSlot } from '@src/game-3d/control-surface';
+import type { ControlSurfacePanels } from '@src/game-3d/control-surface';
 import type { PanelHitTarget } from '@src/game-3d/panel-hit-test';
 import { ROOM_HALF, ROOM_HEIGHT } from '@src/game-3d/room';
 
 /** Distance from the wall to a console's position along the wall's inward normal. */
 const WALL_INSET = 1.3;
-const CONSOLE_Y = ROOM_HEIGHT * 0.55;
+/** 30% shorter than the original 0.55 factor (2026-07-26 playtest feedback). */
+const CONSOLE_Y = ROOM_HEIGHT * 0.55 * 0.7;
 
 /**
  * Places a console at world (x, CONSOLE_Y, z) and rotates it to face the room
@@ -75,10 +76,10 @@ const ROSTER: RosterEntry[] = [
 
 export function buildConsoles(): {
   consoles: Console[];
-  controlSurfaceSlots: Map<string, ControlSurfaceSlot>;
+  controlSurfacePanels: Map<string, ControlSurfacePanels>;
   panelHitTargets: PanelHitTarget[];
 } {
-  const controlSurfaceSlots = new Map<string, ControlSurfaceSlot>();
+  const controlSurfacePanels = new Map<string, ControlSurfacePanels>();
   const consoles = ROSTER.map(entry => {
     const pose = wallPose(entry.wallPosition.x, entry.wallPosition.z);
     const console = createConsole({
@@ -88,12 +89,12 @@ export function buildConsoles(): {
       screens: entry.screens,
       ...pose,
     });
-    controlSurfaceSlots.set(entry.id, console.controlSurfaceSlot);
+    controlSurfacePanels.set(entry.id, console.controlSurfacePanels);
     return console;
   });
   return {
     consoles,
-    controlSurfaceSlots,
+    controlSurfacePanels,
     panelHitTargets: consoles.flatMap(c => c.panelHitTargets),
   };
 }

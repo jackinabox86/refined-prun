@@ -2,9 +2,17 @@ import * as THREE from 'three';
 import { starsStore } from '@src/infrastructure/prun-api/data/stars';
 import { sitesStore } from '@src/infrastructure/prun-api/data/sites';
 import { getEntityNaturalIdFromAddress } from '@src/infrastructure/prun-api/data/addresses';
+import { ROOM_HALF } from '@src/game-3d/room';
 
 /** World-unit span of the hologram's longest axis (fits comfortably in the 16×16×3.5 room). */
 const HOLOGRAM_SPAN = 2.4;
+
+/**
+ * Room corner diagonally opposite the -Z viewscreen wall, clear of both the flt (+X wall)
+ * and companyops (+Z wall) consoles. 2026-07-26 playtest feedback: the hologram previously
+ * sat at room center and read as "in the middle of everything."
+ */
+export const HOLOGRAM_POSITION = new THREE.Vector3(ROOM_HALF - 2.4, 1.4, ROOM_HALF - 2.4);
 
 const STAR_COLORS: Record<PrunApi.StarType, number> = {
   O: 0x9bb0ff,

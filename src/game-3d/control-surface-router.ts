@@ -1,13 +1,14 @@
-import type { ControlSurfaceSlot } from '@src/game-3d/control-surface';
+import type { ControlSurfacePanels } from '@src/game-3d/control-surface';
 import { closePrunWindow } from '@src/infrastructure/prun-ui/utils/close-prun-window';
 
 /**
  * Dynamically captures ExecuteActionPackage windows opened while a console is
- * focused and reparents their split node into that console's control-surface slot.
+ * focused and reparents each of the split node's two Node.child tiles (action
+ * config + companion buffer) into that console's own control-surface panel.
  * Detection mirrors buffer-window-guard.ts (MutationObserver on document.body).
  */
 export function createControlSurfaceRouter(
-  slots: Map<string, ControlSurfaceSlot>,
+  panels: Map<string, ControlSurfacePanels>,
   getFocusedConsoleId: () => string | undefined,
 ) {
   // Active[consoleId] = the real (parked off-screen) window element currently captured.
@@ -31,8 +32,8 @@ export function createControlSurfaceRouter(
       // Not focused on any console — leave as a normal 2D window.
       return;
     }
-    const slot = slots.get(consoleId);
-    if (slot === undefined) {
+    const pair = panels.get(consoleId);
+    if (pair === undefined) {
       return;
     }
 
@@ -47,6 +48,14 @@ export function createControlSurfaceRouter(
       return;
     }
 
+    // Two Node.child tiles expected (action config + companion buffer, per
+    // getCompanionTile in tile-allocator.ts); anything else isn't the shape we know
+    // how to split across the two desk panels.
+    const children = _$$(splitNode, C.Node.child);
+    if (children.length !== 2) {
+      return;
+    }
+
     // Replace any previous capture on this console first, so we don't orphan a window.
     const previous = active.get(consoleId);
     if (previous !== undefined) {
@@ -57,7 +66,8 @@ export function createControlSurfaceRouter(
     win.style.left = '-9999px';
     win.style.top = '-9999px';
     active.set(consoleId, win);
-    slot.activate(splitNode);
+    pair.primary.activate(children[0]!);
+    pair.companion.activate(children[1]!);
   }
 
   let observer: MutationObserver | undefined;
