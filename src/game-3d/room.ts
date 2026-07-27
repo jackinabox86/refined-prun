@@ -1,7 +1,12 @@
 import * as THREE from 'three';
 
-/** Half-extent of the square room on X/Z (full size = 2 * ROOM_HALF). */
-export const ROOM_HALF = 5;
+/**
+ * Half-extent of the square room on X/Z (full size = 2 * ROOM_HALF).
+ * Bumped from 5 (2026-07-26 playtest feedback) — consoles now spread across all
+ * four walls (console-roster.ts) instead of a single narrow arc, and need more
+ * floor space between them and the center hologram/walk path.
+ */
+export const ROOM_HALF = 8;
 export const ROOM_HEIGHT = 3.5;
 export const EYE_HEIGHT = 1.6;
 

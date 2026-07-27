@@ -2,38 +2,23 @@ import * as THREE from 'three';
 import { createConsole, type Console, type ConsoleDefinition } from '@src/game-3d/console';
 import type { ControlSurfaceSlot } from '@src/game-3d/control-surface';
 import type { PanelHitTarget } from '@src/game-3d/panel-hit-test';
-import { ROOM_HEIGHT } from '@src/game-3d/room';
+import { ROOM_HALF, ROOM_HEIGHT } from '@src/game-3d/room';
 
-/** Freestanding arc radius — clears hologram (~1.2) and hangar (+Z wall). */
-const ARC_RADIUS = 3.0;
-/** Total arc span in degrees, centered on the -Z (front-center) direction. */
-const ARC_SPAN_DEG = 140;
+/** Distance from the wall to a console's position along the wall's inward normal. */
+const WALL_INSET = 1.3;
 const CONSOLE_Y = ROOM_HEIGHT * 0.55;
 
 /**
- * Arc angle θ is measured clockwise from -Z.
- * position = (r·sin θ, y, −r·cos θ), rotationY = −θ.
+ * Places a console at world (x, CONSOLE_Y, z) and rotates it to face the room
+ * center (0, y, 0) — the "crew station facing the plot table" look, but spread
+ * across all four walls instead of one narrow arc (2026-07-26 playtest feedback:
+ * the arc read as confusing/limiting).
  */
-function arcPose(angleDeg: number): Pick<ConsoleDefinition, 'position' | 'rotationY'> {
-  const theta = THREE.MathUtils.degToRad(angleDeg);
+function wallPose(x: number, z: number): Pick<ConsoleDefinition, 'position' | 'rotationY'> {
   return {
-    position: new THREE.Vector3(
-      ARC_RADIUS * Math.sin(theta),
-      CONSOLE_Y,
-      -ARC_RADIUS * Math.cos(theta),
-    ),
-    rotationY: -theta,
+    position: new THREE.Vector3(x, CONSOLE_Y, z),
+    rotationY: Math.atan2(-x, -z),
   };
-}
-
-/** Evenly space N consoles across the 140° arc, centered at 0°. */
-function arcAngles(count: number): number[] {
-  if (count <= 1) {
-    return [0];
-  }
-  const half = ARC_SPAN_DEG / 2;
-  const step = ARC_SPAN_DEG / (count - 1);
-  return Array.from({ length: count }, (_, i) => -half + i * step);
 }
 
 interface RosterEntry {
@@ -41,7 +26,11 @@ interface RosterEntry {
   purpose: string;
   themeColor: number;
   screens: ConsoleDefinition['screens'];
+  /** World X/Z position — see wallPose. */
+  wallPosition: { x: number; z: number };
 }
+
+const WALL = ROOM_HALF - WALL_INSET;
 
 const ROSTER: RosterEntry[] = [
   {
@@ -49,6 +38,8 @@ const ROSTER: RosterEntry[] = [
     purpose: 'Inventory',
     themeColor: 0x63b3ed,
     screens: [{ command: 'INV', widthPx: 700 }],
+    // -X wall.
+    wallPosition: { x: -WALL, z: 0 },
   },
   {
     id: 'baseplanning',
@@ -58,6 +49,8 @@ const ROSTER: RosterEntry[] = [
       { command: 'BS', widthPx: 480 },
       { command: 'PROD', widthPx: 480 },
     ],
+    // -Z wall, offset off-center so the housing clears the viewscreen window.
+    wallPosition: { x: -3, z: -WALL },
   },
   {
     id: 'companyops',
@@ -67,12 +60,16 @@ const ROSTER: RosterEntry[] = [
       { command: 'CONTS', widthPx: 480 },
       { command: 'FIN', widthPx: 420 },
     ],
+    // +Z wall.
+    wallPosition: { x: 0, z: WALL },
   },
   {
     id: 'flt',
     purpose: 'Fleet Ops',
     themeColor: 0xf6ad55,
     screens: [{ command: 'FLT', widthPx: 750 }],
+    // +X wall.
+    wallPosition: { x: WALL, z: 0 },
   },
 ];
 
@@ -81,10 +78,9 @@ export function buildConsoles(): {
   controlSurfaceSlots: Map<string, ControlSurfaceSlot>;
   panelHitTargets: PanelHitTarget[];
 } {
-  const angles = arcAngles(ROSTER.length);
   const controlSurfaceSlots = new Map<string, ControlSurfaceSlot>();
-  const consoles = ROSTER.map((entry, i) => {
-    const pose = arcPose(angles[i]!);
+  const consoles = ROSTER.map(entry => {
+    const pose = wallPose(entry.wallPosition.x, entry.wallPosition.z);
     const console = createConsole({
       id: entry.id,
       purpose: entry.purpose,

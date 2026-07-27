@@ -3,7 +3,7 @@ import { starsStore } from '@src/infrastructure/prun-api/data/stars';
 import { sitesStore } from '@src/infrastructure/prun-api/data/sites';
 import { getEntityNaturalIdFromAddress } from '@src/infrastructure/prun-api/data/addresses';
 
-/** World-unit span of the hologram's longest axis (fits comfortably in the 10×10×3.5 room). */
+/** World-unit span of the hologram's longest axis (fits comfortably in the 16×16×3.5 room). */
 const HOLOGRAM_SPAN = 2.4;
 
 const STAR_COLORS: Record<PrunApi.StarType, number> = {

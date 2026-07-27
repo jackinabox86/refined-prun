@@ -44,12 +44,13 @@ normal 2D UI, which keeps working exactly as it does today for everyone who does
   buffer components (e.g. `INV.vue`). Those buffers are already eagerly bundled for every
   user regardless of 3D mode, so it costs nothing in bundle size, and no lint rule
   enforces the layering boundary anyway.
-- **Console layout: arc facing center.** Consoles curve around facing inward toward the
-  room center (where the hologram floats) — crew stations facing a plot table, not
-  panels bolted to flat walls. **Under reconsideration as of 2026-07-26** — see "Human
-  playtest feedback" below; the user finds the narrow arc confusing/limiting and wants
-  consoles spread around the room instead. Don't treat this bullet as settled until that
-  discussion resolves.
+- **Console layout: one per wall, facing center.** Resolved 2026-07-26 (second round):
+  replaced the single 140° arc with one console per room wall (`inv` -X, `flt` +X,
+  `companyops` +Z, `baseplanning` -Z offset off the viewscreen window), each still
+  rotated to face the room center where the hologram floats — crew stations facing a
+  plot table, just spread around the room instead of clustered on one arc. Room bumped
+  `ROOM_HALF` 5→8 (10×10→16×16) at the same time to give the spread-out consoles and the
+  walk path enough clearance.
 - **Focus model: press E to focus in place.** Walk up, face a console, press E: pointer
   unlocks, that console's screens become clickable, camera stays put. Press E again (or
   walk away) to return to walk mode.
@@ -109,9 +110,10 @@ from spawn shows only a plain wall, nothing else. Likely just a sign error on th
 sprite's local Z offset. Not fixed yet — low priority, purely cosmetic, `viewscreen.ts`
 untouched otherwise.
 
-**Consoles** (`console.ts`, `console-roster.ts`): 4 consoles on a 140° arc (radius 3.0,
-centered on -Z): `inv` (INV), `baseplanning` (BS + PROD), `companyops` (CONTS + FIN),
-`flt` (FLT). Each `ConsoleDefinition` (id, purpose, position, rotationY, themeColor,
+**Consoles** (`console.ts`, `console-roster.ts`): one console per room wall, each facing
+the center (`wallPose()`, inset `WALL_INSET` from its wall): `inv` (INV) on -X,
+`baseplanning` (BS + PROD) on -Z (offset to x=-3 to clear the viewscreen window), `flt`
+(FLT) on +X, `companyops` (CONTS + FIN) on +Z. Each `ConsoleDefinition` (id, purpose, position, rotationY, themeColor,
 `screens: [{command, widthPx, heightPx?}]`) is built by the generic `createConsole()`,
 which resolves each screen via the `xit` command registry (`xit.get(command)`) — adding
 a console is pure roster data, never new constructor code. Visual housing per console:
@@ -340,39 +342,30 @@ whether `tryCapture` even runs) before attempting a fix — don't guess-fix this
 
 ## Proposed next steps
 
-**1. Human playtest feedback (2026-07-26) — pick these up first, session paused here
-deliberately so the user can work through them fresh:**
+**1. Human playtest feedback (2026-07-26) — first two items done, two still open:**
 
-   - **Reconsider the console arc layout.** User feedback, direct quote territory: "the
-     consoles should all be spread around the room, not just in a perfect arc from where
-     one spawns" — the narrow 140°-arc-facing-center layout (see Decisions above, now
-     flagged under reconsideration) reads as confusing in practice. Spreading consoles
-     around the room (different walls/positions, not one arc) is the proposed
-     alternative — **and may also reduce or eliminate the extreme-skew click-hit-testing
-     gap below**, since that gap's root cause is specifically the steep viewing angle to
-     the arc's two end consoles (`inv`/`flt`) — a layout change could obsolete the need
-     for a separate skew fix entirely. Worth exploring layout first, before spending more
-     effort on the hit-testing gap in isolation.
-   - **Move the hologram to a room corner**, not the center — user finds it "in the
-     middle of everything," presumably because a walkable room with a room-center
-     obstacle plus an arc of consoles all facing that same center feels cluttered/awkward
-     once you're actually walking around in it. Likely ties into the same layout
-     reconsideration above.
-   - **Fix the control-surface capture bug** — RepairAct at `baseplanning` wasn't
-     captured (see the KNOWN BUG section above). Needs a live human repro with devtools
-     before attempting a fix; don't guess-fix blind.
-   - **Decide on bloom's default state.** Confirmed real cost: ~2-4x further slowdown on
-     this harness's software-rendered baseline (~2fps → ~0.5-1fps) — not meaningful on
-     real GPU hardware, but genuinely slows down *iteration* in this test harness.
-     Recommended (not yet implemented, no code changed): disable bloom by default for
-     now, add it back when doing visual-polish-focused work specifically — a cheap
-     toggle (env var, keybinding, or just temporarily removing the `EffectComposer` call
-     in `Renderer.ts`) would avoid re-litigating this each session.
+   - ~~Reconsider the console arc layout~~ — **done (2026-07-26, second round).** Replaced
+     the arc with one console per wall (see Decisions/Architecture above). Room
+     `ROOM_HALF` bumped 5→8 in the same change for clearance.
+   - ~~Decide on bloom's default state~~ — **done.** `Renderer.ts` now has a
+     `BLOOM_ENABLED = false` const gating the `EffectComposer`/`UnrealBloomPass`; flip it
+     to re-enable for visual-polish-focused work.
+   - **Move the hologram to a room corner**, not the center — still open. User finds it
+     "in the middle of everything." Now that consoles no longer share a single arc facing
+     one center point, worth re-confirming this still reads as cluttered before moving it
+     — re-evaluate against the new one-per-wall layout rather than assuming the original
+     complaint still applies unchanged.
+   - **Fix the control-surface capture bug** — still open. RepairAct at `baseplanning`
+     wasn't captured (see the KNOWN BUG section above). Needs a live human repro with
+     devtools before attempting a fix; don't guess-fix blind.
 
-**2. Close the click-hit-testing gap at extreme arc angles** — see above. Affects
-`inv`/`flt` specifically when viewed near their natural spawn-facing angle. Hold off on
-the narrower-arc/reduced-skew experiment until the layout reconsideration above (#1)
-resolves — a full layout change might address this for free.
+**2. Re-evaluate the click-hit-testing gap now that the arc is gone** — the original gap
+(see the dedicated section above) was rooted in extreme *viewing angle* to the arc's two
+end consoles (`inv`/`flt`, ~±70° skew). That specific geometry no longer exists post
+layout-change — each console now sits flat against its own wall, typically viewed closer
+to face-on from across the room — but this is **not yet re-tested**; don't assume it's
+fixed until a fresh click-hit-test pass confirms it, since a different skew angle could
+still reproduce the same underlying Chromium CSS3D/`matrix3d` flattening quirk.
 
 **3. Finish the verification the click-hit-testing bug was blocking** — for
 `baseplanning`/`companyops` this is unblocked already; for `inv`/`flt` it depends on #2:
@@ -441,3 +434,10 @@ hologram should move from room-center to a corner; a real action package (Repair
 diagnosed); and bloom's ~2-4x perf cost on this harness is worth disabling by default for
 faster iteration, re-enabling only for visual-polish work. No code changed this round —
 purely doc updates capturing the feedback for a focused follow-up session.
+
+**2026-07-26 (follow-up)** — Acted on two of the four paused items: disabled bloom by
+default (`Renderer.ts`'s `BLOOM_ENABLED` const) and replaced the console arc with one
+console per wall, all facing the room center (`console-roster.ts`'s `wallPose()`); bumped
+`ROOM_HALF` 5→8 for clearance. Hologram-to-corner and the control-surface capture bug
+remain open (see Proposed next steps). The old extreme-skew click-hit-testing gap's root
+geometry (the arc) no longer exists, but this hasn't been re-tested — don't assume fixed.

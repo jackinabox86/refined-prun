@@ -7,6 +7,13 @@ import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPa
 export const OVERLAY_Z_INDEX = 2147483646;
 
 /**
+ * Bloom costs a real 2-4x slowdown on this harness's software-rendered baseline
+ * (not meaningful on real GPU hardware, but slows down iteration). Disabled by
+ * default per 2026-07-26 playtest feedback; flip to re-enable for visual-polish work.
+ */
+const BLOOM_ENABLED = false;
+
+/**
  * Stacks a WebGLRenderer and CSS3DRenderer in a fullscreen overlay, both driven
  * by the same PerspectiveCamera each frame.
  */
@@ -70,6 +77,11 @@ export class DualRenderer {
   }
 
   render(scene: THREE.Scene, camera: THREE.Camera) {
+    if (!BLOOM_ENABLED) {
+      this.webgl.render(scene, camera);
+      this.css3d.render(scene, camera);
+      return;
+    }
     if (this.composer === undefined) {
       this.composer = new EffectComposer(this.webgl);
       this.composer.addPass(new RenderPass(scene, camera));
