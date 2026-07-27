@@ -1,4 +1,5 @@
 import PMMG from '@src/features/XIT/SET/PMMG.vue';
+import FINMERGE from '@src/features/XIT/SET/FINMERGE.vue';
 import SET from '@src/features/XIT/SET/SET.vue';
 
 xit.add({
@@ -10,6 +11,8 @@ xit.add({
     switch (parameters[0]?.toUpperCase()) {
       case 'PMMG':
         return PMMG;
+      case 'FINMERGE':
+        return FINMERGE;
       default:
         return SET;
     }
