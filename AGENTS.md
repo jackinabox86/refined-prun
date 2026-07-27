@@ -48,7 +48,9 @@ Implementation and verification are delegated, not done in the main session — 
   before calling the task done; Grok writes, Claude verifies. Keep direct edits for one-line
   fixes, `AGENTS.md` itself, and cleaning up whatever Grok gets wrong. Auth
   (`GROK_CODE_XAI_API_KEY` env var, or an already-completed `grok login`) is set up once per
-  machine by the user — never run `grok login` on their behalf.
+  machine by the user — never run `grok login` on their behalf. `grok` is only set up on
+  the user's local machine — in a Claude Code Remote / cloud session it isn't installed;
+  fall back to direct edits by Claude in that case instead of failing the task.
 - **Browser/UI verification:** delegate to the `game-tester` agent
   (`.claude/agents/game-tester.md`), per `.claude/skills/run/SKILL.md`. Screenshots and DOM
   dumps stay in its context, not the main session's.
