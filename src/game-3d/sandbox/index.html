@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>refined-prun · 3D sandbox</title>
+    <style>
+      html,
+      body {
+        margin: 0;
+        height: 100%;
+        background: #05070a;
+      }
+    </style>
+    <!--
+      Fixture for @src/infrastructure/shell/config's `document.getElementById('refined-
+      prun-js')` read. In the real extension this is injected by refined-prun-startup.ts
+      with data from chrome.storage; here it's a static fixture so `config` (auto-
+      imported as a global by unimport, referenced throughout src/) doesn't throw.
+    -->
+    <script id="refined-prun-js" type="application/json">
+      { "userData": null, "version": "sandbox", "url": { "manifest": "", "allplanets": "" } }
+    </script>
+  </head>
+  <body>
+    <script type="module" src="./main.ts"></script>
+  </body>
+</html>

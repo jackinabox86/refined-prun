@@ -128,6 +128,7 @@ export default ts.config(
       'dist/**/*',
       'eslint.config.mjs',
       'src/types/unimport.d.ts',
+      'src/game-3d/sandbox/.unimport.sandbox.d.ts',
       'scripts/**/*.mjs',
       '.local/**/*',
     ],

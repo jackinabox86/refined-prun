@@ -1,0 +1,50 @@
+// Screenshots the 3D Game Mode visual-iteration sandbox (src/game-3d/sandbox/) —
+// `pnpm run dev:3d-sandbox` must already be running. Deliberately NOT pw-act.mjs's
+// CDP-attach-to-a-persistent-profile flow: there's no login/session to preserve, so this
+// launches and closes its own throwaway browser each call. See
+// docs/browser-testing-3d.md ("Visual-iteration sandbox").
+//
+// Usage: node scripts/pw-sandbox-screenshot.mjs <preset> <output-path>
+//   preset: overview | console | hologram  (must match main.ts's PRESETS keys)
+import { loadPlaywright } from './pw-helper.mjs';
+
+const SANDBOX_URL = 'http://127.0.0.1:5183/';
+const PRESETS = ['overview', 'console', 'hologram'];
+
+const [preset, outputPath] = process.argv.slice(2);
+
+if (preset === undefined || outputPath === undefined || !PRESETS.includes(preset)) {
+  console.error('Usage: node scripts/pw-sandbox-screenshot.mjs <preset> <output-path>');
+  console.error(`  preset: one of ${PRESETS.join(', ')}`);
+  process.exit(1);
+}
+
+const { chromium } = loadPlaywright();
+
+let browser;
+try {
+  browser = await chromium.launch({
+    headless: true,
+    args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'],
+  });
+} catch (error) {
+  console.error(`Could not launch a browser: ${String(error).split('\n')[0]}`);
+  console.error('If this is a sandboxed Bash call failing on a device/mount error (not a');
+  console.error('network error), retry with dangerouslyDisableSandbox — see .claude/harness-notes.md.');
+  process.exit(1);
+}
+
+try {
+  const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
+  const url = `${SANDBOX_URL}?cam=${preset}`;
+  const response = await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 15000 });
+  if (response === null || !response.ok()) {
+    console.error(`Could not load ${url}. Is 'pnpm run dev:3d-sandbox' running?`);
+    process.exit(1);
+  }
+  await page.waitForFunction(() => window.__rpSandboxReady === true, { timeout: 15000 });
+  await page.screenshot({ path: outputPath });
+  console.log(`Saved ${outputPath} (preset: ${preset})`);
+} finally {
+  await browser.close();
+}

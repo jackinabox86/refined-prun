@@ -51,11 +51,14 @@
       "node scripts/pw-close.mjs",
       "node scripts/pw-kill.mjs",
       "node scripts/pw-screenshot.mjs *",
+      "node scripts/pw-sandbox-screenshot.mjs *",
       "node .local/scratch/*",
       "sleep *",
       "pgrep *",
       "curl http://127.0.0.1:9333*",
-      "curl -s http://127.0.0.1:9333*"
+      "curl -s http://127.0.0.1:9333*",
+      "curl http://127.0.0.1:5183*",
+      "curl -s http://127.0.0.1:5183*"
     ]
   }
 }

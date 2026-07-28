@@ -9,6 +9,68 @@ unchanged. This doc only covers what's different for 3D, kept separate so an ord
 See `docs/game-3d-plan.md` for what's actually being built/tested right now (phase
 status, known-open issues) — this doc is pure testing mechanics, not feature status.
 
+## Visual-iteration sandbox (no login, no extension, no real data)
+
+For a pure materials/lighting/geometry/camera-framing change, the full `run3d` loop
+(rebuild → reload-extension → log back into a real, logged-in game tab) is slow and adds
+nothing — none of that machinery touches how a wall texture or a bloom setting looks.
+`src/game-3d/sandbox/` is a second, much cheaper way in: a standalone Vite dev server
+that boots a real `Game3D` scene with fixture data instead of the live `prun-api`
+stores, so there's no extension build, no browser profile, no PU login, and no
+WebSocket in the loop.
+
+```
+pnpm run dev:3d-sandbox                              # Vite dev server on :5183, HMR
+node scripts/pw-sandbox-screenshot.mjs overview out.png    # room overview
+node scripts/pw-sandbox-screenshot.mjs console out.png     # console close-up (baseplanning)
+node scripts/pw-sandbox-screenshot.mjs hologram out.png    # hologram detail
+```
+
+Open `http://localhost:5183/?cam=<preset>` directly in a browser for interactive
+poking, or use the on-page preset buttons (top-left) to switch cameras without typing a
+URL. `pw-sandbox-screenshot.mjs` is deliberately not `pw-act.mjs`: there's no login
+session to preserve, so it launches and closes its own throwaway headless browser per
+call instead of attaching over CDP to a persistent profile.
+
+**When to use which:**
+
+| | Sandbox (`dev:3d-sandbox`) | `run3d` (real game) |
+| --- | --- | --- |
+| Materials, lighting, bloom, geometry, camera framing | ✅ fast, HMR | works, but rebuild+reload for every tweak |
+| Console panel layout/positioning against the room | ✅ | ✅ |
+| Click-hit-testing, control-surface capture, real XIT panel correctness | ❌ out of scope (see below) | ✅ required |
+| Anything depending on real ship/site/contract data shapes or values | ❌ | ✅ required |
+| Periodic integration checkpoint before/after a batch of sandbox-only changes | — | ✅ |
+
+Treat the sandbox as the fast inner loop for pure-visual work and `run3d` as the
+periodic integration checkpoint that confirms the same change still holds up against
+real XIT panels and real data — not a replacement for it.
+
+**What's real vs. fixture:**
+
+- The scene, room, consoles, hologram geometry, and rendering pipeline are the exact
+  same `Game3D` code the extension uses (`src/game-3d/sandbox/main.ts` passes an
+  optional `cameraPose` into `Game3D`'s constructor for the presets; everything else is
+  unmodified).
+- Console screens mount the real XIT Vue components (`INV.vue`, `BS.vue`, etc.) via the
+  real `xit.get(command)` registry — `src/game-3d/sandbox/xit-bootstrap.ts` eagerly
+  imports `src/features/XIT/**` only (deliberately not `basic/`/`advanced/`, which
+  assume a live 2D page DOM; none of the console roster's commands live there).
+- `src/game-3d/sandbox/fixtures.ts` dispatches API messages into the real `prun-api`
+  entity stores (`SHIP_SHIPS`, `SITE_SITES`, `COMPANY_DATA`, etc.) — the same
+  `dispatch()` real socket traffic uses. This isn't optional cosmetic polish: the real
+  app never mounts any UI until `initializeApi()` awaits every store's `fetched` flag,
+  so without it several panels crash outright (not just render empty) the instant they
+  read an `undefined` store — e.g. `CONTS.vue` calling `.filter()` on it. Most stores get
+  a deliberately empty array — "loading/empty" panels are fine, data accuracy isn't the
+  goal — except one small system (one site, three stars) that feeds BS/PROD a real row
+  and gives `buildHologram()` a region to draw; some computeds also needed a few
+  non-empty fields to stop throwing outright (see the comments in `fixtures.ts`, e.g.
+  `COMPANY_DATA.headquarters`/`representation` for FIN's balance sheet).
+- Nothing here can affect the real extension build: `vite.config.sandbox.mts` is a
+  fully separate Vite config (different entry, different `root`, not `build.lib`), and
+  `pnpm run build`/`build:fast` never reference it.
+
 ## The one thing that changes everything: pointer lock is broken here
 
 `requestPointerLock()` fails under a CDP-driven harness with `WrongDocumentError`, even

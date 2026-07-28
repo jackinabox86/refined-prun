@@ -16,6 +16,7 @@
     "sign:firefox": "web-ext sign --source-dir dist --channel=unlisted",
     "clean": "rimraf dist",
     "dev": "cross-env NODE_ENV=development vite build -w --mode development",
+    "dev:3d-sandbox": "cross-env NODE_ENV=development vite --config vite.config.sandbox.mts",
     "fix": "pnpm exec eslint ./ --fix --concurrency auto",
     "lint": "pnpm exec eslint --concurrency auto",
     "prepare": "husky",

@@ -15,6 +15,11 @@ import { createPanelRaycaster } from '@src/game-3d/panel-hit-test';
 import { createTestControls } from '@src/game-3d/test-controls';
 import { buildViewscreen } from '@src/game-3d/viewscreen';
 
+export interface Game3DOptions {
+  /** Overrides the default spawn pose — used by the visual-iteration sandbox's camera presets. */
+  cameraPose?: { position: THREE.Vector3; lookAt: THREE.Vector3 };
+}
+
 export class Game3D {
   private readonly renderer = new DualRenderer();
   private readonly scene = new THREE.Scene();
@@ -54,9 +59,17 @@ export class Game3D {
     this.controls.lock();
   };
 
-  constructor(private readonly onClose: () => void) {
+  constructor(
+    private readonly onClose: () => void,
+    options: Game3DOptions = {},
+  ) {
     this.camera = new THREE.PerspectiveCamera(75, 1, 0.1, 300);
-    this.camera.position.set(0, EYE_HEIGHT, 2);
+    if (options.cameraPose) {
+      this.camera.position.copy(options.cameraPose.position);
+      this.camera.lookAt(options.cameraPose.lookAt);
+    } else {
+      this.camera.position.set(0, EYE_HEIGHT, 2);
+    }
 
     const pmremGenerator = new THREE.PMREMGenerator(this.renderer.webgl);
     this.envTexture = pmremGenerator.fromScene(new RoomEnvironment(), 0.04).texture;

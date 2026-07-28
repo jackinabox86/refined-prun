@@ -392,6 +392,11 @@ whether `tryCapture` even runs) before attempting a fix — don't guess-fix this
   contrast against whatever's actually behind a panel from likely viewing angles, not just
   against the room's general wall/floor tone the rest of a console's screens are silhouetted
   against.
+- **Visual-iteration sandbox** (`src/game-3d/sandbox/`, `pnpm run dev:3d-sandbox`): a
+  standalone Vite dev server booting a real `Game3D` scene against fixture data instead
+  of the live extension/login/socket loop — fast inner loop for pure materials/lighting/
+  geometry/camera work. See `docs/browser-testing-3d.md`'s "Visual-iteration sandbox"
+  section for what it does and doesn't cover, and when to fall back to `run3d`.
 - Files: `room.ts`, `movement.ts`, `Renderer.ts`, `buffer-panel.tsx`, `buffer-window-guard.ts`,
   `hologram.ts`, `hangar.ts` (ship-mesh helper only, no longer wall-mounted),
   `viewscreen.ts`, `console.ts`, `console-roster.ts`, `interaction.ts`,
@@ -530,3 +535,15 @@ screens, `baseplanning` panels illegible against the pedestal) — both found an
 the same round (top-edge-anchored row positioning, per-console `themeColor` borders), then
 re-verified passing on all four consoles. Does not fix the still-open control-surface
 capture bug — only changes where a successful capture would land once that's fixed.
+
+**2026-07-27** — Added `src/game-3d/sandbox/`, a standalone Vite dev server + fixture
+bootstrap for fast visual iteration decoupled from the live extension/login/socket loop
+(see "Reusable facts" above and `docs/browser-testing-3d.md`). `Game3D`'s constructor
+gained an optional `cameraPose` option (backward-compatible, unused by the real
+extension entry point) for the sandbox's camera presets. No changes to the real 3D
+scene/room/console code itself — purely additive tooling, verified not to affect
+`pnpm run build`/`build:fast` output. Follow-up same day: added one fixture site + a
+3-star system to `fixtures.ts` (was previously empty-array-only) — turned out the
+hologram's empty-room-corner state wasn't a deeper issue, just missing site/star data
+for `buildHologram()` to compute a region from; BS/PROD render one real row now too,
+with no new crashes.
