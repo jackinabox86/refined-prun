@@ -12,6 +12,16 @@ import { loadPlaywright, distDir, profileDir, APEX_URL, CDP_PORT } from './pw-he
 
 const { chromium } = loadPlaywright();
 
+// This machine's WSL2/WSLg GPU paravirtualization exposes the host's discrete GPU over
+// /dev/dxg, but Mesa's d3d12 Gallium driver defaults to the first adapter (usually the
+// integrated GPU, for battery life) and won't use it without being told. Set these
+// before launch so every run gets real GPU acceleration instead of silently falling
+// back to llvmpipe/SwiftShader software rendering; env vars set by the caller still
+// win. This script only ever runs on this WSL2 checkout (see the `run` skill's
+// environment gate), so there's no other machine profile to preserve.
+process.env.GALLIUM_DRIVER ??= 'd3d12';
+process.env.MESA_D3D12_DEFAULT_ADAPTER_NAME ??= 'NVIDIA';
+
 // Chromium loads an unpacked extension from disk once, at launch. A missing dist/
 // starts a browser with no extension at all, which looks exactly like a broken
 // feature — fail here instead.
@@ -30,6 +40,13 @@ try {
       `--disable-extensions-except=${distDir}`,
       `--load-extension=${distDir}`,
       `--remote-debugging-port=${CDP_PORT}`,
+      // This launch must run with dangerouslyDisableSandbox (see
+      // .claude/harness-notes.md) so /dev/dxg is visible to this process — a
+      // sandboxed launch hides that device node, silently forcing SwiftShader
+      // software rendering even though the host has a real GPU. Chromium's
+      // GPU allowlist still blocks acceleration for what looks like an
+      // unrecognized/virtualized adapter unless told otherwise.
+      '--ignore-gpu-blocklist',
     ],
   });
 } catch (error) {

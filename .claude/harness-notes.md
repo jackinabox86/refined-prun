@@ -61,6 +61,21 @@ permission prompt that the exclusion exists to avoid, and every known need alrea
 exclusion. If a pw call returns `ECONNREFUSED` while the browser is up, restructure the
 chain pw-first and check the exclusion list is intact before suspecting the browser.
 
+**One scoped exception: launching the browser itself needs `dangerouslyDisableSandbox`.**
+`sandbox.excludedCommands` only lifts the *network* namespace — a separate mount/device
+namespace still applies underneath it and hides `/dev/dxg` (WSL2's GPU passthrough
+device) from sandboxed processes, even for an excluded command. Confirmed live: `ls
+/dev/dxg` and `nvidia-smi -L` fail sandboxed ("No such file or directory" /
+"GPU access blocked by the operating system") and succeed unsandboxed (reporting the
+real GPU) on a machine that has one — this is *not* evidence the box lacks a GPU, check
+this before concluding that. Because a process's mount namespace is fixed at spawn time,
+this exception applies to the one `node scripts/local-browser-test.mjs` launch call
+only: run that one command with `dangerouslyDisableSandbox: true`, and the Chrome process
+it starts (plus every GPU/renderer child it forks) keeps real GPU access for its whole
+life. Every later `pw-act.mjs`/`pw-close.mjs`/`pw-kill.mjs` call still runs sandboxed as
+normal — they only attach to or signal the already-running browser, never touch the
+device themselves, so they never need the flag and never prompt for it.
+
 Ad-hoc CDP scripts go in `.local/scratch/` (excluded and allowlisted, so prompt-free),
 never the session scratchpad — and create them with the Write tool, not a `cat > file`
 heredoc.
