@@ -27,7 +27,12 @@ interface CameraPreset {
 const PRESETS: Record<string, CameraPreset> = {
   overview: {
     label: 'Room overview',
-    position: new THREE.Vector3(5.5, 2.8, 5.5),
+    // Opposite corner from HOLOGRAM_POSITION (~5.6, 1.4, 5.6) on purpose — the original
+    // (5.5, 2.8, 5.5) sat almost exactly inside the hologram's own effect volume, so this
+    // "room" shot was actually a hologram close-up in disguise (its glow spheres/motes
+    // read as unexplained floating orbs, misattributed to room-shell lighting bugs across
+    // several review rounds before the coordinate overlap was caught by inspection).
+    position: new THREE.Vector3(-5.5, 2.8, -5.5),
     lookAt: new THREE.Vector3(0, 1.2, 0),
   },
   console: {
@@ -56,6 +61,11 @@ function currentPresetName(): string {
 
 function buildPresetBar(active: string) {
   const bar = document.createElement('div');
+  // Screenshot tooling (pw-sandbox-screenshot.mjs) removes this element by id before
+  // capturing — it's dev-only navigation chrome, not part of any reviewed 3D-mode piece.
+  // Without this it bled into a HUD-overlay critic round, which misjudged the sandbox's
+  // plain <button> bar as part of overlay.ts's actual diegetic HUD.
+  bar.id = 'sandbox-preset-bar';
   Object.assign(bar.style, {
     position: 'fixed',
     left: '8px',

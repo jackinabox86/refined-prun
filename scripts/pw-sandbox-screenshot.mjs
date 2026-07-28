@@ -4,14 +4,17 @@
 // launches and closes its own throwaway browser each call. See
 // docs/browser-testing-3d.md ("Visual-iteration sandbox").
 //
-// Usage: node scripts/pw-sandbox-screenshot.mjs <preset> <output-path>
+// Usage: node scripts/pw-sandbox-screenshot.mjs <preset> <output-path> [port]
 //   preset: overview | console | hologram  (must match main.ts's PRESETS keys)
+//   port: defaults to 5183. Pass a different port when running against a
+//   `dev:3d-sandbox -- --port <n>` instance (e.g. one isolated builder among several
+//   running concurrently in separate worktrees).
 import { loadPlaywright } from './pw-helper.mjs';
 
-const SANDBOX_URL = 'http://127.0.0.1:5183/';
 const PRESETS = ['overview', 'console', 'hologram'];
 
-const [preset, outputPath] = process.argv.slice(2);
+const [preset, outputPath, port = '5183'] = process.argv.slice(2);
+const SANDBOX_URL = `http://127.0.0.1:${port}/`;
 
 if (preset === undefined || outputPath === undefined || !PRESETS.includes(preset)) {
   console.error('Usage: node scripts/pw-sandbox-screenshot.mjs <preset> <output-path>');
@@ -43,6 +46,9 @@ try {
     process.exit(1);
   }
   await page.waitForFunction(() => window.__rpSandboxReady === true, { timeout: 15000 });
+  // Dev-only camera-preset switcher bar — not part of any reviewed piece, would
+  // otherwise bleed into HUD-overlay critic rounds as if it were real game UI.
+  await page.evaluate(() => document.getElementById('sandbox-preset-bar')?.remove());
   await page.screenshot({ path: outputPath });
   console.log(`Saved ${outputPath} (preset: ${preset})`);
 } finally {

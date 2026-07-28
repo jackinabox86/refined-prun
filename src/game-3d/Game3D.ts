@@ -34,6 +34,7 @@ export class Game3D {
   private readonly controlSurfaceRouter: ReturnType<typeof createControlSurfaceRouter>;
   private readonly consoles: ReturnType<typeof buildConsoles>['consoles'];
   private readonly panelHitTest: ReturnType<typeof createPanelRaycaster>;
+  private readonly hologram: ReturnType<typeof buildHologram>;
   private readonly clock = new THREE.Clock();
   private rafId = 0;
   private disposed = false;
@@ -78,9 +79,9 @@ export class Game3D {
 
     this.scene.add(buildRoom());
     this.scene.add(buildGreebles());
-    const hologram = buildHologram();
-    hologram.position.copy(HOLOGRAM_POSITION);
-    this.scene.add(hologram);
+    this.hologram = buildHologram();
+    this.hologram.group.position.copy(HOLOGRAM_POSITION);
+    this.scene.add(this.hologram.group);
     const viewscreen = buildViewscreen();
     viewscreen.position.set(0, 1.2, -(ROOM_HALF + 45));
     this.scene.add(viewscreen);
@@ -164,6 +165,7 @@ export class Game3D {
     this.movement.update(this.controls, dt);
     clampToRoom(this.camera.position);
     this.interaction.update();
+    this.hologram.update(this.clock.elapsedTime);
     this.renderer.render(this.scene, this.camera);
     this.rafId = requestAnimationFrame(this.tick);
   };

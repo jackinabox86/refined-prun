@@ -3,15 +3,21 @@ import { CSS3DRenderer } from 'three/examples/jsm/renderers/CSS3DRenderer.js';
 import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
+import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
+import { ShaderPass } from 'three/examples/jsm/postprocessing/ShaderPass.js';
+import { VignetteShader } from 'three/examples/jsm/shaders/VignetteShader.js';
 
 export const OVERLAY_Z_INDEX = 2147483646;
 
 /**
- * Bloom costs a real 2-4x slowdown on this harness's software-rendered baseline
- * (not meaningful on real GPU hardware, but slows down iteration). Disabled by
- * default per 2026-07-26 playtest feedback; flip to re-enable for visual-polish work.
+ * Full post-processing chain (bloom + filmic output + vignette) costs a real 2-4x
+ * slowdown on this harness's software-rendered baseline (SwiftShader, no real GPU) —
+ * not meaningful on real GPU hardware. Default is ON because real users get real
+ * hardware and this is a genuine visual-quality lever (emissive trim/conduits and
+ * practical lights are authored assuming bloom is present). Flip to false only for
+ * fast local iteration in this dev harness; don't ship it off.
  */
-const BLOOM_ENABLED = false;
+const POSTFX_ENABLED = true;
 
 /**
  * Stacks a WebGLRenderer and CSS3DRenderer in a fullscreen overlay, both driven
@@ -31,7 +37,7 @@ export class DualRenderer {
       inset: '0',
       zIndex: String(OVERLAY_Z_INDEX),
       overflow: 'hidden',
-      background: '#111',
+      background: '#05070a',
     });
 
     const webglLayer = document.createElement('div');
@@ -50,7 +56,13 @@ export class DualRenderer {
 
     this.webgl = new THREE.WebGLRenderer({ antialias: true });
     this.webgl.setPixelRatio(window.devicePixelRatio);
-    this.webgl.setClearColor(0x111111);
+    this.webgl.setClearColor(0x05070a);
+    // Filmic tonemapping + sRGB output — applies to every render path (both the plain
+    // renderer.render() fallback below and, via OutputPass, the composer chain), so
+    // the room's material/light values read correctly regardless of POSTFX_ENABLED.
+    this.webgl.toneMapping = THREE.ACESFilmicToneMapping;
+    this.webgl.toneMappingExposure = 0.78;
+    this.webgl.outputColorSpace = THREE.SRGBColorSpace;
     this.canvas = this.webgl.domElement;
     Object.assign(this.canvas.style, {
       display: 'block',
@@ -77,7 +89,7 @@ export class DualRenderer {
   }
 
   render(scene: THREE.Scene, camera: THREE.Camera) {
-    if (!BLOOM_ENABLED) {
+    if (!POSTFX_ENABLED) {
       this.webgl.render(scene, camera);
       this.css3d.render(scene, camera);
       return;
@@ -85,14 +97,30 @@ export class DualRenderer {
     if (this.composer === undefined) {
       this.composer = new EffectComposer(this.webgl);
       this.composer.addPass(new RenderPass(scene, camera));
-      // Strength 0.7 / radius 0.4 / threshold 0.35 — tuned for emissive console/hologram materials.
+      // Strength/radius/threshold tuned tight so only genuinely bright emissive
+      // sources (conduit trim, fixture discs, console/hologram glow) bloom, and do so
+      // as a small contained highlight rather than a wide soft wash. A high threshold
+      // matters more than it looks here: with several stacked room lights, ordinary lit
+      // (non-emissive) wall/floor pixels can otherwise cross a low threshold too and
+      // bloom the whole room into haze — round-1 regression, fixed by pushing threshold
+      // well above typical lit-surface luminance and keeping radius small (contained
+      // glow, not a blob with no discernible edge).
       const bloomPass = new UnrealBloomPass(
         new THREE.Vector2(window.innerWidth, window.innerHeight),
-        0.7,
-        0.4,
-        0.35,
+        0.22,
+        0.12,
+        0.96,
       );
       this.composer.addPass(bloomPass);
+      // Converts the composer's linear working-space buffer to the renderer's
+      // configured tone mapping + sRGB output — required because intermediate
+      // composer passes (like bloom) operate before that conversion happens.
+      this.composer.addPass(new OutputPass());
+      // Subtle framing vignette, applied last so it darkens the final display image.
+      const vignettePass = new ShaderPass(VignetteShader);
+      vignettePass.uniforms.offset.value = 0.92;
+      vignettePass.uniforms.darkness.value = 0.68;
+      this.composer.addPass(vignettePass);
     }
     this.composer.render();
     this.css3d.render(scene, camera);
