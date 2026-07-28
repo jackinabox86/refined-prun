@@ -1,0 +1,76 @@
+diff --git a/src/game-3d/control-surface-router.ts b/src/game-3d/control-surface-router.ts
+index 7992a3a3..280b12a8 100644
+--- a/src/game-3d/control-surface-router.ts
++++ b/src/game-3d/control-surface-router.ts
+@@ -14,6 +14,15 @@ export function createControlSurfaceRouter(
+   // Active[consoleId] = the real (parked off-screen) window element currently captured.
+   const active = new Map<string, HTMLElement>();
+ 
++  // A freshly-opened window isn't split into Node.node/Node.child yet: TileAllocator's
++  // splitBuffer() (tile-allocator.ts) dispatches its real `click` via clickElement(),
++  // which defers that dispatch behind `await sleep(0)` — a setTimeout macrotask. This
++  // MutationObserver's callback runs as a microtask, strictly *before* the next
++  // macrotask, so the split has never happened yet the first time a window is seen.
++  // SPLIT_WATCH_TIMEOUT_MS bounds how long we keep watching a not-yet-split window
++  // before assuming it's some other window type that will never split.
++  const SPLIT_WATCH_TIMEOUT_MS = 2000;
++
+   function processNode(node: Node) {
+     if (!(node instanceof Element)) {
+       return;
+@@ -37,17 +46,49 @@ export function createControlSurfaceRouter(
+       return;
+     }
+ 
+-    // Synchronous check — TileAllocator's split fires at mount, so by the time this
+-    // MutationObserver callback runs (microtask, after the synchronous mount), it's
+-    // already present if this is really an ExecuteActionPackage window. Use `_$`
+-    // (synchronous get-or-undefined), NOT `$` (which waits indefinitely and would hang
+-    // forever for a non-ACT window that will never split).
+     const splitNode = _$(win, C.Node.node);
+     if (splitNode === undefined) {
+-      // Some other kind of window — leave it alone entirely.
++      // Not split yet (see comment above) — keep watching this specific window for
++      // the split to land instead of giving up permanently. Scoping the observer to
++      // `win` (rather than reusing the body-wide one) keeps this cheap and
++      // self-contained; it disconnects itself on success or timeout.
++      watchForSplit(win, consoleId, pair);
+       return;
+     }
++    captureSplit(win, consoleId, pair, splitNode);
++  }
++
++  function watchForSplit(win: HTMLElement, consoleId: string, pair: ControlSurfacePanels) {
++    let settled = false;
++    const splitObserver = new MutationObserver(() => {
++      if (settled) {
++        return;
++      }
++      const splitNode = _$(win, C.Node.node);
++      if (splitNode === undefined) {
++        return;
++      }
++      settled = true;
++      splitObserver.disconnect();
++      clearTimeout(timeout);
++      captureSplit(win, consoleId, pair, splitNode);
++    });
++    splitObserver.observe(win, { childList: true, subtree: true });
++    const timeout = setTimeout(() => {
++      if (settled) {
++        return;
++      }
++      settled = true;
++      splitObserver.disconnect();
++    }, SPLIT_WATCH_TIMEOUT_MS);
++  }
+ 
++  function captureSplit(
++    win: HTMLElement,
++    consoleId: string,
++    pair: ControlSurfacePanels,
++    splitNode: HTMLElement,
++  ) {
+     // Two Node.child tiles expected (action config + companion buffer, per
+     // getCompanionTile in tile-allocator.ts); anything else isn't the shape we know
+     // how to split across the two desk panels.

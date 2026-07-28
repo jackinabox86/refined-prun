@@ -30,7 +30,19 @@ Open `http://localhost:5183/?cam=<preset>` directly in a browser for interactive
 poking, or use the on-page preset buttons (top-left) to switch cameras without typing a
 URL. `pw-sandbox-screenshot.mjs` is deliberately not `pw-act.mjs`: there's no login
 session to preserve, so it launches and closes its own throwaway headless browser per
-call instead of attaching over CDP to a persistent profile.
+call instead of attaching over CDP to a persistent profile. That on-page preset bar
+(`#sandbox-preset-bar` in `sandbox/main.ts`) is dev-only scaffolding, not part of any
+reviewed piece — `pw-sandbox-screenshot.mjs` removes it via `page.evaluate` before
+every screenshot; if you add new dev-only on-page UI to the sandbox, exclude it the
+same way or it will bleed into a critic round (see "Gotchas" below).
+
+The sandbox boots a real `Game3D` instance, so `overlay.ts`'s HUD (mode banner, corner
+brackets, EXIT button, etc.) is present in every screenshot by default, no extra wiring
+needed to review it. It always starts in "interact" mode, though — the screenshot tool
+launches a fresh throwaway page per call with no click-to-lock or test-controls
+interaction, so walk/focused mode HUD states and the mode-transition animation are not
+currently reachable through it. Extending it to call
+`window.__rpGame3DTest`/force a mode change would be needed to screenshot those.
 
 **When to use which:**
 
@@ -138,6 +150,33 @@ directly, bypassing incremental movement entirely) would be worth the small effo
   gotcha below.
 
 ## Gotchas learned the hard way
+
+- **A blind AAA-visual critic reviewing a sandbox screenshot cannot tell your scene's
+  own content from unrelated things sharing the frame — always audit what else is
+  physically in shot before trusting a verdict.** Bit twice in one redesign pass: (1) an
+  `overview` camera preset sat almost exactly inside the hologram's effect volume, so
+  several rounds of "room shell" critic verdicts were actually complaining about the
+  hologram's own glow/motes, misattributed as room-lighting bugs; (2) the sandbox's own
+  dev-only camera-preset button bar (plain HTML `<button>`s, top-left) bled into a
+  HUD-overlay critic round, which flagged it as "feels like debug UI" — real feedback,
+  but about the wrong piece entirely. Both wasted real review rounds before being
+  caught. When briefing a critic on one piece, explicitly check whether the current
+  camera framing includes any *other* piece's geometry or any dev-only scaffolding UI,
+  and either avoid framing it in, exclude it (see `#sandbox-preset-bar` above), or tell
+  the critic explicitly what's in-frame-but-out-of-scope so it doesn't get credited or
+  blamed for something it isn't.
+
+- **For a piece that must read at both close range and room-scale distance (e.g. a
+  hologram centerpiece), fine geometric detail that looks great close-up can be
+  genuinely invisible at distance — that's a scale problem, not a brightness problem,
+  and cranking bloom/emissive intensity won't fix it.** What actually worked after two
+  rounds of incremental hierarchy/detail additions failed to fix a "reads as a small
+  smudge from across the room" critic complaint: one bold pass that replaced thin
+  `THREE.Line` geometry with solid `TubeGeometry`, substantially grew the overall
+  footprint, and added a large-area core/shell and a vertical light-column silhouette —
+  large-area, thick, high-contrast shapes that survive being shrunk to a small portion
+  of the frame. Prefer this over another round of small added detail if a "distance
+  read" complaint survives one iteration.
 
 - **A tab that already had 3D mode loaded can keep running a stale module after a
   rebuild, even though `dist/` on disk is current.** Confirmed for real: a geometry/

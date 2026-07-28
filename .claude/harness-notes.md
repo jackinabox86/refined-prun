@@ -87,3 +87,44 @@ heredoc.
 `sandbox.network.allowedDomains` in `.claude/settings.json` or every call falls back to a
 manual sandbox-bypass approval. That setting isn't exposed through the `/sandbox`
 command; edit the file directly.
+
+## codex (delegate-codex skill)
+
+`codex exec` (codex-cli 0.142.5) does not accept `--ask-for-approval` — passing it
+errors `unexpected argument '--ask-for-approval' found`. Exec mode is already
+non-interactive; don't pass this flag. The `delegate-codex` wrapper script
+(`~/.local/bin/delegate-codex`) currently passes it and is broken on this codex version
+as a result — call `codex exec` directly instead when this happens (same
+`--sandbox <mode> --ephemeral` flags, just omit `--ask-for-approval`).
+
+`codex exec` supports `-i/--image <FILE>...` (attach images to the prompt) and
+`-o/--output-last-message <FILE>` (write just the agent's final response to a file) —
+`delegate-codex` exposes neither. For any task judging or reporting on screenshots
+(e.g. a codex critic/builder round in a visual-iteration loop), invoke `codex exec`
+directly with these flags rather than going through the wrapper.
+
+**`codex exec --sandbox workspace-write` needs Claude Code's own Bash sandbox disabled
+(`dangerouslyDisableSandbox: true`) to even start.** Its internal bubblewrap sandbox
+tries to `mkdir /tmp/.git` during setup and fails with `bwrap: Can't mkdir /tmp/.git:
+Read-only file system` — Claude Code's own sandbox only permits real writes under
+`$TMPDIR`/`/tmp/claude`, not bare `/tmp`, and codex's bootstrap needs the latter.
+Confirmed this is scoped to `workspace-write`: `--sandbox read-only` codex calls (e.g. a
+review-only critic round) do not hit this and run fine fully sandboxed with no flag
+needed — only give codex builder-role (file-editing) calls the disabled-sandbox
+treatment, not critic-role (read-only) calls.
+
+Never trust a codex round's own "done"/self-report as proof — independently run
+`git diff --stat` (confirm only the intended files changed) and re-run `pnpm run
+compile` after every codex builder round, same discipline as `delegate-codex`'s own
+documented procedure.
+
+**Before reaching for `dangerouslyDisableSandbox` on a script already listed in
+`sandbox.excludedCommands`, verify the exclusion is actually failing rather than
+assuming a stale note is still true.** A prior session's planning doc claimed
+`node scripts/pw-sandbox-screenshot.mjs *` and `curl http://127.0.0.1:5183*` don't
+reach the host network namespace in this environment despite being excluded — retested
+live and both worked fine fully sandboxed, no bypass needed. The one real trap: a
+`curl` invocation only matches the excluded prefix as a literal string — flags placed
+before the URL (`curl -s -o out http://127.0.0.1:5183`) break the match against a
+pattern like `"curl -s http://127.0.0.1:5183*"` even though the command is functionally
+identical; put the URL immediately after the flags the pattern expects.
