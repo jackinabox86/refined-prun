@@ -20,15 +20,20 @@ export function createPanelShell(
     ...(maxHeightPx === undefined ? {} : { maxHeight: `${maxHeightPx}px`, overflowY: 'auto' }),
     padding: '16px 20px',
     boxSizing: 'border-box',
-    background: 'rgba(20, 28, 40, 0.92)',
-    border: `3px solid ${borderColor}`,
-    borderRadius: '8px',
+    background: 'rgba(14, 24, 38, 0.62)',
+    border: `1px solid ${borderColor}`,
+    borderRadius: '6px',
+    boxShadow: `0 0 18px color-mix(in srgb, ${borderColor} 38%, transparent)`,
     color: '#e2e8f0',
     fontFamily: 'system-ui, sans-serif',
     fontSize: '14px',
     pointerEvents: 'auto',
     userSelect: 'none',
     position: 'relative',
+    // CSS3DObject planes render on both faces by default (browsers show a mirrored
+    // view from behind, not nothing) — without this, the panel's own UI content is
+    // visible bleeding through the desk from underneath.
+    backfaceVisibility: 'hidden',
   });
 
   const targetDiv = document.createElement('div');

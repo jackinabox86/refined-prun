@@ -42,14 +42,61 @@ const PRESETS: Record<string, CameraPreset> = {
   },
   hologram: {
     label: 'Hologram detail',
-    // Level with the hologram (not eye height) and close, for an actual "detail" framing
-    // now that fixtures.ts seeds it real star/site data to draw.
+    // Wave-2 route-map pivot flattened the display onto a HOLOGRAM_SPAN=5.2-wide
+    // (~2.6 half-extent) horizontal y=0 plane. Two failed attempts before this one:
+    // pulling back far but staying near eye level (dx/dz=-4.5, dy=+1.4) put the map
+    // almost edge-on — a flat plane viewed at a shallow angle reads as a near-straight
+    // line, not a map; going very high (dy=+5) instead cleared ROOM_HEIGHT (3.5) and
+    // clipped through the ceiling. The fix is proximity + steep pitch, not distance:
+    // staying close horizontally but rising most of the remaining headroom under the
+    // ceiling gives a real look-down angle (~38° below horizontal here) without
+    // leaving the room.
     position: new THREE.Vector3(
-      HOLOGRAM_POSITION.x - 2.2,
-      HOLOGRAM_POSITION.y + 0.5,
-      HOLOGRAM_POSITION.z - 2.2,
+      HOLOGRAM_POSITION.x - 1.8,
+      HOLOGRAM_POSITION.y + 2.0,
+      HOLOGRAM_POSITION.z - 1.8,
     ),
     lookAt: HOLOGRAM_POSITION.clone(),
+  },
+  pit: {
+    label: 'Center pit + ramp detail',
+    // Ad-hoc preset for reviewing the wave-2 room-shape pass (pit/ramp/railings around
+    // origin). Offset well away from x=0 (the companyops console sits centered on the
+    // +Z wall there and its control-surface panels fill the frame if the camera sits
+    // too close to it) and pulled back from the wall, angled down toward the ramp
+    // (offset to x=3 on the +Z pit edge, see room.ts) so the ramp, tread bars, cheek
+    // walls, and pit retaining walls/railings are all in frame.
+    // y dropped from 3.4 — the room-variety pass added ceiling beams/a bulkhead band
+    // occupying roughly y=3.16-3.50, and 3.4 sat inside that band, producing a
+    // near-clip-plane artifact (a huge dark grazing-angle slab filling most of frame).
+    // 2.4 sits well clear of it while keeping a similar look-down angle.
+    position: new THREE.Vector3(-6, 2.4, 6.5),
+    lookAt: new THREE.Vector3(2, -0.6, 1.5),
+  },
+  ramp: {
+    label: 'Ramp side profile',
+    // Close side-on view of just the ramp (x=[1.75,4.25], z=[1,4]) to check tread-bar/
+    // cheek-wall flushness against the slope, which is hard to judge from the wider
+    // `pit` preset's angle.
+    position: new THREE.Vector3(7, 1.3, 3),
+    lookAt: new THREE.Vector3(3, -0.5, 2.5),
+  },
+  rampUnder: {
+    label: 'Ramp underside check',
+    // Inside the pit (y=-PIT_DEPTH-ish), looking up at the ramp's sloped underside —
+    // no floor plate exists in that exact footprint (only the ramp mesh itself), so
+    // this is the angle that previously exposed the skybox through a single-sided
+    // ramp material.
+    position: new THREE.Vector3(3, -0.7, 0.3),
+    lookAt: new THREE.Vector3(3, -0.2, 2.5),
+  },
+  underside: {
+    label: 'Console panel underside check',
+    // Low, looking up at the baseplanning console's control-surface panels (see the
+    // `console` preset's target ~(-3, 1.2, -6.7)) to verify the CSS3D backface-
+    // visibility fix — panel content should not be visible from below.
+    position: new THREE.Vector3(-2.5, 0.15, -5.5),
+    lookAt: new THREE.Vector3(-3, 1.1, -6.6),
   },
 };
 const DEFAULT_PRESET = 'overview';

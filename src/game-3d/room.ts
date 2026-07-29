@@ -5,10 +5,22 @@ import * as THREE from 'three';
  * Bumped from 5 (2026-07-26 playtest feedback) — consoles now spread across all
  * four walls (console-roster.ts) instead of a single narrow arc, and need more
  * floor space between them and the center hologram/walk path.
+ * Bumped from 8 (2026-07-28 3D-room shaping) — the center pit keeps the room
+ * from reading as one flat square, and the outer walkway needs enough clearance.
  */
-export const ROOM_HALF = 8;
+export const ROOM_HALF = 10;
 export const ROOM_HEIGHT = 3.5;
 export const EYE_HEIGHT = 1.6;
+
+const PIT_HALF = 4;
+const PIT_DEPTH = 1.0;
+const RAMP_CENTER_X = 3;
+const RAMP_WIDTH = 2.5;
+const RAMP_LENGTH = 3;
+const RAMP_TOP_Z = PIT_HALF;
+const RAMP_BOTTOM_Z = PIT_HALF - RAMP_LENGTH;
+const RAMP_MIN_X = RAMP_CENTER_X - RAMP_WIDTH / 2;
+const RAMP_MAX_X = RAMP_CENTER_X + RAMP_WIDTH / 2;
 
 /**
  * -Z wall viewscreen opening (world units). Sized to 80% of that wall's own width/height
@@ -23,7 +35,7 @@ export const WINDOW_CENTER_Y = ROOM_HEIGHT / 2;
 const FRAME_DEPTH = 0.15;
 
 /** Canvas size for all generated surface textures. */
-const TEX_SIZE = 512;
+const TEX_SIZE = 1024;
 
 /** Sparse status-LED accent colors (amber/green/red), scattered onto wall panels. */
 const LED_COLORS: Array<[number, number, number]> = [
@@ -425,6 +437,125 @@ function setRepeat(tex: SurfaceTextureSet, x: number, y: number) {
   tex.emissiveMap?.repeat.set(x, y);
 }
 
+export function getFloorHeightAt(x: number, z: number): number {
+  const onRamp = x >= RAMP_MIN_X && x <= RAMP_MAX_X && z >= RAMP_BOTTOM_Z && z <= RAMP_TOP_Z;
+  if (onRamp) {
+    const t = (RAMP_TOP_Z - z) / RAMP_LENGTH;
+    return -PIT_DEPTH * t;
+  }
+  if (x >= -PIT_HALF && x <= PIT_HALF && z >= -PIT_HALF && z <= PIT_HALF) {
+    return -PIT_DEPTH;
+  }
+  return 0;
+}
+
+function addFloorPlate(
+  group: THREE.Group,
+  material: THREE.Material,
+  width: number,
+  depth: number,
+  x: number,
+  z: number,
+  y: number,
+) {
+  const plate = new THREE.Mesh(new THREE.PlaneGeometry(width, depth), material);
+  plate.rotation.x = -Math.PI / 2;
+  plate.position.set(x, y, z);
+  group.add(plate);
+}
+
+function addRamp(
+  group: THREE.Group,
+  material: THREE.Material,
+  minX: number,
+  maxX: number,
+  topZ: number,
+  bottomZ: number,
+) {
+  const geometry = new THREE.BufferGeometry();
+  const vertices = new Float32Array([
+    minX,
+    0,
+    topZ,
+    maxX,
+    0,
+    topZ,
+    minX,
+    -PIT_DEPTH,
+    bottomZ,
+    maxX,
+    -PIT_DEPTH,
+    bottomZ,
+  ]);
+  geometry.setAttribute('position', new THREE.BufferAttribute(vertices, 3));
+  geometry.setIndex([0, 2, 1, 1, 2, 3]);
+  geometry.computeVertexNormals();
+  group.add(new THREE.Mesh(geometry, material));
+}
+
+function addRampCheek(
+  group: THREE.Group,
+  material: THREE.Material,
+  x: number,
+  topZ: number,
+  bottomZ: number,
+  depth: number,
+) {
+  const geometry = new THREE.BufferGeometry();
+  const vertices = new Float32Array([x, 0, topZ, x, -depth, topZ, x, -depth, bottomZ]);
+  geometry.setAttribute('position', new THREE.BufferAttribute(vertices, 3));
+  geometry.setIndex([0, 1, 2]);
+  geometry.computeVertexNormals();
+  const mesh = new THREE.Mesh(geometry, material);
+  group.add(mesh);
+}
+
+function addRetainingWall(
+  group: THREE.Group,
+  material: THREE.Material,
+  width: number,
+  x: number,
+  z: number,
+  rotationY: number,
+) {
+  const wall = new THREE.Mesh(new THREE.PlaneGeometry(width, PIT_DEPTH), material);
+  wall.position.set(x, -PIT_DEPTH / 2, z);
+  wall.rotation.y = rotationY;
+  group.add(wall);
+}
+
+function addRailSegment(
+  group: THREE.Group,
+  material: THREE.Material,
+  length: number,
+  x: number,
+  z: number,
+  rotationY: number,
+) {
+  const railHeight = 0.9;
+  const postHeight = 0.86;
+  const postSize = 0.07;
+  const railThickness = 0.08;
+  const postCount = Math.max(2, Math.ceil(length / 1.2) + 1);
+  const rail = new THREE.Mesh(
+    new THREE.BoxGeometry(length, railThickness, railThickness),
+    material,
+  );
+  rail.position.set(x, railHeight, z);
+  rail.rotation.y = rotationY;
+  group.add(rail);
+
+  for (let i = 0; i < postCount; i++) {
+    const t = postCount === 1 ? 0.5 : i / (postCount - 1);
+    const offset = (t - 0.5) * length;
+    const localX = Math.cos(rotationY) * offset;
+    const localZ = -Math.sin(rotationY) * offset;
+    const post = new THREE.Mesh(new THREE.BoxGeometry(postSize, postHeight, postSize), material);
+    post.position.set(x + localX, postHeight / 2, z + localZ);
+    group.add(post);
+  }
+}
+
 /** Builds an enclosed box room with panel-varied materials and a key/fill/rim lighting rig. */
 export function buildRoom(): THREE.Group {
   const group = new THREE.Group();
@@ -497,6 +628,8 @@ export function buildRoom(): THREE.Group {
   });
   // -Z face is cut open for the viewscreen; frame segments rebuild the wall around the hole.
   const wallMatOpen = new THREE.MeshStandardMaterial({ visible: false });
+  const floorMatOpen = new THREE.MeshStandardMaterial({ visible: false });
+  const ceilingMatOpen = new THREE.MeshStandardMaterial({ visible: false });
   const ceilingMat = new THREE.MeshStandardMaterial({
     map: ceilingTex.map,
     normalMap: ceilingTex.normalMap,
@@ -510,8 +643,8 @@ export function buildRoom(): THREE.Group {
   const room = new THREE.Mesh(new THREE.BoxGeometry(size, ROOM_HEIGHT, size), [
     wallMat,
     wallMat,
-    ceilingMat,
-    wallMat,
+    ceilingMatOpen,
+    floorMatOpen,
     wallMat,
     wallMatOpen,
   ]);
@@ -562,20 +695,325 @@ export function buildRoom(): THREE.Group {
   frameRight.position.set(WINDOW_WIDTH / 2 + sideWidth / 2, WINDOW_CENTER_Y, frameZ);
   group.add(frameRight);
 
-  const floor = new THREE.Mesh(
-    new THREE.PlaneGeometry(size - 0.05, size - 0.05),
-    new THREE.MeshStandardMaterial({
-      map: floorTex.map,
-      normalMap: floorTex.normalMap,
-      normalScale,
-      roughnessMap: floorTex.roughnessMap,
-      roughness: 0.94,
-      metalness: 0.03,
-    }),
+  // Mid-scale structure changes the room cross-section instead of sitting on the wall.
+  // Thin trim alone cannot make the shell read as built volume.
+  const beamMat = frameMat.clone();
+  beamMat.color = new THREE.Color(0x2b343d);
+  const claddingMat = frameMat.clone();
+  claddingMat.color = new THREE.Color(0x52606b);
+  const bulkheadMat = frameMat.clone();
+  bulkheadMat.color = new THREE.Color(0x1e2831);
+  const ceilingFaceMat = ceilingMat.clone();
+  ceilingFaceMat.side = THREE.FrontSide;
+
+  const atriumHalf = PIT_HALF - 0.3;
+  const atriumLift = 1.1;
+  const atriumPanelThickness = 0.12;
+  const atriumSkirtDepth = 0.22;
+  const addCeilingPlate = (width: number, depth: number, x: number, z: number, y: number) => {
+    const plate = new THREE.Mesh(new THREE.PlaneGeometry(width, depth), ceilingFaceMat);
+    plate.rotation.x = Math.PI / 2;
+    plate.position.set(x, y, z);
+    group.add(plate);
+  };
+
+  // The pit gets a matching raised ceiling well so the room has a true section change.
+  addCeilingPlate(
+    size,
+    ROOM_HALF - atriumHalf,
+    0,
+    atriumHalf + (ROOM_HALF - atriumHalf) / 2,
+    ROOM_HEIGHT,
   );
-  floor.rotation.x = -Math.PI / 2;
-  floor.position.y = 0.01;
-  group.add(floor);
+  addCeilingPlate(
+    size,
+    ROOM_HALF - atriumHalf,
+    0,
+    -atriumHalf - (ROOM_HALF - atriumHalf) / 2,
+    ROOM_HEIGHT,
+  );
+  addCeilingPlate(
+    ROOM_HALF - atriumHalf,
+    atriumHalf * 2,
+    atriumHalf + (ROOM_HALF - atriumHalf) / 2,
+    0,
+    ROOM_HEIGHT,
+  );
+  addCeilingPlate(
+    ROOM_HALF - atriumHalf,
+    atriumHalf * 2,
+    -atriumHalf - (ROOM_HALF - atriumHalf) / 2,
+    0,
+    ROOM_HEIGHT,
+  );
+
+  const atriumPanel = new THREE.Mesh(
+    new THREE.BoxGeometry(atriumHalf * 2, atriumPanelThickness, atriumHalf * 2),
+    ceilingFaceMat,
+  );
+  atriumPanel.position.set(0, ROOM_HEIGHT + atriumLift + atriumPanelThickness / 2, 0);
+  group.add(atriumPanel);
+
+  const atriumSkirtY = ROOM_HEIGHT + atriumLift / 2;
+  const atriumSkirtXGeometry = new THREE.BoxGeometry(
+    atriumHalf * 2 + atriumSkirtDepth * 2,
+    atriumLift,
+    atriumSkirtDepth,
+  );
+  const atriumSkirtZGeometry = new THREE.BoxGeometry(atriumSkirtDepth, atriumLift, atriumHalf * 2);
+  for (const z of [-atriumHalf - atriumSkirtDepth / 2, atriumHalf + atriumSkirtDepth / 2]) {
+    const skirt = new THREE.Mesh(atriumSkirtXGeometry, beamMat);
+    skirt.position.set(0, atriumSkirtY, z);
+    group.add(skirt);
+  }
+  for (const x of [-atriumHalf - atriumSkirtDepth / 2, atriumHalf + atriumSkirtDepth / 2]) {
+    const skirt = new THREE.Mesh(atriumSkirtZGeometry, beamMat);
+    skirt.position.set(x, atriumSkirtY, 0);
+    group.add(skirt);
+  }
+
+  const ceilingBeamHeight = 0.22;
+  const ceilingBeamWidth = 0.34;
+  const ceilingBeamY = ROOM_HEIGHT - ceilingBeamHeight / 2;
+  const ceilingBeamXGeometry = new THREE.BoxGeometry(size, ceilingBeamHeight, ceilingBeamWidth);
+  const ceilingBeamZGeometry = new THREE.BoxGeometry(ceilingBeamWidth, ceilingBeamHeight, size);
+  for (const z of [-5, 0, 5]) {
+    if (Math.abs(z) < atriumHalf + ceilingBeamWidth / 2) {
+      continue;
+    }
+    const beam = new THREE.Mesh(ceilingBeamXGeometry, beamMat);
+    beam.position.set(0, ceilingBeamY, z);
+    group.add(beam);
+  }
+  for (const x of [-5, 0, 5]) {
+    if (Math.abs(x) < atriumHalf + ceilingBeamWidth / 2) {
+      continue;
+    }
+    const beam = new THREE.Mesh(ceilingBeamZGeometry, beamMat);
+    beam.position.set(x, ceilingBeamY, 0);
+    group.add(beam);
+  }
+
+  const panelHeight = ROOM_HEIGHT - 0.72;
+  const panelY = panelHeight / 2 + 0.24;
+  const panelDepth = 0.4;
+  const panelInset = ROOM_HALF - panelDepth / 2 - 0.02;
+  const panelTrimWidth = 0.08;
+  const panelTrimDepth = 0.42;
+
+  const addZWallPanel = (x: number, width: number, z: number) => {
+    const panel = new THREE.Mesh(
+      new THREE.BoxGeometry(width, panelHeight, panelDepth),
+      claddingMat,
+    );
+    panel.position.set(x, panelY, z);
+    group.add(panel);
+  };
+
+  const addXWallPanel = (x: number, z: number, width: number) => {
+    const panel = new THREE.Mesh(
+      new THREE.BoxGeometry(panelDepth, panelHeight, width),
+      claddingMat,
+    );
+    panel.position.set(x, panelY, z);
+    group.add(panel);
+  };
+
+  const addZWallRecessFrame = (z: number, gapWidth: number) => {
+    const yMin = panelY - panelHeight / 2;
+    const yMax = panelY + panelHeight / 2;
+    const trimXGeometry = new THREE.BoxGeometry(gapWidth, panelTrimWidth, panelTrimDepth);
+    const trimYGeometry = new THREE.BoxGeometry(panelTrimWidth, panelHeight, panelTrimDepth);
+    for (const y of [yMin, yMax]) {
+      const trim = new THREE.Mesh(trimXGeometry, beamMat);
+      trim.position.set(0, y, z);
+      group.add(trim);
+    }
+    for (const x of [-gapWidth / 2, gapWidth / 2]) {
+      const trim = new THREE.Mesh(trimYGeometry, beamMat);
+      trim.position.set(x, panelY, z);
+      group.add(trim);
+    }
+  };
+
+  const addXWallRecessFrame = (x: number, gapWidth: number) => {
+    const yMin = panelY - panelHeight / 2;
+    const yMax = panelY + panelHeight / 2;
+    const trimZGeometry = new THREE.BoxGeometry(panelTrimDepth, panelTrimWidth, gapWidth);
+    const trimYGeometry = new THREE.BoxGeometry(panelTrimDepth, panelHeight, panelTrimWidth);
+    for (const y of [yMin, yMax]) {
+      const trim = new THREE.Mesh(trimZGeometry, beamMat);
+      trim.position.set(x, y, 0);
+      group.add(trim);
+    }
+    for (const z of [-gapWidth / 2, gapWidth / 2]) {
+      const trim = new THREE.Mesh(trimYGeometry, beamMat);
+      trim.position.set(x, panelY, z);
+      group.add(trim);
+    }
+  };
+
+  const bayOuterCenter = 6.65;
+  const bayOuterWidth = 4.5;
+  const bayGapWidth = 8.0;
+  for (const sx of [-1, 1]) {
+    addZWallPanel(sx * bayOuterCenter, bayOuterWidth, panelInset);
+    addXWallPanel(sx * panelInset, bayOuterCenter, bayOuterWidth);
+    addXWallPanel(sx * panelInset, -bayOuterCenter, bayOuterWidth);
+  }
+  addZWallRecessFrame(panelInset - panelDepth / 2, bayGapWidth);
+  addXWallRecessFrame(panelInset - panelDepth / 2, bayGapWidth);
+  addXWallRecessFrame(-panelInset + panelDepth / 2, bayGapWidth);
+
+  // The viewscreen wall only has solid wall outside the cut-open window.
+  const viewscreenSidePanelWidth = sideWidth - 0.42;
+  if (viewscreenSidePanelWidth > 0) {
+    const leftX = -(WINDOW_WIDTH / 2 + sideWidth / 2);
+    const rightX = WINDOW_WIDTH / 2 + sideWidth / 2;
+    addZWallPanel(leftX, viewscreenSidePanelWidth, -panelInset);
+    addZWallPanel(rightX, viewscreenSidePanelWidth, -panelInset);
+  }
+
+  const bulkheadDepth = 0.18;
+  const bulkheadHeight = 0.2;
+  const bulkheadY = ROOM_HEIGHT - bulkheadHeight / 2 - 0.14;
+  const bulkheadInset = ROOM_HALF - bulkheadDepth / 2 - 0.01;
+  const bulkheadSpanGeometry = new THREE.BoxGeometry(size, bulkheadHeight, bulkheadDepth);
+  const bulkheadCrossGeometry = new THREE.BoxGeometry(bulkheadDepth, bulkheadHeight, size);
+  for (const z of [-bulkheadInset, bulkheadInset]) {
+    const bulkhead = new THREE.Mesh(bulkheadSpanGeometry, bulkheadMat);
+    bulkhead.position.set(0, bulkheadY, z);
+    group.add(bulkhead);
+  }
+  for (const x of [-bulkheadInset, bulkheadInset]) {
+    const bulkhead = new THREE.Mesh(bulkheadCrossGeometry, bulkheadMat);
+    bulkhead.position.set(x, bulkheadY, 0);
+    group.add(bulkhead);
+  }
+
+  const conduitMat = new THREE.MeshStandardMaterial({
+    color: 0x20282f,
+    roughness: 0.5,
+    metalness: 0.5,
+  });
+  const conduitRadius = 0.14;
+  const conduitLength = size - 2.2;
+  const conduitY = ROOM_HEIGHT - 0.24;
+  const conduitOffset = ROOM_HALF - 0.24;
+  const conduitGeometry = new THREE.CylinderGeometry(
+    conduitRadius,
+    conduitRadius,
+    conduitLength,
+    24,
+  );
+  const northConduit = new THREE.Mesh(conduitGeometry, conduitMat);
+  northConduit.position.set(0, conduitY, conduitOffset);
+  northConduit.rotation.z = Math.PI / 2;
+  group.add(northConduit);
+
+  for (const x of [-conduitOffset, conduitOffset]) {
+    const conduit = new THREE.Mesh(conduitGeometry, conduitMat);
+    conduit.position.set(x, conduitY, 0);
+    conduit.rotation.x = Math.PI / 2;
+    group.add(conduit);
+  }
+
+  const floorMat = new THREE.MeshStandardMaterial({
+    map: floorTex.map,
+    normalMap: floorTex.normalMap,
+    normalScale,
+    roughnessMap: floorTex.roughnessMap,
+    roughness: 0.94,
+    metalness: 0.03,
+    // DoubleSide: the ramp (addRamp) is a single thin quad with open space below it
+    // inside the pit — FrontSide (the default) left its underside invisible, exposing
+    // the skybox through the floor from below. The flat walkway/pit-floor plates never
+    // get viewed from underneath in normal play, so this costs nothing there.
+    side: THREE.DoubleSide,
+  });
+  const retainingTex = createSurfaceTextureSet({
+    seed: 6,
+    cols: 6,
+    rows: 4,
+    baseColor: [25, 30, 38],
+    jitter: 0.3,
+    grimeCount: 30,
+    scratchCount: 18,
+    rivets: true,
+  });
+  setRepeat(retainingTex, PIT_HALF, 1);
+  const retainingMat = new THREE.MeshStandardMaterial({
+    map: retainingTex.map,
+    normalMap: retainingTex.normalMap,
+    normalScale,
+    roughnessMap: retainingTex.roughnessMap,
+    roughness: 0.96,
+    metalness: 0.05,
+    side: THREE.DoubleSide,
+  });
+
+  const walkwayDepth = ROOM_HALF - PIT_HALF;
+  addFloorPlate(group, floorMat, size, walkwayDepth, 0, PIT_HALF + walkwayDepth / 2, 0);
+  addFloorPlate(group, floorMat, size, walkwayDepth, 0, -PIT_HALF - walkwayDepth / 2, 0);
+  addFloorPlate(group, floorMat, walkwayDepth, PIT_HALF * 2, -PIT_HALF - walkwayDepth / 2, 0, 0);
+  addFloorPlate(
+    group,
+    floorMat,
+    walkwayDepth,
+    RAMP_BOTTOM_Z + PIT_HALF,
+    PIT_HALF + walkwayDepth / 2,
+    (-PIT_HALF + RAMP_BOTTOM_Z) / 2,
+    0,
+  );
+  addFloorPlate(
+    group,
+    floorMat,
+    ROOM_HALF - RAMP_MAX_X,
+    RAMP_TOP_Z - RAMP_BOTTOM_Z,
+    RAMP_MAX_X + (ROOM_HALF - RAMP_MAX_X) / 2,
+    (RAMP_BOTTOM_Z + RAMP_TOP_Z) / 2,
+    0,
+  );
+  addFloorPlate(
+    group,
+    floorMat,
+    PIT_HALF * 2,
+    PIT_HALF + RAMP_BOTTOM_Z,
+    0,
+    (-PIT_HALF + RAMP_BOTTOM_Z) / 2,
+    -PIT_DEPTH,
+  );
+  addFloorPlate(
+    group,
+    floorMat,
+    RAMP_MIN_X + PIT_HALF,
+    RAMP_TOP_Z - RAMP_BOTTOM_Z,
+    (-PIT_HALF + RAMP_MIN_X) / 2,
+    (RAMP_BOTTOM_Z + RAMP_TOP_Z) / 2,
+    -PIT_DEPTH,
+  );
+  addRamp(group, floorMat, RAMP_MIN_X, RAMP_MAX_X, RAMP_TOP_Z, RAMP_BOTTOM_Z);
+  addRampCheek(group, retainingMat, RAMP_MIN_X, RAMP_TOP_Z, RAMP_BOTTOM_Z, PIT_DEPTH);
+  addRampCheek(group, retainingMat, RAMP_MAX_X, RAMP_TOP_Z, RAMP_BOTTOM_Z, PIT_DEPTH);
+
+  addRetainingWall(group, retainingMat, PIT_HALF * 2, 0, -PIT_HALF, 0);
+  addRetainingWall(group, retainingMat, PIT_HALF * 2, -PIT_HALF, 0, Math.PI / 2);
+  addRetainingWall(
+    group,
+    retainingMat,
+    PIT_HALF + RAMP_BOTTOM_Z,
+    PIT_HALF,
+    (-PIT_HALF + RAMP_BOTTOM_Z) / 2,
+    -Math.PI / 2,
+  );
+  addRetainingWall(
+    group,
+    retainingMat,
+    RAMP_MIN_X + PIT_HALF,
+    (-PIT_HALF + RAMP_MIN_X) / 2,
+    PIT_HALF,
+    Math.PI,
+  );
 
   // --- Lit trim: perimeter strips baked as emissive geometry rather than texture, so
   // they read as real practical fixtures (cyan pathway lighting at the floor line, warm
@@ -614,6 +1052,17 @@ export function buildRoom(): THREE.Group {
   });
   addPerimeterStrip(0.09, 0.05, 0.06, baseboardMat);
 
+  const RAMP_ANGLE = Math.atan2(PIT_DEPTH, RAMP_LENGTH);
+  const rampSlopeLength = Math.sqrt(RAMP_LENGTH * RAMP_LENGTH + PIT_DEPTH * PIT_DEPTH);
+  const rampMidZ = (RAMP_TOP_Z + RAMP_BOTTOM_Z) / 2;
+  const rampMidY = -PIT_DEPTH / 2;
+  for (const x of [RAMP_MIN_X + 0.08, RAMP_MAX_X - 0.08]) {
+    const strip = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.02, rampSlopeLength), baseboardMat);
+    strip.position.set(x, rampMidY + 0.02, rampMidZ);
+    strip.rotation.x = -RAMP_ANGLE;
+    group.add(strip);
+  }
+
   const covingMat = new THREE.MeshStandardMaterial({
     color: 0x140f0a,
     emissive: 0xffab5c,
@@ -623,21 +1072,92 @@ export function buildRoom(): THREE.Group {
   });
   addPerimeterStrip(ROOM_HEIGHT - 0.09, 0.05, 0.06, covingMat);
 
-  // Dark gunmetal corner posts — cheap structural read, breaks up the box silhouette.
+  // The raised atrium needs a lit reveal at the old ceiling plane to read as a shaft.
+  const atriumRevealThickness = 0.05;
+  const atriumRevealHeight = 0.04;
+  const atriumRevealY = ROOM_HEIGHT + atriumRevealHeight / 2;
+  const atriumRevealSpanGeometry = new THREE.BoxGeometry(
+    atriumHalf * 2 + atriumRevealThickness * 2,
+    atriumRevealHeight,
+    atriumRevealThickness,
+  );
+  const atriumRevealCrossGeometry = new THREE.BoxGeometry(
+    atriumRevealThickness,
+    atriumRevealHeight,
+    atriumHalf * 2,
+  );
+  for (const z of [-atriumHalf, atriumHalf]) {
+    const reveal = new THREE.Mesh(atriumRevealSpanGeometry, covingMat);
+    reveal.position.set(0, atriumRevealY, z);
+    group.add(reveal);
+  }
+  for (const x of [-atriumHalf, atriumHalf]) {
+    const reveal = new THREE.Mesh(atriumRevealCrossGeometry, covingMat);
+    reveal.position.set(x, atriumRevealY, 0);
+    group.add(reveal);
+  }
+
+  // Dark gunmetal corner columns read as load-bearing masses instead of wall trim.
   const postMat = new THREE.MeshStandardMaterial({
     color: 0x1c232b,
     roughness: 0.55,
     metalness: 0.45,
   });
-  const postSize = 0.12;
+  for (const t of [0.2, 0.4, 0.6, 0.8]) {
+    const z = RAMP_BOTTOM_Z + t * RAMP_LENGTH;
+    const y = -PIT_DEPTH * (1 - t) + 0.02;
+    const tread = new THREE.Mesh(new THREE.BoxGeometry(RAMP_WIDTH - 0.3, 0.03, 0.12), postMat);
+    tread.position.set(RAMP_CENTER_X, y, z);
+    tread.rotation.x = -RAMP_ANGLE;
+    group.add(tread);
+  }
+
+  const postSize = 0.42;
   const postInset = ROOM_HALF - postSize / 2 - 0.01;
+  const postTrimDepth = 0.035;
+  const postTrimWidth = 0.08;
   for (const sx of [-1, 1]) {
     for (const sz of [-1, 1]) {
       const post = new THREE.Mesh(new THREE.BoxGeometry(postSize, ROOM_HEIGHT, postSize), postMat);
       post.position.set(sx * postInset, ROOM_HEIGHT / 2, sz * postInset);
       group.add(post);
+
+      const xTrim = new THREE.Mesh(
+        new THREE.BoxGeometry(postTrimDepth, ROOM_HEIGHT - 0.36, postTrimWidth),
+        beamMat,
+      );
+      xTrim.position.set(
+        sx * (ROOM_HALF - postTrimDepth / 2 - 0.02),
+        ROOM_HEIGHT / 2,
+        sz * postInset,
+      );
+      group.add(xTrim);
+
+      const zTrim = new THREE.Mesh(
+        new THREE.BoxGeometry(postTrimWidth, ROOM_HEIGHT - 0.36, postTrimDepth),
+        beamMat,
+      );
+      zTrim.position.set(
+        sx * postInset,
+        ROOM_HEIGHT / 2,
+        sz * (ROOM_HALF - postTrimDepth / 2 - 0.02),
+      );
+      group.add(zTrim);
     }
   }
+
+  // Visual-only pit railings; movement intentionally still allows stepping over the rim.
+  addRailSegment(group, postMat, RAMP_MIN_X + PIT_HALF, (-PIT_HALF + RAMP_MIN_X) / 2, PIT_HALF, 0);
+  addRailSegment(group, postMat, PIT_HALF * 2, 0, -PIT_HALF, 0);
+  addRailSegment(group, postMat, PIT_HALF * 2, -PIT_HALF, 0, -Math.PI / 2);
+  addRailSegment(
+    group,
+    postMat,
+    PIT_HALF + RAMP_BOTTOM_Z,
+    PIT_HALF,
+    (-PIT_HALF + RAMP_BOTTOM_Z) / 2,
+    -Math.PI / 2,
+  );
 
   // Low-output bezel tracing the inner viewscreen edge. It frames the opening without
   // adding enough cool emission to fog the black-space view behind it.
@@ -728,22 +1248,26 @@ export function buildRoom(): THREE.Group {
     metalness: 0.1,
   });
   for (const f of fixtures) {
-    const bezel = new THREE.Mesh(new THREE.CylinderGeometry(0.55, 0.55, 0.02, 24), fixtureBezelMat);
-    bezel.position.set(f.x, ROOM_HEIGHT - 0.015, f.z);
+    const fixtureCeilingY =
+      Math.abs(f.x) <= atriumHalf && Math.abs(f.z) <= atriumHalf
+        ? ROOM_HEIGHT + atriumLift
+        : ROOM_HEIGHT;
+    const bezel = new THREE.Mesh(new THREE.CylinderGeometry(0.55, 0.55, 0.02, 32), fixtureBezelMat);
+    bezel.position.set(f.x, fixtureCeilingY - 0.015, f.z);
     group.add(bezel);
 
-    const well = new THREE.Mesh(new THREE.CylinderGeometry(0.46, 0.46, 0.025, 24), fixtureWellMat);
-    well.position.set(f.x, ROOM_HEIGHT - 0.035, f.z);
+    const well = new THREE.Mesh(new THREE.CylinderGeometry(0.46, 0.46, 0.025, 32), fixtureWellMat);
+    well.position.set(f.x, fixtureCeilingY - 0.035, f.z);
     group.add(well);
 
-    const glow = new THREE.Mesh(new THREE.CylinderGeometry(0.34, 0.34, 0.03, 24), fixtureGlowMat);
-    glow.position.set(f.x, ROOM_HEIGHT - 0.06, f.z);
+    const glow = new THREE.Mesh(new THREE.CylinderGeometry(0.34, 0.34, 0.03, 32), fixtureGlowMat);
+    glow.position.set(f.x, fixtureCeilingY - 0.06, f.z);
     group.add(glow);
 
     // Kept below the ceiling with a short radius so the fixture creates a local pool
     // of light rather than broad room fill.
     const light = new THREE.PointLight(0xffbf82, f.intensity, f.distance, 2);
-    light.position.set(f.x, ROOM_HEIGHT - 0.65, f.z);
+    light.position.set(f.x, fixtureCeilingY - 0.65, f.z);
     group.add(light);
   }
 
@@ -791,11 +1315,11 @@ export function buildRoom(): THREE.Group {
   return group;
 }
 
-/** Clamps camera XZ to stay roughly inside the room; keeps eye height fixed. */
+/** Clamps camera XZ to stay roughly inside the room; keeps eye height on the floor surface. */
 export function clampToRoom(position: THREE.Vector3) {
   const margin = 0.4;
   const max = ROOM_HALF - margin;
   position.x = Math.min(max, Math.max(-max, position.x));
   position.z = Math.min(max, Math.max(-max, position.z));
-  position.y = EYE_HEIGHT;
+  position.y = getFloorHeightAt(position.x, position.z) + EYE_HEIGHT;
 }

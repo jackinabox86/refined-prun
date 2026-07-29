@@ -5,13 +5,13 @@
 // docs/browser-testing-3d.md ("Visual-iteration sandbox").
 //
 // Usage: node scripts/pw-sandbox-screenshot.mjs <preset> <output-path> [port]
-//   preset: overview | console | hologram  (must match main.ts's PRESETS keys)
+//   preset: overview | console | hologram | pit | ramp | underside  (must match main.ts's PRESETS keys)
 //   port: defaults to 5183. Pass a different port when running against a
 //   `dev:3d-sandbox -- --port <n>` instance (e.g. one isolated builder among several
 //   running concurrently in separate worktrees).
 import { loadPlaywright } from './pw-helper.mjs';
 
-const PRESETS = ['overview', 'console', 'hologram'];
+const PRESETS = ['overview', 'console', 'hologram', 'pit', 'ramp', 'rampUnder', 'underside'];
 
 const [preset, outputPath, port = '5183'] = process.argv.slice(2);
 const SANDBOX_URL = `http://127.0.0.1:${port}/`;

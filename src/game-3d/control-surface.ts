@@ -5,12 +5,11 @@ import type { CSS3DObject } from 'three/examples/jsm/renderers/CSS3DRenderer.js'
  * Per-panel size for a console's control-surface slots. An ExecuteActionPackage window
  * splits into two `Node.child` tiles (the action config + its companion buffer); each
  * gets its own slot (2026-07-26) rather than both being squeezed into one combined
- * placeholder. Height is capped by the vertical gap between the top screen row and the
- * floor (which shrank along with the 30%-shorter console) — see `console.ts`'s
- * `CONTROL_ROW_TOP` for the budget this has to fit inside.
+ * placeholder. Landscape proportions make the slot read as a desk-mounted display
+ * instead of a wall monitor.
  */
-export const CONTROL_SURFACE_WIDTH_PX = 460;
-export const CONTROL_SURFACE_HEIGHT_PX = 460;
+export const CONTROL_SURFACE_WIDTH_PX = 420;
+export const CONTROL_SURFACE_HEIGHT_PX = 260;
 
 export interface ControlSurfaceSlot {
   object: CSS3DObject;

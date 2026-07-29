@@ -16,7 +16,7 @@ const BRIDGE_COLOR = 0x4a5568;
 
 /** Soft radial glow for the distant sun sprite. */
 function createSunTexture(): THREE.CanvasTexture {
-  const size = 256;
+  const size = 768;
   const canvas = document.createElement('canvas');
   canvas.width = size;
   canvas.height = size;
@@ -102,13 +102,13 @@ function buildStation(): THREE.Group {
 
   // Stacked industrial hub.
   const hubCore = new THREE.Mesh(
-    new THREE.CylinderGeometry(HUB_RADIUS, HUB_RADIUS * 1.15, HUB_HEIGHT, 12),
+    new THREE.CylinderGeometry(HUB_RADIUS, HUB_RADIUS * 1.15, HUB_HEIGHT, 18),
     hubMat,
   );
   station.add(hubCore);
 
   const hubRing = new THREE.Mesh(
-    new THREE.CylinderGeometry(HUB_RADIUS * 1.4, HUB_RADIUS * 1.4, HUB_HEIGHT * 0.25, 16),
+    new THREE.CylinderGeometry(HUB_RADIUS * 1.4, HUB_RADIUS * 1.4, HUB_HEIGHT * 0.25, 24),
     hubMat,
   );
   hubRing.position.y = 0;

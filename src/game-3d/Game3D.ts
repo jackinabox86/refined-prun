@@ -69,7 +69,7 @@ export class Game3D {
       this.camera.position.copy(options.cameraPose.position);
       this.camera.lookAt(options.cameraPose.lookAt);
     } else {
-      this.camera.position.set(0, EYE_HEIGHT, 2);
+      this.camera.position.set(0, EYE_HEIGHT, 6);
     }
 
     const pmremGenerator = new THREE.PMREMGenerator(this.renderer.webgl);
@@ -163,7 +163,14 @@ export class Game3D {
 
     const dt = Math.min(this.clock.getDelta(), 0.05);
     this.movement.update(this.controls, dt);
-    clampToRoom(this.camera.position);
+    // Gated the same way movement.ts gates its own WASD handling: only clamp while a
+    // real pointer-locked walk is happening. Previously unconditional, which silently
+    // overwrote every sandbox cameraPose's y (and x/z) on the very first tick — no
+    // debug camera preset could ever sit above EYE_HEIGHT or outside the margin-clamped
+    // bounds, since this ran regardless of whether the player had ever clicked to lock.
+    if (this.controls.isLocked) {
+      clampToRoom(this.camera.position);
+    }
     this.interaction.update();
     this.hologram.update(this.clock.elapsedTime);
     this.renderer.render(this.scene, this.camera);
