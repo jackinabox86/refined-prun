@@ -188,8 +188,11 @@ function createConsoleMetalTextures(seed: number, baseColor: [number, number, nu
   }
 
   const map = new THREE.CanvasTexture(canvas);
+  map.anisotropy = 8;
   const normalMap = new THREE.CanvasTexture(normalCanvas);
+  normalMap.anisotropy = 8;
   const roughnessMap = new THREE.CanvasTexture(roughCanvas);
+  roughnessMap.anisotropy = 8;
   for (const texture of [map, normalMap, roughnessMap]) {
     texture.wrapS = THREE.RepeatWrapping;
     texture.wrapT = THREE.RepeatWrapping;

@@ -35,7 +35,7 @@ export const WINDOW_CENTER_Y = ROOM_HEIGHT / 2;
 const FRAME_DEPTH = 0.15;
 
 /** Canvas size for all generated surface textures. */
-const TEX_SIZE = 1024;
+const TEX_SIZE = 2048;
 
 /** Sparse status-LED accent colors (amber/green/red), scattered onto wall panels. */
 const LED_COLORS: Array<[number, number, number]> = [
@@ -265,6 +265,7 @@ function createSurfaceTextureSet(opts: SurfaceOptions): SurfaceTextureSet {
   }
 
   const map = new THREE.CanvasTexture(canvas);
+  map.anisotropy = 8;
   map.wrapS = THREE.RepeatWrapping;
   map.wrapT = THREE.RepeatWrapping;
   map.colorSpace = THREE.SRGBColorSpace;
@@ -351,6 +352,7 @@ function createSurfaceTextureSet(opts: SurfaceOptions): SurfaceTextureSet {
   }
   nctx.putImageData(normalImage, 0, 0);
   const normalMap = new THREE.CanvasTexture(normalCanvas);
+  normalMap.anisotropy = 8;
   normalMap.wrapS = THREE.RepeatWrapping;
   normalMap.wrapT = THREE.RepeatWrapping;
 
@@ -396,6 +398,7 @@ function createSurfaceTextureSet(opts: SurfaceOptions): SurfaceTextureSet {
   }
 
   const roughnessMap = new THREE.CanvasTexture(roughCanvas);
+  roughnessMap.anisotropy = 8;
   roughnessMap.wrapS = THREE.RepeatWrapping;
   roughnessMap.wrapT = THREE.RepeatWrapping;
 
@@ -422,6 +425,7 @@ function createSurfaceTextureSet(opts: SurfaceOptions): SurfaceTextureSet {
     }
 
     emissiveMap = new THREE.CanvasTexture(emCanvas);
+    emissiveMap.anisotropy = 8;
     emissiveMap.wrapS = THREE.RepeatWrapping;
     emissiveMap.wrapT = THREE.RepeatWrapping;
     emissiveMap.colorSpace = THREE.SRGBColorSpace;
