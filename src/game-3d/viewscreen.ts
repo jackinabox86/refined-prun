@@ -71,8 +71,8 @@ function buildSun(): THREE.Sprite {
     depthWrite: false,
   });
   const sprite = new THREE.Sprite(material);
-  sprite.position.set(60, 20, 140);
-  sprite.scale.set(30, 30, 1);
+  sprite.position.set(44, 12, -380);
+  sprite.scale.set(18, 18, 1);
   return sprite;
 }
 

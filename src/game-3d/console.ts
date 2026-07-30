@@ -426,7 +426,7 @@ export function createConsole(definition: ConsoleDefinition) {
   const buttonRowCenter = DESKTOP_CENTER.clone()
     .add(new THREE.Vector3(0, 0, DESKTOP_DEPTH / 2 - 0.055))
     .addScaledVector(deckUp, DESKTOP_THICKNESS / 2 + DESKTOP_SURFACE_CLEARANCE + 0.018);
-  const buttonRotationX = Math.PI / 2 + DESK_TILT;
+  const buttonRotationX = DESK_TILT;
   const buttonBezelMaterial = new THREE.MeshStandardMaterial({
     color: 0x08111b,
     map: bezelTex.map,

@@ -5,10 +5,9 @@ import { getEntityNaturalIdFromAddress } from '@src/infrastructure/prun-api/data
 import { ROOM_HALF } from '@src/game-3d/room';
 
 /**
- * World-unit span of the star-map display footprint. The corner mount only has 2.4 units
- * of wall clearance on +X/+Z, so 3.6 keeps the fixed half-extent at 1.8 and leaves a
- * 0.6-unit margin. This bounds, but does not guarantee, future datasets with extreme
- * aspect ratios cannot push an outlier close to the margin again.
+ * World-unit span of the star-map display footprint. The corner mount leaves 2.6 units
+ * to the +X/+Z walls; with the 2.05-radius tank, the mount reaches 9.45 and clears the
+ * bay cladding's 9.58 near face.
  */
 const HOLOGRAM_SPAN = 3.6;
 
@@ -17,7 +16,7 @@ const HOLOGRAM_SPAN = 3.6;
  * and companyops (+Z wall) consoles. 2026-07-26 playtest feedback: the hologram previously
  * sat at room center and read as "in the middle of everything."
  */
-export const HOLOGRAM_POSITION = new THREE.Vector3(ROOM_HALF - 2.4, 1.4, ROOM_HALF - 2.4);
+export const HOLOGRAM_POSITION = new THREE.Vector3(ROOM_HALF - 2.6, 0, ROOM_HALF - 2.6);
 
 const STAR_COLORS: Record<PrunApi.StarType, number> = {
   O: 0x9bb0ff,
@@ -36,6 +35,11 @@ const HOLO_ACCENT = new THREE.Color(0xd8f5ff);
 const MAJOR_NODE_COUNT = 5;
 const MAJOR_DOT_RADIUS = 0.12;
 const MINOR_DOT_RADIUS = 0.07;
+const PLINTH_HEIGHT = 0.5;
+const TANK_HEIGHT = 0.55;
+const TANK_RADIUS = HOLOGRAM_SPAN / 2 + 0.25;
+const MAP_CENTER_Y = PLINTH_HEIGHT + TANK_HEIGHT * 0.58;
+const MAP_VERTICAL_SPAN = TANK_HEIGHT * 0.64;
 
 /** Handle returned by {@link buildHologram}: the renderable group plus its per-frame hook. */
 export interface Hologram {
@@ -48,6 +52,26 @@ const NOOP_UPDATE = () => {};
 
 function emptyHologram(group: THREE.Group): Hologram {
   return { group, update: NOOP_UPDATE };
+}
+
+function createStarGlowTexture(): THREE.CanvasTexture {
+  const size = 128;
+  const canvas = document.createElement('canvas');
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext('2d')!;
+  const half = size / 2;
+  const gradient = ctx.createRadialGradient(half, half, 0, half, half, half);
+  gradient.addColorStop(0, 'rgba(255, 255, 255, 0.85)');
+  gradient.addColorStop(0.25, 'rgba(255, 255, 255, 0.35)');
+  gradient.addColorStop(0.65, 'rgba(255, 255, 255, 0.08)');
+  gradient.addColorStop(1, 'rgba(255, 255, 255, 0)');
+  ctx.fillStyle = gradient;
+  ctx.fillRect(0, 0, size, size);
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  return texture;
 }
 
 /**
@@ -83,13 +107,18 @@ export function buildHologram(): Hologram {
   }
 
   let minX = Infinity;
+  let minY = Infinity;
   let minZ = Infinity;
   let maxX = -Infinity;
+  let maxY = -Infinity;
   let maxZ = -Infinity;
   for (const star of region) {
-    const { x, z } = star.position;
+    const { x, y, z } = star.position;
     if (x < minX) {
       minX = x;
+    }
+    if (y < minY) {
+      minY = y;
     }
     if (z < minZ) {
       minZ = z;
@@ -97,19 +126,22 @@ export function buildHologram(): Hologram {
     if (x > maxX) {
       maxX = x;
     }
+    if (y > maxY) {
+      maxY = y;
+    }
     if (z > maxZ) {
       maxZ = z;
     }
   }
 
   const centerX = (minX + maxX) / 2;
+  const centerY = (minY + maxY) / 2;
   const centerZ = (minZ + maxZ) / 2;
   const spanX = maxX - minX;
+  const spanY = maxY - minY;
   const spanZ = maxZ - minZ;
   const layoutScale = HOLOGRAM_SPAN / Math.max(spanX, spanZ, 0.001);
-
-  const TANK_RADIUS = HOLOGRAM_SPAN / 2 + 0.25;
-  const TANK_HEIGHT = 0.55;
+  const verticalScale = Math.min(layoutScale, MAP_VERTICAL_SPAN / Math.max(spanY, 0.001));
 
   const tankGlassMaterial = new THREE.MeshPhysicalMaterial({
     color: 0xbfe8ff,
@@ -125,7 +157,7 @@ export function buildHologram(): Hologram {
     new THREE.CylinderGeometry(TANK_RADIUS, TANK_RADIUS, TANK_HEIGHT, 64, 1, true),
     tankGlassMaterial,
   );
-  tankGlass.position.y = TANK_HEIGHT / 2 - 0.08;
+  tankGlass.position.y = PLINTH_HEIGHT + TANK_HEIGHT / 2;
   group.add(tankGlass);
 
   const rimMaterial = new THREE.MeshStandardMaterial({
@@ -144,16 +176,38 @@ export function buildHologram(): Hologram {
   }
 
   const plinthMaterial = new THREE.MeshStandardMaterial({
-    color: 0x2a323c,
-    metalness: 0.7,
-    roughness: 0.3,
+    color: 0x566474,
+    metalness: 0.82,
+    roughness: 0.22,
   });
   const plinth = new THREE.Mesh(
-    new THREE.CylinderGeometry(TANK_RADIUS + 0.1, TANK_RADIUS + 0.14, 0.08, 64),
+    new THREE.CylinderGeometry(TANK_RADIUS + 0.42, TANK_RADIUS + 0.55, PLINTH_HEIGHT, 64),
     plinthMaterial,
   );
-  plinth.position.y = tankGlass.position.y - TANK_HEIGHT / 2 - 0.04;
+  plinth.position.y = PLINTH_HEIGHT / 2;
   group.add(plinth);
+
+  const plinthLip = new THREE.Mesh(
+    new THREE.TorusGeometry(TANK_RADIUS + 0.44, 0.06, 16, 96),
+    rimMaterial,
+  );
+  plinthLip.rotation.x = Math.PI / 2;
+  plinthLip.position.y = PLINTH_HEIGHT + 0.02;
+  group.add(plinthLip);
+
+  const plinthAccent = new THREE.Mesh(
+    new THREE.TorusGeometry(TANK_RADIUS + 0.5, 0.014, 12, 96),
+    new THREE.MeshStandardMaterial({
+      color: 0x6fe8ff,
+      emissive: 0x35d8e0,
+      emissiveIntensity: 0.9,
+      metalness: 0.2,
+      roughness: 0.18,
+    }),
+  );
+  plinthAccent.rotation.x = Math.PI / 2;
+  plinthAccent.position.y = PLINTH_HEIGHT + 0.055;
+  group.add(plinthAccent);
 
   const sortedByImportance = [...region].sort((a, b) => {
     const degreeDiff = b.connections.length - a.connections.length;
@@ -170,11 +224,12 @@ export function buildHologram(): Hologram {
     majorIds.add(star.systemId);
   }
 
+  const starGlowTexture = createStarGlowTexture();
   const positions = new Map<string, THREE.Vector3>();
   for (const star of region) {
     const pos = new THREE.Vector3(
       (star.position.x - centerX) * layoutScale,
-      0,
+      MAP_CENTER_Y + (star.position.y - centerY) * verticalScale,
       (star.position.z - centerZ) * layoutScale,
     );
     positions.set(star.systemId, pos);
@@ -188,17 +243,19 @@ export function buildHologram(): Hologram {
     dot.position.copy(pos);
     group.add(dot);
 
-    const glow = new THREE.Mesh(
-      new THREE.SphereGeometry((isMajor ? MAJOR_DOT_RADIUS : MINOR_DOT_RADIUS) * 2.2, 14, 14),
-      new THREE.MeshBasicMaterial({
+    const radius = isMajor ? MAJOR_DOT_RADIUS : MINOR_DOT_RADIUS;
+    const glow = new THREE.Sprite(
+      new THREE.SpriteMaterial({
+        map: starGlowTexture,
         color,
         transparent: true,
-        opacity: 0.28,
+        opacity: 0.55,
         blending: THREE.AdditiveBlending,
         depthWrite: false,
       }),
     );
     glow.position.copy(pos);
+    glow.scale.set(radius * 3.1, radius * 3.1, 1);
     group.add(glow);
   }
 

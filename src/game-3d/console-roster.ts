@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { createConsole, type Console, type ConsoleDefinition } from '@src/game-3d/console';
 import type { ControlSurfacePanels } from '@src/game-3d/control-surface';
 import type { PanelHitTarget } from '@src/game-3d/panel-hit-test';
-import { ROOM_HALF, ROOM_HEIGHT } from '@src/game-3d/room';
+import { getFloorHeightAt, ROOM_HALF, ROOM_HEIGHT } from '@src/game-3d/room';
 
 /** Distance from the wall to a console's position along the wall's inward normal. */
 const WALL_INSET = 1.3;
@@ -22,14 +22,22 @@ function wallPose(x: number, z: number): Pick<ConsoleDefinition, 'position' | 'r
   };
 }
 
-interface RosterEntry {
+function pitPose(x: number, z: number): Pick<ConsoleDefinition, 'position' | 'rotationY'> {
+  return {
+    position: new THREE.Vector3(x, getFloorHeightAt(x, z) + CONSOLE_Y, z),
+    rotationY: Math.atan2(-x, -z),
+  };
+}
+
+type RosterEntry = {
   id: string;
   purpose: string;
   themeColor: number;
   screens: ConsoleDefinition['screens'];
-  /** World X/Z position — see wallPose. */
-  wallPosition: { x: number; z: number };
-}
+} & (
+  | { wallPosition: { x: number; z: number }; pitPosition?: never }
+  | { pitPosition: { x: number; z: number }; wallPosition?: never }
+);
 
 const WALL = ROOM_HALF - WALL_INSET;
 
@@ -50,8 +58,7 @@ const ROSTER: RosterEntry[] = [
       { command: 'BS', widthPx: 480 },
       { command: 'PROD', widthPx: 480 },
     ],
-    // -Z wall, offset off-center so the housing clears the viewscreen window.
-    wallPosition: { x: -3, z: -WALL },
+    pitPosition: { x: -2.6, z: 1.4 },
   },
   {
     id: 'companyops',
@@ -81,7 +88,10 @@ export function buildConsoles(): {
 } {
   const controlSurfacePanels = new Map<string, ControlSurfacePanels>();
   const consoles = ROSTER.map(entry => {
-    const pose = wallPose(entry.wallPosition.x, entry.wallPosition.z);
+    const pose =
+      entry.pitPosition !== undefined
+        ? pitPose(entry.pitPosition.x, entry.pitPosition.z)
+        : wallPose(entry.wallPosition.x, entry.wallPosition.z);
     const console = createConsole({
       id: entry.id,
       purpose: entry.purpose,

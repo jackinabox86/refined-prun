@@ -441,6 +441,31 @@ function setRepeat(tex: SurfaceTextureSet, x: number, y: number) {
   tex.emissiveMap?.repeat.set(x, y);
 }
 
+function cloneTextureSet(tex: SurfaceTextureSet): SurfaceTextureSet {
+  return {
+    map: tex.map.clone(),
+    normalMap: tex.normalMap.clone(),
+    roughnessMap: tex.roughnessMap.clone(),
+    emissiveMap: tex.emissiveMap?.clone(),
+  };
+}
+
+function createRepeatedMaterial(
+  base: THREE.MeshStandardMaterial,
+  source: SurfaceTextureSet,
+  horizontalSpan: number,
+  verticalSpan: number,
+): THREE.MeshStandardMaterial {
+  const tex = cloneTextureSet(source);
+  setRepeat(tex, horizontalSpan / 2, verticalSpan / 2);
+  const mat = base.clone();
+  mat.map = tex.map;
+  mat.normalMap = tex.normalMap;
+  mat.roughnessMap = tex.roughnessMap;
+  mat.emissiveMap = tex.emissiveMap ?? null;
+  return mat;
+}
+
 export function getFloorHeightAt(x: number, z: number): number {
   const onRamp = x >= RAMP_MIN_X && x <= RAMP_MAX_X && z >= RAMP_BOTTOM_Z && z <= RAMP_TOP_Z;
   if (onRamp) {
@@ -658,12 +683,9 @@ export function buildRoom(): THREE.Group {
   // Freestanding frame boxes — DoubleSide so inward faces render (BackSide would cull them).
   // Same panel texture family as the walls, tinted darker/more metallic so the frame still
   // reads as a distinct structural trim rather than a repeat of the flat wall.
-  const frameMat = new THREE.MeshStandardMaterial({
+  const frameBaseMat = new THREE.MeshStandardMaterial({
     color: 0x76828e,
-    map: wallTex.map,
-    normalMap: wallTex.normalMap,
     normalScale,
-    roughnessMap: wallTex.roughnessMap,
     side: THREE.DoubleSide,
     roughness: 0.78,
     metalness: 0.18,
@@ -672,14 +694,17 @@ export function buildRoom(): THREE.Group {
   const frameZ = -(ROOM_HALF + FRAME_DEPTH / 2);
 
   const topHeight = ROOM_HEIGHT - (WINDOW_CENTER_Y + WINDOW_HEIGHT / 2);
-  const frameTop = new THREE.Mesh(new THREE.BoxGeometry(size, topHeight, FRAME_DEPTH), frameMat);
+  const frameTop = new THREE.Mesh(
+    new THREE.BoxGeometry(size, topHeight, FRAME_DEPTH),
+    createRepeatedMaterial(frameBaseMat, wallTex, size, topHeight),
+  );
   frameTop.position.set(0, ROOM_HEIGHT - topHeight / 2, frameZ);
   group.add(frameTop);
 
   const bottomHeight = WINDOW_CENTER_Y - WINDOW_HEIGHT / 2;
   const frameBottom = new THREE.Mesh(
     new THREE.BoxGeometry(size, bottomHeight, FRAME_DEPTH),
-    frameMat,
+    createRepeatedMaterial(frameBaseMat, wallTex, size, bottomHeight),
   );
   frameBottom.position.set(0, bottomHeight / 2, frameZ);
   group.add(frameBottom);
@@ -687,25 +712,26 @@ export function buildRoom(): THREE.Group {
   const sideWidth = (size - WINDOW_WIDTH) / 2;
   const frameLeft = new THREE.Mesh(
     new THREE.BoxGeometry(sideWidth, WINDOW_HEIGHT, FRAME_DEPTH),
-    frameMat,
+    createRepeatedMaterial(frameBaseMat, wallTex, sideWidth, WINDOW_HEIGHT),
   );
   frameLeft.position.set(-(WINDOW_WIDTH / 2 + sideWidth / 2), WINDOW_CENTER_Y, frameZ);
   group.add(frameLeft);
 
   const frameRight = new THREE.Mesh(
     new THREE.BoxGeometry(sideWidth, WINDOW_HEIGHT, FRAME_DEPTH),
-    frameMat,
+    createRepeatedMaterial(frameBaseMat, wallTex, sideWidth, WINDOW_HEIGHT),
   );
   frameRight.position.set(WINDOW_WIDTH / 2 + sideWidth / 2, WINDOW_CENTER_Y, frameZ);
   group.add(frameRight);
 
   // Mid-scale structure changes the room cross-section instead of sitting on the wall.
   // Thin trim alone cannot make the shell read as built volume.
-  const beamMat = frameMat.clone();
+  const structuralFrameMat = createRepeatedMaterial(frameBaseMat, wallTex, size, ROOM_HEIGHT);
+  const beamMat = structuralFrameMat.clone();
   beamMat.color = new THREE.Color(0x2b343d);
-  const claddingMat = frameMat.clone();
-  claddingMat.color = new THREE.Color(0x52606b);
-  const bulkheadMat = frameMat.clone();
+  const claddingBaseMat = frameBaseMat.clone();
+  claddingBaseMat.color = new THREE.Color(0x52606b);
+  const bulkheadMat = structuralFrameMat.clone();
   bulkheadMat.color = new THREE.Color(0x1e2831);
   const ceilingFaceMat = ceilingMat.clone();
   ceilingFaceMat.side = THREE.FrontSide;
@@ -808,7 +834,7 @@ export function buildRoom(): THREE.Group {
   const addZWallPanel = (x: number, width: number, z: number) => {
     const panel = new THREE.Mesh(
       new THREE.BoxGeometry(width, panelHeight, panelDepth),
-      claddingMat,
+      createRepeatedMaterial(claddingBaseMat, wallTex, width, panelHeight),
     );
     panel.position.set(x, panelY, z);
     group.add(panel);
@@ -817,7 +843,7 @@ export function buildRoom(): THREE.Group {
   const addXWallPanel = (x: number, z: number, width: number) => {
     const panel = new THREE.Mesh(
       new THREE.BoxGeometry(panelDepth, panelHeight, width),
-      claddingMat,
+      createRepeatedMaterial(claddingBaseMat, wallTex, width, panelHeight),
     );
     panel.position.set(x, panelY, z);
     group.add(panel);
@@ -1008,6 +1034,14 @@ export function buildRoom(): THREE.Group {
     PIT_HALF + RAMP_BOTTOM_Z,
     PIT_HALF,
     (-PIT_HALF + RAMP_BOTTOM_Z) / 2,
+    -Math.PI / 2,
+  );
+  addRetainingWall(
+    group,
+    retainingMat,
+    RAMP_TOP_Z - RAMP_BOTTOM_Z,
+    PIT_HALF,
+    (RAMP_BOTTOM_Z + RAMP_TOP_Z) / 2,
     -Math.PI / 2,
   );
   addRetainingWall(
@@ -1233,6 +1267,8 @@ export function buildRoom(): THREE.Group {
   const fixtures: Array<{ x: number; z: number; intensity: number; distance: number }> = [
     { x: 3.2, z: 2.4, intensity: 0.18, distance: 8 },
     { x: -3, z: -1.8, intensity: 0.16, distance: 7.5 },
+    { x: -3.2, z: 2.4, intensity: 0.18, distance: 8 },
+    { x: 3, z: -1.8, intensity: 0.16, distance: 7.5 },
   ];
   const fixtureBezelMat = new THREE.MeshStandardMaterial({
     color: 0x8a94a0,

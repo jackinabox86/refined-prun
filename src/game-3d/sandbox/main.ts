@@ -36,14 +36,17 @@ const PRESETS: Record<string, CameraPreset> = {
     lookAt: new THREE.Vector3(0, 1.2, 0),
   },
   console: {
-    label: 'Console close-up (baseplanning)',
-    position: new THREE.Vector3(-2.25, EYE_HEIGHT, -5.0),
-    lookAt: new THREE.Vector3(-3, 1.2, -6.7),
+    label: 'Console close-up (companyops)',
+    // Was baseplanning, but that console moved into the center pit (room-fixes round) —
+    // retargeted at companyops (+Z wall, position unchanged) so this preset still shows
+    // a wall-mounted console close-up.
+    position: new THREE.Vector3(0, EYE_HEIGHT, 5.5),
+    lookAt: new THREE.Vector3(0, 1.2, 7.2),
   },
   hologram: {
     label: 'Hologram detail',
     // Wave-2 route-map pivot flattened the display onto a HOLOGRAM_SPAN=5.2-wide
-    // (~2.6 half-extent) horizontal y=0 plane. Two failed attempts before this one:
+    // (~2.6 half-extent) horizontal plane. Two failed attempts before this one:
     // pulling back far but staying near eye level (dx/dz=-4.5, dy=+1.4) put the map
     // almost edge-on — a flat plane viewed at a shallow angle reads as a near-straight
     // line, not a map; going very high (dy=+5) instead cleared ROOM_HEIGHT (3.5) and
@@ -51,12 +54,16 @@ const PRESETS: Record<string, CameraPreset> = {
     // staying close horizontally but rising most of the remaining headroom under the
     // ceiling gives a real look-down angle (~38° below horizontal here) without
     // leaving the room.
+    // HOLOGRAM_POSITION.y is 0 (floor-mounted base, room-fixes round) — the map/tank
+    // content itself sits above that at roughly y=0.6 (plinth + tank center), so this
+    // preset targets that offset instead of HOLOGRAM_POSITION directly, or the camera
+    // ends up pitched down at the floor/base instead of the star content.
     position: new THREE.Vector3(
       HOLOGRAM_POSITION.x - 1.8,
-      HOLOGRAM_POSITION.y + 2.0,
+      HOLOGRAM_POSITION.y + 2.6,
       HOLOGRAM_POSITION.z - 1.8,
     ),
-    lookAt: HOLOGRAM_POSITION.clone(),
+    lookAt: HOLOGRAM_POSITION.clone().add(new THREE.Vector3(0, 0.6, 0)),
   },
   pit: {
     label: 'Center pit + ramp detail',

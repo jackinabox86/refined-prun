@@ -49,7 +49,7 @@ try {
   // Dev-only camera-preset switcher bar — not part of any reviewed piece, would
   // otherwise bleed into HUD-overlay critic rounds as if it were real game UI.
   await page.evaluate(() => document.getElementById('sandbox-preset-bar')?.remove());
-  await page.screenshot({ path: outputPath });
+  await page.screenshot({ path: outputPath, timeout: 60000 });
   console.log(`Saved ${outputPath} (preset: ${preset})`);
 } finally {
   await browser.close();

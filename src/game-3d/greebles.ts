@@ -10,9 +10,9 @@ interface WallPoint {
   facingAngle: number;
 }
 
-/** Uniformly samples a point along one of the 4 room wall bases, with the wall's outward-facing angle. */
+/** Uniformly samples a point along one of the solid room wall bases, with the wall's outward-facing angle. */
 function sampleWallBase(): WallPoint {
-  const wallIndex = Math.floor(Math.random() * 4);
+  const wallIndex = Math.floor(Math.random() * 3);
   const t = Math.random() * 2 - 1;
   const inset = 0.06;
   switch (wallIndex) {
@@ -26,13 +26,11 @@ function sampleWallBase(): WallPoint {
         position: new THREE.Vector3(-ROOM_HALF + inset, 0, t * ROOM_HALF),
         facingAngle: -Math.PI / 2,
       };
-    case 2:
+    default:
       return {
         position: new THREE.Vector3(t * ROOM_HALF, 0, ROOM_HALF - inset),
         facingAngle: Math.PI,
       };
-    default:
-      return { position: new THREE.Vector3(t * ROOM_HALF, 0, -ROOM_HALF + inset), facingAngle: 0 };
   }
 }
 
