@@ -243,17 +243,42 @@ directly, bypassing incremental movement entirely) would be worth the small effo
   INV's item grid). When identifying which console a screenshot shows, check the
   screen's actual content, not the housing/accent-light color.
 
-- **This harness's browser has no real GPU — WebGL runs on `SwiftShader`, a software
-  rasterizer.** Confirmed via `webgl-renderer-info`:
-  `ANGLE (Google, Vulkan (SwiftShader Device...), SwiftShader driver)`.
-  Software-rendering a WebGL+CSS3D scene is expected to be 10-50x slower than real GPU
-  hardware, so any FPS number measured here (`fps-check`) is not a trustworthy signal
-  of real-world performance on its own — this is specific to this local
-  Playwright/WSL2 setup, not something that extends to real users' normal desktop
-  browsers (they get standard hardware-accelerated WebGL). Always run
-  `webgl-renderer-info` alongside any `fps-check` and report both together; a low FPS
-  number without a renderer check is not enough to diagnose a real perf regression, and
-  don't start optimizing product code off an `fps-check` number alone.
+- **`pw-sandbox-screenshot.mjs`'s browser defaults to `SwiftShader`, a software
+  rasterizer, not because the machine lacks a GPU but because the sandboxed/excluded
+  Bash path that normally runs it can't see one.** An earlier version of this note
+  claimed "this harness's browser has no real GPU" as a blanket fact — **wrong,
+  corrected after re-testing**: the underlying machine can have a real GPU
+  (`nvidia-smi -L` confirmed one), but WSL2's GPU passthrough device (`/dev/dxg`) sits
+  behind a mount namespace that sandboxed and `excludedCommands` calls alike can't see,
+  so software rendering was the only thing that reliably worked when the script was
+  written. The script now auto-detects `/dev/dxg` and uses real GPU when it's visible
+  (only true for a caller-side unsandboxed launch, e.g. Claude Code's
+  `dangerouslyDisableSandbox: true`), falling back to SwiftShader automatically on
+  failure — GPU mode measured ~2.7x faster against a heavy scene but has also been
+  observed to hang navigation outright (unresolved, presumed WSL2 GPU-device
+  contention), hence the automatic fallback rather than making it the unconditional
+  default. Software-rendering a WebGL+CSS3D scene is still expected to be 10-50x slower
+  than real GPU hardware when SwiftShader is what actually ran, so any FPS number
+  measured here (`fps-check`) is still not a trustworthy signal of real-world
+  performance on its own — this is specific to this local Playwright/WSL2 setup, not
+  something that extends to real users' normal desktop browsers (they get standard
+  hardware-accelerated WebGL) regardless of which path this script took. Always run
+  `webgl-renderer-info` alongside any `fps-check` and report both together (including
+  which rendering path was active); a low FPS number without a renderer check is not
+  enough to diagnose a real perf regression, and don't start optimizing product code off
+  an `fps-check` number alone.
+
+- **A `dev:3d-sandbox` instance reused across dozens of rapid-fire
+  `pw-sandbox-screenshot.mjs` calls in one long session degrades** — heavier-scene
+  presets (`hologram`, `pit`) started timing out on `page.goto` first while lighter ones
+  (`console`, `overview`) kept working, confirmed to clear immediately on a fresh
+  restart and then recur (on different presets) once enough requests piled up again.
+  Not root-caused further (likely Vite/Node resource accumulation across many
+  transform requests, or many launch/teardown cycles of headless Chromium against the
+  same dev server). Restart `dev:3d-sandbox` between heavy screenshot rounds rather than
+  reusing one instance for a whole long session — check whether one's already running
+  first (`curl` the port) rather than assuming, but don't hesitate to cycle it once
+  presets start timing out that worked minutes earlier.
 
 - **The on-screen mode banner ("Interact mode" / walk / focused) is not a reliable
   signal for whether a click actually caused a relock in this harness.** It's driven

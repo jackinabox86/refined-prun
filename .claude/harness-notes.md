@@ -75,20 +75,6 @@ literally. Things that quietly cost the user a manual approval:
   rule shape that pre-approves the backgrounded case), so every `run_in_background: true`
   call prompts regardless of allowlisting — one more reason to avoid it for routine
   server starts, independent of the reachability problem above.
-- **Long dev-server sessions degrade under heavy repeated headless-browser load.**
-  Reusing one `dev:3d-sandbox` instance across dozens of rapid-fire
-  `pw-sandbox-screenshot.mjs` calls over ~50 minutes led to the heavier-scene presets
-  (`hologram`, `pit`) consistently timing out on `page.goto` while lighter ones
-  (`console`, `overview`) kept working — not a fixed per-preset bug, confirmed by seeing
-  it clear immediately on a fresh server restart, then start recurring (on different
-  presets) after enough more requests piled up again. Not root-caused further (likely
-  Vite/Node resource accumulation across many transform requests, or many
-  launch/teardown cycles of headless Chromium against the same dev server) — the
-  practical fix is operational, not code: restart `dev:3d-sandbox` between heavy
-  screenshot rounds rather than reusing one instance for a whole long session, matching
-  what the delegation instructions already implied ("probably already running, check with
-  curl before starting a new one" — i.e. expect per-round restarts, not one server for
-  the whole session).
 - New top-level tools adopted mid-project (not just new Bash prefixes) need their own
   `permissions.allow` entry or they prompt every call — this bit `SendUserFile` and
   `Artifact` once each after they became part of the standard progress-reporting loop,
@@ -97,45 +83,19 @@ literally. Things that quietly cost the user a manual approval:
 
 ## Long-running background servers
 
-Before starting a dev server with `run_in_background: true`, check whether one is
-already alive (`curl` the port first) rather than assuming a prior turn's instance died.
-Starting a second (or third) `pnpm run dev:3d-sandbox` instance doesn't error — Vite
-just runs redundant instances side by side, none of them crash, and only one ever binds
-the real port — so nothing *looks* wrong until browser/screenshot calls start timing out
-under the extra CPU/IO contention. Confirmed once: 3 concurrent `dev:3d-sandbox`
-processes (one raw `&` orphan plus two `run_in_background` restarts, none killed)
-coincided with `pw-sandbox-screenshot.mjs` calls going from ~3s to 55-80s. Killing the
-redundant instances (keep whichever PID `ss -tlnp` shows actually bound to the port) is
-always correct to try first, but isn't guaranteed to be the whole story — in the same
-incident, latency stayed high (~55s) even after cleanup, with near-zero CPU/sys time in
-the slow calls (`time` showed ~2s user+sys against 55s wall), which is the signature of
-the process blocking on something external rather than computing. Ruled out that round:
-sandbox network/proxy (reproduced identically with `dangerouslyDisableSandbox: true`,
-and `env | grep -i proxy` showed no leaked proxy vars outside the sandbox) and orphaned
-browser processes (`pgrep -af chrome` found none — note this check is noisy, it
-self-matches its own command line if your grep pattern appears in it, e.g. searching for
-"chrome" matches the `pgrep -af "chrome"` invocation itself).
-
-**Follow-up same day, actual root cause found:** it wasn't host I/O contention — a
-per-stage timing harness (launch/newPage/goto/waitForFunction/screenshot/close, each
-timestamped separately) isolated the cost to `page.screenshot()` (~30s) and
-`browser.close()` (~30s) specifically, both fast in isolation on a trivial page. That
-signature (screenshot capture *and* teardown both slow, everything else fast) means the
-renderer itself is bogged down doing real rendering work, not blocked on I/O/network.
-`pw-sandbox-screenshot.mjs` unconditionally forces CPU/SwiftShader rendering
-(`--use-angle=swiftshader`) — deliberately, since real GPU wasn't reliably available when
-it was written — and the AAA visual pass landed the same week (bloom, PMREM reflections,
-anisotropic high-res textures) made that software path expensive enough to cost 60-70s a
-shot, up from a few seconds before. This machine does have a real GPU
-(`nvidia-smi -L` → RTX 3060 Laptop GPU, confirmed via the existing `/dev/dxg` check), so
-the script now supports `RP_PW_GPU=1` to use it (ANGLE `gl-egl` backend) —
-**2.7x faster in testing (74s → 27s, then 14s once warm) — but only reachable with
-`dangerouslyDisableSandbox: true` on that one call**, same reason as
-`local-browser-test.mjs`: the mount namespace hides `/dev/dxg` from sandboxed and
-`excludedCommands` calls alike. Tried the more "correct" WSL2 backend
-(`--use-angle=d3d11`) first — it hangs, the sandbox app never reaches its ready flag —
-`gl-egl` is the one that actually works here. Default behavior (no `RP_PW_GPU`) is
-unchanged, so this is opt-in only for rounds where per-shot latency actually matters.
+Before starting a dev server, check whether one is already alive (`curl` the port
+first) rather than assuming a prior turn's instance died — see the `run_in_background`
+reachability trap above; a "dead" curl is as likely to mean the check itself was
+isolated as it is to mean the server actually died. Starting a redundant instance
+anyway doesn't error — Vite just runs it side by side, doesn't crash, and only one
+ever binds the real port — so nothing *looks* wrong until browser/screenshot calls
+start degrading under the extra CPU/IO contention (confirmed once: 3 concurrent
+`dev:3d-sandbox` processes, none killed, coincided with `pw-sandbox-screenshot.mjs`
+calls going from ~3s to 55-80s). `ss -tlnp` shows which PID actually holds the port;
+kill the rest. For what to do once a *single* clean instance still degrades under
+heavy sustained use, and for the SwiftShader-vs-GPU rendering-path story, see
+`docs/browser-testing-3d.md`'s "Gotchas learned the hard way" — those are properties
+of the script/dev-server, not of Claude Code's sandbox, so they're documented there.
 
 ## Browser harness specifics
 
@@ -154,12 +114,16 @@ device) from sandboxed processes, even for an excluded command. Confirmed live: 
 "GPU access blocked by the operating system") and succeed unsandboxed (reporting the
 real GPU) on a machine that has one — this is *not* evidence the box lacks a GPU, check
 this before concluding that. Because a process's mount namespace is fixed at spawn time,
-this exception applies to the one `node scripts/local-browser-test.mjs` launch call
-only: run that one command with `dangerouslyDisableSandbox: true`, and the Chrome process
-it starts (plus every GPU/renderer child it forks) keeps real GPU access for its whole
-life. Every later `pw-act.mjs`/`pw-close.mjs`/`pw-kill.mjs` call still runs sandboxed as
-normal — they only attach to or signal the already-running browser, never touch the
-device themselves, so they never need the flag and never prompt for it.
+this exception applies per-launch-call: `node scripts/local-browser-test.mjs` needs
+`dangerouslyDisableSandbox: true` on that one call for its whole (long-lived) session —
+the Chrome process it starts (plus every GPU/renderer child it forks) keeps real GPU
+access for its whole life, and every later `pw-act.mjs`/`pw-close.mjs`/`pw-kill.mjs`
+call still runs sandboxed as normal since they only attach to or signal the
+already-running browser. `scripts/pw-sandbox-screenshot.mjs` (3D sandbox screenshots)
+launches a fresh throwaway browser per call instead, so it auto-detects `/dev/dxg` on
+every invocation and only gets GPU on calls that themselves set
+`dangerouslyDisableSandbox: true` — the normal sandboxed/excluded invocation still works
+fine, just on SwiftShader, see `docs/browser-testing-3d.md`.
 
 Ad-hoc CDP scripts go in `.local/scratch/` (excluded and allowlisted, so prompt-free),
 never the session scratchpad — and create them with the Write tool, not a `cat > file`
