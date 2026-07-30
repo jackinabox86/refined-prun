@@ -75,6 +75,36 @@ literally. Things that quietly cost the user a manual approval:
   rule shape that pre-approves the backgrounded case), so every `run_in_background: true`
   call prompts regardless of allowlisting — one more reason to avoid it for routine
   server starts, independent of the reachability problem above.
+- **A second, distinct `nohup`/background-server failure mode: `nohup <cmd> & disown`
+  is unreliable when the *same call* also sets `dangerouslyDisableSandbox: true`.**
+  Confirmed repeatedly restarting `dev:3d-sandbox` this way: Vite logs "ready", serves
+  a couple of requests, then dies seconds later with a bare `ELIFECYCLE Command failed`
+  and no error above it — not the "unreachable but alive" symptom above, the process
+  actually exits. The identical `nohup ... & disown` line run as a plain **sandboxed**
+  call (no `dangerouslyDisableSandbox`) survived reliably every time this was retested.
+  Not root-caused further, but the fix is simple and was confirmed to work: always
+  start/restart a long-lived background server (e.g. `dev:3d-sandbox`) via a plain
+  sandboxed Bash call, never combined with `dangerouslyDisableSandbox: true`. Reserve
+  `dangerouslyDisableSandbox` for one-shot commands (like `codex exec
+  --sandbox workspace-write`, see the codex section below), not anything backgrounded.
+- **Prefixing a command with `cd <directory already active this session>` breaks every
+  allowlist rule for that command, even ones that already matched fine.** The Bash
+  tool's working directory persists across calls in a session — re-`cd`-ing to the same
+  path adds nothing functionally, but it turns `pnpm run compile` (matched by
+  `Bash(pnpm *)`) into `cd /path\npnpm run compile` as a single compound command, and
+  prefix-matching a permission rule against `pnpm run compile` doesn't match a string
+  that starts with `cd`. This bit an entire session's worth of otherwise-allowlisted
+  commands (`pnpm`, `node scripts/*`, `git diff`, etc.) before being caught. Never `cd`
+  to a directory the session is already in; only `cd` when actually changing directory,
+  and prefer passing an absolute/relative path to the command itself over `cd`-ing at
+  all when avoidable.
+- `codex exec` (both `--sandbox read-only` and `--sandbox workspace-write` — see the
+  codex section below) and common read-only git commands (`git diff`, `git status`,
+  `git log`, `git show`) are NOT covered by any default wildcard and need their own
+  explicit `permissions.allow` entries — both were used heavily in a visual-iteration
+  session before this was caught, causing an avoidable prompt on every single call.
+  Check `.claude/settings.json` for `Bash(codex exec *)` and the `git` read-command
+  entries early in any session that will lean on either.
 - New top-level tools adopted mid-project (not just new Bash prefixes) need their own
   `permissions.allow` entry or they prompt every call — this bit `SendUserFile` and
   `Artifact` once each after they became part of the standard progress-reporting loop,

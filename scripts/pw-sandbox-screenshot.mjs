@@ -23,7 +23,16 @@
 import { existsSync } from 'node:fs';
 import { loadPlaywright } from './pw-helper.mjs';
 
-const PRESETS = ['overview', 'console', 'hologram', 'pit', 'ramp', 'rampUnder', 'underside'];
+const PRESETS = [
+  'overview',
+  'viewscreen',
+  'console',
+  'hologram',
+  'pit',
+  'ramp',
+  'rampUnder',
+  'underside',
+];
 
 const [preset, outputPath, port = '5183'] = process.argv.slice(2);
 const SANDBOX_URL = `http://127.0.0.1:${port}/`;

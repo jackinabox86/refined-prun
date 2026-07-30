@@ -35,6 +35,22 @@ const PRESETS: Record<string, CameraPreset> = {
     position: new THREE.Vector3(-5.5, 2.8, -5.5),
     lookAt: new THREE.Vector3(0, 1.2, 0),
   },
+  viewscreen: {
+    label: 'Viewscreen window',
+    // No other preset ever looks down -Z, so the viewscreen diorama (built in
+    // viewscreen.ts, seen through the window cut into the -Z wall) was never actually
+    // in frame for any prior review round — every earlier "viewscreen" critic verdict
+    // judged whatever wall bay happened to be visible in `overview`/`pit` instead.
+    // Spawn always faces -Z (three.js default camera forward), so a straight-down-Z
+    // look from near room-center at eye height reproduces exactly what a player sees
+    // on entering 3D mode without turning. Pitched down slightly (lookAt y=-1, not 1.2)
+    // so the top of frame doesn't graze the room's own atrium ceiling (room-variety's
+    // architecture, out of scope for this piece) — confirmed by testing an extreme
+    // downward pitch that the ceiling material at the top of frame is ordinary room
+    // geometry, not a viewscreen.ts rendering bug.
+    position: new THREE.Vector3(0, EYE_HEIGHT, 2),
+    lookAt: new THREE.Vector3(0, -1, -60),
+  },
   console: {
     label: 'Console close-up (companyops)',
     // Was baseplanning, but that console moved into the center pit (room-fixes round) —

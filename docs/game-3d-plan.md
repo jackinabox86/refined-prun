@@ -104,15 +104,21 @@ wall-mounted hangar display it replaced. `hangar.ts` itself is no longer called 
 read as distinct ships from straight through the window (even 72° spacing points most
 arms toward/away from the camera) — not fixed.
 
-**Known cosmetic bug, found 2026-07-26 during the visual pass's `game-tester`
-verification:** the sun sprite (`buildSun()`) is placed on the wrong side of the room.
-Its local position `(60, 20, 140)` sits inside the viewscreen group positioned at
-`(0, 1.2, -(ROOM_HALF+45)) = (0, 1.2, -50)`, giving a world position of roughly
-`(60, 21.2, +90)` — behind the room's solid, unopened `+Z` wall, opposite the actual
-window (`-Z`). Confirmed empirically: rotating to the exact computed line-of-sight angle
-from spawn shows only a plain wall, nothing else. Likely just a sign error on the
-sprite's local Z offset. Not fixed yet — low priority, purely cosmetic, `viewscreen.ts`
-untouched otherwise.
+**Known cosmetic bug, corrected 2026-07-30 — still broken, but not how this note used to
+describe it.** An earlier version of this note (2026-07-26) said the sun sprite
+(`buildSun()`) sat behind the room's solid `+Z` wall, opposite the actual `-Z` window, due
+to a sign error. That's stale: a later session moved it to the correct side
+(`buildSun()`'s local position is now `(44, 12, -380)`, correctly on `-Z`) without
+updating this note. It's still invisible, but for a different, now-diagnosed reason: at
+local Z `-380` inside the viewscreen group (world `z=-55`, see Architecture above), its
+world distance from spawn is roughly 435 units — well beyond the camera's far clip plane
+(`Game3D.ts`: `new THREE.PerspectiveCamera(75, 1, 0.1, 300)`, i.e. 300 units). Anything
+past 300 world units is silently culled, no error. Same bug class independently found and
+fixed for the viewscreen's planet this session (see `docs/browser-testing-3d.md`'s
+"Gotchas learned the hard way" for the general rule). Not fixed here — still low
+priority, purely cosmetic — but the next person who touches `viewscreen.ts` should move
+`buildSun()`'s local Z to somewhere under roughly `-230` (leaving margin under the
+300-unit world-distance limit) rather than re-diagnosing this from scratch.
 
 **Consoles** (`console.ts`, `console-roster.ts`): one console per room wall, each facing
 the center (`wallPose()`, inset `WALL_INSET` from its wall): `inv` (INV) on -X,
@@ -547,3 +553,20 @@ scene/room/console code itself — purely additive tooling, verified not to affe
 hologram's empty-room-corner state wasn't a deeper issue, just missing site/star data
 for `buildHologram()` to compute a region from; BS/PROD render one real row now too,
 with no new crashes.
+
+**2026-07-30** — Note: several sessions of AAA-visual-pass work landed between
+2026-07-27 and this entry (console/hologram/room-shell/room-pit/HUD-overlay redesigns,
+texture sharpening, hologram floor-mount fixes) without a session-log entry each time —
+see git log on this branch for that detail, not backfilled here. This session continued
+three still-open pieces of that pass (room shell perimeter structure, texture panel
+detail, the viewscreen space diorama) via the builder/critic loop described in
+`docs/browser-testing-3d.md`; none reached a final WIN this session, all show real
+incremental progress. Two reusable findings worth having in this doc rather than only
+in `docs/browser-testing-3d.md`: (1) the camera far clip plane is 300 world units
+(`Game3D.ts`) — placing viewscreen dressing beyond that from spawn silently culls it,
+diagnosed and fixed for the planet, same bug independently found (not yet fixed) for
+`buildSun()`, see the corrected note above; (2) `viewscreen.ts`'s nebula backdrop
+changed from an enclosing `BackSide` sphere (radius 600, large enough to surround the
+whole room) to a flat backdrop plane, after the sphere was suspected (and eventually
+ruled out) as the cause of an unrelated visual artifact — kept as the fix regardless
+since an enclosing sphere at that scale was a latent risk independent of that incident.

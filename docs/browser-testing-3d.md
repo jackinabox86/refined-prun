@@ -153,18 +153,49 @@ directly, bypassing incremental movement entirely) would be worth the small effo
 
 - **A blind AAA-visual critic reviewing a sandbox screenshot cannot tell your scene's
   own content from unrelated things sharing the frame — always audit what else is
-  physically in shot before trusting a verdict.** Bit twice in one redesign pass: (1) an
-  `overview` camera preset sat almost exactly inside the hologram's effect volume, so
-  several rounds of "room shell" critic verdicts were actually complaining about the
-  hologram's own glow/motes, misattributed as room-lighting bugs; (2) the sandbox's own
-  dev-only camera-preset button bar (plain HTML `<button>`s, top-left) bled into a
-  HUD-overlay critic round, which flagged it as "feels like debug UI" — real feedback,
-  but about the wrong piece entirely. Both wasted real review rounds before being
-  caught. When briefing a critic on one piece, explicitly check whether the current
-  camera framing includes any *other* piece's geometry or any dev-only scaffolding UI,
-  and either avoid framing it in, exclude it (see `#sandbox-preset-bar` above), or tell
-  the critic explicitly what's in-frame-but-out-of-scope so it doesn't get credited or
-  blamed for something it isn't.
+  physically in shot before trusting a verdict.** Bit three times across two redesign
+  passes: (1) an `overview` camera preset sat almost exactly inside the hologram's
+  effect volume, so several rounds of "room shell" critic verdicts were actually
+  complaining about the hologram's own glow/motes, misattributed as room-lighting bugs;
+  (2) the sandbox's own dev-only camera-preset button bar (plain HTML `<button>`s,
+  top-left) bled into a HUD-overlay critic round, which flagged it as "feels like debug
+  UI" — real feedback, but about the wrong piece entirely; (3) worst case yet — no
+  camera preset ever looked down -Z at the viewscreen window at all, so an entire
+  piece's first critic round judged a wall bay it had nothing to do with, and the
+  verdict was wrong from top to bottom. Before adding a *new* preset to review a piece,
+  don't just trust that its `lookAt` framing shows the intended subject — verify it (a
+  screenshot, or read the math) before spending a critic round on it. When briefing a
+  critic on any piece, explicitly check whether the current camera framing includes any
+  *other* piece's geometry or any dev-only scaffolding UI, and either avoid framing it
+  in, exclude it (see `#sandbox-preset-bar` above), or tell the critic explicitly what's
+  in-frame-but-out-of-scope so it doesn't get credited or blamed for something it isn't.
+
+- **When an unexplained visual artifact appears and its cause is uncertain, test
+  whether it moves with a dramatic camera-pitch change before writing a bugfix brief
+  for it.** A stray tan shape bleeding in from the top of a `viewscreen`-preset
+  screenshot was chased for a while as a suspected rendering/occlusion bug in
+  `viewscreen.ts` (plausible-sounding theories: an oversized backdrop sphere, a
+  depth-buffer precision issue at extreme distance) before being disproven: pitching the
+  camera dramatically downward made the shape shrink almost to nothing, while a tiny
+  pitch change earlier had barely moved it (a false negative — too small a test to be
+  conclusive). The steep-pitch test proved it was ordinary 3D geometry belonging to a
+  *different* piece (the room's own atrium ceiling, in frame because the new preset's
+  default pitch happened to graze it), not a `viewscreen.ts` bug at all. Screen-space/
+  DOM artifacts don't move with camera pitch; ordinary 3D geometry does — a large,
+  deliberate pitch swing (not a token 0.5-unit nudge) is a cheap, conclusive way to tell
+  them apart before spending a builder round chasing the wrong file.
+
+- **Camera far clip plane is 300 world units** (`Game3D.ts`'s
+  `new THREE.PerspectiveCamera(75, 1, 0.1, 300)`). Anything placed farther than that
+  from the camera is silently culled — no error, no warning, it just never renders.
+  This bit the viewscreen diorama twice: the planet and (still unfixed) the sun sprite
+  were both placed beyond 300 world units from spawn and were therefore invisible in
+  the actual game, not just "hard to see" — confirmed by testing that no amount of
+  camera-angle change makes a beyond-far-plane object appear. When placing any distant
+  dressing object (`viewscreen.ts` or similar), compute its total world distance from
+  spawn/room-center — remember the viewscreen group itself is already offset to world
+  `z=-55` (`Game3D.ts`), so a local Z of `-250` is actually `-305` world, already past
+  the limit — and leave real margin under 300, not right up against it.
 
 - **For a piece that must read at both close range and room-scale distance (e.g. a
   hologram centerpiece), fine geometric detail that looks great close-up can be
@@ -279,6 +310,18 @@ directly, bypassing incremental movement entirely) would be worth the small effo
   reusing one instance for a whole long session — check whether one's already running
   first (`curl` the port) rather than assuming, but don't hesitate to cycle it once
   presets start timing out that worked minutes earlier.
+
+  **Before concluding a specific preset/content is genuinely broken (not just this
+  degradation), retest 2-3x on a freshly restarted, idle server.** One preset was
+  logged as "reliably hangs" after a builder round added new geometry — three identical
+  calls, `page.goto` timeout every time, both GPU and SwiftShader — and the conclusion
+  looked solid (a specific preset, deterministic failure). It was wrong: the three
+  failures immediately followed a hard Vite-cache clear plus a botched restart that
+  raced a port conflict, then three rapid identical calls into that unstable window. A
+  clean restart afterward rendered the same preset correctly 3/3 tries with no code
+  change at all. A `curl` of the raw URL (bypassing the browser) returning instantly is
+  a fast way to confirm the dev server itself isn't the bottleneck before suspecting the
+  scene content.
 
 - **The on-screen mode banner ("Interact mode" / walk / focused) is not a reliable
   signal for whether a click actually caused a relock in this harness.** It's driven

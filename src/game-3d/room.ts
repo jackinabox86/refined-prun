@@ -80,6 +80,34 @@ interface Led {
   color: [number, number, number];
 }
 
+interface ServiceStrip {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+interface InteriorBolt {
+  x: number;
+  y: number;
+  r: number;
+}
+
+interface MaintenanceHatch {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+interface VentStrip {
+  x: number;
+  y: number;
+  width: number;
+  lineCount: number;
+  lineGap: number;
+}
+
 interface SurfaceOptions {
   /** PRNG seed — different seeds give different-looking panel layouts for the same params. */
   seed: number;
@@ -96,6 +124,8 @@ interface SurfaceOptions {
   accentColor?: [number, number, number];
   /** Sparse emissive status-LED count scattered across panels. */
   ledCount?: number;
+  /** Small recessed maintenance grooves scattered across the surface. */
+  serviceStripCount?: number;
 }
 
 interface SurfaceTextureSet {
@@ -135,11 +165,25 @@ function createSurfaceTextureSet(opts: SurfaceOptions): SurfaceTextureSet {
     wear.push(wRow);
     rivetOn.push(rRow);
   }
-  const grimeSpots: Grime[] = Array.from({ length: opts.grimeCount }, () => ({
-    x: rng() * TEX_SIZE,
-    y: rng() * TEX_SIZE,
-    r: 10 + rng() * 26,
-  }));
+  const grimeSpots: Grime[] = Array.from({ length: opts.grimeCount }, () => {
+    const x = rng() * TEX_SIZE;
+    const y = rng() * TEX_SIZE;
+    if (rng() >= 0.5) {
+      return {
+        x,
+        y,
+        r: 10 + rng() * 26,
+      };
+    }
+
+    const vertical = rng() < 0.5;
+    const jitter = (rng() - 0.5) * Math.min(cellW, cellH) * 0.16;
+    return {
+      x: vertical ? Math.max(0, Math.min(TEX_SIZE, Math.round(x / cellW) * cellW + jitter)) : x,
+      y: vertical ? y : Math.max(0, Math.min(TEX_SIZE, Math.round(y / cellH) * cellH + jitter)),
+      r: 10 + rng() * 26,
+    };
+  });
   const scratches: Scratch[] = Array.from({ length: opts.scratchCount }, () => ({
     x: rng() * TEX_SIZE,
     y: rng() * TEX_SIZE,
@@ -155,13 +199,217 @@ function createSurfaceTextureSet(opts: SurfaceOptions): SurfaceTextureSet {
           color: LED_COLORS[Math.floor(rng() * LED_COLORS.length)]!,
         }))
       : [];
+  const serviceStrips: ServiceStrip[] =
+    opts.serviceStripCount !== undefined && opts.serviceStripCount > 0
+      ? Array.from({ length: opts.serviceStripCount }, () => {
+          const col = Math.floor(rng() * Math.max(1, cols - 1));
+          const row = 1 + Math.floor(rng() * Math.max(1, rows - 2));
+          return {
+            x: col * cellW + cellW * 0.25,
+            y: row * cellH - 2,
+            width: cellW * 1.5,
+            height: 4,
+          };
+        })
+      : [];
+  const mergeLeft: boolean[][] = [];
+  const mergeUp: boolean[][] = [];
+  for (let r = 0; r < rows; r++) {
+    const leftRow: boolean[] = [];
+    const upRow: boolean[] = [];
+    for (let c = 0; c < cols; c++) {
+      leftRow.push(c > 0 && rng() < 1 / 6);
+      upRow.push(r > 0 && rng() < 1 / 6);
+    }
+    mergeLeft.push(leftRow);
+    mergeUp.push(upRow);
+  }
+  const interiorBolts: InteriorBolt[] = [];
+  const maintenanceHatches: MaintenanceHatch[] = [];
+  const ventStrips: VentStrip[] = [];
+  const detailMargin = Math.max(8, Math.min(cellW, cellH) * 0.16);
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      const x = c * cellW;
+      const y = r * cellH;
+      if (rng() < 0.24) {
+        const boltCount = 1 + Math.floor(rng() * 3);
+        for (let i = 0; i < boltCount; i++) {
+          interiorBolts.push({
+            x: x + detailMargin + rng() * Math.max(1, cellW - detailMargin * 2),
+            y: y + detailMargin + rng() * Math.max(1, cellH - detailMargin * 2),
+            r: 1.5 + rng(),
+          });
+        }
+      }
+      if (rng() < 0.1) {
+        const width = cellW * (0.4 + rng() * 0.2);
+        const height = cellH * (0.4 + rng() * 0.2);
+        maintenanceHatches.push({
+          x: x + cellW * (0.5 + (rng() - 0.5) * 0.18) - width / 2,
+          y: y + cellH * (0.5 + (rng() - 0.5) * 0.18) - height / 2,
+          width,
+          height,
+        });
+      }
+      if (rng() < 0.065) {
+        const lineCount = 3 + Math.floor(rng() * 3);
+        const lineGap = 3 + rng() * 2;
+        const width = cellW * (0.42 + rng() * 0.16);
+        ventStrips.push({
+          x: x + cellW * (0.5 + (rng() - 0.5) * 0.16) - width / 2,
+          y: y + cellH * (0.5 + (rng() - 0.5) * 0.16) - ((lineCount - 1) * lineGap) / 2,
+          width,
+          lineCount,
+          lineGap,
+        });
+      }
+    }
+  }
   const accentH = cellH * 0.4;
   const accentY =
     opts.accentRowFrac !== undefined ? opts.accentRowFrac * TEX_SIZE - accentH / 2 : 0;
+  const bevelSize = 3;
+
+  const drawColorBevel = (ctx: CanvasRenderingContext2D, c: number, r: number) => {
+    const x = c * cellW;
+    const y = r * cellH;
+    const highlightAlpha = Math.max(0.12, Math.min(0.18, 0.15 * brightness[r]![c]!));
+    const shadowAlpha = 0.3;
+
+    ctx.fillStyle = `rgba(255,255,255,${highlightAlpha.toFixed(3)})`;
+    if (!mergeUp[r]![c]) {
+      ctx.fillRect(x, y, cellW + 1, bevelSize);
+    }
+    if (!mergeLeft[r]![c]) {
+      ctx.fillRect(x, y, bevelSize, cellH + 1);
+    }
+
+    ctx.fillStyle = `rgba(0,0,0,${shadowAlpha})`;
+    if (r === rows - 1 || !mergeUp[r + 1]![c]) {
+      ctx.fillRect(x, y + cellH - bevelSize, cellW + 1, bevelSize);
+    }
+    if (c === cols - 1 || !mergeLeft[r]![c + 1]) {
+      ctx.fillRect(x + cellW - bevelSize, y, bevelSize, cellH + 1);
+    }
+  };
+
+  const drawHeightBevel = (ctx: CanvasRenderingContext2D, c: number, r: number) => {
+    const x = c * cellW;
+    const y = r * cellH;
+
+    ctx.fillStyle = 'rgba(255,255,255,0.22)';
+    if (!mergeUp[r]![c]) {
+      ctx.fillRect(x, y, cellW + 1, bevelSize);
+    }
+    if (!mergeLeft[r]![c]) {
+      ctx.fillRect(x, y, bevelSize, cellH + 1);
+    }
+
+    ctx.fillStyle = 'rgba(0,0,0,0.18)';
+    if (r === rows - 1 || !mergeUp[r + 1]![c]) {
+      ctx.fillRect(x, y + cellH - bevelSize, cellW + 1, bevelSize);
+    }
+    if (c === cols - 1 || !mergeLeft[r]![c + 1]) {
+      ctx.fillRect(x + cellW - bevelSize, y, bevelSize, cellH + 1);
+    }
+  };
+
+  const drawColorServiceStrips = (ctx: CanvasRenderingContext2D) => {
+    for (const strip of serviceStrips) {
+      ctx.fillStyle = 'rgba(6,8,10,0.45)';
+      ctx.fillRect(strip.x, strip.y, strip.width, strip.height);
+      ctx.fillStyle = 'rgba(255,255,255,0.11)';
+      ctx.fillRect(strip.x, strip.y - 1, strip.width, 1);
+    }
+  };
+
+  const drawHeightServiceStrips = (ctx: CanvasRenderingContext2D) => {
+    for (const strip of serviceStrips) {
+      ctx.fillStyle = 'rgba(0,0,0,0.42)';
+      ctx.fillRect(strip.x, strip.y, strip.width, strip.height);
+      ctx.fillStyle = 'rgba(255,255,255,0.18)';
+      ctx.fillRect(strip.x, strip.y - 1, strip.width, 1);
+    }
+  };
+
+  const drawColorInteriorDetails = (ctx: CanvasRenderingContext2D) => {
+    for (const hatch of maintenanceHatches) {
+      ctx.strokeStyle = 'rgba(6,8,10,0.48)';
+      ctx.lineWidth = 1.2;
+      ctx.strokeRect(hatch.x, hatch.y, hatch.width, hatch.height);
+      ctx.strokeStyle = 'rgba(255,255,255,0.14)';
+      ctx.beginPath();
+      ctx.moveTo(hatch.x + 1, hatch.y + hatch.height - 1);
+      ctx.lineTo(hatch.x + 1, hatch.y + 1);
+      ctx.lineTo(hatch.x + hatch.width - 1, hatch.y + 1);
+      ctx.stroke();
+    }
+
+    ctx.lineWidth = 1;
+    for (const vent of ventStrips) {
+      ctx.strokeStyle = 'rgba(5,7,9,0.52)';
+      for (let i = 0; i < vent.lineCount; i++) {
+        const y = vent.y + i * vent.lineGap;
+        ctx.beginPath();
+        ctx.moveTo(vent.x, y);
+        ctx.lineTo(vent.x + vent.width, y);
+        ctx.stroke();
+      }
+    }
+
+    for (const bolt of interiorBolts) {
+      ctx.fillStyle = 'rgba(8,10,12,0.55)';
+      ctx.beginPath();
+      ctx.arc(bolt.x, bolt.y, bolt.r, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = 'rgba(255,255,255,0.32)';
+      ctx.beginPath();
+      ctx.arc(bolt.x - 0.45, bolt.y - 0.45, bolt.r * 0.42, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  };
+
+  const drawHeightInteriorDetails = (ctx: CanvasRenderingContext2D) => {
+    for (const hatch of maintenanceHatches) {
+      ctx.strokeStyle = 'rgba(0,0,0,0.32)';
+      ctx.lineWidth = 1.4;
+      ctx.strokeRect(hatch.x, hatch.y, hatch.width, hatch.height);
+      ctx.strokeStyle = 'rgba(255,255,255,0.24)';
+      ctx.beginPath();
+      ctx.moveTo(hatch.x + 1, hatch.y + hatch.height - 1);
+      ctx.lineTo(hatch.x + 1, hatch.y + 1);
+      ctx.lineTo(hatch.x + hatch.width - 1, hatch.y + 1);
+      ctx.stroke();
+    }
+
+    ctx.lineWidth = 1;
+    for (const vent of ventStrips) {
+      ctx.strokeStyle = 'rgba(0,0,0,0.34)';
+      for (let i = 0; i < vent.lineCount; i++) {
+        const y = vent.y + i * vent.lineGap;
+        ctx.beginPath();
+        ctx.moveTo(vent.x, y);
+        ctx.lineTo(vent.x + vent.width, y);
+        ctx.stroke();
+      }
+    }
+
+    for (const bolt of interiorBolts) {
+      ctx.fillStyle = 'rgba(0,0,0,0.36)';
+      ctx.beginPath();
+      ctx.arc(bolt.x, bolt.y, bolt.r + 0.2, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = 'rgba(255,255,255,0.78)';
+      ctx.beginPath();
+      ctx.arc(bolt.x - 0.4, bolt.y - 0.4, bolt.r * 0.48, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  };
 
   const drawGrid = (ctx: CanvasRenderingContext2D, minorStyle: string, majorStyle: string) => {
     ctx.strokeStyle = minorStyle;
-    ctx.lineWidth = 1;
+    ctx.lineWidth = 1.5;
     ctx.beginPath();
     for (let i = 0; i <= cols; i++) {
       const x = i * cellW;
@@ -176,7 +424,7 @@ function createSurfaceTextureSet(opts: SurfaceOptions): SurfaceTextureSet {
     ctx.stroke();
 
     ctx.strokeStyle = majorStyle;
-    ctx.lineWidth = 2;
+    ctx.lineWidth = 3.5;
     ctx.beginPath();
     for (let i = 0; i <= cols; i += 4) {
       const x = i * cellW;
@@ -203,9 +451,11 @@ function createSurfaceTextureSet(opts: SurfaceOptions): SurfaceTextureSet {
       const [br, bg, bb] = opts.baseColor;
       ctx.fillStyle = `rgb(${clamp255(br * f)},${clamp255(bg * f)},${clamp255(bb * f)})`;
       ctx.fillRect(c * cellW, r * cellH, cellW + 1, cellH + 1);
+      drawColorBevel(ctx, c, r);
     }
   }
-  drawGrid(ctx, 'rgba(10,14,18,0.4)', 'rgba(6,8,10,0.65)');
+  drawGrid(ctx, 'rgba(10,14,18,0.7)', 'rgba(6,8,10,0.9)');
+  drawColorServiceStrips(ctx);
 
   if (opts.rivets) {
     for (let r = 1; r < rows; r++) {
@@ -247,6 +497,7 @@ function createSurfaceTextureSet(opts: SurfaceOptions): SurfaceTextureSet {
     ctx.lineTo(s.x + dx, s.y + dy);
     ctx.stroke();
   }
+  drawColorInteriorDetails(ctx);
 
   if (opts.accentRowFrac !== undefined && opts.accentColor) {
     const [ar, ag, ab] = opts.accentColor;
@@ -277,7 +528,13 @@ function createSurfaceTextureSet(opts: SurfaceOptions): SurfaceTextureSet {
   const hctx = heightCanvas.getContext('2d')!;
   hctx.fillStyle = '#ffffff';
   hctx.fillRect(0, 0, TEX_SIZE, TEX_SIZE);
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      drawHeightBevel(hctx, c, r);
+    }
+  }
   drawGrid(hctx, '#404040', '#1c1c1c');
+  drawHeightServiceStrips(hctx);
 
   // Shallow dents from wear — reuse half the grime spots so dents correlate with grime.
   for (let i = 0; i < grimeSpots.length; i += 2) {
@@ -321,6 +578,7 @@ function createSurfaceTextureSet(opts: SurfaceOptions): SurfaceTextureSet {
       }
     }
   }
+  drawHeightInteriorDetails(hctx);
 
   const heightData = hctx.getImageData(0, 0, TEX_SIZE, TEX_SIZE).data;
   const heightAt = (x: number, y: number) => {
@@ -597,15 +855,16 @@ export function buildRoom(): THREE.Group {
     cols: 8,
     rows: 8,
     baseColor: [78, 91, 105],
-    jitter: 0.22,
+    jitter: 0.3,
     grimeCount: 9,
     scratchCount: 12,
     rivets: true,
     accentRowFrac: 0.8,
     accentColor: [232, 168, 96],
     ledCount: 5,
+    serviceStripCount: 3,
   });
-  setRepeat(wallTex, size / 2, ROOM_HEIGHT / 2);
+  setRepeat(wallTex, size / 3.2, ROOM_HEIGHT / 2);
 
   // Floor: darker, denser plating with heavier grime/scratch wear (foot traffic) and no
   // painted accent — a tiling stripe would read as a repeating artifact on a walkable
@@ -615,12 +874,12 @@ export function buildRoom(): THREE.Group {
     cols: 10,
     rows: 10,
     baseColor: [36, 44, 54],
-    jitter: 0.26,
+    jitter: 0.36,
     grimeCount: 24,
     scratchCount: 30,
     rivets: true,
   });
-  setRepeat(floorTex, size / 2, size / 2);
+  setRepeat(floorTex, size / 3.2, size / 3.2);
 
   // Ceiling: same family, darker and cleaner (less foot traffic wear reaches up here).
   const ceilingTex = createSurfaceTextureSet({
@@ -729,6 +988,7 @@ export function buildRoom(): THREE.Group {
   const structuralFrameMat = createRepeatedMaterial(frameBaseMat, wallTex, size, ROOM_HEIGHT);
   const beamMat = structuralFrameMat.clone();
   beamMat.color = new THREE.Color(0x2b343d);
+  const revealMat = new THREE.MeshBasicMaterial({ color: 0x05070a });
   const claddingBaseMat = frameBaseMat.clone();
   claddingBaseMat.color = new THREE.Color(0x52606b);
   const bulkheadMat = structuralFrameMat.clone();
@@ -828,8 +1088,11 @@ export function buildRoom(): THREE.Group {
   const panelY = panelHeight / 2 + 0.24;
   const panelDepth = 0.4;
   const panelInset = ROOM_HALF - panelDepth / 2 - 0.02;
+  const bayPanelInset = panelInset + 0.2;
   const panelTrimWidth = 0.08;
   const panelTrimDepth = 0.42;
+  const bayRevealWidth = 0.07;
+  const bayRevealDepth = 0.08;
 
   const addZWallPanel = (x: number, width: number, z: number) => {
     const panel = new THREE.Mesh(
@@ -847,6 +1110,72 @@ export function buildRoom(): THREE.Group {
     );
     panel.position.set(x, panelY, z);
     group.add(panel);
+  };
+
+  const addZBayReveal = (x: number, width: number, z: number) => {
+    const zSign = Math.sign(z);
+    const revealZ = z - zSign * (panelDepth / 2 + bayRevealDepth / 2);
+    const yMin = panelY - panelHeight / 2;
+    const yMax = panelY + panelHeight / 2;
+    const horizontalGeometry = new THREE.BoxGeometry(
+      width + bayRevealWidth * 2,
+      bayRevealWidth,
+      bayRevealDepth,
+    );
+    const verticalGeometry = new THREE.BoxGeometry(
+      bayRevealWidth,
+      panelHeight + bayRevealWidth * 2,
+      bayRevealDepth,
+    );
+    for (const y of [yMin, yMax]) {
+      const reveal = new THREE.Mesh(horizontalGeometry, revealMat);
+      reveal.position.set(x, y, revealZ);
+      group.add(reveal);
+    }
+    for (const edgeX of [x - width / 2, x + width / 2]) {
+      const reveal = new THREE.Mesh(verticalGeometry, revealMat);
+      reveal.position.set(edgeX, panelY, revealZ);
+      group.add(reveal);
+    }
+  };
+
+  const addXBayReveal = (x: number, z: number, width: number) => {
+    const xSign = Math.sign(x);
+    const revealX = x - xSign * (panelDepth / 2 + bayRevealDepth / 2);
+    const yMin = panelY - panelHeight / 2;
+    const yMax = panelY + panelHeight / 2;
+    const horizontalGeometry = new THREE.BoxGeometry(
+      bayRevealDepth,
+      bayRevealWidth,
+      width + bayRevealWidth * 2,
+    );
+    const verticalGeometry = new THREE.BoxGeometry(
+      bayRevealDepth,
+      panelHeight + bayRevealWidth * 2,
+      bayRevealWidth,
+    );
+    for (const y of [yMin, yMax]) {
+      const reveal = new THREE.Mesh(horizontalGeometry, revealMat);
+      reveal.position.set(revealX, y, z);
+      group.add(reveal);
+    }
+    for (const edgeZ of [z - width / 2, z + width / 2]) {
+      const reveal = new THREE.Mesh(verticalGeometry, revealMat);
+      reveal.position.set(revealX, panelY, edgeZ);
+      group.add(reveal);
+    }
+  };
+
+  const addZBayPanel = (x: number, width: number, zSign: number) => {
+    const z = zSign * bayPanelInset;
+    addZWallPanel(x, width, z);
+    addZBayReveal(x, width, z);
+  };
+
+  const addXBayPanel = (xSign: number, z: number, width: number) => {
+    const x = xSign * bayPanelInset;
+    addXWallPanel(x, z, width);
+    addXBayReveal(x, z, width);
   };
 
   const addZWallRecessFrame = (z: number, gapWidth: number) => {
@@ -887,9 +1216,9 @@ export function buildRoom(): THREE.Group {
   const bayOuterWidth = 4.5;
   const bayGapWidth = 8.0;
   for (const sx of [-1, 1]) {
-    addZWallPanel(sx * bayOuterCenter, bayOuterWidth, panelInset);
-    addXWallPanel(sx * panelInset, bayOuterCenter, bayOuterWidth);
-    addXWallPanel(sx * panelInset, -bayOuterCenter, bayOuterWidth);
+    addZBayPanel(sx * bayOuterCenter, bayOuterWidth, 1);
+    addXBayPanel(sx, bayOuterCenter, bayOuterWidth);
+    addXBayPanel(sx, -bayOuterCenter, bayOuterWidth);
   }
   addZWallRecessFrame(panelInset - panelDepth / 2, bayGapWidth);
   addXWallRecessFrame(panelInset - panelDepth / 2, bayGapWidth);
@@ -900,12 +1229,12 @@ export function buildRoom(): THREE.Group {
   if (viewscreenSidePanelWidth > 0) {
     const leftX = -(WINDOW_WIDTH / 2 + sideWidth / 2);
     const rightX = WINDOW_WIDTH / 2 + sideWidth / 2;
-    addZWallPanel(leftX, viewscreenSidePanelWidth, -panelInset);
-    addZWallPanel(rightX, viewscreenSidePanelWidth, -panelInset);
+    addZBayPanel(leftX, viewscreenSidePanelWidth, -1);
+    addZBayPanel(rightX, viewscreenSidePanelWidth, -1);
   }
 
-  const bulkheadDepth = 0.18;
-  const bulkheadHeight = 0.2;
+  const bulkheadDepth = 0.32;
+  const bulkheadHeight = 0.4;
   const bulkheadY = ROOM_HEIGHT - bulkheadHeight / 2 - 0.14;
   const bulkheadInset = ROOM_HALF - bulkheadDepth / 2 - 0.01;
   const bulkheadSpanGeometry = new THREE.BoxGeometry(size, bulkheadHeight, bulkheadDepth);
@@ -1181,6 +1510,120 @@ export function buildRoom(): THREE.Group {
         sz * (ROOM_HALF - postTrimDepth / 2 - 0.02),
       );
       group.add(zTrim);
+    }
+  }
+
+  const bayFrameHeaderHeight = 0.2;
+  const bayFrameHeaderDepth = 0.3;
+  const bayFrameHeaderY = panelY + panelHeight / 2 + bayFrameHeaderHeight / 2;
+  const bayFrameProudOffset = 0.07;
+  const bayFrameHeaderInset = ROOM_HALF - bayFrameHeaderDepth / 2 - 0.01 + bayFrameProudOffset;
+  const addZBayHeader = (x: number, width: number, zSign: number) => {
+    const header = new THREE.Mesh(
+      new THREE.BoxGeometry(width, bayFrameHeaderHeight, bayFrameHeaderDepth),
+      postMat,
+    );
+    header.position.set(x, bayFrameHeaderY, zSign * bayFrameHeaderInset);
+    group.add(header);
+  };
+  const addXBayHeader = (xSign: number, z: number, width: number) => {
+    const header = new THREE.Mesh(
+      new THREE.BoxGeometry(bayFrameHeaderDepth, bayFrameHeaderHeight, width),
+      postMat,
+    );
+    header.position.set(xSign * bayFrameHeaderInset, bayFrameHeaderY, z);
+    group.add(header);
+  };
+
+  // Continuous headers make each wall bay read as recessed into a structural frame.
+  for (const sx of [-1, 1]) {
+    addZBayHeader(sx * bayOuterCenter, bayOuterWidth, 1);
+    addXBayHeader(sx, bayOuterCenter, bayOuterWidth);
+    addXBayHeader(sx, -bayOuterCenter, bayOuterWidth);
+  }
+  if (viewscreenSidePanelWidth > 0) {
+    addZBayHeader(-(WINDOW_WIDTH / 2 + sideWidth / 2), viewscreenSidePanelWidth, -1);
+    addZBayHeader(WINDOW_WIDTH / 2 + sideWidth / 2, viewscreenSidePanelWidth, -1);
+  }
+
+  const bayFrameSize = 0.28;
+  const bayFrameJointSize = 0.28;
+  const bayFrameJointPlateSize = 0.21;
+  const bayFrameRibSpan = 0.72;
+  const bayFrameColumnInset = ROOM_HALF - bayFrameSize / 2 - 0.01 + bayFrameProudOffset;
+  const bayFrameRibInset = ROOM_HALF - bayFrameRibSpan / 2 - 0.01 + bayFrameProudOffset;
+  const bayFrameRibY = ROOM_HEIGHT - bayFrameSize / 2;
+  const bayFrameColumnGeometry = new THREE.BoxGeometry(bayFrameSize, ROOM_HEIGHT, bayFrameSize);
+  const bayFrameJointGeometry = new THREE.BoxGeometry(
+    bayFrameJointSize,
+    bayFrameJointSize,
+    bayFrameJointSize,
+  );
+  const bayFrameJointPlateGeometry = new THREE.BoxGeometry(
+    bayFrameJointPlateSize,
+    bayFrameJointPlateSize,
+    bayFrameJointPlateSize,
+  );
+  const bayFrameZWallRibGeometry = new THREE.BoxGeometry(
+    bayFrameSize,
+    bayFrameSize,
+    bayFrameRibSpan,
+  );
+  const bayFrameXWallRibGeometry = new THREE.BoxGeometry(
+    bayFrameRibSpan,
+    bayFrameSize,
+    bayFrameSize,
+  );
+  const bayFrameBoundaryPositions = [-1, 1].flatMap(sx => [
+    sx * bayOuterCenter - bayOuterWidth / 2,
+    sx * bayOuterCenter + bayOuterWidth / 2,
+  ]);
+  const isNearCornerPost = (position: number) => Math.abs(Math.abs(position) - postInset) < 0.3;
+
+  const addBayFrame = (x: number, z: number, wallAxis: 'x' | 'z') => {
+    const column = new THREE.Mesh(bayFrameColumnGeometry, postMat);
+    column.position.set(x, ROOM_HEIGHT / 2, z);
+    group.add(column);
+
+    const rib = new THREE.Mesh(
+      wallAxis === 'z' ? bayFrameZWallRibGeometry : bayFrameXWallRibGeometry,
+      postMat,
+    );
+    rib.position.set(
+      wallAxis === 'z' ? x : Math.sign(x) * bayFrameRibInset,
+      bayFrameRibY,
+      wallAxis === 'z' ? Math.sign(z) * bayFrameRibInset : z,
+    );
+    group.add(rib);
+
+    // Overlap hides the column/rib seam so the corner reads as one structural joint.
+    const joint = new THREE.Mesh(bayFrameJointGeometry, postMat);
+    joint.position.set(x, ROOM_HEIGHT - bayFrameJointSize / 2, z);
+    group.add(joint);
+
+    const jointPlate = new THREE.Mesh(bayFrameJointPlateGeometry, postMat);
+    jointPlate.position.set(
+      wallAxis === 'z' ? x : x + Math.sign(x) * (bayFrameJointSize / 2),
+      ROOM_HEIGHT - bayFrameJointSize / 2,
+      wallAxis === 'z' ? z + Math.sign(z) * (bayFrameJointSize / 2) : z,
+    );
+    group.add(jointPlate);
+  };
+
+  // Chunky bay frames make the recessed wall panels read as held by primary structure.
+  for (const x of bayFrameBoundaryPositions) {
+    if (!isNearCornerPost(x)) {
+      addBayFrame(x, bayFrameColumnInset, 'z');
+    }
+    if (Math.abs(x) > WINDOW_WIDTH / 2 + bayFrameSize / 2 && !isNearCornerPost(x)) {
+      addBayFrame(x, -bayFrameColumnInset, 'z');
+    }
+  }
+  for (const sx of [-1, 1]) {
+    for (const z of bayFrameBoundaryPositions) {
+      if (!isNearCornerPost(z)) {
+        addBayFrame(sx * bayFrameColumnInset, z, 'x');
+      }
     }
   }
 
