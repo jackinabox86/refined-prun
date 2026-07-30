@@ -30,6 +30,8 @@
       "Write",
       "Agent",
       "SendMessage",
+      "SendUserFile",
+      "Artifact",
       "ToolSearch",
       "Skill",
       "TaskCreate",

@@ -51,6 +51,91 @@ literally. Things that quietly cost the user a manual approval:
   excluded command.
 - **Absolute paths.** `node /home/.../repo/scripts/pw-act.mjs` matches neither the
   allowlist nor the exclusion. Always invoke repo scripts by their relative path.
+- **Shell-level backgrounding vs `run_in_background: true`.** `(pnpm run dev:3d-sandbox
+  > log 2>&1 &)` doesn't match `Bash(pnpm *)` — the command literally starts with `(`,
+  not `pnpm`. An earlier version of this note claimed that subshell dies the instant the
+  call returns; **that was wrong, corrected after re-testing** — a plain `nohup <cmd> &
+  disown` (or even a bare `&` inside a normal, non-`run_in_background` Bash call) survives
+  fine and stays reachable by later sandboxed/excluded calls for the rest of the session.
+  What actually doesn't work reliably is the Bash tool's own `run_in_background: true`:
+  confirmed twice that a server started that way became completely unreachable
+  afterward — not just from sandboxed calls, but from plain `dangerouslyDisableSandbox`
+  ones too — while `ss -tlnp`/`pgrep` (also run unsandboxed) showed the process genuinely
+  alive and "ready". This is the same documented phenomenon as
+  `docs/browser-testing.md`'s "Why calls must not be isolated from the host network"
+  (an isolated caller has its own loopback, so a server it starts is only reachable by
+  other calls sharing that same isolated namespace) — `run_in_background` is one more
+  case of it, not a Claude-Code bug to report, just another isolation boundary to avoid
+  for anything meant to be reachable later. **For any dev server the rest of the session
+  needs to reach, use `nohup <cmd> > log 2>&1 & disown` inside a normal Bash call, never
+  `run_in_background: true`.** Separately — and unfixable from settings — background
+  Bash runs (via `run_in_background: true`) are gated by a permission check that's
+  structurally separate from `permissions.allow` matching (confirmed against Claude
+  Code's own docs: allow rules use "each tool's own specifier syntax" and there is no
+  rule shape that pre-approves the backgrounded case), so every `run_in_background: true`
+  call prompts regardless of allowlisting — one more reason to avoid it for routine
+  server starts, independent of the reachability problem above.
+- **Long dev-server sessions degrade under heavy repeated headless-browser load.**
+  Reusing one `dev:3d-sandbox` instance across dozens of rapid-fire
+  `pw-sandbox-screenshot.mjs` calls over ~50 minutes led to the heavier-scene presets
+  (`hologram`, `pit`) consistently timing out on `page.goto` while lighter ones
+  (`console`, `overview`) kept working — not a fixed per-preset bug, confirmed by seeing
+  it clear immediately on a fresh server restart, then start recurring (on different
+  presets) after enough more requests piled up again. Not root-caused further (likely
+  Vite/Node resource accumulation across many transform requests, or many
+  launch/teardown cycles of headless Chromium against the same dev server) — the
+  practical fix is operational, not code: restart `dev:3d-sandbox` between heavy
+  screenshot rounds rather than reusing one instance for a whole long session, matching
+  what the delegation instructions already implied ("probably already running, check with
+  curl before starting a new one" — i.e. expect per-round restarts, not one server for
+  the whole session).
+- New top-level tools adopted mid-project (not just new Bash prefixes) need their own
+  `permissions.allow` entry or they prompt every call — this bit `SendUserFile` and
+  `Artifact` once each after they became part of the standard progress-reporting loop,
+  well after `Agent`/`SendMessage`/`Skill`/`Task*` were already allowlisted. When a new
+  tool becomes routine, add it here in the same pass, don't wait for it to prompt first.
+
+## Long-running background servers
+
+Before starting a dev server with `run_in_background: true`, check whether one is
+already alive (`curl` the port first) rather than assuming a prior turn's instance died.
+Starting a second (or third) `pnpm run dev:3d-sandbox` instance doesn't error — Vite
+just runs redundant instances side by side, none of them crash, and only one ever binds
+the real port — so nothing *looks* wrong until browser/screenshot calls start timing out
+under the extra CPU/IO contention. Confirmed once: 3 concurrent `dev:3d-sandbox`
+processes (one raw `&` orphan plus two `run_in_background` restarts, none killed)
+coincided with `pw-sandbox-screenshot.mjs` calls going from ~3s to 55-80s. Killing the
+redundant instances (keep whichever PID `ss -tlnp` shows actually bound to the port) is
+always correct to try first, but isn't guaranteed to be the whole story — in the same
+incident, latency stayed high (~55s) even after cleanup, with near-zero CPU/sys time in
+the slow calls (`time` showed ~2s user+sys against 55s wall), which is the signature of
+the process blocking on something external rather than computing. Ruled out that round:
+sandbox network/proxy (reproduced identically with `dangerouslyDisableSandbox: true`,
+and `env | grep -i proxy` showed no leaked proxy vars outside the sandbox) and orphaned
+browser processes (`pgrep -af chrome` found none — note this check is noisy, it
+self-matches its own command line if your grep pattern appears in it, e.g. searching for
+"chrome" matches the `pgrep -af "chrome"` invocation itself).
+
+**Follow-up same day, actual root cause found:** it wasn't host I/O contention — a
+per-stage timing harness (launch/newPage/goto/waitForFunction/screenshot/close, each
+timestamped separately) isolated the cost to `page.screenshot()` (~30s) and
+`browser.close()` (~30s) specifically, both fast in isolation on a trivial page. That
+signature (screenshot capture *and* teardown both slow, everything else fast) means the
+renderer itself is bogged down doing real rendering work, not blocked on I/O/network.
+`pw-sandbox-screenshot.mjs` unconditionally forces CPU/SwiftShader rendering
+(`--use-angle=swiftshader`) — deliberately, since real GPU wasn't reliably available when
+it was written — and the AAA visual pass landed the same week (bloom, PMREM reflections,
+anisotropic high-res textures) made that software path expensive enough to cost 60-70s a
+shot, up from a few seconds before. This machine does have a real GPU
+(`nvidia-smi -L` → RTX 3060 Laptop GPU, confirmed via the existing `/dev/dxg` check), so
+the script now supports `RP_PW_GPU=1` to use it (ANGLE `gl-egl` backend) —
+**2.7x faster in testing (74s → 27s, then 14s once warm) — but only reachable with
+`dangerouslyDisableSandbox: true` on that one call**, same reason as
+`local-browser-test.mjs`: the mount namespace hides `/dev/dxg` from sandboxed and
+`excludedCommands` calls alike. Tried the more "correct" WSL2 backend
+(`--use-angle=d3d11`) first — it hangs, the sandbox app never reaches its ready flag —
+`gl-egl` is the one that actually works here. Default behavior (no `RP_PW_GPU`) is
+unchanged, so this is opt-in only for rounds where per-shot latency actually matters.
 
 ## Browser harness specifics
 

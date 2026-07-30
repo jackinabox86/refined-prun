@@ -9,6 +9,18 @@
 //   port: defaults to 5183. Pass a different port when running against a
 //   `dev:3d-sandbox -- --port <n>` instance (e.g. one isolated builder among several
 //   running concurrently in separate worktrees).
+//
+// Auto-detects real GPU vs forced CPU/SwiftShader rendering by checking whether
+// /dev/dxg (WSL2's GPU passthrough device) is visible — hidden by the mount namespace
+// for sandboxed and excludedCommands calls alike, present only when the caller's Bash
+// invocation sets `dangerouslyDisableSandbox: true` (see .claude/harness-notes.md).
+// GPU mode is ~2.7x faster when it works, confirmed against the current AAA-pass scene
+// (bloom/PMREM/anisotropic textures pushed software rendering to 60-70s/shot) — but it's
+// also been observed to hang navigation outright (real GPU device contention under WSL2,
+// not fully root-caused), so a GPU-mode failure falls back to a second attempt with
+// SwiftShader rather than surfacing an error — this script should never be *less*
+// reliable than plain SwiftShader, only sometimes faster.
+import { existsSync } from 'node:fs';
 import { loadPlaywright } from './pw-helper.mjs';
 
 const PRESETS = ['overview', 'console', 'hologram', 'pit', 'ramp', 'rampUnder', 'underside'];
@@ -24,33 +36,49 @@ if (preset === undefined || outputPath === undefined || !PRESETS.includes(preset
 
 const { chromium } = loadPlaywright();
 
-let browser;
-try {
-  browser = await chromium.launch({
+async function launchAndCapture(useGpu) {
+  const browser = await chromium.launch({
     headless: true,
-    args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'],
+    args: useGpu
+      ? ['--use-gl=angle', '--use-angle=gl-egl', '--ignore-gpu-blocklist', '--enable-gpu']
+      : ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'],
   });
+  try {
+    const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
+    const url = `${SANDBOX_URL}?cam=${preset}`;
+    const response = await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 15000 });
+    if (response === null || !response.ok()) {
+      throw new Error(`Could not load ${url}. Is 'pnpm run dev:3d-sandbox' running?`);
+    }
+    await page.waitForFunction(() => window.__rpSandboxReady === true, { timeout: 15000 });
+    // Dev-only camera-preset switcher bar — not part of any reviewed piece, would
+    // otherwise bleed into HUD-overlay critic rounds as if it were real game UI.
+    await page.evaluate(() => document.getElementById('sandbox-preset-bar')?.remove());
+    await page.screenshot({ path: outputPath, timeout: 60000 });
+  } finally {
+    await browser.close();
+  }
+}
+
+const gpuAvailable = existsSync('/dev/dxg');
+
+try {
+  if (gpuAvailable) {
+    try {
+      await launchAndCapture(true);
+      console.log(`Saved ${outputPath} (preset: ${preset}, gpu)`);
+    } catch (gpuError) {
+      console.error(`GPU-mode capture failed (${String(gpuError).split('\n')[0]}), retrying with SwiftShader...`);
+      await launchAndCapture(false);
+      console.log(`Saved ${outputPath} (preset: ${preset}, swiftshader fallback)`);
+    }
+  } else {
+    await launchAndCapture(false);
+    console.log(`Saved ${outputPath} (preset: ${preset})`);
+  }
 } catch (error) {
-  console.error(`Could not launch a browser: ${String(error).split('\n')[0]}`);
+  console.error(`Could not capture screenshot: ${String(error).split('\n')[0]}`);
   console.error('If this is a sandboxed Bash call failing on a device/mount error (not a');
   console.error('network error), retry with dangerouslyDisableSandbox — see .claude/harness-notes.md.');
   process.exit(1);
-}
-
-try {
-  const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
-  const url = `${SANDBOX_URL}?cam=${preset}`;
-  const response = await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 15000 });
-  if (response === null || !response.ok()) {
-    console.error(`Could not load ${url}. Is 'pnpm run dev:3d-sandbox' running?`);
-    process.exit(1);
-  }
-  await page.waitForFunction(() => window.__rpSandboxReady === true, { timeout: 15000 });
-  // Dev-only camera-preset switcher bar — not part of any reviewed piece, would
-  // otherwise bleed into HUD-overlay critic rounds as if it were real game UI.
-  await page.evaluate(() => document.getElementById('sandbox-preset-bar')?.remove());
-  await page.screenshot({ path: outputPath, timeout: 60000 });
-  console.log(`Saved ${outputPath} (preset: ${preset})`);
-} finally {
-  await browser.close();
 }
