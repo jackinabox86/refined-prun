@@ -122,6 +122,11 @@ const storageAlarm = computed(() => getStorageAlarmLevel(siteId));
 const fillDaysText = computed(() =>
   storageAlarm.value?.days !== undefined ? fixed1(storageAlarm.value.days) : undefined,
 );
+// The yellow alarm carries its own badge, which owns the tooltip. Only the
+// red alarm, which has no badge, puts the reason on the bar itself.
+const barAlarmReason = computed(() =>
+  storageAlarm.value?.level === 'red' ? storageAlarm.value.reason : undefined,
+);
 
 const warehouse = computed(() => warehousesStore.getByEntityNaturalId(naturalId));
 const warehouseStore = computed(() =>
@@ -182,7 +187,7 @@ const warehouseStore = computed(() =>
           :natural-id="naturalId"
           :on-click-cmd="`INV ${storeId.substring(0, 8)}`"
           :alarm-level="storageAlarm?.level"
-          :alarm-reason="storageAlarm?.reason" />
+          :alarm-reason="barAlarmReason" />
         <div
           v-if="storageAlarm?.level === 'yellow'"
           :class="[C.ProgressBar.progress, $style.fillWarningBox, C.Workforces.daysWarning]"

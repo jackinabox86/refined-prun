@@ -225,7 +225,7 @@ const alarmClass = computed(() => ({
     :class="[C.ProgressBar.progress, $style.container, { [$style.isUpdating]: isAnimating }]"
     :style="{ '--stripe-color': stripeAlertColor, '--stripe-width': stripeWidth }"
     :data-tooltip="alarmReason"
-    data-tooltip-position="top"
+    :data-tooltip-position="alarmReason ? 'top' : undefined"
     @click="showBuffer(onClickCmd)">
     <div v-if="alarmLevel === 'red'" :class="[$style.alarmOverlay, alarmClass]" />
     <div :class="[$style.bar, miniBarClass]">
