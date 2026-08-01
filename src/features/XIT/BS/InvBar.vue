@@ -240,9 +240,14 @@ const alarmClass = computed(() => ({
 </template>
 
 <style module>
+/* padding: 0 cancels the game's [data-tooltip] rule (`padding: 0 4px 0`),
+   which kicks in as soon as an alarm supplies a tooltip. It would inset the
+   bar 4px on each side, so the striped background showed at both ends and
+   the segments no longer read as left-aligned. */
 .container {
   position: relative;
   margin: 0;
+  padding: 0;
   cursor: pointer;
   display: flex;
   min-width: 30px;
