@@ -24,6 +24,7 @@ import {
   UserDataBackup,
 } from '@src/infrastructure/storage/user-data-backup';
 import { ddmmyyyy, hhForXitSet, hhmm } from '@src/utils/format';
+import { showBuffer } from '@src/infrastructure/prun-ui/buffers';
 import dayjs from 'dayjs';
 import { vDraggable } from 'vue-draggable-plus';
 import { grip } from '@src/components/grip';
@@ -259,6 +260,7 @@ function confirmResetAllData(ev: Event) {
     <Commands>
       <PrunButton primary @click="importUserDataAndReload">Import User Data</PrunButton>
       <PrunButton primary @click="exportUserData">Export User Data</PrunButton>
+      <PrunButton primary @click="showBuffer('XIT SET FINMERGE')">Merge Backups</PrunButton>
     </Commands>
   </form>
   <template v-if="backups.length > 0">
