@@ -1,5 +1,7 @@
 import PrunButton from '@src/components/PrunButton.vue';
+import { shipsStore } from '@src/infrastructure/prun-api/data/ships';
 import { stationsStore } from '@src/infrastructure/prun-api/data/stations';
+import { getEntityNaturalIdFromAddress } from '@src/infrastructure/prun-api/data/addresses';
 import { selectAddress } from '@src/infrastructure/prun-ui/utils/select-address';
 import $style from './sfc-exchange-destinations.module.css';
 
@@ -8,6 +10,14 @@ import $style from './sfc-exchange-destinations.module.css';
 const exchangeStationIds = ['ANT', 'BEN', 'HRT', 'MOR'];
 
 function onTileReady(tile: PrunTile) {
+  // A docked ship's address resolves to the station's own natural id ("ANT");
+  // in flight it has no address, so no button is grayed out.
+  const location = computed(() =>
+    getEntityNaturalIdFromAddress(
+      shipsStore.getByRegistration(tile.parameter)?.address ?? undefined,
+    ),
+  );
+
   subscribe($$(tile.anchor, C.AddressSelector.container), container => {
     createFragmentApp(() => (
       <div class={$style.buttons}>
@@ -16,6 +26,7 @@ function onTileReady(tile: PrunTile) {
             key={naturalId}
             dark
             inline
+            disabled={location.value === naturalId}
             class={$style.button}
             data-tooltip={stationsStore.getByNaturalId(naturalId)?.name ?? naturalId}
             onClick={() => selectAddress(container, naturalId)}>
