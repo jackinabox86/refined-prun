@@ -19,13 +19,13 @@ import {
   importMaterials,
   isLoanTemplate,
   readDraftSpec,
-  selectLocation,
   selectTemplateType,
   setAutoProvision,
   setCurrency,
   setDeadline,
   setShipPrice,
 } from './draft-form';
+import { selectAddress } from '@src/infrastructure/prun-ui/utils/select-address';
 import $style from './contd-paste-import.module.css';
 
 // Fills the template panel from the spec, in dependency order: the template
@@ -59,7 +59,7 @@ async function importSpec(anchor: Element, spec: ContractDraftSpec): Promise<str
   const addresses = _$$(anchor, C.AddressSelector.container);
   const fillAddress = async (index: number, name: string, label: string) => {
     const address = addresses.at(index);
-    if (!address || !(await selectLocation(address, name))) {
+    if (!address || !(await selectAddress(address, name))) {
       issues.push(`${label} ${name}`);
     }
   };

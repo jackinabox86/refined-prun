@@ -138,6 +138,7 @@ Experts provide fixed bonus multipliers to production line efficiency in their i
 
 ### Commodity Exchange (CX)
 - Located on space stations. 4 major: Benten (CI1), Moria (NC1), Hortus (IC1), Antares (AI1). 2 factionless: Arclight (CI2), Hubur (NC2).
+- The exchange MIC is not the station id. Station natural ids are `BEN`, `MOR`, `HRT`, `ANT`, `ARC`, `HUB` (see `stations.default.ts`); their system ids are `UV-351`, `OT-580`, `VH-331`, `ZV-307`, `AM-783`, `TD-203`.
 - The trading is done via trade books. Each material has its own trade book.
 - Buy/Sell orders placed within Price Band (3-day average).
 - Orders match: lowest ask filled first on buys, highest bid first on sells.

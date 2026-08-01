@@ -4,6 +4,11 @@ Browser extension for Prosperous Universe. Intercepts the game's WebSocket and D
 
 Stack: TypeScript, Vue 3, Vite (content scripts), CSS Modules. Package manager: pnpm.
 
+A fresh clone has no `node_modules` — run `pnpm install --frozen-lockfile` before
+`pnpm run compile` / `pnpm run lint`, or `tsc` reports missing `chrome`/`node`/`vite/client`
+type libraries, which reads like a broken tsconfig rather than a missing install. Cloud
+sessions (Claude Code on the web) always start from a fresh clone.
+
 ## Path Aliases
 
 | Alias | Resolves to |
