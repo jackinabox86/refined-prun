@@ -5,6 +5,8 @@ import InvBar from '@src/features/XIT/BS/InvBar.vue';
 import { showBuffer } from '@src/infrastructure/prun-ui/buffers';
 import { getPlanetBurn } from '@src/core/burn';
 import { countDays } from '@src/features/XIT/BURN/utils';
+import { getStorageAlarmLevel } from '@src/core/storage-analysis';
+import { fixed1 } from '@src/utils/format';
 import { getPlanetProduction } from '@src/core/production';
 import { warehousesStore } from '@src/infrastructure/prun-api/data/warehouses';
 import { storagesStore } from '@src/infrastructure/prun-api/data/storage';
@@ -116,6 +118,16 @@ const repairDaysText = computed(() => {
   return String(Math.floor(age));
 });
 
+const storageAlarm = computed(() => getStorageAlarmLevel(siteId));
+const fillDaysText = computed(() =>
+  storageAlarm.value?.days !== undefined ? fixed1(storageAlarm.value.days) : undefined,
+);
+// The yellow alarm carries its own badge, which owns the tooltip. Only the
+// red alarm, which has no badge, puts the reason on the bar itself.
+const barAlarmReason = computed(() =>
+  storageAlarm.value?.level === 'red' ? storageAlarm.value.reason : undefined,
+);
+
 const warehouse = computed(() => warehousesStore.getByEntityNaturalId(naturalId));
 const warehouseStore = computed(() =>
   storagesStore
@@ -169,10 +181,21 @@ const warehouseStore = computed(() =>
       </div>
     </td>
     <td v-if="showInv" :class="$style.invCell">
-      <InvBar
-        :store-id="storeId"
-        :natural-id="naturalId"
-        :on-click-cmd="`INV ${storeId.substring(0, 8)}`" />
+      <div :class="$style.invCellContent">
+        <InvBar
+          :store-id="storeId"
+          :natural-id="naturalId"
+          :on-click-cmd="`INV ${storeId.substring(0, 8)}`"
+          :alarm-level="storageAlarm?.level"
+          :alarm-reason="barAlarmReason" />
+        <div
+          v-if="storageAlarm?.level === 'yellow'"
+          :class="[C.ProgressBar.progress, $style.fillWarningBox, C.Workforces.daysWarning]"
+          :data-tooltip="storageAlarm.reason"
+          data-tooltip-position="top">
+          <span :class="$style.statusNum">{{ fillDaysText }}</span>
+        </div>
+      </div>
     </td>
     <td v-if="showWar" :class="$style.invCell">
       <InvBar
@@ -256,5 +279,20 @@ const warehouseStore = computed(() =>
 .invCell {
   min-width: 60px;
   padding: 2px;
+}
+
+.invCellContent {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.fillWarningBox {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  height: 13px;
+  padding: 0 1px;
 }
 </style>

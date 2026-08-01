@@ -1,4 +1,10 @@
-import { computeNeed, getPlanetBurn, getResupplyDays } from '@src/core/burn';
+import {
+  computeNeed,
+  getInboundShipStores,
+  getMinDaysLeft,
+  getPlanetBurn,
+  getResupplyDays,
+} from '@src/core/burn';
 import { storagesStore } from '@src/infrastructure/prun-api/data/storage';
 import { sitesStore } from '@src/infrastructure/prun-api/data/sites';
 import { materialsStore } from '@src/infrastructure/prun-api/data/materials';
@@ -231,6 +237,79 @@ export function getBaseStorageAnalysis(siteOrId?: PrunApi.Site | string | null) 
     return undefined;
   }
   return analysisBySiteId.value?.get(site.siteId)?.value;
+}
+
+export type StorageAlarmLevel = 'red' | 'yellow' | 'none';
+
+export interface StorageAlarm {
+  level: StorageAlarmLevel;
+  // Short human-readable explanation, set for 'red'/'yellow' only.
+  reason?: string;
+  // Raw days until full, set for 'yellow' only.
+  days?: number;
+}
+
+// Item sizes make exact 100% fill rare and overflow impossible — treat anything
+// past this as full.
+const STORAGE_FULL_THRESHOLD = 0.99;
+
+// Yellow only fires this close to actually filling up — otherwise every
+// slowly-filling base would flag days out, well before it's actionable.
+const YELLOW_DAYS_THRESHOLD = 2.9;
+
+function formatDaysShort(days: number) {
+  return days >= 500 ? '∞' : `${Math.floor(days)}d`;
+}
+
+// Alarm for XIT BS's Inv column: red once storage is (near-)full, yellow once
+// it's within YELLOW_DAYS_THRESHOLD days of filling AND on track to do so
+// before the base's next expected resupply (the point its most urgent
+// consumable burn hits 1 day left). A ship inbound to the base counts its
+// full cargo capacity as extra storage room, since it will carry
+// away produced goods once it arrives — this both prevents and clears the alarm
+// once a ship has been dispatched.
+export function getStorageAlarmLevel(
+  siteOrId?: PrunApi.Site | string | null,
+): StorageAlarm | undefined {
+  const analysis = getBaseStorageAnalysis(siteOrId);
+  if (!analysis) {
+    return undefined;
+  }
+
+  const inboundShips = getInboundShipStores(analysis.naturalId);
+  const shipWeightCapacity = sumBy(inboundShips, s => s.weightCapacity);
+  const shipVolumeCapacity = sumBy(inboundShips, s => s.volumeCapacity);
+
+  const adjustedWeightCapacity = analysis.weightCapacity + shipWeightCapacity;
+  const adjustedVolumeCapacity = analysis.volumeCapacity + shipVolumeCapacity;
+
+  const fillWeight = adjustedWeightCapacity > 0 ? analysis.weightLoad / adjustedWeightCapacity : 0;
+  const fillVolume = adjustedVolumeCapacity > 0 ? analysis.volumeLoad / adjustedVolumeCapacity : 0;
+  if (fillWeight >= STORAGE_FULL_THRESHOLD || fillVolume >= STORAGE_FULL_THRESHOLD) {
+    const binding = fillWeight >= fillVolume ? 'weight' : 'volume';
+    return { level: 'red', reason: `Storage full (${binding})` };
+  }
+
+  const availableWeight = Math.max(adjustedWeightCapacity - analysis.weightLoad, 0);
+  const availableVolume = Math.max(adjustedVolumeCapacity - analysis.volumeLoad, 0);
+  const netWeight = analysis.exportWeight - analysis.importWeight;
+  const netVolume = analysis.exportVolume - analysis.importVolume;
+  const daysW = netWeight > 0 ? availableWeight / netWeight : Infinity;
+  const daysV = netVolume > 0 ? availableVolume / netVolume : Infinity;
+  const daysUntilFull = Math.min(daysW, daysV);
+
+  const planetBurn = getPlanetBurn(analysis.siteId);
+  const burnDays = planetBurn ? getMinDaysLeft(planetBurn.burn) : 1000;
+  const nextResupplyDays = burnDays >= 1000 ? Infinity : Math.max(burnDays - 1, 0);
+
+  if (daysUntilFull <= YELLOW_DAYS_THRESHOLD && daysUntilFull < nextResupplyDays) {
+    return {
+      level: 'yellow',
+      reason: `Fills in ${formatDaysShort(daysUntilFull)}, before next resupply (${formatDaysShort(nextResupplyDays)})`,
+      days: daysUntilFull,
+    };
+  }
+  return { level: 'none' };
 }
 
 // Returns a synthetic Store representing the base's STORE after a full resupply

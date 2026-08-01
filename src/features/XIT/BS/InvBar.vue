@@ -5,11 +5,14 @@ import { materialCategoriesStore } from '@src/infrastructure/prun-api/data/mater
 import { fixed02 } from '@src/utils/format';
 import { showBuffer } from '@src/infrastructure/prun-ui/buffers';
 import { getInboundShipStores } from '@src/core/burn';
+import { StorageAlarmLevel } from '@src/core/storage-analysis';
 
 const props = defineProps<{
   storeId: string;
   onClickCmd: string;
   naturalId?: string;
+  alarmLevel?: StorageAlarmLevel;
+  alarmReason?: string;
 }>();
 
 const $style = useCssModule();
@@ -211,13 +214,20 @@ const stripeWidth = computed(() => {
   const normalized = (ratio - 0.7) / 0.3;
   return `${startWidth - (startWidth - smallWidth) * normalized}px`;
 });
+
+const alarmClass = computed(() => ({
+  [$style.isAlarmRed]: props.alarmLevel === 'red',
+}));
 </script>
 
 <template>
   <div
     :class="[C.ProgressBar.progress, $style.container, { [$style.isUpdating]: isAnimating }]"
     :style="{ '--stripe-color': stripeAlertColor, '--stripe-width': stripeWidth }"
+    :data-tooltip="alarmReason"
+    :data-tooltip-position="alarmReason ? 'top' : undefined"
     @click="showBuffer(onClickCmd)">
+    <div v-if="alarmLevel === 'red'" :class="[$style.alarmOverlay, alarmClass]" />
     <div :class="[$style.bar, miniBarClass]">
       <div
         v-for="segment in invBar.segments"
@@ -230,8 +240,14 @@ const stripeWidth = computed(() => {
 </template>
 
 <style module>
+/* padding: 0 cancels the game's [data-tooltip] rule (`padding: 0 4px 0`),
+   which kicks in as soon as an alarm supplies a tooltip. It would inset the
+   bar 4px on each side, so the striped background showed at both ends and
+   the segments no longer read as left-aligned. */
 .container {
+  position: relative;
   margin: 0;
+  padding: 0;
   cursor: pointer;
   display: flex;
   min-width: 30px;
@@ -271,6 +287,39 @@ const stripeWidth = computed(() => {
   width: 100%;
   height: 100%;
   display: flex;
+}
+
+/* A dedicated sibling of .bar rather than a ::after pseudo-element on
+   .container: .container also carries data-tooltip for the alarm reason,
+   and the game's own [data-tooltip]::after rule (used for the tooltip
+   arrow) collides at equal specificity and wins, zeroing this out if it's
+   a pseudo-element on the same node. A real element sidesteps that.
+   It's a sibling of .bar (not nested inside it) so it spans .container's
+   full padding-box — .bar itself is inset by .container's own
+   padding/border (from the game's C.ProgressBar.progress class), which
+   would otherwise leave a sliver of .container's background visible at
+   each end. */
+.alarmOverlay {
+  position: absolute;
+  pointer-events: none;
+  z-index: 2;
+}
+
+/* Red alarm: black/red hazard-tape stripes with a black outline, across
+   the whole bar. Storage is at (or projected past) capacity. The black
+   stripes are fully transparent and the red stripes are 20% translucent,
+   so the bar underneath always shows through. */
+.isAlarmRed {
+  inset: 0;
+  background-image: repeating-linear-gradient(
+    45deg,
+    transparent 0,
+    transparent 6px,
+    rgba(217, 83, 79, 0.8) 6px,
+    rgba(217, 83, 79, 0.8) 12px
+  );
+  outline: 2px solid #000;
+  outline-offset: -2px;
 }
 
 .miniBar {
