@@ -398,7 +398,32 @@ sitesStore.fetched.value  // boolean
 Map getters are keyed by API values, which don't always match what the game UI shows:
 
 - `materialsStore.getByName` is keyed by the API's camelCase internal name (`basicRations`). UI text holds the i18n **display** name ("Basic Rations") — resolve that with `getMaterialByName` from `@src/infrastructure/prun-ui/i18n` instead (reverse direction: `getMaterialName`).
-- `stationsStore.getByNaturalId` is keyed by the station's **own** natural id (`MOR`), but game address fields canonicalize stations to their **system** id (`OT-580`). To resolve a system id to its station, search `stationsStore.all.value` by `getSystemLineFromAddress(x.address)?.entity.naturalId`.
+- `stationsStore.getByNaturalId` is keyed by the station's **own** natural id (`MOR`), but game address fields canonicalize stations to their **system** id (`OT-580`). To resolve a system id to its station, search `stationsStore.all.value` by `getSystemLineFromAddress(x.address)?.entity.naturalId` (exported as `findStationBySystemId` from `@src/infrastructure/prun-ui/utils/select-address`).
+- `ship.address` is `null` while the ship is in flight. Docked, `getEntityNaturalIdFromAddress(ship.address)` gives the station's **own** natural id (`ANT`) — not the system id — so it compares directly against `stationsStore.getByNaturalId` keys.
+
+---
+
+## Filling an AddressSelector
+
+`selectAddress(container, locationName)` from `@src/infrastructure/prun-ui/utils/select-address`
+fills any game address field (`C.AddressSelector.container`): it translates a station/system
+id to the station name, types it, waits for the suggestion list, and clicks the entry.
+
+```ts
+subscribe($$(tile.anchor, C.AddressSelector.container), container => {
+  // "ANT", "OT-580b", "Moria Station" — all resolve.
+  button.onclick = () => selectAddress(container, 'ANT');
+});
+```
+
+Don't hand-roll this. Suggestions render in `#autosuggest-portal` **outside** the tile DOM,
+the first list shown is a stale default (own bases, warehouses, CX stations) that arrives
+before the typed query's server round-trip, and bare station ids never appear as suggestion
+text — every one of those is a trap the helper already handles. Typing fires a read-only
+`NOMENCLATURE_QUERY_ADDRESSES` lookup, so the call must stay behind a user click.
+
+> ACT's `action-steps/cont-utils.ts` still carries its own weaker `selectLocation`. Migrate
+> it if you touch those code paths.
 
 ---
 
