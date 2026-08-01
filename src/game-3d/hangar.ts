@@ -16,6 +16,11 @@ const HANGAR_DISPLAY_HEIGHT = 0.8;
 const HULL_COLOR = 0x718096;
 const BRIDGE_COLOR = 0x4a5568;
 
+function spaceMaterial<T extends THREE.Material>(material: T): T {
+  (material as T & { fog: boolean }).fog = false;
+  return material;
+}
+
 /** Hull + bridge placeholder mesh; length drives overall scale. */
 export function buildShipMesh(
   length: number,
@@ -27,8 +32,18 @@ export function buildShipMesh(
 
   const shipGroup = new THREE.Group();
 
-  const hull = new THREE.Mesh(new THREE.BoxGeometry(width, height, length), hullMaterial);
+  const hull = new THREE.Mesh(new THREE.BoxGeometry(width, height, length * 0.74), hullMaterial);
+  hull.position.z = -length * 0.06;
   shipGroup.add(hull);
+
+  const nose = new THREE.Mesh(
+    new THREE.ConeGeometry(width * 0.52, length * 0.26, 4, 1),
+    hullMaterial,
+  );
+  nose.rotation.y = Math.PI / 4;
+  nose.rotation.x = Math.PI / 2;
+  nose.position.z = -length * 0.5;
+  shipGroup.add(nose);
 
   const bridgeH = height * 0.6;
   const bridge = new THREE.Mesh(
@@ -37,6 +52,54 @@ export function buildShipMesh(
   );
   bridge.position.set(0, height * 0.5 + bridgeH / 2, length * 0.25);
   shipGroup.add(bridge);
+
+  const wingGeometry = new THREE.BoxGeometry(width * 1.45, height * 0.16, length * 0.24);
+  const wingLeft = new THREE.Mesh(wingGeometry, hullMaterial);
+  wingLeft.position.set(-width * 0.58, -height * 0.08, length * 0.04);
+  wingLeft.rotation.z = -0.18;
+  shipGroup.add(wingLeft);
+
+  const wingRight = wingLeft.clone();
+  wingRight.position.x *= -1;
+  wingRight.rotation.z *= -1;
+  shipGroup.add(wingRight);
+
+  const engineMaterial = spaceMaterial(
+    new THREE.MeshBasicMaterial({
+      color: 0xb8fbff,
+      transparent: true,
+      opacity: 0.96,
+    }),
+  );
+  const engineGeometry = new THREE.CylinderGeometry(width * 0.09, width * 0.12, length * 0.08, 10);
+  for (const x of [-width * 0.24, width * 0.24]) {
+    const engine = new THREE.Mesh(engineGeometry, engineMaterial);
+    engine.rotation.x = Math.PI / 2;
+    engine.position.set(x, -height * 0.04, length * 0.37);
+    shipGroup.add(engine);
+  }
+
+  const runningLightMaterial = spaceMaterial(
+    new THREE.MeshBasicMaterial({
+      color: 0x63e8ff,
+      transparent: true,
+      opacity: 0.9,
+    }),
+  );
+  const runningLightGeometry = new THREE.BoxGeometry(width * 0.06, height * 0.08, length * 0.46);
+  for (const x of [-width * 0.47, width * 0.47]) {
+    const runningLight = new THREE.Mesh(runningLightGeometry, runningLightMaterial);
+    runningLight.position.set(x, height * 0.16, -length * 0.08);
+    shipGroup.add(runningLight);
+  }
+
+  const finGeometry = new THREE.BoxGeometry(width * 0.08, height * 0.7, length * 0.16);
+  for (const x of [-width * 0.34, width * 0.34]) {
+    const fin = new THREE.Mesh(finGeometry, bridgeMaterial);
+    fin.position.set(x, height * 0.22, length * 0.36);
+    fin.rotation.z = x < 0 ? -0.18 : 0.18;
+    shipGroup.add(fin);
+  }
 
   return shipGroup;
 }
@@ -76,16 +139,20 @@ export function buildHangar(): THREE.Group {
   }
   const capRange = maxCap - minCap;
 
-  const hullMaterial = new THREE.MeshStandardMaterial({
-    color: HULL_COLOR,
-    roughness: 0.75,
-    metalness: 0.15,
-  });
-  const bridgeMaterial = new THREE.MeshStandardMaterial({
-    color: BRIDGE_COLOR,
-    roughness: 0.8,
-    metalness: 0.1,
-  });
+  const hullMaterial = spaceMaterial(
+    new THREE.MeshStandardMaterial({
+      color: HULL_COLOR,
+      roughness: 0.75,
+      metalness: 0.15,
+    }),
+  );
+  const bridgeMaterial = spaceMaterial(
+    new THREE.MeshStandardMaterial({
+      color: BRIDGE_COLOR,
+      roughness: 0.8,
+      metalness: 0.1,
+    }),
+  );
 
   type ShipLayout = {
     mesh: THREE.Group;

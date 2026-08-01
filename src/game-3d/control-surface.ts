@@ -33,9 +33,28 @@ export function createControlSurfaceSlot(
   borderColor?: string,
 ): ControlSurfaceSlot {
   const { root, targetDiv, object } = createPanelShell(widthPx, heightPx, heightPx, borderColor);
+  Object.assign(root.style, {
+    padding: '10px 12px',
+    background:
+      'linear-gradient(160deg, rgba(7, 13, 20, 0.88), rgba(18, 31, 43, 0.72) 55%, rgba(4, 9, 14, 0.9))',
+    border: `3px solid ${borderColor}`,
+    borderRadius: '4px',
+    boxShadow: `inset 0 0 18px rgba(0, 0, 0, 0.6), 0 0 16px color-mix(in srgb, ${borderColor} 34%, transparent)`,
+  });
 
   const placeholder = document.createElement('div');
   placeholder.textContent = 'No action running';
+  Object.assign(placeholder.style, {
+    alignItems: 'center',
+    color: 'rgba(226, 232, 240, 0.7)',
+    display: 'flex',
+    fontFamily: 'monospace',
+    fontSize: '12px',
+    height: '100%',
+    justifyContent: 'center',
+    letterSpacing: '0',
+    textTransform: 'uppercase',
+  });
   targetDiv.append(placeholder);
 
   const disposeIframe = attachIframeRepaintWorkaround(root, targetDiv);

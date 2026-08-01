@@ -4,11 +4,12 @@
 // launches and closes its own throwaway browser each call. See
 // docs/browser-testing-3d.md ("Visual-iteration sandbox").
 //
-// Usage: node scripts/pw-sandbox-screenshot.mjs <preset> <output-path> [port]
+// Usage: node scripts/pw-sandbox-screenshot.mjs <preset> <output-path> [port] [res]
 //   preset: overview | console | hologram | pit | ramp | underside  (must match main.ts's PRESETS keys)
 //   port: defaults to 5183. Pass a different port when running against a
 //   `dev:3d-sandbox -- --port <n>` instance (e.g. one isolated builder among several
 //   running concurrently in separate worktrees).
+//   res: optional. Pass `hi` or `2x` for a 1920x1200 viewport; default remains 1280x800.
 //
 // Auto-detects real GPU vs forced CPU/SwiftShader rendering by checking whether
 // /dev/dxg (WSL2's GPU passthrough device) is visible — hidden by the mount namespace
@@ -34,12 +35,17 @@ const PRESETS = [
   'underside',
 ];
 
-const [preset, outputPath, port = '5183'] = process.argv.slice(2);
+const [preset, outputPath, port = '5183', res] = process.argv.slice(2);
 const SANDBOX_URL = `http://127.0.0.1:${port}/`;
+const viewport =
+  res === 'hi' || res === '2x'
+    ? { width: 1920, height: 1200 }
+    : { width: 1280, height: 800 };
 
 if (preset === undefined || outputPath === undefined || !PRESETS.includes(preset)) {
-  console.error('Usage: node scripts/pw-sandbox-screenshot.mjs <preset> <output-path>');
+  console.error('Usage: node scripts/pw-sandbox-screenshot.mjs <preset> <output-path> [port] [res]');
   console.error(`  preset: one of ${PRESETS.join(', ')}`);
+  console.error('  res: optional hi|2x for 1920x1200 (default 1280x800)');
   process.exit(1);
 }
 
@@ -53,13 +59,20 @@ async function launchAndCapture(useGpu) {
       : ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'],
   });
   try {
-    const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
+    const page = await browser.newPage({ viewport });
     const url = `${SANDBOX_URL}?cam=${preset}`;
-    const response = await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 15000 });
+    // 90s: cold scene construction (room+consoles+hologram+viewscreen, built regardless
+    // of which camera preset is requested) kept growing round over round during the AAA
+    // visual-redesign pass — 29-35s at round 2, exceeding even a 45s budget by round 8 —
+    // as each piece's builder adds more geometry every round. This is a real, worsening
+    // perf regression (real players pay this same cost toggling into 3D mode), not just
+    // a tooling timeout to keep bumping forever; flagged to the pieces' own briefs to
+    // budget geometry complexity, not just re-bumped indefinitely here.
+    const response = await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 90000 });
     if (response === null || !response.ok()) {
       throw new Error(`Could not load ${url}. Is 'pnpm run dev:3d-sandbox' running?`);
     }
-    await page.waitForFunction(() => window.__rpSandboxReady === true, { timeout: 15000 });
+    await page.waitForFunction(() => window.__rpSandboxReady === true, { timeout: 90000 });
     // Dev-only camera-preset switcher bar — not part of any reviewed piece, would
     // otherwise bleed into HUD-overlay critic rounds as if it were real game UI.
     await page.evaluate(() => document.getElementById('sandbox-preset-bar')?.remove());

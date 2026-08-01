@@ -36,6 +36,7 @@ const FRAME_DEPTH = 0.15;
 
 /** Canvas size for all generated surface textures. */
 const TEX_SIZE = 2048;
+const LARGE_PANEL_WORLD_SIZE = 3.0;
 
 /** Sparse status-LED accent colors (amber/green/red), scattered onto wall panels. */
 const LED_COLORS: Array<[number, number, number]> = [
@@ -87,6 +88,14 @@ interface ServiceStrip {
   height: number;
 }
 
+interface OilStreak {
+  x: number;
+  y: number;
+  length: number;
+  width: number;
+  vertical: boolean;
+}
+
 interface InteriorBolt {
   x: number;
   y: number;
@@ -126,6 +135,8 @@ interface SurfaceOptions {
   ledCount?: number;
   /** Small recessed maintenance grooves scattered across the surface. */
   serviceStripCount?: number;
+  /** Long soft soot/oil trails, mostly along seams and panel edges. */
+  streakCount?: number;
 }
 
 interface SurfaceTextureSet {
@@ -133,6 +144,8 @@ interface SurfaceTextureSet {
   normalMap: THREE.CanvasTexture;
   roughnessMap: THREE.CanvasTexture;
   emissiveMap?: THREE.CanvasTexture;
+  cols: number;
+  rows: number;
 }
 
 /**
@@ -209,6 +222,19 @@ function createSurfaceTextureSet(opts: SurfaceOptions): SurfaceTextureSet {
             y: row * cellH - 2,
             width: cellW * 1.5,
             height: 4,
+          };
+        })
+      : [];
+  const oilStreaks: OilStreak[] =
+    opts.streakCount !== undefined && opts.streakCount > 0
+      ? Array.from({ length: opts.streakCount }, () => {
+          const vertical = rng() < 0.65;
+          return {
+            x: Math.round((rng() * TEX_SIZE) / cellW) * cellW + (rng() - 0.5) * cellW * 0.2,
+            y: Math.round((rng() * TEX_SIZE) / cellH) * cellH + (rng() - 0.5) * cellH * 0.2,
+            length: 70 + rng() * 210,
+            width: 10 + rng() * 22,
+            vertical,
           };
         })
       : [];
@@ -370,6 +396,35 @@ function createSurfaceTextureSet(opts: SurfaceOptions): SurfaceTextureSet {
     }
   };
 
+  const drawColorStreaks = (ctx: CanvasRenderingContext2D) => {
+    for (const streak of oilStreaks) {
+      const radiusX = streak.vertical ? streak.width : streak.length;
+      const radiusY = streak.vertical ? streak.length : streak.width;
+      const radius = Math.max(radiusX, radiusY);
+      const grad = ctx.createRadialGradient(streak.x, streak.y, 0, streak.x, streak.y, radius);
+      grad.addColorStop(0, 'rgba(2,5,7,0.18)');
+      grad.addColorStop(0.36, 'rgba(2,5,7,0.08)');
+      grad.addColorStop(1, 'rgba(2,5,7,0)');
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      ctx.ellipse(streak.x, streak.y, radiusX, radiusY, 0, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  };
+
+  const drawLowFrequencyMottle = (ctx: CanvasRenderingContext2D) => {
+    for (let i = 0; i < 900; i++) {
+      const light = rng() < 0.42;
+      const alpha = 0.018 + rng() * 0.04;
+      const w = 6 + rng() * 34;
+      const h = 3 + rng() * 26;
+      ctx.fillStyle = light
+        ? `rgba(190,205,215,${alpha.toFixed(3)})`
+        : `rgba(0,0,0,${alpha.toFixed(3)})`;
+      ctx.fillRect(rng() * TEX_SIZE, rng() * TEX_SIZE, w, h);
+    }
+  };
+
   const drawHeightInteriorDetails = (ctx: CanvasRenderingContext2D) => {
     for (const hatch of maintenanceHatches) {
       ctx.strokeStyle = 'rgba(0,0,0,0.32)';
@@ -456,6 +511,7 @@ function createSurfaceTextureSet(opts: SurfaceOptions): SurfaceTextureSet {
   }
   drawGrid(ctx, 'rgba(10,14,18,0.7)', 'rgba(6,8,10,0.9)');
   drawColorServiceStrips(ctx);
+  drawLowFrequencyMottle(ctx);
 
   if (opts.rivets) {
     for (let r = 1; r < rows; r++) {
@@ -486,6 +542,7 @@ function createSurfaceTextureSet(opts: SurfaceOptions): SurfaceTextureSet {
     ctx.arc(g.x, g.y, g.r, 0, Math.PI * 2);
     ctx.fill();
   }
+  drawColorStreaks(ctx);
 
   ctx.lineWidth = 1;
   for (const s of scratches) {
@@ -689,7 +746,7 @@ function createSurfaceTextureSet(opts: SurfaceOptions): SurfaceTextureSet {
     emissiveMap.colorSpace = THREE.SRGBColorSpace;
   }
 
-  return { map, normalMap, roughnessMap, emissiveMap };
+  return { map, normalMap, roughnessMap, emissiveMap, cols, rows };
 }
 
 function setRepeat(tex: SurfaceTextureSet, x: number, y: number) {
@@ -699,12 +756,27 @@ function setRepeat(tex: SurfaceTextureSet, x: number, y: number) {
   tex.emissiveMap?.repeat.set(x, y);
 }
 
+function setPanelScaleRepeat(
+  tex: SurfaceTextureSet,
+  horizontalSpan: number,
+  verticalSpan: number,
+  panelWorldSize = LARGE_PANEL_WORLD_SIZE,
+) {
+  setRepeat(
+    tex,
+    horizontalSpan / (tex.cols * panelWorldSize),
+    verticalSpan / (tex.rows * panelWorldSize),
+  );
+}
+
 function cloneTextureSet(tex: SurfaceTextureSet): SurfaceTextureSet {
   return {
     map: tex.map.clone(),
     normalMap: tex.normalMap.clone(),
     roughnessMap: tex.roughnessMap.clone(),
     emissiveMap: tex.emissiveMap?.clone(),
+    cols: tex.cols,
+    rows: tex.rows,
   };
 }
 
@@ -715,13 +787,63 @@ function createRepeatedMaterial(
   verticalSpan: number,
 ): THREE.MeshStandardMaterial {
   const tex = cloneTextureSet(source);
-  setRepeat(tex, horizontalSpan / 2, verticalSpan / 2);
+  setPanelScaleRepeat(tex, horizontalSpan, verticalSpan);
   const mat = base.clone();
   mat.map = tex.map;
   mat.normalMap = tex.normalMap;
   mat.roughnessMap = tex.roughnessMap;
   mat.emissiveMap = tex.emissiveMap ?? null;
   return mat;
+}
+
+function createRadialShadowMaterial(opacity: number): THREE.MeshBasicMaterial {
+  const canvas = document.createElement('canvas');
+  canvas.width = 256;
+  canvas.height = 256;
+  const ctx = canvas.getContext('2d')!;
+  const grad = ctx.createRadialGradient(128, 128, 0, 128, 128, 128);
+  grad.addColorStop(0, `rgba(0,0,0,${opacity.toFixed(3)})`);
+  grad.addColorStop(0.42, `rgba(0,0,0,${(opacity * 0.55).toFixed(3)})`);
+  grad.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  return new THREE.MeshBasicMaterial({
+    map: texture,
+    transparent: true,
+    depthWrite: false,
+    side: THREE.DoubleSide,
+  });
+}
+
+function createRadialGlowMaterial(
+  color: [number, number, number],
+  opacity: number,
+): THREE.MeshBasicMaterial {
+  const canvas = document.createElement('canvas');
+  canvas.width = 256;
+  canvas.height = 256;
+  const ctx = canvas.getContext('2d')!;
+  const [r, g, b] = color;
+  const grad = ctx.createRadialGradient(128, 128, 0, 128, 128, 128);
+  grad.addColorStop(0, `rgba(${r},${g},${b},1)`);
+  grad.addColorStop(0.38, `rgba(${r},${g},${b},${(opacity * 0.42).toFixed(3)})`);
+  grad.addColorStop(1, `rgba(${r},${g},${b},0)`);
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  return new THREE.MeshBasicMaterial({
+    map: texture,
+    transparent: true,
+    opacity,
+    depthWrite: false,
+    blending: THREE.AdditiveBlending,
+    side: THREE.DoubleSide,
+  });
 }
 
 export function getFloorHeightAt(x: number, z: number): number {
@@ -749,6 +871,36 @@ function addFloorPlate(
   plate.rotation.x = -Math.PI / 2;
   plate.position.set(x, y, z);
   group.add(plate);
+}
+
+function addFloorContactShadow(
+  group: THREE.Group,
+  material: THREE.Material,
+  width: number,
+  depth: number,
+  x: number,
+  z: number,
+  y = 0.018,
+) {
+  const shadow = new THREE.Mesh(new THREE.PlaneGeometry(width, depth), material);
+  shadow.rotation.x = -Math.PI / 2;
+  shadow.position.set(x, y, z);
+  group.add(shadow);
+}
+
+function addFloorSeamLine(
+  group: THREE.Group,
+  material: THREE.Material,
+  width: number,
+  depth: number,
+  x: number,
+  z: number,
+  y: number,
+) {
+  const seam = new THREE.Mesh(new THREE.PlaneGeometry(width, depth), material);
+  seam.rotation.x = -Math.PI / 2;
+  seam.position.set(x, y, z);
+  group.add(seam);
 }
 
 function addRamp(
@@ -814,6 +966,10 @@ function addRetainingWall(
 function addRailSegment(
   group: THREE.Group,
   material: THREE.Material,
+  bevelMaterial: THREE.Material,
+  scuffMaterial: THREE.Material,
+  contactMaterial: THREE.Material,
+  radialContactMaterial: THREE.Material,
   length: number,
   x: number,
   z: number,
@@ -832,6 +988,31 @@ function addRailSegment(
   rail.rotation.y = rotationY;
   group.add(rail);
 
+  const scuffGeometry = new THREE.BoxGeometry(0.34, 0.012, 0.026);
+  for (let i = 0; i < Math.max(3, Math.floor(length / 1.35)); i++) {
+    const t = (i + 0.34 + ((i * 37) % 19) / 70) / Math.max(3, Math.floor(length / 1.35));
+    const offset = (t - 0.5) * length;
+    const edgeOffset = i % 2 === 0 ? -railThickness * 0.54 : railThickness * 0.54;
+    const localX = Math.cos(rotationY) * offset + Math.sin(rotationY) * edgeOffset;
+    const localZ = -Math.sin(rotationY) * offset + Math.cos(rotationY) * edgeOffset;
+    const scuff = new THREE.Mesh(scuffGeometry, scuffMaterial);
+    scuff.position.set(x + localX, railHeight + railThickness / 2 + 0.007, z + localZ);
+    scuff.rotation.y = rotationY + ((i % 3) - 1) * 0.05;
+    group.add(scuff);
+  }
+
+  const railBevelGeometry = new THREE.BoxGeometry(length, 0.04, 0.04);
+  for (const zOffset of [-railThickness / 2, railThickness / 2]) {
+    const bevel = new THREE.Mesh(railBevelGeometry, bevelMaterial);
+    bevel.position.set(
+      x + Math.sin(rotationY) * zOffset,
+      railHeight + railThickness / 2 - 0.012,
+      z + Math.cos(rotationY) * zOffset,
+    );
+    bevel.rotation.set(Math.PI / 4, rotationY, 0);
+    group.add(bevel);
+  }
+
   for (let i = 0; i < postCount; i++) {
     const t = postCount === 1 ? 0.5 : i / (postCount - 1);
     const offset = (t - 0.5) * length;
@@ -840,6 +1021,26 @@ function addRailSegment(
     const post = new THREE.Mesh(new THREE.BoxGeometry(postSize, postHeight, postSize), material);
     post.position.set(x + localX, postHeight / 2, z + localZ);
     group.add(post);
+
+    const foot = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.014, 0.18), contactMaterial);
+    foot.position.set(x + localX, 0.012, z + localZ);
+    group.add(foot);
+    addFloorContactShadow(group, radialContactMaterial, 0.52, 0.44, x + localX, z + localZ, 0.019);
+
+    const postBevel = new THREE.Mesh(
+      new THREE.BoxGeometry(0.032, postHeight, 0.032),
+      bevelMaterial,
+    );
+    postBevel.position.set(x + localX, postHeight / 2, z + localZ);
+    postBevel.rotation.y = Math.PI / 4;
+    group.add(postBevel);
+
+    if (i % 2 === 0) {
+      const postScuff = new THREE.Mesh(new THREE.BoxGeometry(0.026, 0.18, 0.018), scuffMaterial);
+      postScuff.position.set(x + localX + 0.026, postHeight * 0.74, z + localZ + 0.026);
+      postScuff.rotation.y = Math.PI / 4;
+      group.add(postScuff);
+    }
   }
 }
 
@@ -848,55 +1049,162 @@ export function buildRoom(): THREE.Group {
   const group = new THREE.Group();
   const size = ROOM_HALF * 2;
 
-  // Wall: steel-blue panels, warm amber conduit band + sparse status LEDs (painted +
-  // emissive so it reads as a lit power/data run threaded along the upper wall).
+  // Wall zones: light painted panels, dark semi-gloss structure, and cyan service signage.
   const wallTex = createSurfaceTextureSet({
     seed: 1,
-    cols: 8,
-    rows: 8,
-    baseColor: [78, 91, 105],
-    jitter: 0.3,
-    grimeCount: 9,
-    scratchCount: 12,
+    cols: 6,
+    rows: 2,
+    baseColor: [105, 125, 138],
+    jitter: 0.34,
+    grimeCount: 24,
+    scratchCount: 24,
     rivets: true,
     accentRowFrac: 0.8,
-    accentColor: [232, 168, 96],
-    ledCount: 5,
-    serviceStripCount: 3,
+    accentColor: [196, 130, 78],
+    ledCount: 7,
+    serviceStripCount: 5,
+    streakCount: 8,
   });
-  setRepeat(wallTex, size / 3.2, ROOM_HEIGHT / 2);
+  setPanelScaleRepeat(wallTex, size, ROOM_HEIGHT);
 
-  // Floor: darker, denser plating with heavier grime/scratch wear (foot traffic) and no
-  // painted accent — a tiling stripe would read as a repeating artifact on a walkable
-  // plane, so floor accent color instead comes from the baseboard trim strip below.
+  const wallStructureTex = createSurfaceTextureSet({
+    seed: 11,
+    cols: 4,
+    rows: 8,
+    baseColor: [9, 13, 18],
+    jitter: 0.18,
+    grimeCount: 18,
+    scratchCount: 18,
+    rivets: true,
+    serviceStripCount: 9,
+    streakCount: 14,
+  });
+  setPanelScaleRepeat(wallStructureTex, size, ROOM_HEIGHT, 2.4);
+
+  const wallSignageTex = createSurfaceTextureSet({
+    seed: 12,
+    cols: 3,
+    rows: 2,
+    baseColor: [18, 50, 60],
+    jitter: 0.16,
+    grimeCount: 4,
+    scratchCount: 6,
+    rivets: false,
+    accentRowFrac: 0.5,
+    accentColor: [58, 216, 224],
+    ledCount: 12,
+    serviceStripCount: 1,
+    streakCount: 2,
+  });
+  setRepeat(wallSignageTex, 0.9, 0.8);
+
+  // Floor zones: worn outer plates, darker pit plates, and smoother glossy insets.
   const floorTex = createSurfaceTextureSet({
     seed: 2,
-    cols: 10,
-    rows: 10,
-    baseColor: [36, 44, 54],
-    jitter: 0.36,
+    cols: 6,
+    rows: 6,
+    baseColor: [38, 43, 42],
+    jitter: 0.74,
+    grimeCount: 68,
+    scratchCount: 96,
+    rivets: true,
+    serviceStripCount: 12,
+    streakCount: 46,
+  });
+  setPanelScaleRepeat(floorTex, size, size);
+
+  const pitFloorTex = createSurfaceTextureSet({
+    seed: 21,
+    cols: 4,
+    rows: 4,
+    baseColor: [8, 10, 13],
+    jitter: 0.34,
+    grimeCount: 36,
+    scratchCount: 34,
+    rivets: true,
+    serviceStripCount: 7,
+    streakCount: 18,
+  });
+  setPanelScaleRepeat(pitFloorTex, PIT_HALF * 2, PIT_HALF * 2);
+
+  const floorInsetTex = createSurfaceTextureSet({
+    seed: 22,
+    cols: 4,
+    rows: 2,
+    baseColor: [12, 28, 34],
+    jitter: 0.12,
+    grimeCount: 6,
+    scratchCount: 12,
+    rivets: false,
+    accentRowFrac: 0.5,
+    accentColor: [86, 226, 236],
+    ledCount: 10,
+    serviceStripCount: 1,
+    streakCount: 4,
+  });
+  setRepeat(floorInsetTex, 1.0, 0.7);
+
+  const rampTex = createSurfaceTextureSet({
+    seed: 23,
+    cols: 4,
+    rows: 3,
+    baseColor: [42, 45, 46],
+    jitter: 0.24,
     grimeCount: 24,
     scratchCount: 30,
     rivets: true,
+    serviceStripCount: 6,
+    streakCount: 10,
   });
-  setRepeat(floorTex, size / 3.2, size / 3.2);
+  setPanelScaleRepeat(rampTex, RAMP_WIDTH, RAMP_LENGTH, 1.6);
 
-  // Ceiling: same family, darker and cleaner (less foot traffic wear reaches up here).
+  // Ceiling zones: dark trusses, cleaner inset panels, and lighter fixture wells.
   const ceilingTex = createSurfaceTextureSet({
     seed: 3,
-    cols: 6,
-    rows: 6,
-    baseColor: [26, 33, 42],
-    jitter: 0.1,
-    grimeCount: 4,
-    scratchCount: 5,
+    cols: 4,
+    rows: 4,
+    baseColor: [8, 11, 15],
+    jitter: 0.26,
+    grimeCount: 14,
+    scratchCount: 12,
     rivets: true,
+    serviceStripCount: 5,
+    streakCount: 10,
   });
-  setRepeat(ceilingTex, size / 3, size / 3);
+  setPanelScaleRepeat(ceilingTex, size, size);
+
+  const ceilingStructureTex = createSurfaceTextureSet({
+    seed: 31,
+    cols: 5,
+    rows: 5,
+    baseColor: [4, 6, 9],
+    jitter: 0.18,
+    grimeCount: 18,
+    scratchCount: 12,
+    rivets: true,
+    serviceStripCount: 8,
+    streakCount: 8,
+  });
+  setPanelScaleRepeat(ceilingStructureTex, size, size, 2.4);
+
+  const ceilingWellTex = createSurfaceTextureSet({
+    seed: 32,
+    cols: 4,
+    rows: 4,
+    baseColor: [88, 96, 100],
+    jitter: 0.14,
+    grimeCount: 5,
+    scratchCount: 5,
+    rivets: false,
+    serviceStripCount: 2,
+    streakCount: 2,
+  });
+  setPanelScaleRepeat(ceilingWellTex, PIT_HALF * 2, PIT_HALF * 2);
 
   // Bumped from 0.55 — round-1 renders read as flat grey with no visible surface relief;
   // stronger relief gives the key light's rake something to catch specular/shadow on.
-  const normalScale = new THREE.Vector2(0.75, 0.75);
+  const normalScale = new THREE.Vector2(0.95, 0.95);
+  const floorNormalScale = new THREE.Vector2(1.32, 1.32);
 
   const wallMat = new THREE.MeshStandardMaterial({
     map: wallTex.map,
@@ -904,15 +1212,30 @@ export function buildRoom(): THREE.Group {
     normalScale,
     roughnessMap: wallTex.roughnessMap,
     side: THREE.BackSide,
-    roughness: 0.9,
-    metalness: 0.06,
-    emissive: 0xffffff,
-    emissiveMap: wallTex.emissiveMap,
+    roughness: 0.86,
+    metalness: 0.12,
+    emissive: 0xff9d3a,
+    emissiveMap: null,
     // Round-1 was 1.3 — with the conduit band running the whole wall width that was
     // bright enough to bloom the entire upper wall into haze. Dropped well below 1.0 so
     // it reads as a lit (not overdriven) painted stripe; bloom pass now only catches the
     // sparse LED dots layered on top, which is the intended "small contained highlight".
-    emissiveIntensity: 0.55,
+    emissiveIntensity: 0,
+  });
+  const wallSignageMat = new THREE.MeshStandardMaterial({
+    map: wallSignageTex.map,
+    normalMap: wallSignageTex.normalMap,
+    normalScale,
+    roughnessMap: wallSignageTex.roughnessMap,
+    color: 0xffffff,
+    emissive: 0x55dce8,
+    emissiveMap: wallSignageTex.emissiveMap,
+    emissiveIntensity: 1.75,
+    roughness: 0.14,
+    metalness: 0.02,
+    transparent: true,
+    opacity: 0.96,
+    side: THREE.DoubleSide,
   });
   // -Z face is cut open for the viewscreen; frame segments rebuild the wall around the hole.
   const wallMatOpen = new THREE.MeshStandardMaterial({ visible: false });
@@ -924,8 +1247,8 @@ export function buildRoom(): THREE.Group {
     normalScale,
     roughnessMap: ceilingTex.roughnessMap,
     side: THREE.BackSide,
-    roughness: 0.92,
-    metalness: 0.05,
+    roughness: 0.82,
+    metalness: 0.18,
   });
   // BoxGeometry groups: +X, -X, +Y (ceiling), -Y (floor, covered by plane), +Z, -Z
   const room = new THREE.Mesh(new THREE.BoxGeometry(size, ROOM_HEIGHT, size), [
@@ -955,7 +1278,7 @@ export function buildRoom(): THREE.Group {
   const topHeight = ROOM_HEIGHT - (WINDOW_CENTER_Y + WINDOW_HEIGHT / 2);
   const frameTop = new THREE.Mesh(
     new THREE.BoxGeometry(size, topHeight, FRAME_DEPTH),
-    createRepeatedMaterial(frameBaseMat, wallTex, size, topHeight),
+    createRepeatedMaterial(frameBaseMat, wallStructureTex, size, topHeight),
   );
   frameTop.position.set(0, ROOM_HEIGHT - topHeight / 2, frameZ);
   group.add(frameTop);
@@ -963,7 +1286,7 @@ export function buildRoom(): THREE.Group {
   const bottomHeight = WINDOW_CENTER_Y - WINDOW_HEIGHT / 2;
   const frameBottom = new THREE.Mesh(
     new THREE.BoxGeometry(size, bottomHeight, FRAME_DEPTH),
-    createRepeatedMaterial(frameBaseMat, wallTex, size, bottomHeight),
+    createRepeatedMaterial(frameBaseMat, wallStructureTex, size, bottomHeight),
   );
   frameBottom.position.set(0, bottomHeight / 2, frameZ);
   group.add(frameBottom);
@@ -971,30 +1294,247 @@ export function buildRoom(): THREE.Group {
   const sideWidth = (size - WINDOW_WIDTH) / 2;
   const frameLeft = new THREE.Mesh(
     new THREE.BoxGeometry(sideWidth, WINDOW_HEIGHT, FRAME_DEPTH),
-    createRepeatedMaterial(frameBaseMat, wallTex, sideWidth, WINDOW_HEIGHT),
+    createRepeatedMaterial(frameBaseMat, wallStructureTex, sideWidth, WINDOW_HEIGHT),
   );
   frameLeft.position.set(-(WINDOW_WIDTH / 2 + sideWidth / 2), WINDOW_CENTER_Y, frameZ);
   group.add(frameLeft);
 
   const frameRight = new THREE.Mesh(
     new THREE.BoxGeometry(sideWidth, WINDOW_HEIGHT, FRAME_DEPTH),
-    createRepeatedMaterial(frameBaseMat, wallTex, sideWidth, WINDOW_HEIGHT),
+    createRepeatedMaterial(frameBaseMat, wallStructureTex, sideWidth, WINDOW_HEIGHT),
   );
   frameRight.position.set(WINDOW_WIDTH / 2 + sideWidth / 2, WINDOW_CENTER_Y, frameZ);
   group.add(frameRight);
 
   // Mid-scale structure changes the room cross-section instead of sitting on the wall.
   // Thin trim alone cannot make the shell read as built volume.
-  const structuralFrameMat = createRepeatedMaterial(frameBaseMat, wallTex, size, ROOM_HEIGHT);
+  const structuralFrameMat = createRepeatedMaterial(
+    frameBaseMat,
+    wallStructureTex,
+    size,
+    ROOM_HEIGHT,
+  );
   const beamMat = structuralFrameMat.clone();
-  beamMat.color = new THREE.Color(0x2b343d);
-  const revealMat = new THREE.MeshBasicMaterial({ color: 0x05070a });
+  beamMat.color = new THREE.Color(0x17212a);
+  beamMat.roughness = 0.5;
+  beamMat.metalness = 0.58;
+  const revealMat = new THREE.MeshBasicMaterial({ color: 0x010203 });
   const claddingBaseMat = frameBaseMat.clone();
-  claddingBaseMat.color = new THREE.Color(0x52606b);
+  claddingBaseMat.color = new THREE.Color(0xd2dde4);
   const bulkheadMat = structuralFrameMat.clone();
-  bulkheadMat.color = new THREE.Color(0x1e2831);
+  bulkheadMat.color = new THREE.Color(0x111820);
   const ceilingFaceMat = ceilingMat.clone();
   ceilingFaceMat.side = THREE.FrontSide;
+  const ceilingWellMat = new THREE.MeshStandardMaterial({
+    map: ceilingWellTex.map,
+    normalMap: ceilingWellTex.normalMap,
+    normalScale,
+    roughnessMap: ceilingWellTex.roughnessMap,
+    roughness: 0.68,
+    metalness: 0.16,
+    side: THREE.FrontSide,
+  });
+  const ceilingTrussMat = createRepeatedMaterial(
+    frameBaseMat,
+    ceilingStructureTex,
+    size,
+    ROOM_HEIGHT,
+  );
+  ceilingTrussMat.color = new THREE.Color(0x080b0f);
+  ceilingTrussMat.roughness = 0.46;
+  ceilingTrussMat.metalness = 0.64;
+  const chamferMat = new THREE.MeshStandardMaterial({
+    color: 0x74808a,
+    roughness: 0.34,
+    metalness: 0.76,
+  });
+  const contactShadowMat = new THREE.MeshBasicMaterial({
+    color: 0x010203,
+    transparent: true,
+    opacity: 0.35,
+    depthWrite: false,
+  });
+  const radialContactMat = createRadialShadowMaterial(0.4);
+  const contactSmearMat = new THREE.MeshBasicMaterial({
+    color: 0x010203,
+    transparent: true,
+    opacity: 0.3,
+    depthWrite: false,
+    side: THREE.DoubleSide,
+  });
+  const lowerWallBandMat = createRepeatedMaterial(frameBaseMat, wallStructureTex, size, 0.58);
+  lowerWallBandMat.color = new THREE.Color(0x070b10);
+  lowerWallBandMat.roughness = 0.5;
+  lowerWallBandMat.metalness = 0.64;
+  const midWallTrimMat = new THREE.MeshStandardMaterial({
+    color: 0x3e5863,
+    roughness: 0.62,
+    metalness: 0.18,
+  });
+  const amberWallTrimMat = new THREE.MeshStandardMaterial({
+    color: 0x80634a,
+    roughness: 0.58,
+    metalness: 0.26,
+  });
+  const bracketMat = new THREE.MeshStandardMaterial({
+    color: 0x59646e,
+    roughness: 0.32,
+    metalness: 0.82,
+  });
+  const oiledSteelMat = new THREE.MeshStandardMaterial({
+    color: 0x0a0d10,
+    roughness: 0.22,
+    metalness: 0.88,
+  });
+  const wornAlloyMat = new THREE.MeshStandardMaterial({
+    color: 0x9da8ad,
+    roughness: 0.36,
+    metalness: 0.72,
+  });
+  const brassServiceMat = new THREE.MeshStandardMaterial({
+    color: 0x76624c,
+    roughness: 0.58,
+    metalness: 0.42,
+  });
+  const ceramicLightMat = new THREE.MeshStandardMaterial({
+    color: 0xd8e4e5,
+    roughness: 0.18,
+    metalness: 0.02,
+    emissive: 0xbdfdff,
+    emissiveIntensity: 0.17,
+  });
+  const boltMat = new THREE.MeshStandardMaterial({
+    color: 0x87919b,
+    roughness: 0.24,
+    metalness: 0.9,
+  });
+  const rearTrimMat = new THREE.MeshStandardMaterial({
+    color: 0x21323b,
+    roughness: 0.4,
+    metalness: 0.62,
+  });
+
+  const addShellEdgeBevels = () => {
+    const chamfer = 0.06;
+    const yValues = [chamfer / 2, ROOM_HEIGHT - chamfer / 2];
+    const zEdgeGeometry = new THREE.BoxGeometry(size, chamfer, chamfer);
+    const xEdgeGeometry = new THREE.BoxGeometry(chamfer, chamfer, size);
+    for (const y of yValues) {
+      for (const zSign of [-1, 1]) {
+        const strip = new THREE.Mesh(zEdgeGeometry, chamferMat);
+        strip.position.set(0, y, zSign * (ROOM_HALF - chamfer / 2));
+        strip.rotation.x = (zSign * Math.PI) / 4;
+        group.add(strip);
+      }
+      for (const xSign of [-1, 1]) {
+        const strip = new THREE.Mesh(xEdgeGeometry, chamferMat);
+        strip.position.set(xSign * (ROOM_HALF - chamfer / 2), y, 0);
+        strip.rotation.z = (-xSign * Math.PI) / 4;
+        group.add(strip);
+      }
+    }
+  };
+
+  const addWallContactShadowStrips = () => {
+    const floorContactHeight = 0.03;
+    const floorContactDepth = 0.16;
+    const wallContactHeight = 0.09;
+    const zFloorGeometry = new THREE.BoxGeometry(size, floorContactHeight, floorContactDepth);
+    const xFloorGeometry = new THREE.BoxGeometry(floorContactDepth, floorContactHeight, size);
+    const zWallGeometry = new THREE.BoxGeometry(size, wallContactHeight, 0.012);
+    const xWallGeometry = new THREE.BoxGeometry(0.012, wallContactHeight, size);
+    for (const zSign of [-1, 1]) {
+      const floorShadow = new THREE.Mesh(zFloorGeometry, contactShadowMat);
+      floorShadow.position.set(0, 0.016, zSign * (ROOM_HALF - floorContactDepth / 2));
+      group.add(floorShadow);
+
+      const wallShadow = new THREE.Mesh(zWallGeometry, contactShadowMat);
+      wallShadow.position.set(0, wallContactHeight / 2, zSign * (ROOM_HALF - 0.012));
+      group.add(wallShadow);
+    }
+    for (const xSign of [-1, 1]) {
+      const floorShadow = new THREE.Mesh(xFloorGeometry, contactShadowMat);
+      floorShadow.position.set(xSign * (ROOM_HALF - floorContactDepth / 2), 0.016, 0);
+      group.add(floorShadow);
+
+      const wallShadow = new THREE.Mesh(xWallGeometry, contactShadowMat);
+      wallShadow.position.set(xSign * (ROOM_HALF - 0.012), wallContactHeight / 2, 0);
+      group.add(wallShadow);
+    }
+  };
+
+  const addLowerWallBands = () => {
+    const bandHeight = 0.46;
+    const bandDepth = 0.08;
+    const bandY = 0.28;
+    const bandInset = ROOM_HALF - bandDepth / 2 - 0.035;
+    const zBandGeometry = new THREE.BoxGeometry(size - 0.9, bandHeight, bandDepth);
+    const xBandGeometry = new THREE.BoxGeometry(bandDepth, bandHeight, size - 0.9);
+    for (const zSign of [-1, 1]) {
+      const band = new THREE.Mesh(zBandGeometry, lowerWallBandMat);
+      band.position.set(0, bandY, zSign * bandInset);
+      group.add(band);
+    }
+    for (const xSign of [-1, 1]) {
+      const band = new THREE.Mesh(xBandGeometry, lowerWallBandMat);
+      band.position.set(xSign * bandInset, bandY, 0);
+      group.add(band);
+    }
+  };
+
+  const addWallTrimZones = () => {
+    const midBandHeight = 0.22;
+    const accentHeight = 0.09;
+    const midBandY = 1.34;
+    const accentY = 2.52;
+    const trimInset = ROOM_HALF - 0.485;
+    const zMidGeometry = new THREE.BoxGeometry(size - 1.2, midBandHeight, 0.07);
+    const xMidGeometry = new THREE.BoxGeometry(0.07, midBandHeight, size - 1.2);
+    const zAccentGeometry = new THREE.BoxGeometry(size - 2.4, accentHeight, 0.075);
+    const xAccentGeometry = new THREE.BoxGeometry(0.075, accentHeight, size - 2.4);
+    for (const zSign of [-1, 1]) {
+      if (zSign < 0) {
+        for (const x of [-7.5, 7.5]) {
+          const mid = new THREE.Mesh(
+            new THREE.BoxGeometry(3.3, midBandHeight, 0.07),
+            midWallTrimMat,
+          );
+          mid.position.set(x, midBandY, zSign * trimInset);
+          group.add(mid);
+
+          const accent = new THREE.Mesh(
+            new THREE.BoxGeometry(2.9, accentHeight, 0.075),
+            amberWallTrimMat,
+          );
+          accent.position.set(x, accentY, zSign * trimInset);
+          group.add(accent);
+        }
+        continue;
+      }
+
+      const mid = new THREE.Mesh(zMidGeometry, midWallTrimMat);
+      mid.position.set(0, midBandY, zSign * trimInset);
+      group.add(mid);
+
+      const accent = new THREE.Mesh(zAccentGeometry, amberWallTrimMat);
+      accent.position.set(0, accentY, zSign * trimInset);
+      group.add(accent);
+    }
+    for (const xSign of [-1, 1]) {
+      const mid = new THREE.Mesh(xMidGeometry, midWallTrimMat);
+      mid.position.set(xSign * trimInset, midBandY, 0);
+      group.add(mid);
+
+      const accent = new THREE.Mesh(xAccentGeometry, amberWallTrimMat);
+      accent.position.set(xSign * trimInset, accentY, 0);
+      group.add(accent);
+    }
+  };
+
+  addShellEdgeBevels();
+  addWallContactShadowStrips();
+  addLowerWallBands();
+  addWallTrimZones();
 
   const atriumHalf = PIT_HALF - 0.3;
   const atriumLift = 1.1;
@@ -1039,7 +1579,7 @@ export function buildRoom(): THREE.Group {
 
   const atriumPanel = new THREE.Mesh(
     new THREE.BoxGeometry(atriumHalf * 2, atriumPanelThickness, atriumHalf * 2),
-    ceilingFaceMat,
+    ceilingWellMat,
   );
   atriumPanel.position.set(0, ROOM_HEIGHT + atriumLift + atriumPanelThickness / 2, 0);
   group.add(atriumPanel);
@@ -1052,12 +1592,12 @@ export function buildRoom(): THREE.Group {
   );
   const atriumSkirtZGeometry = new THREE.BoxGeometry(atriumSkirtDepth, atriumLift, atriumHalf * 2);
   for (const z of [-atriumHalf - atriumSkirtDepth / 2, atriumHalf + atriumSkirtDepth / 2]) {
-    const skirt = new THREE.Mesh(atriumSkirtXGeometry, beamMat);
+    const skirt = new THREE.Mesh(atriumSkirtXGeometry, ceilingTrussMat);
     skirt.position.set(0, atriumSkirtY, z);
     group.add(skirt);
   }
   for (const x of [-atriumHalf - atriumSkirtDepth / 2, atriumHalf + atriumSkirtDepth / 2]) {
-    const skirt = new THREE.Mesh(atriumSkirtZGeometry, beamMat);
+    const skirt = new THREE.Mesh(atriumSkirtZGeometry, ceilingTrussMat);
     skirt.position.set(x, atriumSkirtY, 0);
     group.add(skirt);
   }
@@ -1071,7 +1611,7 @@ export function buildRoom(): THREE.Group {
     if (Math.abs(z) < atriumHalf + ceilingBeamWidth / 2) {
       continue;
     }
-    const beam = new THREE.Mesh(ceilingBeamXGeometry, beamMat);
+    const beam = new THREE.Mesh(ceilingBeamXGeometry, ceilingTrussMat);
     beam.position.set(0, ceilingBeamY, z);
     group.add(beam);
   }
@@ -1079,10 +1619,191 @@ export function buildRoom(): THREE.Group {
     if (Math.abs(x) < atriumHalf + ceilingBeamWidth / 2) {
       continue;
     }
-    const beam = new THREE.Mesh(ceilingBeamZGeometry, beamMat);
+    const beam = new THREE.Mesh(ceilingBeamZGeometry, ceilingTrussMat);
     beam.position.set(x, ceilingBeamY, 0);
     group.add(beam);
   }
+
+  const addCeilingHeroBayDetail = () => {
+    const seamBevel = 0.07;
+    const seamDrop = 0.018;
+    const undersideY = ROOM_HEIGHT - seamDrop;
+    const atriumEdgeY = ROOM_HEIGHT + 0.04;
+    const boltGeometry = new THREE.CylinderGeometry(0.035, 0.035, 0.018, 12);
+    const bracketGeometry = new THREE.BoxGeometry(0.34, 0.035, 0.12);
+    const beamContactXGeometry = new THREE.BoxGeometry(size, 0.012, ceilingBeamWidth + 0.18);
+    const beamContactZGeometry = new THREE.BoxGeometry(ceilingBeamWidth + 0.18, 0.012, size);
+    const atriumBevelXGeometry = new THREE.BoxGeometry(
+      atriumHalf * 2 + seamBevel * 2,
+      seamBevel,
+      seamBevel,
+    );
+    const atriumBevelZGeometry = new THREE.BoxGeometry(seamBevel, seamBevel, atriumHalf * 2);
+
+    for (const z of [-atriumHalf, atriumHalf]) {
+      const bevel = new THREE.Mesh(atriumBevelXGeometry, chamferMat);
+      bevel.position.set(0, atriumEdgeY, z);
+      bevel.rotation.x = z < 0 ? Math.PI / 4 : -Math.PI / 4;
+      group.add(bevel);
+
+      const shadow = new THREE.Mesh(
+        new THREE.BoxGeometry(atriumHalf * 2 + 0.24, 0.01, 0.18),
+        contactShadowMat,
+      );
+      shadow.position.set(0, ROOM_HEIGHT + 0.006, z);
+      group.add(shadow);
+    }
+
+    for (const x of [-atriumHalf, atriumHalf]) {
+      const bevel = new THREE.Mesh(atriumBevelZGeometry, chamferMat);
+      bevel.position.set(x, atriumEdgeY, 0);
+      bevel.rotation.z = x < 0 ? -Math.PI / 4 : Math.PI / 4;
+      group.add(bevel);
+
+      const shadow = new THREE.Mesh(
+        new THREE.BoxGeometry(0.18, 0.01, atriumHalf * 2 + 0.24),
+        contactShadowMat,
+      );
+      shadow.position.set(x, ROOM_HEIGHT + 0.006, 0);
+      group.add(shadow);
+    }
+
+    for (const z of [-5, 5]) {
+      const shadow = new THREE.Mesh(beamContactXGeometry, contactShadowMat);
+      shadow.position.set(0, undersideY, z);
+      group.add(shadow);
+    }
+    for (const x of [-5, 5]) {
+      const shadow = new THREE.Mesh(beamContactZGeometry, contactShadowMat);
+      shadow.position.set(x, undersideY, 0);
+      group.add(shadow);
+    }
+
+    for (const z of [-5, 5, -atriumHalf, atriumHalf]) {
+      for (let x = -8; x <= 8; x += 1.6) {
+        if (Math.abs(x) < atriumHalf - 0.2 && Math.abs(z) <= atriumHalf) {
+          continue;
+        }
+        const bolt = new THREE.Mesh(boltGeometry, boltMat);
+        bolt.position.set(x, undersideY - 0.02, z);
+        group.add(bolt);
+
+        const bracket = new THREE.Mesh(bracketGeometry, bracketMat);
+        bracket.position.set(x, undersideY - 0.015, z + 0.16);
+        group.add(bracket);
+      }
+    }
+
+    for (const x of [-5, 5, -atriumHalf, atriumHalf]) {
+      for (let z = -8; z <= 8; z += 1.6) {
+        if (Math.abs(z) < atriumHalf - 0.2 && Math.abs(x) <= atriumHalf) {
+          continue;
+        }
+        const bolt = new THREE.Mesh(boltGeometry, boltMat);
+        bolt.position.set(x, undersideY - 0.02, z);
+        group.add(bolt);
+
+        const bracket = new THREE.Mesh(bracketGeometry, bracketMat);
+        bracket.position.set(x + 0.16, undersideY - 0.015, z);
+        bracket.rotation.y = Math.PI / 2;
+        group.add(bracket);
+      }
+    }
+
+    const serviceTrayMat = oiledSteelMat;
+    const pipeGeometry = new THREE.CylinderGeometry(0.042, 0.042, atriumHalf * 2 - 0.9, 12);
+    const crossPipeGeometry = new THREE.CylinderGeometry(0.032, 0.032, atriumHalf * 2 - 1.35, 10);
+    const trayGeometry = new THREE.BoxGeometry(0.22, 0.05, atriumHalf * 2 - 0.7);
+    const wornEdgeGeometry = new THREE.BoxGeometry(atriumHalf * 2 - 0.52, 0.026, 0.045);
+    const ceramicBarGeometry = new THREE.BoxGeometry(1.15, 0.035, 0.08);
+    const conduitClampMat = bracketMat.clone();
+    conduitClampMat.color = new THREE.Color(0x48525b);
+    const conduitCeilingShadowMat = new THREE.MeshBasicMaterial({
+      color: 0x010203,
+      transparent: true,
+      opacity: 0.72,
+      depthWrite: false,
+      side: THREE.DoubleSide,
+    });
+    const addConduitClamps = (
+      x: number,
+      z: number,
+      axis: 'x' | 'z',
+      length: number,
+      radius: number,
+    ) => {
+      const clampCount = Math.max(3, Math.floor(length / 1.65) + 1);
+      const clampGeometry =
+        axis === 'z'
+          ? new THREE.BoxGeometry(0.26, 0.038, radius * 3.3)
+          : new THREE.BoxGeometry(radius * 3.3, 0.038, 0.26);
+      const lugGeometry =
+        axis === 'z'
+          ? new THREE.BoxGeometry(0.08, 0.05, 0.04)
+          : new THREE.BoxGeometry(0.04, 0.05, 0.08);
+      for (let i = 0; i < clampCount; i++) {
+        const t = clampCount === 1 ? 0.5 : i / (clampCount - 1);
+        const offset = (t - 0.5) * length;
+        const cx = axis === 'x' ? x + offset : x;
+        const cz = axis === 'z' ? z + offset : z;
+        const clamp = new THREE.Mesh(clampGeometry, conduitClampMat);
+        clamp.position.set(cx, ROOM_HEIGHT + 0.04, cz);
+        group.add(clamp);
+
+        for (const side of [-1, 1]) {
+          const lug = new THREE.Mesh(lugGeometry, conduitClampMat);
+          lug.position.set(
+            axis === 'z' ? cx + side * 0.13 : cx,
+            ROOM_HEIGHT + 0.065,
+            axis === 'x' ? cz + side * 0.13 : cz,
+          );
+          group.add(lug);
+        }
+      }
+    };
+    const addCeilingConduitShadow = (x: number, z: number, axis: 'x' | 'z', length: number) => {
+      const shadow = new THREE.Mesh(
+        axis === 'z'
+          ? new THREE.BoxGeometry(0.18, 0.01, length)
+          : new THREE.BoxGeometry(length, 0.01, 0.18),
+        conduitCeilingShadowMat,
+      );
+      shadow.position.set(x, ROOM_HEIGHT + 0.012, z);
+      group.add(shadow);
+    };
+    for (const x of [-1.78, 1.78]) {
+      const tray = new THREE.Mesh(trayGeometry, serviceTrayMat);
+      tray.position.set(x, ROOM_HEIGHT + 0.13, 0);
+      group.add(tray);
+
+      const pipe = new THREE.Mesh(pipeGeometry, brassServiceMat);
+      pipe.position.set(x + 0.18, ROOM_HEIGHT + 0.07, 0);
+      pipe.rotation.x = Math.PI / 2;
+      group.add(pipe);
+      addConduitClamps(x + 0.18, 0, 'z', atriumHalf * 2 - 0.9, 0.042);
+      addCeilingConduitShadow(x + 0.18, 0, 'z', atriumHalf * 2 - 0.72);
+    }
+    for (const z of [1.82]) {
+      const pipe = new THREE.Mesh(crossPipeGeometry, brassServiceMat);
+      pipe.position.set(0, ROOM_HEIGHT + 0.11, z);
+      pipe.rotation.z = Math.PI / 2;
+      group.add(pipe);
+      addConduitClamps(0, z, 'x', atriumHalf * 2 - 1.35, 0.032);
+      addCeilingConduitShadow(0, z, 'x', atriumHalf * 2 - 1.12);
+
+      const wornEdge = new THREE.Mesh(wornEdgeGeometry, wornAlloyMat);
+      wornEdge.position.set(0, ROOM_HEIGHT + 0.025, z);
+      group.add(wornEdge);
+    }
+    for (const z of [-2.7, 2.7]) {
+      for (const x of [-1.2, 1.2]) {
+        const bar = new THREE.Mesh(ceramicBarGeometry, ceramicLightMat);
+        bar.position.set(x, ROOM_HEIGHT + 0.055, z);
+        group.add(bar);
+      }
+    }
+  };
+  addCeilingHeroBayDetail();
 
   const panelHeight = ROOM_HEIGHT - 0.72;
   const panelY = panelHeight / 2 + 0.24;
@@ -1233,6 +1954,62 @@ export function buildRoom(): THREE.Group {
     addZBayPanel(rightX, viewscreenSidePanelWidth, -1);
   }
 
+  const signageDepth = 0.045;
+  const signageY = 1.95;
+  const signageHeight = 0.72;
+  const addZSignagePanel = (x: number, width: number, zSign: number) => {
+    const panel = new THREE.Mesh(
+      new THREE.BoxGeometry(width, signageHeight, signageDepth),
+      createRepeatedMaterial(wallSignageMat, wallSignageTex, width, signageHeight),
+    );
+    panel.position.set(x, signageY, zSign * (ROOM_HALF - panelDepth - signageDepth / 2 - 0.04));
+    group.add(panel);
+  };
+  const addXSignagePanel = (xSign: number, z: number, width: number) => {
+    const panel = new THREE.Mesh(
+      new THREE.BoxGeometry(signageDepth, signageHeight, width),
+      createRepeatedMaterial(wallSignageMat, wallSignageTex, width, signageHeight),
+    );
+    panel.position.set(xSign * (ROOM_HALF - panelDepth - signageDepth / 2 - 0.04), signageY, z);
+    group.add(panel);
+  };
+  addZSignagePanel(-5.9, 1.7, 1);
+  addZSignagePanel(5.9, 1.7, 1);
+  addXSignagePanel(-1, -5.8, 1.45);
+  addXSignagePanel(1, 5.8, 1.45);
+
+  if (viewscreenSidePanelWidth > 0) {
+    const rearPanelFaceZ = -(ROOM_HALF - panelDepth - 0.075);
+    const rearTrimZ = rearPanelFaceZ + 0.012;
+    const trimBandHeight = 0.16;
+    const trimBandY = 0.76;
+    const trimBandGeometry = new THREE.BoxGeometry(
+      viewscreenSidePanelWidth + 0.22,
+      trimBandHeight,
+      0.055,
+    );
+    const seamGeometry = new THREE.BoxGeometry(0.035, 1.72, 0.04);
+    const capGeometry = new THREE.BoxGeometry(viewscreenSidePanelWidth + 0.12, 0.035, 0.04);
+    for (const x of [-(WINDOW_WIDTH / 2 + sideWidth / 2), WINDOW_WIDTH / 2 + sideWidth / 2]) {
+      const band = new THREE.Mesh(trimBandGeometry, rearTrimMat);
+      band.position.set(x, trimBandY, rearTrimZ);
+      group.add(band);
+
+      for (const edgeX of [x - viewscreenSidePanelWidth / 2, x + viewscreenSidePanelWidth / 2]) {
+        const seam = new THREE.Mesh(seamGeometry, chamferMat);
+        seam.position.set(edgeX, 1.62, rearTrimZ);
+        seam.rotation.y = Math.PI / 4;
+        group.add(seam);
+      }
+      for (const y of [1.03, 2.21]) {
+        const cap = new THREE.Mesh(capGeometry, chamferMat);
+        cap.position.set(x, y, rearTrimZ);
+        cap.rotation.x = Math.PI / 4;
+        group.add(cap);
+      }
+    }
+  }
+
   const bulkheadDepth = 0.32;
   const bulkheadHeight = 0.4;
   const bulkheadY = ROOM_HEIGHT - bulkheadHeight / 2 - 0.14;
@@ -1280,14 +2057,46 @@ export function buildRoom(): THREE.Group {
   const floorMat = new THREE.MeshStandardMaterial({
     map: floorTex.map,
     normalMap: floorTex.normalMap,
-    normalScale,
+    normalScale: floorNormalScale,
     roughnessMap: floorTex.roughnessMap,
-    roughness: 0.94,
-    metalness: 0.03,
+    roughness: 0.88,
+    metalness: 0.04,
     // DoubleSide: the ramp (addRamp) is a single thin quad with open space below it
     // inside the pit — FrontSide (the default) left its underside invisible, exposing
     // the skybox through the floor from below. The flat walkway/pit-floor plates never
     // get viewed from underneath in normal play, so this costs nothing there.
+    side: THREE.DoubleSide,
+  });
+  const pitFloorMat = new THREE.MeshStandardMaterial({
+    map: pitFloorTex.map,
+    normalMap: pitFloorTex.normalMap,
+    normalScale: floorNormalScale,
+    roughnessMap: pitFloorTex.roughnessMap,
+    roughness: 0.94,
+    metalness: 0.08,
+    side: THREE.DoubleSide,
+  });
+  const rampMat = new THREE.MeshStandardMaterial({
+    map: rampTex.map,
+    normalMap: rampTex.normalMap,
+    normalScale: new THREE.Vector2(1.1, 1.1),
+    roughnessMap: rampTex.roughnessMap,
+    roughness: 0.72,
+    metalness: 0.28,
+    side: THREE.DoubleSide,
+  });
+  const floorInsetMat = new THREE.MeshStandardMaterial({
+    map: floorInsetTex.map,
+    normalMap: floorInsetTex.normalMap,
+    normalScale,
+    roughnessMap: floorInsetTex.roughnessMap,
+    emissive: 0x41dce7,
+    emissiveMap: floorInsetTex.emissiveMap,
+    emissiveIntensity: 0.34,
+    roughness: 0.22,
+    metalness: 0.08,
+    transparent: true,
+    opacity: 0.86,
     side: THREE.DoubleSide,
   });
   const retainingTex = createSurfaceTextureSet({
@@ -1299,8 +2108,10 @@ export function buildRoom(): THREE.Group {
     grimeCount: 30,
     scratchCount: 18,
     rivets: true,
+    serviceStripCount: 4,
+    streakCount: 12,
   });
-  setRepeat(retainingTex, PIT_HALF, 1);
+  setPanelScaleRepeat(retainingTex, PIT_HALF * 2, PIT_DEPTH, 1.8);
   const retainingMat = new THREE.MeshStandardMaterial({
     map: retainingTex.map,
     normalMap: retainingTex.normalMap,
@@ -1335,7 +2146,7 @@ export function buildRoom(): THREE.Group {
   );
   addFloorPlate(
     group,
-    floorMat,
+    pitFloorMat,
     PIT_HALF * 2,
     PIT_HALF + RAMP_BOTTOM_Z,
     0,
@@ -1344,14 +2155,58 @@ export function buildRoom(): THREE.Group {
   );
   addFloorPlate(
     group,
-    floorMat,
+    pitFloorMat,
     RAMP_MIN_X + PIT_HALF,
     RAMP_TOP_Z - RAMP_BOTTOM_Z,
     (-PIT_HALF + RAMP_MIN_X) / 2,
     (RAMP_BOTTOM_Z + RAMP_TOP_Z) / 2,
     -PIT_DEPTH,
   );
-  addRamp(group, floorMat, RAMP_MIN_X, RAMP_MAX_X, RAMP_TOP_Z, RAMP_BOTTOM_Z);
+  addRamp(group, rampMat, RAMP_MIN_X, RAMP_MAX_X, RAMP_TOP_Z, RAMP_BOTTOM_Z);
+
+  const floorSeamMat = new THREE.MeshBasicMaterial({
+    color: 0x020304,
+    transparent: true,
+    opacity: 0.82,
+    depthWrite: false,
+    side: THREE.DoubleSide,
+  });
+  for (const x of [-8, -6, -4, -2, 2, 4, 6, 8]) {
+    addFloorSeamLine(
+      group,
+      floorSeamMat,
+      0.026,
+      walkwayDepth,
+      x,
+      PIT_HALF + walkwayDepth / 2,
+      0.021,
+    );
+    addFloorSeamLine(
+      group,
+      floorSeamMat,
+      0.026,
+      walkwayDepth,
+      x,
+      -PIT_HALF - walkwayDepth / 2,
+      0.021,
+    );
+  }
+  for (const z of [-8, -6, 6, 8]) {
+    addFloorSeamLine(group, floorSeamMat, size, 0.026, 0, z, 0.022);
+  }
+  for (const x of [-2, 0, 2]) {
+    addFloorSeamLine(group, floorSeamMat, 0.024, PIT_HALF * 2, x, -0.4, -PIT_DEPTH + 0.021);
+  }
+  for (const z of [-3, -2, -1]) {
+    addFloorSeamLine(group, floorSeamMat, PIT_HALF * 2, 0.024, 0, z, -PIT_DEPTH + 0.022);
+  }
+
+  const insetY = 0.014;
+  addFloorPlate(group, floorInsetMat, 2.8, 0.46, -5.8, 6.4, insetY);
+  addFloorPlate(group, floorInsetMat, 2.4, 0.42, 5.8, -6.6, insetY);
+  addFloorPlate(group, floorInsetMat, 0.5, 2.6, -7.1, -0.6, insetY);
+  addFloorPlate(group, floorInsetMat, 2.2, 0.38, -1.5, -1.9, -PIT_DEPTH + insetY);
+
   addRampCheek(group, retainingMat, RAMP_MIN_X, RAMP_TOP_Z, RAMP_BOTTOM_Z, PIT_DEPTH);
   addRampCheek(group, retainingMat, RAMP_MAX_X, RAMP_TOP_Z, RAMP_BOTTOM_Z, PIT_DEPTH);
 
@@ -1381,6 +2236,62 @@ export function buildRoom(): THREE.Group {
     PIT_HALF,
     Math.PI,
   );
+
+  const pitRimChamfer = 0.065;
+  const pitRimY = pitRimChamfer / 2 + 0.012;
+  const pitRimXGeometry = new THREE.BoxGeometry(PIT_HALF * 2, pitRimChamfer, pitRimChamfer);
+  const pitRimZGeometry = new THREE.BoxGeometry(pitRimChamfer, pitRimChamfer, PIT_HALF * 2);
+  const pitRimShadowXGeometry = new THREE.BoxGeometry(PIT_HALF * 2, 0.014, 0.18);
+  const pitRimShadowZGeometry = new THREE.BoxGeometry(0.18, 0.014, PIT_HALF * 2);
+  const pitRimBack = new THREE.Mesh(pitRimXGeometry, chamferMat);
+  pitRimBack.position.set(0, pitRimY, -PIT_HALF + pitRimChamfer / 2);
+  pitRimBack.rotation.x = -Math.PI / 4;
+  group.add(pitRimBack);
+
+  const pitRimLeft = new THREE.Mesh(pitRimZGeometry, chamferMat);
+  pitRimLeft.position.set(-PIT_HALF + pitRimChamfer / 2, pitRimY, 0);
+  pitRimLeft.rotation.z = Math.PI / 4;
+  group.add(pitRimLeft);
+
+  const pitRimRightRear = new THREE.Mesh(
+    new THREE.BoxGeometry(pitRimChamfer, pitRimChamfer, PIT_HALF + RAMP_BOTTOM_Z),
+    chamferMat,
+  );
+  pitRimRightRear.position.set(
+    PIT_HALF - pitRimChamfer / 2,
+    pitRimY,
+    (-PIT_HALF + RAMP_BOTTOM_Z) / 2,
+  );
+  pitRimRightRear.rotation.z = -Math.PI / 4;
+  group.add(pitRimRightRear);
+
+  const pitRimRightFront = new THREE.Mesh(
+    new THREE.BoxGeometry(pitRimChamfer, pitRimChamfer, RAMP_TOP_Z - RAMP_BOTTOM_Z),
+    chamferMat,
+  );
+  pitRimRightFront.position.set(
+    PIT_HALF - pitRimChamfer / 2,
+    pitRimY,
+    (RAMP_BOTTOM_Z + RAMP_TOP_Z) / 2,
+  );
+  pitRimRightFront.rotation.z = -Math.PI / 4;
+  group.add(pitRimRightFront);
+
+  for (const [shadow, x, z] of [
+    [new THREE.Mesh(pitRimShadowXGeometry, contactShadowMat), 0, -PIT_HALF + 0.09],
+    [new THREE.Mesh(pitRimShadowZGeometry, contactShadowMat), -PIT_HALF + 0.09, 0],
+    [
+      new THREE.Mesh(
+        new THREE.BoxGeometry(0.18, 0.014, PIT_HALF + RAMP_BOTTOM_Z),
+        contactShadowMat,
+      ),
+      PIT_HALF - 0.09,
+      (-PIT_HALF + RAMP_BOTTOM_Z) / 2,
+    ],
+  ] as Array<[THREE.Mesh, number, number]>) {
+    shadow.position.set(x, 0.014, z);
+    group.add(shadow);
+  }
 
   // --- Lit trim: perimeter strips baked as emissive geometry rather than texture, so
   // they read as real practical fixtures (cyan pathway lighting at the floor line, warm
@@ -1413,7 +2324,7 @@ export function buildRoom(): THREE.Group {
   const baseboardMat = new THREE.MeshStandardMaterial({
     color: 0x0a1214,
     emissive: 0x35d8e0,
-    emissiveIntensity: 0.65,
+    emissiveIntensity: 0.2,
     roughness: 0.65,
     metalness: 0.08,
   });
@@ -1433,7 +2344,7 @@ export function buildRoom(): THREE.Group {
   const covingMat = new THREE.MeshStandardMaterial({
     color: 0x140f0a,
     emissive: 0xffab5c,
-    emissiveIntensity: 0.55,
+    emissiveIntensity: 0.085,
     roughness: 0.65,
     metalness: 0.08,
   });
@@ -1466,9 +2377,14 @@ export function buildRoom(): THREE.Group {
 
   // Dark gunmetal corner columns read as load-bearing masses instead of wall trim.
   const postMat = new THREE.MeshStandardMaterial({
-    color: 0x1c232b,
-    roughness: 0.55,
-    metalness: 0.45,
+    color: 0x06090d,
+    roughness: 0.68,
+    metalness: 0.62,
+  });
+  const railScuffMat = new THREE.MeshStandardMaterial({
+    color: 0xb8c0c5,
+    roughness: 0.31,
+    metalness: 0.86,
   });
   for (const t of [0.2, 0.4, 0.6, 0.8]) {
     const z = RAMP_BOTTOM_Z + t * RAMP_LENGTH;
@@ -1479,6 +2395,75 @@ export function buildRoom(): THREE.Group {
     group.add(tread);
   }
 
+  const addRampHeroDetail = () => {
+    const rampYAtZ = (z: number) => -PIT_DEPTH * ((RAMP_TOP_Z - z) / RAMP_LENGTH);
+    const seamMat = new THREE.MeshBasicMaterial({
+      color: 0x020304,
+      transparent: true,
+      opacity: 0.78,
+      depthWrite: false,
+    });
+    const wornEdgeMat = new THREE.MeshStandardMaterial({
+      color: 0xaeb8bd,
+      roughness: 0.28,
+      metalness: 0.86,
+    });
+    const insetSeamGeometry = new THREE.BoxGeometry(RAMP_WIDTH - 0.34, 0.012, 0.035);
+    const crossWearGeometry = new THREE.BoxGeometry(RAMP_WIDTH - 0.42, 0.014, 0.026);
+    const sideWearGeometry = new THREE.BoxGeometry(0.035, 0.014, rampSlopeLength - 0.22);
+    const sideGrimeGeometry = new THREE.BoxGeometry(0.13, 0.01, rampSlopeLength - 0.18);
+
+    for (const z of [1.48, 2.08, 2.68, 3.28, 3.82]) {
+      const y = rampYAtZ(z) + 0.028;
+      const seam = new THREE.Mesh(insetSeamGeometry, seamMat);
+      seam.position.set(RAMP_CENTER_X, y, z);
+      seam.rotation.x = -RAMP_ANGLE;
+      group.add(seam);
+
+      const edge = new THREE.Mesh(crossWearGeometry, wornEdgeMat);
+      edge.position.set(RAMP_CENTER_X, y + 0.008, z + 0.035);
+      edge.rotation.x = -RAMP_ANGLE;
+      group.add(edge);
+    }
+
+    for (const x of [RAMP_MIN_X + 0.18, RAMP_MAX_X - 0.18]) {
+      const grime = new THREE.Mesh(sideGrimeGeometry, contactSmearMat);
+      grime.position.set(x, rampMidY + 0.034, rampMidZ);
+      grime.rotation.x = -RAMP_ANGLE;
+      group.add(grime);
+
+      const wear = new THREE.Mesh(sideWearGeometry, wornEdgeMat);
+      wear.position.set(x, rampMidY + 0.048, rampMidZ);
+      wear.rotation.x = -RAMP_ANGLE;
+      group.add(wear);
+    }
+
+    const topContact = new THREE.Mesh(
+      new THREE.BoxGeometry(RAMP_WIDTH + 0.56, 0.014, 0.32),
+      contactShadowMat,
+    );
+    topContact.position.set(RAMP_CENTER_X, 0.019, RAMP_TOP_Z - 0.08);
+    group.add(topContact);
+
+    const bottomContact = new THREE.Mesh(
+      new THREE.BoxGeometry(RAMP_WIDTH + 0.5, 0.014, 0.28),
+      contactShadowMat,
+    );
+    bottomContact.position.set(RAMP_CENTER_X, -PIT_DEPTH + 0.019, RAMP_BOTTOM_Z + 0.08);
+    group.add(bottomContact);
+
+    for (const x of [RAMP_MIN_X - 0.08, RAMP_MAX_X + 0.08]) {
+      const sideContact = new THREE.Mesh(
+        new THREE.BoxGeometry(0.2, 0.012, rampSlopeLength - 0.08),
+        contactShadowMat,
+      );
+      sideContact.position.set(x, rampMidY + 0.026, rampMidZ);
+      sideContact.rotation.x = -RAMP_ANGLE;
+      group.add(sideContact);
+    }
+  };
+  addRampHeroDetail();
+
   const postSize = 0.42;
   const postInset = ROOM_HALF - postSize / 2 - 0.01;
   const postTrimDepth = 0.035;
@@ -1488,6 +2473,29 @@ export function buildRoom(): THREE.Group {
       const post = new THREE.Mesh(new THREE.BoxGeometry(postSize, ROOM_HEIGHT, postSize), postMat);
       post.position.set(sx * postInset, ROOM_HEIGHT / 2, sz * postInset);
       group.add(post);
+
+      const footShadow = new THREE.Mesh(
+        new THREE.BoxGeometry(postSize + 0.22, 0.014, postSize + 0.22),
+        contactShadowMat,
+      );
+      footShadow.position.set(sx * postInset, 0.012, sz * postInset);
+      group.add(footShadow);
+
+      for (const ox of [-1, 1]) {
+        for (const oz of [-1, 1]) {
+          const edge = new THREE.Mesh(
+            new THREE.BoxGeometry(0.038, ROOM_HEIGHT - 0.12, 0.038),
+            chamferMat,
+          );
+          edge.position.set(
+            sx * postInset + ox * (postSize / 2 - 0.03),
+            ROOM_HEIGHT / 2,
+            sz * postInset + oz * (postSize / 2 - 0.03),
+          );
+          edge.rotation.y = Math.PI / 4;
+          group.add(edge);
+        }
+      }
 
       const xTrim = new THREE.Mesh(
         new THREE.BoxGeometry(postTrimDepth, ROOM_HEIGHT - 0.36, postTrimWidth),
@@ -1628,24 +2636,84 @@ export function buildRoom(): THREE.Group {
   }
 
   // Visual-only pit railings; movement intentionally still allows stepping over the rim.
-  addRailSegment(group, postMat, RAMP_MIN_X + PIT_HALF, (-PIT_HALF + RAMP_MIN_X) / 2, PIT_HALF, 0);
-  addRailSegment(group, postMat, PIT_HALF * 2, 0, -PIT_HALF, 0);
-  addRailSegment(group, postMat, PIT_HALF * 2, -PIT_HALF, 0, -Math.PI / 2);
   addRailSegment(
     group,
     postMat,
+    chamferMat,
+    railScuffMat,
+    contactShadowMat,
+    radialContactMat,
+    RAMP_MIN_X + PIT_HALF,
+    (-PIT_HALF + RAMP_MIN_X) / 2,
+    PIT_HALF,
+    0,
+  );
+  addRailSegment(
+    group,
+    postMat,
+    chamferMat,
+    railScuffMat,
+    contactShadowMat,
+    radialContactMat,
+    PIT_HALF * 2,
+    0,
+    -PIT_HALF,
+    0,
+  );
+  addRailSegment(
+    group,
+    postMat,
+    chamferMat,
+    railScuffMat,
+    contactShadowMat,
+    radialContactMat,
+    PIT_HALF * 2,
+    -PIT_HALF,
+    0,
+    -Math.PI / 2,
+  );
+  addRailSegment(
+    group,
+    postMat,
+    chamferMat,
+    railScuffMat,
+    contactShadowMat,
+    radialContactMat,
     PIT_HALF + RAMP_BOTTOM_Z,
     PIT_HALF,
     (-PIT_HALF + RAMP_BOTTOM_Z) / 2,
     -Math.PI / 2,
   );
 
+  const addHeroContactShadows = () => {
+    for (const [x, z, width, depth, y] of [
+      [-8.7, 0, 2.2, 1.55, 0.02],
+      [8.7, 0, 2.2, 1.55, 0.02],
+      [0, 8.7, 2.35, 1.45, 0.02],
+      [-2.6, 1.4, 2.8, 1.85, getFloorHeightAt(-2.6, 1.4) + 0.02],
+      [0, 0, 3.2, 2.4, -PIT_DEPTH + 0.02],
+      [RAMP_CENTER_X, RAMP_TOP_Z - 0.35, RAMP_WIDTH + 0.55, 0.9, 0.02],
+      [RAMP_CENTER_X, RAMP_BOTTOM_Z + 0.35, RAMP_WIDTH + 0.45, 0.75, -PIT_DEPTH + 0.02],
+    ] as Array<[number, number, number, number, number]>) {
+      addFloorContactShadow(group, radialContactMat, width, depth, x, z, y);
+    }
+    for (const [x, z, width, depth, y] of [
+      [-8.7, 0, 1.8, 0.34, 0.022],
+      [8.7, 0, 1.8, 0.34, 0.022],
+      [0, 8.7, 0.34, 1.8, 0.022],
+      [-2.6, 1.4, 2.05, 0.42, getFloorHeightAt(-2.6, 1.4) + 0.022],
+    ] as Array<[number, number, number, number, number]>) {
+      addFloorContactShadow(group, contactSmearMat, width, depth, x, z, y);
+    }
+  };
+  addHeroContactShadows();
+
   // Low-output bezel tracing the inner viewscreen edge. It frames the opening without
   // adding enough cool emission to fog the black-space view behind it.
   const bezelMat = new THREE.MeshStandardMaterial({
     color: 0x060d14,
     emissive: 0x4f8fbb,
-    emissiveIntensity: 0.35,
+    emissiveIntensity: 0.11,
     roughness: 0.65,
     metalness: 0.08,
     side: THREE.DoubleSide,
@@ -1688,15 +2756,8 @@ export function buildRoom(): THREE.Group {
   // the bloom threshold too — geometry itself was blooming, not just the trim. Round 2
   // pulled every level down; this pass tightens it further because the broad, always-on
   // fill and right-side practical were still flattening the room into a bright test cell.
-  const fill = new THREE.HemisphereLight(0x6d849d, 0x17110d, 0.18);
+  const fill = new THREE.HemisphereLight(0x435971, 0x010101, 1.4);
   group.add(fill);
-
-  // Warm directional key, lowered and angled for a grazing rake across the wall panels so
-  // the normal-map relief actually catches light/shadow instead of being lit flat from
-  // near-overhead (round-1 position (4,6,3) was too steep to show surface detail).
-  const key = new THREE.DirectionalLight(0xffc48a, 0.5);
-  key.position.set(6, 3.4, 4);
-  group.add(key);
 
   // Two warm ceiling practicals — round-2 critique: these read as bare glowing spheres
   // with no housing, because the housing disc (0.42r, near-black, indistinguishable from
@@ -1708,10 +2769,10 @@ export function buildRoom(): THREE.Group {
   // bezel rather than being lost in blur) and by moving the light further from the
   // ceiling + lowering its intensity/radius so it stops over-driving the adjacent surface.
   const fixtures: Array<{ x: number; z: number; intensity: number; distance: number }> = [
-    { x: 3.2, z: 2.4, intensity: 0.18, distance: 8 },
-    { x: -3, z: -1.8, intensity: 0.16, distance: 7.5 },
-    { x: -3.2, z: 2.4, intensity: 0.18, distance: 8 },
-    { x: 3, z: -1.8, intensity: 0.16, distance: 7.5 },
+    { x: 3.2, z: 2.4, intensity: 0.11, distance: 3.5 },
+    { x: -3, z: -1.8, intensity: 0.09, distance: 3.2 },
+    { x: -3.2, z: 2.4, intensity: 0.1, distance: 3.4 },
+    { x: 3, z: -1.8, intensity: 0.08, distance: 3.0 },
   ];
   const fixtureBezelMat = new THREE.MeshStandardMaterial({
     color: 0x8a94a0,
@@ -1726,7 +2787,7 @@ export function buildRoom(): THREE.Group {
   const fixtureGlowMat = new THREE.MeshStandardMaterial({
     color: 0x1a1410,
     emissive: 0xffcf9c,
-    emissiveIntensity: 0.78,
+    emissiveIntensity: 0.16,
     roughness: 0.5,
     metalness: 0.1,
   });
@@ -1751,7 +2812,118 @@ export function buildRoom(): THREE.Group {
     // of light rather than broad room fill.
     const light = new THREE.PointLight(0xffbf82, f.intensity, f.distance, 2);
     light.position.set(f.x, fixtureCeilingY - 0.65, f.z);
+    light.castShadow = true;
+    light.shadow.mapSize.set(512, 512);
+    light.shadow.bias = -0.0004;
     group.add(light);
+  }
+
+  const warmPoolMat = createRadialGlowMaterial([255, 151, 73], 0.34);
+  const coolPoolMat = createRadialGlowMaterial([91, 198, 255], 0.3);
+  const magentaPoolMat = createRadialGlowMaterial([226, 91, 255], 0.22);
+  const tealPoolMat = createRadialGlowMaterial([66, 239, 218], 0.25);
+  const lightPools: Array<{
+    color: number;
+    intensity: number;
+    distance: number;
+    position: [number, number, number];
+    material: THREE.Material;
+    plane: {
+      width: number;
+      height: number;
+      position: [number, number, number];
+      rotation: [number, number, number];
+    };
+  }> = [
+    {
+      color: 0xff9749,
+      intensity: 0.62,
+      distance: 3.1,
+      position: [-6.2, 1.1, 6.0],
+      material: warmPoolMat,
+      plane: {
+        width: 3.6,
+        height: 2.4,
+        position: [-6.2, 0.026, 6.0],
+        rotation: [-Math.PI / 2, 0, 0],
+      },
+    },
+    {
+      color: 0x5bc6ff,
+      intensity: 0.54,
+      distance: 2.9,
+      position: [6.4, 1.0, -5.8],
+      material: coolPoolMat,
+      plane: {
+        width: 3.1,
+        height: 2.2,
+        position: [6.4, 0.027, -5.8],
+        rotation: [-Math.PI / 2, 0, 0],
+      },
+    },
+    {
+      color: 0xff9749,
+      intensity: 0.48,
+      distance: 2.65,
+      position: [1.2, -0.12, -2.9],
+      material: warmPoolMat,
+      plane: {
+        width: 2.4,
+        height: 1.8,
+        position: [1.2, -PIT_DEPTH + 0.026, -2.9],
+        rotation: [-Math.PI / 2, 0, 0],
+      },
+    },
+    {
+      color: 0x42efda,
+      intensity: 0.5,
+      distance: 2.7,
+      position: [-8.95, 1.35, -2.2],
+      material: tealPoolMat,
+      plane: {
+        width: 2.0,
+        height: 1.5,
+        position: [-9.49, 1.35, -2.2],
+        rotation: [0, Math.PI / 2, 0],
+      },
+    },
+    {
+      color: 0xe25bff,
+      intensity: 0.44,
+      distance: 2.55,
+      position: [8.95, 1.55, 4.8],
+      material: magentaPoolMat,
+      plane: {
+        width: 1.8,
+        height: 1.4,
+        position: [9.49, 1.55, 4.8],
+        rotation: [0, -Math.PI / 2, 0],
+      },
+    },
+    {
+      color: 0x5bc6ff,
+      intensity: 0.46,
+      distance: 2.75,
+      position: [-6.9, 1.55, -9.0],
+      material: coolPoolMat,
+      plane: { width: 2.0, height: 1.45, position: [-6.9, 1.55, -9.49], rotation: [0, 0, 0] },
+    },
+  ];
+  for (const pool of lightPools) {
+    const light = new THREE.PointLight(pool.color, pool.intensity, pool.distance, 2.35);
+    light.position.set(...pool.position);
+    light.castShadow = true;
+    light.shadow.mapSize.set(512, 512);
+    light.shadow.bias = -0.00035;
+    group.add(light);
+
+    const glow = new THREE.Mesh(
+      new THREE.PlaneGeometry(pool.plane.width, pool.plane.height),
+      pool.material,
+    );
+    glow.position.set(...pool.plane.position);
+    glow.rotation.set(...pool.plane.rotation);
+    group.add(glow);
   }
 
   // Cool rim/accent light, wall-mounted as a sconce — round-3 critique: this was a bare
@@ -1773,7 +2945,7 @@ export function buildRoom(): THREE.Group {
   const sconceLensMat = new THREE.MeshStandardMaterial({
     color: 0x0a1420,
     emissive: 0x6f9fd8,
-    emissiveIntensity: 0.65,
+    emissiveIntensity: 0.2,
     roughness: 0.55,
     metalness: 0.08,
   });
@@ -1791,9 +2963,29 @@ export function buildRoom(): THREE.Group {
   sconceLens.position.set(-ROOM_HALF + sconceHousingDepth + sconceLensDepth / 2, sconceY, sconceZ);
   group.add(sconceLens);
 
-  const rim = new THREE.PointLight(0x6f9fd8, 0.14, 10, 2);
+  const rim = new THREE.PointLight(0x6f9fd8, 0.05, 6.2, 2);
   rim.position.set(-ROOM_HALF + 0.3, sconceY, sconceZ);
   group.add(rim);
+
+  const consoleRimLights: Array<{ x: number; z: number; color: number; intensity: number }> = [
+    { x: -4.7, z: -4.6, color: 0x58c9ff, intensity: 0.055 },
+    { x: 4.7, z: -4.6, color: 0x58c9ff, intensity: 0.055 },
+    { x: -4.8, z: 4.3, color: 0xffa45a, intensity: 0.038 },
+    { x: 4.8, z: 4.3, color: 0xffa45a, intensity: 0.038 },
+  ];
+  for (const lightDef of consoleRimLights) {
+    const light = new THREE.PointLight(lightDef.color, lightDef.intensity, 4.2, 2);
+    light.position.set(lightDef.x, 0.9, lightDef.z);
+    group.add(light);
+  }
+
+  group.traverse(x => {
+    if (!(x instanceof THREE.Mesh)) {
+      return;
+    }
+    x.castShadow = true;
+    x.receiveShadow = true;
+  });
 
   return group;
 }

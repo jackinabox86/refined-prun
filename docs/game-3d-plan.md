@@ -12,10 +12,7 @@ branch `3d-game-mode-spike` (pushed to origin, no PR opened yet).
 ## Vision
 
 A fullscreen 3D space-station bridge/operations center, built into refined-prun, that a
-player can walk around. A handful of purpose-built consoles (Base Planning, Fleet Ops,
-Inventory, etc.) sit arranged around a central hologram showing a region of the star
-map — like a bridge crew facing a plot table. Each console shows 2-4 of refined-prun's
-buffers as interactive screens, plus a control-surface slot for running action packages.
+player can walk around. 
 It's an alternate, opt-in way to inhabit the game's data — not a replacement for the
 normal 2D UI, which keeps working exactly as it does today for everyone who doesn't turn
 3D mode on.
@@ -44,14 +41,7 @@ normal 2D UI, which keeps working exactly as it does today for everyone who does
   buffer components (e.g. `INV.vue`). Those buffers are already eagerly bundled for every
   user regardless of 3D mode, so it costs nothing in bundle size, and no lint rule
   enforces the layering boundary anyway.
-- **Console layout: one per wall, facing center.** Resolved 2026-07-26 (second round):
-  replaced the single 140° arc with one console per room wall (`inv` -X, `flt` +X,
-  `companyops` +Z, `baseplanning` -Z offset off the viewscreen window), each still
-  rotated to face the room center where the hologram floats — crew stations facing a
-  plot table, just spread around the room instead of clustered on one arc. Room bumped
-  `ROOM_HALF` 5→8 (10×10→16×16) at the same time to give the spread-out consoles and the
-  walk path enough clearance.
-- **Focus model: press E to focus in place.** Walk up, face a console, press E: pointer
+- - **Focus model: press E to focus in place.** Walk up, face a console, press E: pointer
   unlocks, that console's screens become clickable, camera stays put. Press E again (or
   walk away) to return to walk mode.
 - **Console data model is declarative, not bespoke-per-console.** One `ConsoleDefinition`
@@ -69,7 +59,7 @@ normal 2D UI, which keeps working exactly as it does today for everyone who does
 - **No accessibility/non-desktop story** — accepted non-goal. Pointer Lock inherently
   requires a real desktop mouse; 3D mode is strictly opt-in and never replaces the 2D UI.
 - **Single room only** — no concrete feature has come up that needs a second walkable
-  area; revisit only if one does.
+
 
 ---
 
@@ -104,12 +94,8 @@ wall-mounted hangar display it replaced. `hangar.ts` itself is no longer called 
 read as distinct ships from straight through the window (even 72° spacing points most
 arms toward/away from the camera) — not fixed.
 
-**Known cosmetic bug, corrected 2026-07-30 — still broken, but not how this note used to
-describe it.** An earlier version of this note (2026-07-26) said the sun sprite
-(`buildSun()`) sat behind the room's solid `+Z` wall, opposite the actual `-Z` window, due
-to a sign error. That's stale: a later session moved it to the correct side
-(`buildSun()`'s local position is now `(44, 12, -380)`, correctly on `-Z`) without
-updating this note. It's still invisible, but for a different, now-diagnosed reason: at
+**Known cosmetic bug:the sun sprite
+(`buildSun()`) is still invisible: at
 local Z `-380` inside the viewscreen group (world `z=-55`, see Architecture above), its
 world distance from spawn is roughly 435 units — well beyond the camera's far clip plane
 (`Game3D.ts`: `new THREE.PerspectiveCamera(75, 1, 0.1, 300)`, i.e. 300 units). Anything
@@ -120,18 +106,13 @@ priority, purely cosmetic — but the next person who touches `viewscreen.ts` sh
 `buildSun()`'s local Z to somewhere under roughly `-230` (leaving margin under the
 300-unit world-distance limit) rather than re-diagnosing this from scratch.
 
-**Consoles** (`console.ts`, `console-roster.ts`): one console per room wall, each facing
-the center (`wallPose()`, inset `WALL_INSET` from its wall): `inv` (INV) on -X,
+**Consoles** (`console.ts`, `console-roster.ts`): `inv` (INV) on -X,
 `baseplanning` (BS + PROD) on -Z (offset to x=-3 to clear the viewscreen window), `flt`
 (FLT) on +X, `companyops` (CONTS + FIN) on +Z. Each `ConsoleDefinition` (id, purpose, position, rotationY, themeColor,
 `screens: [{command, widthPx, heightPx?}]`) is built by the generic `createConsole()`,
 which resolves each screen via the `xit` command registry (`xit.get(command)`) — adding
 a console is pure roster data, never new constructor code. Console height (`CONSOLE_Y`,
-shared between `console.ts` and `console-roster.ts` — duplicated on purpose to avoid a
-circular import) dropped from `ROOM_HEIGHT*0.55` to `ROOM_HEIGHT*0.55*0.7` — 30% shorter,
-2026-07-26 second round, per playtest feedback. Visual housing per console: `pedestal`,
-`desk` (angled podium surface, `DESK_TILT = 0.25` rad), `floorMarker`, `accentLight`
-(tinted by `themeColor`) — all independent of the invisible raycasting `hitbox`.
+shared between `console.ts` and `console-roster.ts` — `ROOM_HEIGHT*0.55*0.7`
 
 **Desk-mounted control-surface panels** (2026-07-26, second round): previously each
 console's dormant control-surface placeholder ("No action running") lived in the same
@@ -216,16 +197,6 @@ texture (height-field canvas → finite-difference normal map), read as embossed
 relief under lighting. New `greebles.ts` scatters ~60 rivet/vent/pipe instances
 (`THREE.InstancedMesh`) along the room's wall base — purely decorative, never added to
 `panelHitTargets` or any hitbox list. All four verified visually by `game-tester`;
-bloom alone costs a real, measurable 2-4x further slowdown on this harness's
-software-rendered `SwiftShader` baseline (~2 fps → ~0.5-1 fps) — not blocking on real
-GPU hardware, but worth knowing before trusting any FPS number from this harness on a
-bloom-enabled build.
-
-**Known, deliberately low-priority cosmetic issue:** `XIT CALC`'s cross-origin iframe
-still doesn't reliably paint inside a CSS3D panel (a known Chromium/three.js bug class,
-no canonical upstream fix). A scoped mitigation exists in `buffer-panel.tsx` but its
-effect is unconfirmed. Not worth more investigation time — only two minor features in
-the whole extension use iframes at all.
 
 ---
 
@@ -298,35 +269,8 @@ relock" is not discriminating. `game-tester` verified by patching
 `document` click listener to observe which element (if any) received a synthetic
 `.click()`. Worth reusing for any future click/relock verification in this harness.
 
----
 
-## KNOWN BUG — control-surface capture missed a real action package (found 2026-07-26, human playtest, not investigated)
 
-Reported directly by the user (not yet reproduced/diagnosed by an agent): starting an
-action runner (RepairAct) at the `baseplanning` console did **not** get captured into
-that console's control-surface slot. A normal 2D floating buffer window appeared
-instead (i.e. it stayed a regular window, exactly like `control-surface-router.ts`'s
-"not focused / not an ACT split / leave it alone" fallback paths), and the console's
-control-surface slot itself showed no change (still whatever it was before — dormant
-"No action running" or a prior capture).
-
-**Not yet diagnosed.** `control-surface-router.ts`'s `tryCapture()` only proceeds if
-`getFocusedConsoleId()` returns that console's id at the moment the window's DOM node
-mutates in — two candidate causes worth checking first, neither confirmed:
-
-- The console may not actually have been in `focused` state (per `interaction.ts`) at
-  the exact moment the window opened — e.g. if the click that launched the action
-  happened while merely `interact`-mode-unlocked rather than truly `focused` on
-  `baseplanning` specifically.
-- The synchronous `_$(win, C.Node.node)` split-detection check may not find a match for
-  this specific action package's DOM shape/timing — the comment above it assumes
-  `TileAllocator`'s split always completes before the `MutationObserver` callback fires,
-  which may not hold for every action-package variant.
-
-Needs a live human repro with devtools open (check `getFocusedConsoleId()`'s value and
-whether `tryCapture` even runs) before attempting a fix — don't guess-fix this blind.
-
----
 
 ## Reusable facts for future work
 
@@ -334,10 +278,6 @@ whether `tryCapture` even runs) before attempting a fix — don't guess-fix this
   bypass calls `PointerLockControls` methods directly, so it proves geometry/rendering/
   position but cannot exercise anything gated on `controls.isLocked`. That class of
   change needs a human with a real mouse.
-- **The test harness has no real GPU** — WebGL runs on `SwiftShader` (software
-  rasterizer), confirmed via `pw-act.mjs webgl-renderer-info`. Any FPS number from this
-  harness needs that check alongside it — software rendering is 10-50x slower than real
-  GPU hardware. Specific to this local Playwright/WSL2 setup, not real users' browsers.
 - **Ambient Vue context varies per buffer.** Some buffers (e.g. `INV.vue`, `FLT.vue`)
   need plugins like `tileStatePlugin` installed on an ancestor to avoid throwing on
   mount; others (`DISPATCH`) call `useTile()`/raw `inject()` and would throw as-is. Grep
@@ -346,11 +286,7 @@ whether `tryCapture` even runs) before attempting a fix — don't guess-fix this
 - **A blank/unpainted CSS3D iframe panel doesn't mean it failed to load** — check the
   DOM for the buffer's own loading-state indicator to distinguish "never loaded" from
   "loaded but not painted" before debugging the wrong layer.
-- **Cutting a real opening in a box-room wall:** hide that face's material
-  (`visible: false`) rather than removing/rebuilding the box geometry, then reconstruct
-  the surrounding wall as separate freestanding frame meshes using `DoubleSide` —
-  `BackSide` (used by the shared wall material, camera sits inside looking out) would
-  cull those standalone frame boxes' room-facing side.
+-
 - **Real native 2D game DOM can be reparented into a CSS3D panel, not just
   Vue-Teleported content.** A single `appendChild`/`replaceChildren` move (not a clone)
   preserves DOM identity, so Vue's own reconciliation on the moved subtree keeps
@@ -378,13 +314,7 @@ whether `tryCapture` even runs) before attempting a fix — don't guess-fix this
   paints**, and this same flattening quirk also corrupts real click hit-testing for
   sufficiently-skewed panels — see the Known Blocking Bug above. To check whether panels
   overlap visually, measure painted pixels from a screenshot, not `getBoundingClientRect`.
-- **A CSS3D panel and its raycasting hit-plane can be tilted together to angle-match a
-  sloped mesh** (console.ts's desk panels, 2026-07-26 third round): set matching
-  `rotation.x` on both the `CSS3DObject` and the hit-plane mesh — `panel-hit-test.ts`'s
-  intersect logic needs no changes, three.js raycasting already respects arbitrary mesh
-  transforms. Untested against the known extreme-skew click-hit-testing bug above — a
-  tilt adds a rotation axis no earlier verification exercised, so don't assume it's immune
-  to that flattening quirk.
+
 - **Anchor a variable-height panel row by its own top (or bottom) edge, not by a fixed
   center point, whenever it sits next to another element whose size can vary** (the desk
   panels above, first attempt centered them on the desk's own position and a `game-tester`
@@ -392,12 +322,7 @@ whether `tryCapture` even runs) before attempting a fix — don't guess-fix this
   assumed). Compute the row's center from `edgeConstant - (height/2)*cos(tilt)` so
   retuning the height later can't silently reintroduce the overlap — a fixed-center
   placement has to be re-derived by hand every time either sibling's size changes.
-- **A placeholder panel's fixed background/border can blend into a nearby mesh of a
-  similar dark color** (the desk panels' original fixed blue border against the console
-  pedestal's dark navy, `baseplanning`/`companyops`, 2026-07-26 third round) — check
-  contrast against whatever's actually behind a panel from likely viewing angles, not just
-  against the room's general wall/floor tone the rest of a console's screens are silhouetted
-  against.
+
 - **Visual-iteration sandbox** (`src/game-3d/sandbox/`, `pnpm run dev:3d-sandbox`): a
   standalone Vite dev server booting a real `Game3D` scene against fixture data instead
   of the live extension/login/socket loop — fast inner loop for pure materials/lighting/
@@ -411,136 +336,8 @@ whether `tryCapture` even runs) before attempting a fix — don't guess-fix this
   idempotent toggle), `game-3d-launcher.ts` (`toggleGame3D()`, the single dynamic-import
   seam).
 
-## Proposed next steps
 
-**1. Human playtest feedback (2026-07-26) — three done, one still open:**
 
-   - ~~Reconsider the console arc layout~~ — **done (2026-07-26, second round).** Replaced
-     the arc with one console per wall (see Decisions/Architecture above). Room
-     `ROOM_HALF` bumped 5→8 in the same change for clearance.
-   - ~~Decide on bloom's default state~~ — **done.** `Renderer.ts` now has a
-     `BLOOM_ENABLED = false` const gating the `EffectComposer`/`UnrealBloomPass`; flip it
-     to re-enable for visual-polish-focused work.
-   - ~~Move the hologram to a room corner~~ — **done (2026-07-26, third round).** See
-     Architecture above (`HOLOGRAM_POSITION`).
-   - **Fix the control-surface capture bug** — still open. RepairAct at `baseplanning`
-     wasn't captured (see the KNOWN BUG section above). Needs a live human repro with
-     devtools before attempting a fix; don't guess-fix blind. The desk-panel split below
-     changes *where* a capture lands but not the `tryCapture()` gating logic this bug
-     lives in — still needs its own diagnosis.
-
-**1b. Second round of layout requests (2026-07-26, third round) — done, `game-tester`-
-verified in their dormant/placeholder state:**
-
-   - **Viewscreen window enlarged to 80% of its wall** (`room.ts`'s `WINDOW_WIDTH`/
-     `WINDOW_HEIGHT`, see Architecture above). Verified.
-   - **Consoles 30% shorter** (`CONSOLE_Y` factor, see Architecture above). Verified.
-   - **Control-surface capture split into two desk-mounted panels** instead of one
-     top-row placeholder (see "Desk-mounted control-surface panels" above). First
-     implementation had two real bugs (`companyops` screen/panel overlap,
-     `baseplanning` panel illegible against the pedestal) — both caught by `game-tester`
-     and fixed (top-edge-anchored positioning, per-console `themeColor` borders), then
-     re-verified. **Still open**: an actual action run through these panels is
-     untestable until the KNOWN BUG above (control-surface capture not always firing) is
-     separately diagnosed and fixed — today's verification only covers the dormant "No
-     action running" placeholders, not real `Node.child` content reparented into them.
-
-**2. Re-evaluate the click-hit-testing gap now that the arc is gone** — the original gap
-(see the dedicated section above) was rooted in extreme *viewing angle* to the arc's two
-end consoles (`inv`/`flt`, ~±70° skew). That specific geometry no longer exists post
-layout-change — each console now sits flat against its own wall, typically viewed closer
-to face-on from across the room — but this is **not yet re-tested**; don't assume it's
-fixed until a fresh click-hit-test pass confirms it, since a different skew angle could
-still reproduce the same underlying Chromium CSS3D/`matrix3d` flattening quirk.
-
-**3. Finish the verification the click-hit-testing bug was blocking** — for
-`baseplanning`/`companyops` this is unblocked already; for `inv`/`flt` it depends on #2:
-   - A real `EXECUTE` click on a captured control-surface package, to confirm the
-     companion tile populates with real content (human-only, per the
-     server-communication rule).
-   - The full Phase 9 dynamic-capture flow end-to-end (focus a console, trigger a real
-     action from one of its screens, confirm capture/replace/dispose all behave as
-     designed).
-
-**4. Open candidates for whatever comes after that — none scoped or agreed yet, pick
-with the user before starting any of them:**
-
-   - **Player-configurable console screens.** The stated long-term intent behind Phase
-     9's "don't hardcode a command into a console" design — let the player choose which
-     XIT command occupies a console's screen/control-surface slot, rather than a fixed
-     roster. Meaningfully bigger than anything built so far (needs a UI for picking, and
-     probably `userData` persistence); the natural big next feature if the vision is
-     still to build toward it.
-   - **Hologram interactivity** — click a star/planet on the hologram for info, or use
-     it to navigate, rather than a static snapshot.
-   - **Expand the console roster** beyond the current 4, or let a console show more than
-     one screen combination.
-   - **Ambient audio/sound design** for the bridge.
-   - **Docking-arm spread fix** (cosmetic, non-blocking) — bias the viewscreen station's
-     arm angles for more lateral spread so more than ~2 of 5 read as distinct ships from
-     straight through the window.
-   - **CALC iframe repaint fix** — explicitly low priority; revisit only if a specific
-     reason comes up, not proactively.
-   - **A second walkable area** — explicitly decided against for now (see Decisions
-     above); only revisit if a concrete feature need arises that a single room can't fit.
-
-## Session log
-
-Keep this short — one or two lines per session, current state lives above. For detail on
-*how* any given piece was built, read git log on this branch.
-
-**2026-07-26** — Compressed this doc from a full phase-by-phase narration + ~250-line
-session log down to current architecture + decisions + known issues, at the user's
-request. No functional change. Last functional work: Expansion Phase 9 (generic dynamic
-control surface, replacing the fixed-per-console model) landed and was structurally
-verified; a real, serious click-hit-testing bug was found via live human testing right
-after and was the top blocking item.
-
-**2026-07-26 (later same day)** — Fixed the click-hit-testing bug: raycast-based
-hit-plane + temporary-reparent DOM resolution replaces broken native hit-testing (see
-above). Verified end-to-end by `game-tester` with real coordinate clicks for the two
-arc-center consoles.
-
-**2026-07-26 (later still)** — Added a procedural-only visual pass (bloom, PMREM
-reflections, normal/roughness maps, instanced greebles — see above), verified by
-`game-tester`. That verification also flagged what first looked like a full regression
-of the click-hit-testing fix; a focused follow-up investigation (including manual
-raycast math cross-checked against real screenshots) found the true picture: the fix
-is solid for moderately-angled consoles (confirmed twice) but has a real, unfixed gap
-at the arc's extreme ends (`inv`/`flt`, ~±70°) where Chromium's CSS3D rendering itself
-diverges from the true 3D transform — see the corrected section above. Also found (and
-left unfixed, low priority): the viewscreen sun sprite is placed behind the wrong wall.
-
-**2026-07-26 (session end)** — User playtested live and paused the session deliberately
-to think through several findings before continuing: the console arc layout reads as
-confusing and should probably be consoles-spread-around-the-room instead (which may
-also resolve the extreme-skew hit-testing gap for free — see Proposed next steps); the
-hologram should move from room-center to a corner; a real action package (RepairAct) at
-`baseplanning` failed to get captured into its control-surface slot (new bug, not yet
-diagnosed); and bloom's ~2-4x perf cost on this harness is worth disabling by default for
-faster iteration, re-enabling only for visual-polish work. No code changed this round —
-purely doc updates capturing the feedback for a focused follow-up session.
-
-**2026-07-26 (follow-up)** — Acted on two of the four paused items: disabled bloom by
-default (`Renderer.ts`'s `BLOOM_ENABLED` const) and replaced the console arc with one
-console per wall, all facing the room center (`console-roster.ts`'s `wallPose()`); bumped
-`ROOM_HALF` 5→8 for clearance. Hologram-to-corner and the control-surface capture bug
-remain open (see Proposed next steps). The old extreme-skew click-hit-testing gap's root
-geometry (the arc) no longer exists, but this hasn't been re-tested — don't assume fixed.
-
-**2026-07-26 (third round)** — User confirmed the focus hint and room movement-clamp
-bounds both work correctly (human-only checks the automated harness can't exercise).
-Acted on the remaining live feedback: moved the hologram to the room corner opposite the
-viewscreen (`HOLOGRAM_POSITION`); enlarged the viewscreen window to 80% of its wall
-(`WINDOW_WIDTH`/`WINDOW_HEIGHT` in `room.ts`); shrank console height 30% (`CONSOLE_Y`);
-and split each console's single dormant control-surface placeholder into two panels
-(`primary`/`companion`) mounted tilted on the desk below the buffer screens instead of
-squeezed into the top row. All four changes verified by `game-tester`; the desk-panel
-split initially had two real bugs (`companyops` panels overlapping its live CONTS/FIN
-screens, `baseplanning` panels illegible against the pedestal) — both found and fixed in
-the same round (top-edge-anchored row positioning, per-console `themeColor` borders), then
-re-verified passing on all four consoles. Does not fix the still-open control-surface
-capture bug — only changes where a successful capture would land once that's fixed.
 
 **2026-07-27** — Added `src/game-3d/sandbox/`, a standalone Vite dev server + fixture
 bootstrap for fast visual iteration decoupled from the live extension/login/socket loop
@@ -548,19 +345,8 @@ bootstrap for fast visual iteration decoupled from the live extension/login/sock
 gained an optional `cameraPose` option (backward-compatible, unused by the real
 extension entry point) for the sandbox's camera presets. No changes to the real 3D
 scene/room/console code itself — purely additive tooling, verified not to affect
-`pnpm run build`/`build:fast` output. Follow-up same day: added one fixture site + a
-3-star system to `fixtures.ts` (was previously empty-array-only) — turned out the
-hologram's empty-room-corner state wasn't a deeper issue, just missing site/star data
-for `buildHologram()` to compute a region from; BS/PROD render one real row now too,
-with no new crashes.
+`pnpm run build`/`build:fast` output. 
 
-**2026-07-30** — Note: several sessions of AAA-visual-pass work landed between
-2026-07-27 and this entry (console/hologram/room-shell/room-pit/HUD-overlay redesigns,
-texture sharpening, hologram floor-mount fixes) without a session-log entry each time —
-see git log on this branch for that detail, not backfilled here. This session continued
-three still-open pieces of that pass (room shell perimeter structure, texture panel
-detail, the viewscreen space diorama) via the builder/critic loop described in
-`docs/browser-testing-3d.md`; none reached a final WIN this session, all show real
 incremental progress. Two reusable findings worth having in this doc rather than only
 in `docs/browser-testing-3d.md`: (1) the camera far clip plane is 300 world units
 (`Game3D.ts`) — placing viewscreen dressing beyond that from spawn silently culls it,

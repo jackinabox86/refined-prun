@@ -57,11 +57,13 @@ export class DualRenderer {
     this.webgl = new THREE.WebGLRenderer({ antialias: true });
     this.webgl.setPixelRatio(window.devicePixelRatio);
     this.webgl.setClearColor(0x05070a);
+    this.webgl.shadowMap.enabled = true;
+    this.webgl.shadowMap.type = THREE.PCFSoftShadowMap;
     // Filmic tonemapping + sRGB output — applies to every render path (both the plain
     // renderer.render() fallback below and, via OutputPass, the composer chain), so
     // the room's material/light values read correctly regardless of POSTFX_ENABLED.
     this.webgl.toneMapping = THREE.ACESFilmicToneMapping;
-    this.webgl.toneMappingExposure = 0.78;
+    this.webgl.toneMappingExposure = 1.0;
     this.webgl.outputColorSpace = THREE.SRGBColorSpace;
     this.canvas = this.webgl.domElement;
     Object.assign(this.canvas.style, {
@@ -107,9 +109,9 @@ export class DualRenderer {
       // glow, not a blob with no discernible edge).
       const bloomPass = new UnrealBloomPass(
         new THREE.Vector2(window.innerWidth, window.innerHeight),
-        0.22,
-        0.12,
-        0.96,
+        0.18,
+        0.13,
+        1.02,
       );
       this.composer.addPass(bloomPass);
       // Converts the composer's linear working-space buffer to the renderer's

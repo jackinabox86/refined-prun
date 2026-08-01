@@ -242,16 +242,6 @@ directly, bypassing incremental movement entirely) would be worth the small effo
   steep-angle/close-distance pass first, or check its actual world position/scale
   against the camera's rather than trusting one "reasonable angle" screenshot.
 
-  **Related, for iframes specifically:** a blank/unpainted iframe inside a CSS3D panel
-  doesn't mean it failed to load — check the DOM directly to distinguish "never loaded"
-  from "loaded but not painted." E.g. `CALC.vue` renders a `LoadingSpinner` as a sibling
-  of the iframe (`v-if="loading"`, not `v-else`) that only disappears once the iframe's
-  `@load` fires; if that sibling is gone from the DOM but the panel still looks blank,
-  the load succeeded and the real issue is downstream (rendering/paint, not
-  network/CSP). This is a known, low-priority, deliberately-not-chased-further issue
-  for the CALC panel specifically (see `docs/game-3d-plan.md`'s Spike summary) — only
-  two minor features in the whole extension use iframes at all, don't over-invest here
-  without a specific reason to revisit.
 
 - **`getBoundingClientRect()` on a CSS3D panel div returns coordinates that don't match
   where it actually paints.** Confirmed by outlining a panel and comparing the reported
@@ -267,12 +257,7 @@ directly, bypassing incremental movement entirely) would be worth the small effo
   `CSS3DRenderer`'s render loop re-syncs the element's visibility every frame and
   silently reverts the mutation.
 
-- **Console housing accent colors (blue/green/purple/orange, one per console) are hard
-  to reliably tell apart from a screenshot under the scene's dark ambient lighting.** A
-  verification pass misidentified `companyops` (purple) as `inv` (blue) by desk color
-  alone before catching it by checking on-screen content instead (FIN's bar chart vs.
-  INV's item grid). When identifying which console a screenshot shows, check the
-  screen's actual content, not the housing/accent-light color.
+
 
 - **`pw-sandbox-screenshot.mjs`'s browser defaults to `SwiftShader`, a software
   rasterizer, not because the machine lacks a GPU but because the sandboxed/excluded

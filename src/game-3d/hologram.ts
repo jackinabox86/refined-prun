@@ -33,12 +33,13 @@ const DEFAULT_STAR_COLOR = 0xcccccc;
 /** Pale route-line tint, kept distinct from the room's saturated cyan trim. */
 const HOLO_ACCENT = new THREE.Color(0xd8f5ff);
 const MAJOR_NODE_COUNT = 5;
-const MAJOR_DOT_RADIUS = 0.12;
-const MINOR_DOT_RADIUS = 0.07;
+const MAJOR_DOT_RADIUS = 0.03;
+const MINOR_DOT_RADIUS = 0.0175;
+const STAR_LAYOUT_SCALE = 0.25;
 const PLINTH_HEIGHT = 0.5;
 const TANK_HEIGHT = 0.55;
 const TANK_RADIUS = HOLOGRAM_SPAN / 2 + 0.25;
-const MAP_CENTER_Y = PLINTH_HEIGHT + TANK_HEIGHT * 0.58;
+const MAP_CENTER_Y = PLINTH_HEIGHT + TANK_HEIGHT * 1.5;
 const MAP_VERTICAL_SPAN = TANK_HEIGHT * 0.64;
 
 /** Handle returned by {@link buildHologram}: the renderable group plus its per-frame hook. */
@@ -143,15 +144,11 @@ export function buildHologram(): Hologram {
   const layoutScale = HOLOGRAM_SPAN / Math.max(spanX, spanZ, 0.001);
   const verticalScale = Math.min(layoutScale, MAP_VERTICAL_SPAN / Math.max(spanY, 0.001));
 
-  const tankGlassMaterial = new THREE.MeshPhysicalMaterial({
-    color: 0xbfe8ff,
-    transparent: true,
-    transmission: 0.9,
-    roughness: 0.08,
-    thickness: 0.05,
-    ior: 1.4,
+  const tankGlassMaterial = new THREE.MeshStandardMaterial({
+    color: 0x0b0c0f,
+    metalness: 0.1,
+    roughness: 0.9,
     side: THREE.DoubleSide,
-    depthWrite: false,
   });
   const tankGlass = new THREE.Mesh(
     new THREE.CylinderGeometry(TANK_RADIUS, TANK_RADIUS, TANK_HEIGHT, 64, 1, true),
@@ -161,9 +158,9 @@ export function buildHologram(): Hologram {
   group.add(tankGlass);
 
   const rimMaterial = new THREE.MeshStandardMaterial({
-    color: 0x8a96a3,
-    metalness: 0.8,
-    roughness: 0.22,
+    color: 0x2f3338,
+    metalness: 0.3,
+    roughness: 0.85,
   });
   for (const y of [
     tankGlass.position.y - TANK_HEIGHT / 2,
@@ -176,9 +173,9 @@ export function buildHologram(): Hologram {
   }
 
   const plinthMaterial = new THREE.MeshStandardMaterial({
-    color: 0x566474,
-    metalness: 0.82,
-    roughness: 0.22,
+    color: 0x0b0c0f,
+    metalness: 0.3,
+    roughness: 0.85,
   });
   const plinth = new THREE.Mesh(
     new THREE.CylinderGeometry(TANK_RADIUS + 0.42, TANK_RADIUS + 0.55, PLINTH_HEIGHT, 64),
@@ -228,9 +225,9 @@ export function buildHologram(): Hologram {
   const positions = new Map<string, THREE.Vector3>();
   for (const star of region) {
     const pos = new THREE.Vector3(
-      (star.position.x - centerX) * layoutScale,
-      MAP_CENTER_Y + (star.position.y - centerY) * verticalScale,
-      (star.position.z - centerZ) * layoutScale,
+      (star.position.x - centerX) * layoutScale * STAR_LAYOUT_SCALE,
+      MAP_CENTER_Y + (star.position.y - centerY) * verticalScale * STAR_LAYOUT_SCALE,
+      (star.position.z - centerZ) * layoutScale * STAR_LAYOUT_SCALE,
     );
     positions.set(star.systemId, pos);
 
