@@ -1,6 +1,5 @@
 import PrunButton from '@src/components/PrunButton.vue';
 import { shipsStore } from '@src/infrastructure/prun-api/data/ships';
-import { stationsStore } from '@src/infrastructure/prun-api/data/stations';
 import { getEntityNaturalIdFromAddress } from '@src/infrastructure/prun-api/data/addresses';
 import { selectAddress } from '@src/infrastructure/prun-ui/utils/select-address';
 import $style from './sfc-exchange-destinations.module.css';
@@ -28,7 +27,6 @@ function onTileReady(tile: PrunTile) {
             inline
             disabled={location.value === naturalId}
             class={$style.button}
-            data-tooltip={stationsStore.getByNaturalId(naturalId)?.name ?? naturalId}
             onClick={() => selectAddress(container, naturalId)}>
             {naturalId}
           </PrunButton>
