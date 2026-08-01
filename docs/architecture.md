@@ -4,6 +4,13 @@ Browser extension for Prosperous Universe. Intercepts the game's WebSocket and D
 
 Stack: TypeScript, Vue 3, Vite (content scripts), CSS Modules. Package manager: pnpm.
 
+This repo (`jackinabox86/refined-prun`) is a long-diverged fork of `refined-prun/refined-prun`
+— the two histories share no commits since 2024-07-06, so upstream features can't be
+`git merge`d or `cherry-pick`ed in. To port an upstream change, fetch file contents directly
+via `gh api repos/refined-prun/refined-prun/contents/<path>?ref=<sha>` (base64-decode
+`.content`) and `gh api repos/refined-prun/refined-prun/commits/<sha>` for commit metadata
+and patches, then hand-apply against this fork's version of each file.
+
 ## Path Aliases
 
 | Alias | Resolves to |

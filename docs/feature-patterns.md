@@ -157,6 +157,14 @@ The `pkg` is a plain hardcoded object, not persisted user data — `ExecuteActio
 
 ESLint bans `.reduce()` for summation (`no-restricted-syntax`) — use `sumBy(array, x => x.value)` instead.
 
+Adding a new entry here means adding it to `vite.config.mts`'s `unimport.vite({ imports: [...] })`
+array first — `src/types/unimport.d.ts` is generated from that array by the `unimport` vite
+plugin, not hand-maintained. `pnpm run compile` (`tsc --noEmit`) reads the checked-in `.d.ts`
+directly and does not invoke vite, so a fresh global added only to `vite.config.mts` fails
+`tsc` with `Cannot find name` until a build (`pnpm run build` / `build:fast`, or the dev
+server) runs at least once to regenerate the file. Don't hand-edit `unimport.d.ts` to work
+around this — the next build overwrites it anyway.
+
 ---
 
 ## `C` Object

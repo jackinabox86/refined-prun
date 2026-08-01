@@ -522,6 +522,16 @@ process for this profile, then retry.
     reload was reported as working and only caught because the user noticed the green
     screens themselves.
 
+16. **`open-buffer`'s `.fill()`-based command entry is intermittently flaky for
+    multi-word/hyphenated commands** (e.g. `MAT RAT`, `PLI KI-840c`) — it can submit an
+    empty or unsubmitted buffer even with the Escape-before-Enter fix from gotcha #4.
+    `.fill()` sets the input value in one shot, which doesn't reliably drive the
+    react-autosuggest combobox's per-keystroke filtering for longer strings. Retype with
+    real keystrokes (`locator.pressSequentially(cmd)`) instead when `open-buffer` comes
+    back empty on a multi-word command — see the retry pattern in
+    `.local/scratch/open-buffer-type.mjs`. Single-word commands (`INV`, `PROD`) haven't
+    shown this issue.
+
 ## Files
 
 - `scripts/pw-helper.mjs` — shared constants (paths, CDP port, APEX URL) and the
