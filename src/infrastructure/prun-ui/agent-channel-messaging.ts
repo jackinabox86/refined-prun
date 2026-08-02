@@ -44,9 +44,11 @@ async function verifiedSend(input: HTMLInputElement, text: string) {
 
 // Input-clear only proves the client accepted the keystroke. The game tags the sent
 // message's C.Message.text span with C.Message.unconfirmed until the server acks it
-// (~100-200ms); wait for that class to drop before treating the post as real.
+// (~100-200ms normally); wait for that class to drop before treating the post as real.
+// Budget is 5s so a slow ack under chat flood throttling still clears without waiting
+// long enough to feel hung.
 async function waitForServerConfirmation(window: Element, text: string) {
-  const deadline = Date.now() + 3000;
+  const deadline = Date.now() + 5000;
   while (Date.now() < deadline) {
     const messages = _$(window, C.MessageList.messages);
     if (messages) {

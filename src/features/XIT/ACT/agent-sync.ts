@@ -5,7 +5,6 @@ import {
   maxMessageLength,
   fetchAgentChannel,
 } from '@src/infrastructure/prun-api/data/agent-channel';
-import { postAgentMessage } from '@src/infrastructure/prun-ui/agent-channel-messaging';
 import { configurableValue, groupTargetPrefix } from '@src/features/XIT/ACT/shared-types';
 import { deserializeStorage } from '@src/features/XIT/ACT/actions/utils';
 import { sitesStore } from '@src/infrastructure/prun-api/data/sites';
@@ -290,7 +289,12 @@ export async function generateAgentChainIds(count: number): Promise<string[]> {
   return Array.from({ length: count }, (_, i) => `${base}-${i + 1}`);
 }
 
-export async function postActionPackageToAgent(pkg: UserData.ActionPackageData, id?: string) {
+// Builds the chat message text for a package without posting it, so the caller can
+// recover the exact body if the send fails.
+export async function buildAgentPackageMessage(
+  pkg: UserData.ActionPackageData,
+  id?: string,
+): Promise<{ id: string; text: string }> {
   // History is needed to pick a free id; no-op when already fetched this session.
   await fetchAgentChannel();
   const resolvedId = id ?? generateAgentMessageId();
@@ -309,8 +313,7 @@ export async function postActionPackageToAgent(pkg: UserData.ActionPackageData, 
       `Action package too large to sync (${text.length} > ${maxMessageLength} chars).`,
     );
   }
-  await postAgentMessage(text);
-  return resolvedId;
+  return { id: resolvedId, text };
 }
 
 export interface AgentReadyPackage {
