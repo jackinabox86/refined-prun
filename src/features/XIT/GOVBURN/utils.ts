@@ -194,7 +194,7 @@ export function rankSlots(building: UserData.GovBurnBuilding, n: number): SlotPi
 // Purchases are NOT capped at storeCapacity - players may store excess.
 // Returns max(0, ticksToCover * amount - stored).
 export function upkeepBuyAmount(upkeep: UserData.GovBurnUpkeep, horizonDays: number, now: number) {
-  const daysToNextTick = (upkeep.nextTick - now) / MS_IN_DAY;
+  const daysToNextTick = Math.max(0, (upkeep.nextTick - now) / MS_IN_DAY);
   let ticksInHorizon = 0;
   if (upkeep.duration > 0) {
     for (let k = 0; daysToNextTick + k * upkeep.duration <= horizonDays; k++) {
@@ -268,8 +268,9 @@ export function cogcDays(cogc: UserData.GovBurnCogc, now: number) {
   return Math.max(0, days);
 }
 
-// Full COGC refills covered by a resupply horizon: 5-10d -> 1, 15-20d -> 2,
-// 25-30d -> 3. Capped at 3 refills no matter the horizon.
+// Full COGC refills covered by a resupply horizon, at the UI's 5-day increments:
+// 5-10d -> 1, 15-20d -> 2, 25-30d -> 3. General formula is ceil(horizonDays / 10),
+// capped at 3 refills no matter the horizon.
 export function cogcRefills(horizonDays: number) {
   return Math.min(3, Math.max(1, Math.ceil(horizonDays / COGC_PERIOD_DAYS)));
 }

@@ -28,6 +28,7 @@ export interface ActionStepGenerateContext<TConfig>
   extends ActionRunnerContext<UserData.ActionData> {
   config: TConfig;
   packageName: string;
+  preview: boolean;
   fail: (message?: string) => void;
   assert: AssertFn;
   getMaterialGroup: (name: string | undefined) => Promise<Record<string, number> | undefined>;

@@ -49,7 +49,7 @@ export class ActionRunner {
     }
     // Create a copy to prevent changes during execution.
     const copy = structuredClone(deepToRaw(pkg));
-    const { steps, fail } = await this.stepGenerator.generateSteps(copy, config);
+    const { steps, fail } = await this.stepGenerator.generateSteps(copy, config, true);
     if (!fail && extraSteps && extraSteps.length > 0) {
       steps.push(...extraSteps);
     }
@@ -77,7 +77,7 @@ export class ActionRunner {
     }
     // Create a copy to prevent changes during execution.
     const copy = structuredClone(deepToRaw(pkg));
-    const { steps, fail } = await this.stepGenerator.generateSteps(copy, config);
+    const { steps, fail } = await this.stepGenerator.generateSteps(copy, config, false);
     if (fail) {
       this.log.error('Action Package execution failed');
       return;

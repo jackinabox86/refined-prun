@@ -60,10 +60,10 @@ const pkg = computed(
 
 const generateReturnJson = ref(false);
 
-async function afterExecute(
+function afterExecute(
   pkgConfig: ActionPackageConfig,
   log: (tag: LogTag, message: LogContent) => void,
-): Promise<void> {
+) {
   if (!generateReturnJson.value) {
     return;
   }

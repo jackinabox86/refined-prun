@@ -36,7 +36,7 @@ onApiMessage({
       store.updateOne({
         ...existing,
         cogcProgramType: data.body.cogcProgramType,
-        populationId: data.body.populationId,
+        populationId: data.body.populationId ?? existing.populationId,
       });
     }
   },

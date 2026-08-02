@@ -10,13 +10,12 @@ import ConfigWindow from '@src/features/XIT/ACT/ConfigureWindow.vue';
 import { ActionPackageConfig, ActionStep } from '@src/features/XIT/ACT/shared-types';
 import { act } from '@src/features/XIT/ACT/act-registry';
 
-const { pkg, afterExecute, beforeExecute, extraSteps } = defineProps<{
+const { pkg, afterExecute, extraSteps } = defineProps<{
   pkg: UserData.ActionPackageData;
   afterExecute?: (
     config: ActionPackageConfig,
     log: (tag: LogTag, message: LogContent) => void,
   ) => void;
-  beforeExecute?: (log: (tag: LogTag, message: LogContent) => void) => void;
   extraSteps?: ActionStep[];
 }>();
 
@@ -138,7 +137,6 @@ async function onPreviewClick() {
 function onExecuteClick() {
   logScrolling.value = true;
   clearLog();
-  beforeExecute?.(logMessage);
   actReady.value = false;
   skipReady.value = false;
   runner.execute(pkg, config.value, extraSteps);

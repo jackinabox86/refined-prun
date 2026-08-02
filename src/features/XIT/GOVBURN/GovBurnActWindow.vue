@@ -59,6 +59,7 @@ const canPlanResupply = computed(() => {
 });
 
 const popiOrder = new Map(popiBuildings.map((x, i) => [x.ticker, i]));
+const UNKNOWN_TICKER_ORDER = 999;
 
 interface BuildingRow {
   ticker: string;
@@ -89,7 +90,11 @@ const buildingRows = computed(() => {
       hasUpkeeps: building.upkeeps !== undefined,
     });
   }
-  result.sort((a, b) => (popiOrder.get(a.ticker) ?? 999) - (popiOrder.get(b.ticker) ?? 999));
+  result.sort(
+    (a, b) =>
+      (popiOrder.get(a.ticker) ?? UNKNOWN_TICKER_ORDER) -
+      (popiOrder.get(b.ticker) ?? UNKNOWN_TICKER_ORDER),
+  );
   return result;
 });
 
@@ -97,7 +102,7 @@ const buildingRows = computed(() => {
 const slots = ref<Record<string, SlotPick[]>>({});
 
 watch(
-  () => [naturalId.value, captured.value] as const,
+  () => [naturalId.value, captured.value, planetConfig.value] as const,
   () => {
     const planet = captured.value;
     if (planet === undefined) {
@@ -357,8 +362,7 @@ function onExecuteClick() {
 }
 
 .summary {
-  margin: 0.5rem 0;
-  margin-left: 5px;
+  margin: 0.5rem 0 0.5rem 5px;
 }
 
 .cogcSummary {

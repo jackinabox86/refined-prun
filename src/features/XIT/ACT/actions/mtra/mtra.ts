@@ -199,7 +199,9 @@ act.addAction<Config>({
           if (agentGroups.length > 0) {
             ids =
               agentGroups.length >= 2
-                ? await generateAgentChainIds(agentGroups.length)
+                ? ctx.preview
+                  ? Array.from({ length: agentGroups.length }, (_, i) => `preview-${i + 1}`)
+                  : await generateAgentChainIds(agentGroups.length)
                 : [undefined];
           }
           for (const name of [...new Set([...printGroups, ...agentGroups])]) {

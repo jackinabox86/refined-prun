@@ -3,8 +3,8 @@ import {
   agentChannelStore,
   channelIdentifier,
   fetchAgentChannel,
-  openAgentChannelWithDraft,
 } from '@src/infrastructure/prun-api/data/agent-channel';
+import { openAgentChannelWithDraft } from '@src/infrastructure/prun-ui/agent-channel-messaging';
 import {
   agentReadyPackages,
   getPackageShip,

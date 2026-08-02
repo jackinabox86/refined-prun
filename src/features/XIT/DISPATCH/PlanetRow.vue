@@ -358,9 +358,9 @@ function clearShip() {
   width: 90px;
 }
 
-.selectWrap > * {
-  width: 90px !important;
-  margin: 0 !important;
+.selectWrap :global(div) {
+  width: 90px;
+  margin: 0;
 }
 
 .selectWrap :global(select) {

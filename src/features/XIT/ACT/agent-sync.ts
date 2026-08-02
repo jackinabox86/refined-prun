@@ -3,9 +3,9 @@
 import {
   agentChannelStore,
   maxMessageLength,
-  postAgentMessage,
   fetchAgentChannel,
 } from '@src/infrastructure/prun-api/data/agent-channel';
+import { postAgentMessage } from '@src/infrastructure/prun-ui/agent-channel-messaging';
 import { configurableValue, groupTargetPrefix } from '@src/features/XIT/ACT/shared-types';
 import { deserializeStorage } from '@src/features/XIT/ACT/actions/utils';
 import { sitesStore } from '@src/infrastructure/prun-api/data/sites';

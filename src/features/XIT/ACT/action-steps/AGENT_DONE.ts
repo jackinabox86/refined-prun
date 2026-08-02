@@ -1,5 +1,5 @@
 import { act } from '@src/features/XIT/ACT/act-registry';
-import { postAgentMessage } from '@src/infrastructure/prun-api/data/agent-channel';
+import { postAgentMessage } from '@src/infrastructure/prun-ui/agent-channel-messaging';
 
 interface Data {
   id: string;
