@@ -361,6 +361,21 @@ export function getPackageShip(pkg: UserData.ActionPackageData): PrunApi.Ship | 
   return undefined;
 }
 
+// A ship counts as at the package's destination only when it is grounded there -
+// chained per-stop packages share one ship, so each stop must check its own planet.
+export function isShipAtDestination(
+  ship: PrunApi.Ship | undefined,
+  destinationNaturalId: string | undefined,
+) {
+  if (ship?.flightId) {
+    return false;
+  }
+  if (destinationNaturalId === undefined) {
+    return true;
+  }
+  return getEntityNaturalIdFromAddress(ship?.address ?? undefined) === destinationNaturalId;
+}
+
 // Whichever action references a store is what needs to be "ready" (landed at the
 // package's destination, for a ship store) before the package makes sense to run -
 // e.g. an Auto Offload MTRA whose origin is a ship's cargo hold that's still in
@@ -378,14 +393,7 @@ function getReadyState(
     if (store?.type !== 'SHIP_STORE') {
       continue;
     }
-    const ship = shipsStore.getById(store.addressableId);
-    if (ship?.flightId) {
-      return false;
-    }
-    if (
-      destination &&
-      getEntityNaturalIdFromAddress(ship?.address ?? undefined) !== destination.naturalId
-    ) {
+    if (!isShipAtDestination(shipsStore.getById(store.addressableId), destination?.naturalId)) {
       return false;
     }
   }

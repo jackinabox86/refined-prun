@@ -8,6 +8,7 @@ import { openAgentChannelWithDraft } from '@src/infrastructure/prun-ui/agent-cha
 import {
   agentReadyPackages,
   getPackageShip,
+  isShipAtDestination,
   type PackageDestination,
 } from '@src/features/XIT/ACT/agent-sync';
 import { showBuffer } from '@src/infrastructure/prun-ui/buffers';
@@ -36,7 +37,7 @@ function getEta(pkg: UserData.ActionPackageData, destinationNaturalId: string | 
     return undefined;
   }
   const ship = getPackageShip(pkg);
-  if (ship && !ship.flightId) {
+  if (isShipAtDestination(ship, destinationNaturalId)) {
     return 'Landed';
   }
   const flight = flightsStore.getById(ship?.flightId);
