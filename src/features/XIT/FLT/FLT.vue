@@ -1091,12 +1091,7 @@ function getCargoState(cargoRatio: number) {
         <component
           :is="headerCellTag"
           v-if="showColTime"
-          :class="[
-            $style.headerCell,
-            $style.sortable,
-            $style.colTime,
-            layoutMode === 'whitespace' ? $style.colTimeExpanded : '',
-          ]"
+          :class="[$style.headerCell, $style.sortable, $style.colTime]"
           @click="setSort('eta')">
           ETA
           <span
@@ -1192,14 +1187,7 @@ function getCargoState(cargoRatio: number) {
           <StatusCell :ship-id="x.ship.id" />
         </component>
 
-        <component
-          :is="cellTag"
-          v-if="showColTime"
-          :class="[
-            $style.bodyCell,
-            $style.colTime,
-            layoutMode === 'whitespace' ? $style.colTimeExpanded : '',
-          ]">
+        <component :is="cellTag" v-if="showColTime" :class="[$style.bodyCell, $style.colTime]">
           <TimeCell :ship-id="x.ship.id" />
         </component>
 
@@ -1432,12 +1420,11 @@ function getCargoState(cargoRatio: number) {
   border-right: none;
 }
 
+/* TimeCell right-aligns its own content, so the header has to follow suit in every
+   layout or it drifts to the left edge of the column. */
 .colTime {
   border-left: none;
   min-width: 80px;
-}
-
-.colTimeExpanded {
   justify-content: flex-end;
   text-align: right;
 }
@@ -1513,10 +1500,8 @@ function getCargoState(cargoRatio: number) {
   text-align: center;
 }
 
-/* TimeCell right-aligns its own content in every layout, so the ETA header has to
-   follow suit or it drifts to the left edge of the column. */
-.legacyTable .colTime,
-.legacyTable .colTimeExpanded {
+/* Overrides the left-aligned .legacyTable .headerCell rule above. */
+.legacyTable .colTime {
   text-align: right;
 }
 
