@@ -50,6 +50,14 @@ Vue component filenames must match the import name:
 // The file MUST be: ContextRow.vue (not my-feature.vue)
 ```
 
+**Component basenames must be unique across the whole project.** `sanitizeModuleClassname` in
+`vite.config.mts` scopes CSS-module classes as `rp-<basename>__<class>___<hash of basename+class>` —
+the file's directory and contents are not part of it. Two components sharing a basename therefore
+emit *identical* class names and silently override each other's styles in the built CSS, with no
+build error (found live: `src/components/CargoBar.vue` and `src/features/XIT/FLT/CargoBar.vue` both
+emitted `rp-CargoBar__container`, so STO's rules were styling XIT FLT's bars). Grep for the basename
+before adding a component, and prefix it when it collides — FLT's is now `FleetCargoBar.vue`.
+
 ### Parameter Checks
 
 If a tile command can't be opened without a parameter (like `PRODQ`), don't guard against missing parameters.
@@ -741,6 +749,50 @@ rules verbatim:
 There is no game class to reuse for this: the game's main `ScrollView` machinery never
 restyles the scrollbar — it hides the native one by pushing it outside a clipped parent
 (`margin-right: -15px`) — so copy the values.
+
+### `data-tooltip` Changes the Box It Sits On
+
+The game styles `[data-tooltip]` globally with `display: inline-block` and `padding: 0 4px 0`.
+Adding the attribute to an existing element therefore silently changes its layout, not just its
+hover behaviour. Two verified consequences:
+
+- On a **percentage-width flex child** the padding is fatal. `min-width: auto` floors each item at
+  its own padding, so a bar built from `width: <n>%` segments can no longer shrink to fit: an
+  8-segment cargo bar in a 60px column overflowed by 4px and painted into the neighbouring cell.
+- On a **bar container** the padding insets the fill, leaving the container's background visible at
+  both ends (found in `InvBar.vue`, where an alarm supplies the tooltip).
+
+Reset it explicitly on any element you give a tooltip whose box matters:
+
+```css
+.segment {
+  display: block;
+  height: 100%;
+  padding: 0;
+}
+```
+
+Reference implementations: `.segment` in `src/components/CargoBar.vue` and
+`src/features/XIT/FLT/FleetCargoBar.vue`, `.container` in `src/features/XIT/BS/InvBar.vue`.
+
+### Grid and Table Sizing Traps
+
+Both verified by measurement in headless Chromium, not by inspection:
+
+- **`display: table` on divs is not a `<table>`.** Chrome distributes surplus column width
+  differently for a CSS table built from divs than for a real table element, even with byte-identical
+  CSS and content — on one 520px row, `129 | 97 | 132 | 115 | 47` became `139 | 81 | 141 | 118 | 40`.
+  No `box-sizing`, `border-collapse`, `table-layout` or explicit `table-row-group` tweak closes the
+  gap. To reproduce a real table's sizing, render real `table`/`tr`/`th`/`td` elements — Vue's
+  `<component :is="tag">` switches them per layout mode while the classes stay put (XIT FLT's legacy
+  layout). Keep the `display: table-cell` overrides anyway if the base cell rules set `display: flex`.
+- **`container-type: inline-size` on an `inline-grid` collapses it.** Size containment makes the
+  element's inline size compute without regard to its contents, so the grid box measures zero width
+  and stops responding to its container; the tracks lay out and overflow it.
+
+When a layout question is contested, settle it with a static HTML repro driven by
+`.local/pw-tools`' Playwright in headless mode. It gives exact numbers in seconds and needs no game
+session — far cheaper than reasoning about the cascade or booting the full harness.
 
 ### `:has` Selector
 
