@@ -575,41 +575,28 @@ function getSortDirection(key: SortKey) {
   return sortDirectionByKey.value[key] ?? 'asc';
 }
 
+// Ties must stay at 0 so the caller can fall through to the secondary key. Folding a
+// name comparison in here made every key return a non-zero result and the secondary
+// sort never ran.
 function compareByKey(a: FlightRow, b: FlightRow, key: SortKey) {
-  const nameCompare = (a.ship.name || a.ship.registration).localeCompare(
-    b.ship.name || b.ship.registration,
-  );
-
   switch (key) {
     case 'none':
       return 0;
     case 'name':
-      return nameCompare;
-    case 'cargo': {
-      const primary = a.cargoRatio - b.cargoRatio;
-      return primary !== 0 ? primary : nameCompare;
-    }
+      return (a.ship.name || a.ship.registration).localeCompare(b.ship.name || b.ship.registration);
+    case 'cargo':
+      return a.cargoRatio - b.cargoRatio;
     case 'status':
-    case 'eta': {
-      const primary = a.statusSortValue - b.statusSortValue;
-      return primary !== 0 ? primary : nameCompare;
-    }
-    case 'repair': {
-      const primary = a.ship.condition - b.ship.condition;
-      return primary !== 0 ? primary : nameCompare;
-    }
-    case 'size': {
-      const primary = a.cargoCapacity - b.cargoCapacity;
-      return primary !== 0 ? primary : nameCompare;
-    }
-    case 'shipClass': {
-      const primary = a.shipClass.localeCompare(b.shipClass);
-      return primary !== 0 ? primary : nameCompare;
-    }
-    case 'fuel': {
-      const primary = a.fuelRatio - b.fuelRatio;
-      return primary !== 0 ? primary : nameCompare;
-    }
+    case 'eta':
+      return a.statusSortValue - b.statusSortValue;
+    case 'repair':
+      return a.ship.condition - b.ship.condition;
+    case 'size':
+      return a.cargoCapacity - b.cargoCapacity;
+    case 'shipClass':
+      return a.shipClass.localeCompare(b.shipClass);
+    case 'fuel':
+      return a.fuelRatio - b.fuelRatio;
   }
 }
 
@@ -1526,6 +1513,9 @@ function getCargoState(cargoRatio: number) {
   text-align: center;
 }
 
+/* TimeCell right-aligns its own content in every layout, so the ETA header has to
+   follow suit or it drifts to the left edge of the column. */
+.legacyTable .colTime,
 .legacyTable .colTimeExpanded {
   text-align: right;
 }
