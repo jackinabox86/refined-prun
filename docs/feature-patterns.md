@@ -233,6 +233,21 @@ during the pause is handled.
 
 `configurableValue` and `groupTargetPrefix` (`shared-types.ts`) are sentinels shared across every ACT action/material-group type. If an action needs an extra dropdown option unique to itself (e.g. Refuel's "All Exchanges" origin, alongside "Configure on Execution" and specific storages), define that sentinel in the action's own `utils.ts`/`config.ts` instead of adding it to `shared-types.ts`.
 
+### Step Generation Runs Entirely Before Execution
+
+`StepGenerator.generateSteps` loops over *every* action and emits *all* their steps before the
+`StepMachine` runs the first one. So an action that allocates a scarce resource during generation
+cannot see what a sibling action allocated by reading live game state — that state is byte-identical
+for all of them.
+
+Found live: DISPATCH emits one finish-MTRA action per ship, each allocating an agent-channel message
+id by scanning the channel history for a free letter. Every ship got the same base, so two ships both
+posted `a3-1`/`a3-2` and one dismissal marker hid both.
+
+Carry cross-action allocations in `ctx.state` — the object `generateState()` builds once per pass and
+hands to every action (`reservedAgentIds` is the reference case). Reach for live game state only for
+things no sibling action can change.
+
 ---
 
 ## Tile UI Gotchas

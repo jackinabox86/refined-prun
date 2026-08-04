@@ -4,6 +4,7 @@ import { Logger } from '@src/features/XIT/ACT/runner/logger';
 import { TileAllocator } from '@src/features/XIT/ACT/runner/tile-allocator';
 import { clickElement } from '@src/util';
 import { sleep } from '@src/utils/sleep';
+import { closeAgentChannelSession } from '@src/infrastructure/prun-ui/agent-channel-messaging';
 
 interface StepMachineOptions {
   tile: PrunTile;
@@ -76,6 +77,7 @@ export class StepMachine {
   }
 
   stop() {
+    closeAgentChannelSession();
     this.next = undefined;
     this.nextAct = undefined;
     this.options.onEnd();

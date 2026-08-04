@@ -418,6 +418,10 @@ function execute() {
     return;
   }
 
+  // Group names are player-facing (status lines, offload package labels); planet stays
+  // a natural id because it feeds SFC/BRA tile commands.
+  const groupNameOf = (base: IncludedBase) => base.planetName || base.naturalId;
+
   const groups: UserData.MaterialGroupData[] = [];
   const cxBuyActions: UserData.ActionData[] = [];
 
@@ -437,7 +441,7 @@ function execute() {
 
     groups.push({
       type: 'Manual',
-      name: naturalId,
+      name: groupNameOf(base),
       planet: naturalId,
       materials: bill,
     });
@@ -493,7 +497,7 @@ function execute() {
 
     let materials: Record<string, number> | undefined;
     for (const base of shipBases) {
-      const group = groups.find(x => x.name === base.naturalId);
+      const group = groups.find(x => x.name === groupNameOf(base));
       materials = mergeBills(materials, group?.materials);
     }
 
@@ -504,9 +508,9 @@ function execute() {
     });
 
     // Offload = JSON print; agent = post to agent channel (chain ids for 2+ stops).
-    const offloadGroups = shipBases.filter(x => x.config.offloadJson).map(x => x.naturalId);
-    const agentGroups = shipBases.filter(x => x.config.agent).map(x => x.naturalId);
-    const repairGroups = shipBases.filter(x => x.config.repair).map(x => x.naturalId);
+    const offloadGroups = shipBases.filter(x => x.config.offloadJson).map(groupNameOf);
+    const agentGroups = shipBases.filter(x => x.config.agent).map(groupNameOf);
+    const repairGroups = shipBases.filter(x => x.config.repair).map(groupNameOf);
 
     const { load, finish } = buildTwoPhaseMtraActions({
       loadName,

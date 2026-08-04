@@ -41,6 +41,10 @@ export interface ActionStepGenerateContext<TConfig>
         [mat: string]: number;
       };
     };
+    // Agent message ids handed out during this generation pass but not yet posted.
+    // Every action generates its steps before any of them run, so the channel history
+    // looks identical to all of them and can't keep two ships' chains apart on its own.
+    reservedAgentIds: Set<string>;
   };
 }
 

@@ -6,7 +6,7 @@ import {
   fetchAgentChannel,
 } from '@src/infrastructure/prun-api/data/agent-channel';
 import { configurableValue, groupTargetPrefix } from '@src/features/XIT/ACT/shared-types';
-import { deserializeStorage } from '@src/features/XIT/ACT/actions/utils';
+import { deserializeStorage, serializeStorage } from '@src/features/XIT/ACT/actions/utils';
 import { sitesStore } from '@src/infrastructure/prun-api/data/sites';
 import { warehousesStore } from '@src/infrastructure/prun-api/data/warehouses';
 import { shipsStore } from '@src/infrastructure/prun-api/data/ships';
@@ -113,8 +113,8 @@ function remapValuesDeep(
 // Origin/dest are built by serializeStorage() as "<display name> <Suffix>" (e.g.
 // "Antares Warehouse"). deserializeStorage() resolves the name via *OrName lookups that
 // accept a natural id interchangeably with the display name - so swapping in the natural
-// id compacts these losslessly (no reverse step needed on expand) without hardcoding
-// every base/warehouse name in the game.
+// id compacts these losslessly without hardcoding every base/warehouse name in the game.
+// expandStorageName reverses the swap on receive so step descriptions show display names.
 const storageSuffixes = [' Base', ' Warehouse', ' Cargo', ' STL Store', ' FTL Store'] as const;
 
 function compactStorageName(value: string): string {
@@ -128,6 +128,17 @@ function compactStorageName(value: string): string {
   }
   const naturalId = getStorageNaturalId(store);
   return naturalId ? naturalId + suffix : value;
+}
+
+// Mirror of compactStorageName: the wire carries natural ids to stay under the message
+// length cap, but the receiving side displays these strings verbatim in step descriptions.
+function expandStorageName(value: string): string {
+  const suffix = storageSuffixes.find(x => value.endsWith(x));
+  if (!suffix) {
+    return value;
+  }
+  const store = deserializeStorage(value);
+  return store ? serializeStorage(store) : value;
 }
 
 function getStorageNaturalId(store: PrunApi.Store): string | undefined {
@@ -189,7 +200,7 @@ export function compactActionPackageForSync(pkg: UserData.ActionPackageData): Ag
 export function expandActionPackageFromSync(
   envelope: AgentSyncEnvelope,
 ): UserData.ActionPackageData {
-  const withFullValues = remapValuesDeep(envelope.p, valueFromSync);
+  const withFullValues = remapValuesDeep(envelope.p, valueFromSync, expandStorageName);
   return remapKeysDeep(withFullValues, keyFromSync) as UserData.ActionPackageData;
 }
 
@@ -242,7 +253,11 @@ function getInWindowCutoff() {
 // window, so a freshly generated id stays unique for the 5-day retention period.
 // Chain members (e.g. "c11-2") also reserve their base ("c11") so generateAgentMessageId
 // never hands out a base that still has live chain members.
-function collectUsedIds(messages: PrunApi.ChannelMessage[], cutoff: number) {
+function collectUsedIds(
+  messages: PrunApi.ChannelMessage[],
+  cutoff: number,
+  reserved?: ReadonlySet<string>,
+) {
   const used = new Set<string>();
   const addId = (raw: string) => {
     const id = raw.toLowerCase();
@@ -252,6 +267,11 @@ function collectUsedIds(messages: PrunApi.ChannelMessage[], cutoff: number) {
       used.add(chain.base);
     }
   };
+  if (reserved) {
+    for (const id of reserved) {
+      addId(id);
+    }
+  }
   for (const message of messages) {
     if (message.type !== 'CHAT' || message.time.timestamp < cutoff) {
       continue;
@@ -269,10 +289,10 @@ function collectUsedIds(messages: PrunApi.ChannelMessage[], cutoff: number) {
 }
 
 // Id = <letter><dayOfMonth>, e.g. "a3" = first package posted on the 3rd.
-export function generateAgentMessageId() {
+export function generateAgentMessageId(reserved?: ReadonlySet<string>) {
   const day = new Date().getDate();
   const messages = agentChannelStore.all.value ?? [];
-  const used = collectUsedIds(messages, getInWindowCutoff());
+  const used = collectUsedIds(messages, getInWindowCutoff(), reserved);
   for (let i = 0; i < 26; i++) {
     const id = String.fromCharCode(97 + i) + day;
     if (!used.has(id)) {
@@ -282,11 +302,22 @@ export function generateAgentMessageId() {
   throw new Error('All 26 agent message ids for today are in use.');
 }
 
-// Allocates one free base and returns chain member ids: base-1 … base-count.
-export async function generateAgentChainIds(count: number): Promise<string[]> {
+// Allocates one free base id for a run of `count` packages: a single package keeps the
+// plain base ("a3"), two or more become chain members ("a3-1" … "a3-n") so XIT AGENT can
+// SFC from one stop to the next. Ids are added to `reserved` because the matching posts
+// only happen later, at step-execution time.
+export async function generateAgentIds(count: number, reserved?: Set<string>): Promise<string[]> {
   await fetchAgentChannel();
-  const base = generateAgentMessageId();
-  return Array.from({ length: count }, (_, i) => `${base}-${i + 1}`);
+  const base = generateAgentMessageId(reserved);
+  reserved?.add(base);
+  if (count <= 1) {
+    return [base];
+  }
+  const ids = Array.from({ length: count }, (_, i) => `${base}-${i + 1}`);
+  for (const id of ids) {
+    reserved?.add(id);
+  }
+  return ids;
 }
 
 // Builds the chat message text for a package without posting it, so the caller can

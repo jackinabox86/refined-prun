@@ -12,10 +12,6 @@ import {
 
 const setupErrorMessage = `The "${channelIdentifier}" channel isn't set up - open COM, click "new group", add no other members, and name it "${channelIdentifier}".`;
 
-async function waitForWindowClosed(window: Element) {
-  await new Promise<void>(resolve => onNodeDisconnected(window, resolve));
-}
-
 // Verified send recipe for formless chat compose inputs - see docs/feature-patterns.md
 // "Submitting a Formless Input Programmatically". Do not deviate from this sequence.
 async function verifiedSend(input: HTMLInputElement, text: string) {
@@ -42,12 +38,27 @@ async function verifiedSend(input: HTMLInputElement, text: string) {
   }
 }
 
+function getSystemMessageTexts(window: Element): string[] {
+  const messages = _$(window, C.MessageList.messages);
+  if (!messages) {
+    return [];
+  }
+  return _$$(messages, C.Message.message)
+    .filter(x => _$(x, C.Message.system))
+    .map(x => _$(x, C.Message.text)?.textContent ?? '')
+    .filter(x => x);
+}
+
 // Input-clear only proves the client accepted the keystroke. The game tags the sent
 // message's C.Message.text span with C.Message.unconfirmed until the server acks it
 // (~100-200ms normally); wait for that class to drop before treating the post as real.
 // Budget is 5s so a slow ack under chat flood throttling still clears without waiting
 // long enough to feel hung.
-async function waitForServerConfirmation(window: Element, text: string) {
+async function waitForServerConfirmation(
+  window: Element,
+  text: string,
+  systemMessageCountBefore: number,
+) {
   const deadline = Date.now() + 5000;
   while (Date.now() < deadline) {
     const messages = _$(window, C.MessageList.messages);
@@ -62,7 +73,13 @@ async function waitForServerConfirmation(window: Element, text: string) {
     }
     await sleep(100);
   }
-  throw new Error('The game did not confirm the message was received by the server.');
+  const systemMessages = getSystemMessageTexts(window);
+  const newest = systemMessages.slice(systemMessageCountBefore).at(-1);
+  throw new Error(
+    newest
+      ? `The game did not confirm the message was received by the server: ${newest}`
+      : 'The game did not confirm the message was received by the server.',
+  );
 }
 
 async function waitForComposePrompt(window: Element) {
@@ -79,14 +96,17 @@ async function waitForComposePrompt(window: Element) {
   return prompt;
 }
 
-// Prefill + verified-send recipe + server-ack wait + local store fold on an already-open channel.
-export async function postMessageToOpenChannel(
-  window: Element,
-  input: HTMLInputElement,
-  text: string,
-) {
+// Posts a raw string to the channel via the compose input (no <form> exists on it, so
+// this dispatches real Enter key events instead of the requestSubmit() pattern buffers.ts
+// uses for command-entry inputs). A bare keydown right after filling the input is silently
+// dropped - the game's handler needs a beat after the value change plus the full
+// keydown/keypress/keyup sequence. Legacy keyCode/which getters are patched onto the
+// events because the game still reads them. Success is verified by polling until the
+// compose input clears and the message's unconfirmed class is removed by the server ack.
+async function postMessageToOpenChannel(window: Element, input: HTMLInputElement, text: string) {
+  const systemMessageCountBefore = getSystemMessageTexts(window).length;
   await verifiedSend(input, text);
-  await waitForServerConfirmation(window, text);
+  await waitForServerConfirmation(window, text, systemMessageCountBefore);
   addLocalMessage(text);
 }
 
@@ -102,7 +122,7 @@ export async function openAgentChannelWithDraft(text: string) {
     force: true,
   });
   const prompt = await waitForComposePrompt(window);
-  const input = _$(prompt, 'input') as HTMLInputElement;
+  const input = (await $(prompt, 'input')) as HTMLInputElement;
   focusElement(input);
   changeInputValue(input, text);
 
@@ -121,26 +141,47 @@ export async function openAgentChannelWithDraft(text: string) {
   })();
 }
 
-// Posts a raw string to the channel via the compose input (no <form> exists on it, so
-// this dispatches real Enter key events instead of the requestSubmit() pattern buffers.ts
-// uses for command-entry inputs). A bare keydown right after filling the input is silently
-// dropped - the game's handler needs a beat after the value change plus the full
-// keydown/keypress/keyup sequence. Legacy keyCode/which getters are patched onto the
-// events because the game still reads them. Success is verified by polling until the
-// compose input clears and the message's unconfirmed class is removed by the server ack.
-export async function postAgentMessage(text: string) {
-  const posted = ref(false);
+interface ChannelSession {
+  window: Element;
+  input: HTMLInputElement;
+  close: () => void;
+}
+
+let session: ChannelSession | undefined;
+
+// One hidden channel buffer is reused for every post in a run: opening and closing a
+// buffer per message is far slower than the send itself, and re-opening the channel makes
+// the rendered message list start over (see fetchAgentChannel's note on history pushes).
+async function openChannelSession(): Promise<ChannelSession> {
+  if (session?.window.isConnected && session.input.isConnected) {
+    return session;
+  }
+  const closed = ref(false);
   const window = await showBuffer(channelCommand, {
     force: true,
     autoClose: true,
-    closeWhen: computed(() => posted.value),
+    closeWhen: computed(() => closed.value),
   });
+  const close = () => (closed.value = true);
   try {
     const prompt = await waitForComposePrompt(window);
-    const input = _$(prompt, 'input') as HTMLInputElement;
-    await postMessageToOpenChannel(window, input, text);
-  } finally {
-    posted.value = true;
+    const input = (await $(prompt, 'input')) as HTMLInputElement;
+    session = { window, input, close };
+    return session;
+  } catch (e) {
+    close();
+    throw e;
   }
-  await waitForWindowClosed(window);
+}
+
+// Called when an action package run ends, however it ends.
+export function closeAgentChannelSession() {
+  const current = session;
+  session = undefined;
+  current?.close();
+}
+
+export async function postAgentMessage(text: string) {
+  const { window, input } = await openChannelSession();
+  await postMessageToOpenChannel(window, input, text);
 }

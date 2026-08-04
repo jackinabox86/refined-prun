@@ -10,7 +10,8 @@ import { OPEN_BRA } from '@src/features/XIT/ACT/action-steps/OPEN_BRA';
 import { atSameLocation, deserializeStorage } from '@src/features/XIT/ACT/actions/utils';
 import { Config, CX_BUY_ONLY_DEST } from '@src/features/XIT/ACT/actions/mtra/config';
 import { AssertFn, configurableValue } from '@src/features/XIT/ACT/shared-types';
-import { generateAgentChainIds } from '@src/features/XIT/ACT/agent-sync';
+import { generateAgentIds } from '@src/features/XIT/ACT/agent-sync';
+import { getPlanetName } from '@src/core/planet-name';
 
 act.addAction<Config>({
   type: 'MTRA',
@@ -171,7 +172,7 @@ act.addAction<Config>({
                 name,
                 group: name,
                 origin: serializedDest,
-                dest: planet ? `${planet} Base` : configurableValue,
+                dest: planet ? `${getPlanetName(planet)} Base` : configurableValue,
               },
             ],
           } as UserData.ActionPackageData;
@@ -195,14 +196,11 @@ act.addAction<Config>({
           // One offload package per group name (union of print + agent lists).
           // LOG_JSON only for printGroups; POST_AGENT only for agentGroups.
           // Multi-stop agent posts get chain ids so XIT AGENT can SFC to the next stop.
-          let ids: (string | undefined)[] | undefined;
+          let ids: string[] | undefined;
           if (agentGroups.length > 0) {
-            ids =
-              agentGroups.length >= 2
-                ? ctx.preview
-                  ? Array.from({ length: agentGroups.length }, (_, i) => `preview-${i + 1}`)
-                  : await generateAgentChainIds(agentGroups.length)
-                : [undefined];
+            ids = ctx.preview
+              ? Array.from({ length: agentGroups.length }, (_, i) => `preview-${i + 1}`)
+              : await generateAgentIds(agentGroups.length, ctx.state.reservedAgentIds);
           }
           for (const name of [...new Set([...printGroups, ...agentGroups])]) {
             const groupMats = await getMaterialGroup(name);

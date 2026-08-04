@@ -177,5 +177,6 @@ function generateState() {
   }
   return {
     WAR: war,
+    reservedAgentIds: new Set<string>(),
   };
 }
