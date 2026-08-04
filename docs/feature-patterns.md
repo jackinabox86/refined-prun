@@ -498,6 +498,28 @@ const state = ref(localStorage.getItem(key) ?? 'default');
 watch(state, value => localStorage.setItem(key, value));
 ```
 
+### Comparators in a Primary/Secondary Sort Chain
+
+A comparator that a chain calls for the primary key must return `0` on a tie. Folding a
+tiebreak into it makes every call return non-zero, and the secondary key becomes dead code —
+the UI offers a secondary-sort control that silently does nothing. Keep the tiebreak at the
+call site, after every user-chosen key has been tried.
+
+```ts
+// Bad: 'cargo' can never return 0, so the caller's secondary key is unreachable.
+case 'cargo': {
+  const primary = a.cargoRatio - b.cargoRatio;
+  return primary !== 0 ? primary : nameCompare;
+}
+
+// Good: ties fall through to the caller.
+case 'cargo':
+  return a.cargoRatio - b.cargoRatio;
+```
+
+Decide deliberately whether the final fallback is multiplied by the primary direction. Leaving
+it unmultiplied (XIT FLT) means full ties always read A→Z, even under a descending primary.
+
 ---
 
 ## Opening Panels Programmatically
@@ -793,6 +815,20 @@ Both verified by measurement in headless Chromium, not by inspection:
 When a layout question is contested, settle it with a static HTML repro driven by
 `.local/pw-tools`' Playwright in headless mode. It gives exact numbers in seconds and needs no game
 session — far cheaper than reasoning about the cascade or booting the full harness.
+
+### Alignment Belongs to the Column, Not the Layout Mode
+
+When a cell component aligns its own content unconditionally, the matching header rule must be
+unconditional too. XIT FLT gated its right-aligning `.colTimeExpanded` class on
+`layoutMode === 'whitespace'` while `TimeCell` right-aligned in every mode, so the ETA header sat
+24px off its own body cells in the other three layouts. The fix was deleting the conditional class
+and folding its rules into the always-applied `.colTime`.
+
+Layout-mode variants still need their own selector when the mode's base rules outrank the column
+rule. Specificity, not source order, decides: `.legacyTable .headerCell { text-align: left }` is
+(0,2,0) and beats a bare `.colTime` at (0,1,0), so legacy mode needs an explicit
+`.legacyTable .colTime` to win it back. Also note that `justify-content` governs the flex-based grid
+modes and `text-align` the real `th`/`td` of table mode — a column that appears in both needs both.
 
 ### `:has` Selector
 
