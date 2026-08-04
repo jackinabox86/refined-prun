@@ -10,10 +10,10 @@ import { showBuffer } from '@src/infrastructure/prun-ui/buffers';
 import { useTileState } from '@src/store/user-data-tiles';
 import LoadingSpinner from '@src/components/LoadingSpinner.vue';
 import RadioItem from '@src/components/forms/RadioItem.vue';
-import PrunButton from '@src/components/PrunButton.vue';
 import StatusCell from './StatusCell.vue';
 import TimeCell from './TimeCell.vue';
-import CargoBar from './CargoBar.vue';
+import FleetCargoBar from './FleetCargoBar.vue';
+import FleetRefuelHeader from './FleetRefuelHeader.vue';
 import { fixed0 } from '@src/utils/format';
 import coloredValue from '@src/infrastructure/prun-ui/css/colored-value.module.css';
 
@@ -111,7 +111,9 @@ const shipClassFilters = useTileState<string[]>('shipClassFilters', []);
 const conditionFilters = useTileState<string[]>('conditionFilters', []);
 const cargoStateFilters = useTileState<string[]>('cargoStateFilters', []);
 const etaFilters = useTileState<string[]>('etaFilters', []);
-type LayoutMode = 'compact' | 'whitespace' | 'cargo';
+type LayoutMode = 'compact' | 'whitespace' | 'cargo' | 'legacy';
+
+const $style = useCssModule();
 
 const fuelAlertFilter = useTileState<FuelAlertFilter>('fuelAlertFilter', DEFAULTS.fuelAlertFilter);
 const layoutMode = useTileState<LayoutMode>('layoutMode', DEFAULTS.layoutMode);
@@ -416,6 +418,21 @@ const gridTemplateColumns = computed(() => {
   return cols.join(' ');
 });
 
+// Legacy mode renders real table elements: `display: table` on divs does not
+// reproduce the column sizing of an actual table.
+const isLegacy = computed(() => layoutMode.value === 'legacy');
+const tableTag = computed(() => (isLegacy.value ? 'table' : 'div'));
+const rowTag = computed(() => (isLegacy.value ? 'tr' : 'div'));
+const headerCellTag = computed(() => (isLegacy.value ? 'th' : 'div'));
+const cellTag = computed(() => (isLegacy.value ? 'td' : 'div'));
+
+const layoutClass = computed(() => {
+  if (isLegacy.value) {
+    return $style.legacyTable;
+  }
+  return layoutMode.value === 'compact' ? $style.tableContainer : $style.tableContainerFill;
+});
+
 const filterSymbol = computed(() => (showFilters.value ? '-' : '+'));
 
 const optionFilterGroups = computed<MultiOptionFilterGroup[]>(() => [
@@ -558,41 +575,28 @@ function getSortDirection(key: SortKey) {
   return sortDirectionByKey.value[key] ?? 'asc';
 }
 
+// Ties must stay at 0 so the caller can fall through to the secondary key. Folding a
+// name comparison in here made every key return a non-zero result and the secondary
+// sort never ran.
 function compareByKey(a: FlightRow, b: FlightRow, key: SortKey) {
-  const nameCompare = (a.ship.name || a.ship.registration).localeCompare(
-    b.ship.name || b.ship.registration,
-  );
-
   switch (key) {
     case 'none':
       return 0;
     case 'name':
-      return nameCompare;
-    case 'cargo': {
-      const primary = a.cargoRatio - b.cargoRatio;
-      return primary !== 0 ? primary : nameCompare;
-    }
+      return (a.ship.name || a.ship.registration).localeCompare(b.ship.name || b.ship.registration);
+    case 'cargo':
+      return a.cargoRatio - b.cargoRatio;
     case 'status':
-    case 'eta': {
-      const primary = a.statusSortValue - b.statusSortValue;
-      return primary !== 0 ? primary : nameCompare;
-    }
-    case 'repair': {
-      const primary = a.ship.condition - b.ship.condition;
-      return primary !== 0 ? primary : nameCompare;
-    }
-    case 'size': {
-      const primary = a.cargoCapacity - b.cargoCapacity;
-      return primary !== 0 ? primary : nameCompare;
-    }
-    case 'shipClass': {
-      const primary = a.shipClass.localeCompare(b.shipClass);
-      return primary !== 0 ? primary : nameCompare;
-    }
-    case 'fuel': {
-      const primary = a.fuelRatio - b.fuelRatio;
-      return primary !== 0 ? primary : nameCompare;
-    }
+    case 'eta':
+      return a.statusSortValue - b.statusSortValue;
+    case 'repair':
+      return a.ship.condition - b.ship.condition;
+    case 'size':
+      return a.cargoCapacity - b.cargoCapacity;
+    case 'shipClass':
+      return a.shipClass.localeCompare(b.shipClass);
+    case 'fuel':
+      return a.fuelRatio - b.fuelRatio;
   }
 }
 
@@ -953,6 +957,12 @@ function getCargoState(cargoRatio: number) {
             @update:model-value="layoutMode = 'cargo'"
             >CARGO</RadioItem
           >
+          <RadioItem
+            :model-value="layoutMode === 'legacy'"
+            horizontal
+            @update:model-value="layoutMode = 'legacy'"
+            >LEGACY</RadioItem
+          >
         </div>
       </div>
 
@@ -992,12 +1002,11 @@ function getCargoState(cargoRatio: number) {
       </div>
     </div>
 
-    <div
-      :class="[layoutMode !== 'compact' ? $style.tableContainerFill : $style.tableContainer]"
-      :style="{ gridTemplateColumns }">
+    <component :is="tableTag" :class="layoutClass" :style="{ gridTemplateColumns }">
       <!-- Header row -->
-      <div :class="$style.headerRow">
-        <div
+      <component :is="rowTag" :class="$style.headerRow">
+        <component
+          :is="headerCellTag"
           v-if="showColName"
           :class="[$style.headerCell, $style.sortable]"
           @click="setSort('name')">
@@ -1009,8 +1018,9 @@ function getCargoState(cargoRatio: number) {
             }">
             {{ getSortIndicator('name') }}
           </span>
-        </div>
-        <div
+        </component>
+        <component
+          :is="headerCellTag"
           v-if="showColShipClass"
           :class="[$style.headerCell, $style.sortable, $style.colShipClass]"
           @click="setSort('shipClass')">
@@ -1022,8 +1032,9 @@ function getCargoState(cargoRatio: number) {
             }">
             {{ getSortIndicator('shipClass') }}
           </span>
-        </div>
-        <div
+        </component>
+        <component
+          :is="headerCellTag"
           v-if="showColSize"
           :class="[$style.headerCell, $style.sortable, $style.colSize]"
           @click="setSort('size')">
@@ -1035,8 +1046,9 @@ function getCargoState(cargoRatio: number) {
             }">
             {{ getSortIndicator('size') }}
           </span>
-        </div>
-        <div
+        </component>
+        <component
+          :is="headerCellTag"
           v-if="showColCargo"
           :class="[$style.headerCell, $style.sortable]"
           @click="setSort('cargo')">
@@ -1048,8 +1060,9 @@ function getCargoState(cargoRatio: number) {
             }">
             {{ getSortIndicator('cargo') }}
           </span>
-        </div>
-        <div
+        </component>
+        <component
+          :is="headerCellTag"
           v-if="showColCargoSize"
           :class="[$style.headerCell, $style.sortable]"
           @click="setSort('cargo')">
@@ -1061,8 +1074,9 @@ function getCargoState(cargoRatio: number) {
             }">
             {{ getSortIndicator('cargo') }}
           </span>
-        </div>
-        <div
+        </component>
+        <component
+          :is="headerCellTag"
           :class="[$style.headerCell, $style.sortable, $style.colStatus]"
           @click="setSort('status')">
           Status
@@ -1073,15 +1087,11 @@ function getCargoState(cargoRatio: number) {
             }">
             {{ getSortIndicator('status') }}
           </span>
-        </div>
-        <div
+        </component>
+        <component
+          :is="headerCellTag"
           v-if="showColTime"
-          :class="[
-            $style.headerCell,
-            $style.sortable,
-            $style.colTime,
-            layoutMode === 'whitespace' ? $style.colTimeExpanded : '',
-          ]"
+          :class="[$style.headerCell, $style.sortable, $style.colTime]"
           @click="setSort('eta')">
           ETA
           <span
@@ -1091,8 +1101,9 @@ function getCargoState(cargoRatio: number) {
             }">
             {{ getSortIndicator('eta') }}
           </span>
-        </div>
-        <div
+        </component>
+        <component
+          :is="headerCellTag"
           v-if="showColRepair"
           :class="[$style.headerCell, $style.sortable, $style.colRepair]"
           @click="setSort('repair')">
@@ -1104,99 +1115,87 @@ function getCargoState(cargoRatio: number) {
             }">
             {{ getSortIndicator('repair') }}
           </span>
-        </div>
-        <div
+        </component>
+        <component
+          :is="headerCellTag"
           v-if="showColFuel"
           :class="[$style.headerCell, $style.sortable, $style.colFuel]"
           @click="setSort('fuel')">
-          <div :class="$style.headerCellContent">
-            <span>
-              Fuel
-              <span
-                :class="{
-                  [$style.sortPrimary]: isPrimarySort('fuel'),
-                  [$style.sortSecondary]: isSecondarySort('fuel'),
-                }">
-                {{ getSortIndicator('fuel') }}
-              </span>
+          <FleetRefuelHeader @refuel="onRefuelAllExchanges">
+            Fuel
+            <span
+              :class="{
+                [$style.sortPrimary]: isPrimarySort('fuel'),
+                [$style.sortSecondary]: isSecondarySort('fuel'),
+              }">
+              {{ getSortIndicator('fuel') }}
             </span>
-            <PrunButton
-              dark
-              inline
-              :class="$style.refuelActButton"
-              @click.stop="onRefuelAllExchanges">
-              REFUEL
-            </PrunButton>
-          </div>
-        </div>
-        <div
+          </FleetRefuelHeader>
+        </component>
+        <component
+          :is="headerCellTag"
           v-if="showColProblems && hasAnyProblems"
           :class="[$style.headerCell, $style.colProblems]">
-          <span>Problems</span>
-          <PrunButton
-            v-if="hasDockedFuelProblem"
-            dark
-            inline
-            :class="$style.refuelActButton"
-            @click.stop="onRefuelAllExchanges">
-            REFUEL
-          </PrunButton>
-        </div>
-      </div>
+          <FleetRefuelHeader :show-button="hasDockedFuelProblem" @refuel="onRefuelAllExchanges">
+            Problems
+          </FleetRefuelHeader>
+        </component>
+      </component>
 
       <!-- Body rows -->
-      <div v-for="x in rows" :key="x.ship.id" :class="$style.row">
-        <div v-if="showColName" :class="[$style.bodyCell]">
+      <component :is="rowTag" v-for="x in rows" :key="x.ship.id" :class="$style.row">
+        <component :is="cellTag" v-if="showColName" :class="[$style.bodyCell]">
           <span :class="C.Link.link" @click="showBuffer(`SFC ${x.ship.registration}`)">
             {{ x.ship.name || x.ship.registration }}
           </span>
-        </div>
+        </component>
 
-        <div v-if="showColShipClass" :class="[$style.bodyCell, $style.colShipClass]">
+        <component
+          :is="cellTag"
+          v-if="showColShipClass"
+          :class="[$style.bodyCell, $style.colShipClass]">
           <span :class="C.Link.link" @click.stop="showBuffer(`SFC ${x.ship.registration}`)">
             {{ x.shipClass }}
           </span>
-        </div>
+        </component>
 
-        <div
+        <component
+          :is="cellTag"
           v-if="showColSize"
           :class="[$style.bodyCell, $style.colSize, C.ShipStore.pointer]"
           @click="showBuffer(`SHPI ${x.ship.registration}`)">
           {{ x.cargoSizeText }}
-        </div>
+        </component>
 
-        <div v-if="showColCargo" :class="[$style.bodyCell, $style.cargoCell]">
-          <CargoBar :ship-id="x.ship.id" tall />
-        </div>
+        <component :is="cellTag" v-if="showColCargo" :class="[$style.bodyCell, $style.cargoCell]">
+          <FleetCargoBar :ship-id="x.ship.id" tall />
+        </component>
 
-        <div v-if="showColCargoSize" :class="[$style.bodyCell, $style.cargoCombinedCell]">
-          <CargoBar :ship-id="x.ship.id" />
+        <component
+          :is="cellTag"
+          v-if="showColCargoSize"
+          :class="[$style.bodyCell, $style.cargoCombinedCell]">
+          <FleetCargoBar :ship-id="x.ship.id" />
           <div
             :class="[C.ShipStore.pointer, C.ShipStore.store, $style.cargoCombinedSize]"
             @click="showBuffer(`SHPI ${x.ship.registration}`)">
             {{ x.cargoSizeText }}
           </div>
-        </div>
+        </component>
 
-        <div :class="[$style.bodyCell, $style.colStatus]">
+        <component :is="cellTag" :class="[$style.bodyCell, $style.colStatus]">
           <StatusCell :ship-id="x.ship.id" />
-        </div>
+        </component>
 
-        <div
-          v-if="showColTime"
-          :class="[
-            $style.bodyCell,
-            $style.colTime,
-            layoutMode === 'whitespace' ? $style.colTimeExpanded : '',
-          ]">
+        <component :is="cellTag" v-if="showColTime" :class="[$style.bodyCell, $style.colTime]">
           <TimeCell :ship-id="x.ship.id" />
-        </div>
+        </component>
 
-        <div v-if="showColRepair" :class="[$style.bodyCell, $style.colRepair]">
+        <component :is="cellTag" v-if="showColRepair" :class="[$style.bodyCell, $style.colRepair]">
           <span :class="x.conditionClass">{{ x.conditionText }}</span>
-        </div>
+        </component>
 
-        <div v-if="showColFuel" :class="[$style.bodyCell, $style.colFuel]">
+        <component :is="cellTag" v-if="showColFuel" :class="[$style.bodyCell, $style.colFuel]">
           <div
             :class="[C.ShipFuel.container, C.ShipFuel.pointer, $style.fuelBars]"
             @click="onFuel(x.ship.registration)">
@@ -1217,9 +1216,10 @@ function getCargoState(cargoRatio: number) {
                 max="1" />
             </div>
           </div>
-        </div>
+        </component>
 
-        <div
+        <component
+          :is="cellTag"
           v-if="showColProblems && hasAnyProblems"
           :class="[$style.bodyCell, $style.colProblems]">
           <span v-if="x.conditionClass === C.ColoredValue.negative" :class="x.conditionClass">
@@ -1246,9 +1246,9 @@ function getCargoState(cargoRatio: number) {
                 max="1" />
             </div>
           </div>
-        </div>
-      </div>
-    </div>
+        </component>
+      </component>
+    </component>
   </div>
 </template>
 
@@ -1378,17 +1378,6 @@ function getCargoState(cargoRatio: number) {
   border-left: none;
 }
 
-.headerCellContent {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 6px;
-}
-
-.refuelActButton {
-  flex: 0 0 auto;
-}
-
 .sortable {
   cursor: pointer;
 }
@@ -1431,12 +1420,11 @@ function getCargoState(cargoRatio: number) {
   border-right: none;
 }
 
+/* TimeCell right-aligns its own content, so the header has to follow suit in every
+   layout or it drifts to the left edge of the column. */
 .colTime {
   border-left: none;
   min-width: 80px;
-}
-
-.colTimeExpanded {
   justify-content: flex-end;
   text-align: right;
 }
@@ -1471,5 +1459,69 @@ function getCargoState(cargoRatio: number) {
   align-items: stretch;
   justify-content: space-around;
   width: 100%;
+}
+
+/* Legacy layout: the container renders as a real table (see tableTag), so the
+   auto table algorithm sizes the columns the way the pre-rework FLT table did.
+   The display overrides below are still needed because the base .headerCell and
+   .bodyCell rules set display: flex. */
+.legacyTable {
+  width: 100%;
+  border-collapse: collapse;
+  border-bottom: 1px solid #2b485a;
+}
+
+.legacyTable > .headerRow,
+.legacyTable > .row {
+  display: table-row;
+}
+
+.legacyTable .headerCell,
+.legacyTable .bodyCell {
+  display: table-cell;
+  vertical-align: middle;
+  min-width: 0;
+}
+
+.legacyTable .headerCell {
+  padding: 4px 6px;
+  text-align: left;
+}
+
+.legacyTable .bodyCell {
+  padding: 4px 6px;
+}
+
+/* Flex alignment no longer applies to table cells, so restore the centered and
+   right-aligned columns with text-align. */
+.legacyTable .colShipClass,
+.legacyTable .colSize,
+.legacyTable .colRepair {
+  text-align: center;
+}
+
+/* Overrides the left-aligned .legacyTable .headerCell rule above. */
+.legacyTable .colTime {
+  text-align: right;
+}
+
+.legacyTable .cargoCell,
+.legacyTable .cargoCombinedCell {
+  min-width: 70px;
+  padding: 2px 2px 0;
+}
+
+.legacyTable .colFuel {
+  min-width: 120px;
+}
+
+.legacyTable .colFuel .fuelBars {
+  justify-content: flex-start;
+  gap: 2px;
+}
+
+.legacyTable .colFuel .fuelBars > div {
+  width: 40px;
+  flex: 0 0 40px;
 }
 </style>
