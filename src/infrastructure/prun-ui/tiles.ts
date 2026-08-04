@@ -32,6 +32,10 @@ function reconciliate(mutations: MutationRecord[]) {
     return;
   }
 
+  activateExistingFrames();
+}
+
+function activateExistingFrames() {
   const frameElements = document.getElementsByClassName(C.TileFrame.frame);
   if (frameElements.length === activeTiles.length) {
     let sameTiles = true;
@@ -159,11 +163,45 @@ function findByContainer(container?: HTMLElement | null) {
   return activeTiles.filter(tile => tile.container === container);
 }
 
+export interface ActiveTileMetadata {
+  id: string;
+  docked: boolean;
+  fullCommand: string;
+  command: string;
+  parameter?: string;
+}
+
+function snapshotActiveTileMetadata(): ActiveTileMetadata[] {
+  const metadata: ActiveTileMetadata[] = [];
+  const frameElements = document.getElementsByClassName(C.TileFrame.frame);
+  for (let i = 0; i < frameElements.length; i++) {
+    const frame = frameElements[i];
+    const tileElement = frame.parentElement;
+    const container = tileElement?.parentElement;
+    const commandElement = _$(frame, C.TileFrame.cmd);
+    const id = tileElement ? getPrunId(tileElement) : undefined;
+    if (!container || !commandElement || !id) {
+      continue;
+    }
+    const fullCommand = commandElement.textContent?.trim() ?? '';
+    const indexOfSpace = fullCommand.indexOf(' ');
+    metadata.push({
+      id,
+      docked: !container.classList.contains(C.Window.body),
+      fullCommand,
+      command: (indexOfSpace > 0 ? fullCommand.slice(0, indexOfSpace) : fullCommand).toUpperCase(),
+      ...(indexOfSpace > 0 ? { parameter: fullCommand.slice(indexOfSpace + 1) } : {}),
+    });
+  }
+  return metadata;
+}
+
 const tiles = {
   observe: observeTiles,
   observeAll: observeAllTiles,
   find: findTiles,
   findByContainer,
+  snapshotMetadata: snapshotActiveTileMetadata,
 };
 
 export default tiles;

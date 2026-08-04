@@ -12,4 +12,5 @@ The project is a browser extension for the game. Throughout the chat and the doc
 - **Game commands:** `docs/game/commands.csv`. Columns: Command, Description, Mandatory parameters, Optional parameters.
 - **Game screens:** `docs/game/sidebar-screens.md`. Left-sidebar shortcuts, screen connection map, server-action buttons to avoid in tests; per-area details in `docs/game/screens-*.md` (bases, production, inventory, fleet, trade, contracts, company, comms).
 - **Browser testing / visual verification:** `.claude/skills/run/SKILL.md`. Launch harness, pw-act actions, hard-won gotchas. Use it for anything that must be verified against the live game.
+- **Data catalog and agent queries:** `docs/data-catalog.md`. Passive snapshots, provenance and completeness semantics, `XIT DATA`, tile exports, and the authenticated loopback query protocol.
 - **Planetary governance:** `docs/game/planetary-governance.md`. Population, happiness, governors, CoGC, POPI.

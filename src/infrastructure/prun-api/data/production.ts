@@ -94,5 +94,6 @@ const getBySiteId = (value?: string | null) => {
 
 export const productionStore = {
   ...state,
+  fetchedAll,
   getBySiteId,
 };
