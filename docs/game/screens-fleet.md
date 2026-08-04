@@ -9,13 +9,13 @@ Per-row command buttons:
 - `cargo` → `SHPI <transponder>`
 - `fuel` → `SHPF <transponder>`
 - `unload` — server action (transfers cargo to local store)
-- `fly` — opens flight configuration; the departure submit is a server action
+- `fly` — opens flight configuration; the departure submit is a server action. Selecting a destination renders the full mission-plan table (including the fee-bearing `Fees` column) as a client-side preview — safe for testing without launching a flight.
 
 Optional Address parameter filters the fleet by location.
 
 ## SFC — Ship Flight Control
 
-Shows Ship (name + transponder links), Origin, Destination and the flight segment table: #, Type, Destination, Duration, Distance, Damage, Consumption. `abort` button cancels an active flight (server). Location names are links (station/planet screens).
+Shows Ship (name + transponder links), Origin, Destination and the flight segment table: #, Type, Destination, Duration, Distance, Damage, Consumption. `abort` button cancels an active flight (server). Location names are links (station/planet screens). On flights that incur fees the segment table gains a `Fees` column and the `Damage` header gains an ⓘ info icon (both absent otherwise — column indices shift and header text changes); fee cells can contain multiple currency amounts concatenated without spacing, e.g. `12,000 AIC4,000 CIS`, and the summary row totals them per currency. The summary row (empty first cell) sits in its own `tbody` inside the table — that `tbody` is what `C.MissionPlan.stats` matches (there is no separate stats bar), so extension content injected into a summary-row cell is a descendant of `stats`.
 
 ## SHP — Ship Information
 

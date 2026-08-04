@@ -14,6 +14,11 @@ Stack: TypeScript, Vue 3, Vite (content scripts), CSS Modules. Package manager: 
 | `pnpm run fix` | eslint `--fix` |
 | `pnpm run dev` | watch-mode development build |
 
+A fresh clone has no `node_modules` — run `pnpm install --frozen-lockfile` before
+`pnpm run compile` / `pnpm run lint`, or `tsc` reports missing `chrome`/`node`/`vite/client`
+type libraries, which reads like a broken tsconfig rather than a missing install. Cloud
+sessions (Claude Code on the web) always start from a fresh clone.
+
 Verifying UI-visible behaviour against the live game: `docs/browser-testing.md`.
 
 ## Path Aliases

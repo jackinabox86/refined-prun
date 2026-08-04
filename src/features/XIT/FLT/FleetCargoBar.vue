@@ -1,14 +1,18 @@
 <script setup lang="ts">
 import { shipsStore } from '@src/infrastructure/prun-api/data/ships';
 import { storagesStore } from '@src/infrastructure/prun-api/data/storage';
-import { getMaterialCategoryCssClass } from '@src/infrastructure/prun-ui/item-tracker';
+import {
+  getMaterialCategoryCssClass,
+  CATEGORY_CSS_PREFIX,
+} from '@src/infrastructure/prun-ui/item-tracker';
 import { materialCategoriesStore } from '@src/infrastructure/prun-api/data/material-categories';
 import { fixed02 } from '@src/utils/format';
 import { showBuffer } from '@src/infrastructure/prun-ui/buffers';
-import { ref, watch, computed } from 'vue';
+import { ref, watch, computed, onUnmounted } from 'vue';
 
 const props = defineProps<{
   shipId: string | null;
+  tall?: boolean;
 }>();
 
 const $style = useCssModule();
@@ -81,7 +85,7 @@ const cargoBar = computed<CargoBarData>(() => {
     const percentage = (value * 100) / divisor;
     segments.push({
       name: 'shipments',
-      class: 'rp-category-none',
+      class: `${CATEGORY_CSS_PREFIX}none`,
       width: `${percentage}%`,
       title: formatTitle('shipments', summary.shipments.weight, summary.shipments.volume),
     });
@@ -188,6 +192,12 @@ watch(
   { deep: true },
 );
 
+onUnmounted(() => {
+  if (animationTimeout) {
+    clearTimeout(animationTimeout);
+  }
+});
+
 const totalLoadRatio = computed(() => {
   const ship = shipsStore.getById(props.shipId);
   const inv = storagesStore.getById(ship?.idShipStore);
@@ -243,16 +253,21 @@ function onClick() {
 
 <template>
   <div
-    :class="[C.ProgressBar.progress, $style.container, { [$style.isUpdating]: isAnimating }]"
+    :class="[
+      C.ProgressBar.progress,
+      $style.container,
+      { [$style.isUpdating]: isAnimating, [$style.tall]: tall },
+    ]"
     :style="{ '--stripe-color': stripeAlertColor, '--stripe-width': stripeWidth }"
     @click="onClick">
     <div :class="[$style.bar, miniBarClass]">
       <div
         v-for="segment in cargoBar.segments"
         :key="segment.name"
-        :class="[segment.class, segment.borderClasses]"
+        :class="[$style.segment, segment.class, segment.borderClasses]"
         :style="{ width: segment.width }"
-        :title="segment.title">
+        :data-tooltip="segment.title"
+        data-tooltip-position="top">
         <div v-if="segment.load" :class="$style.full">
           {{ segment.load }}
         </div>
@@ -286,6 +301,11 @@ function onClick() {
   background-size: var(--hypotenuse) var(--hypotenuse);
 }
 
+.tall {
+  min-height: 24px;
+  height: 24px;
+}
+
 .isUpdating {
   animation: move-stripes 0.5s linear infinite;
 }
@@ -303,6 +323,16 @@ function onClick() {
   width: 100%;
   height: 100%;
   display: flex;
+}
+
+/* The game's global [data-tooltip] rule applies display: inline-block and
+   padding: 0 4px 0. Without this reset every segment renders 8px wider than
+   its percentage share, so the colored fill spills past the right edge of
+   the bar into the next cell. */
+.segment {
+  display: block;
+  height: 100%;
+  padding: 0;
 }
 
 .miniBar {

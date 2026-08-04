@@ -30,7 +30,8 @@ act.addAction<Config>({
     data.exchange !== configurableValue ||
     config.exchange !== undefined,
   generateSteps: async ctx => {
-    const { data, config, state, log, fail, getMaterialGroup, emitStep } = ctx;
+    const { data, config, state, log, fail, getMaterialGroup, getMaterialGroupPrices, emitStep } =
+      ctx;
 
     if (data.skippable && config.skip) {
       return;
@@ -41,6 +42,8 @@ act.addAction<Config>({
 
     const materials = await getMaterialGroup(data.group);
     assert(materials, 'Invalid material group');
+
+    const priceLimits = { ...data.priceLimits, ...getMaterialGroupPrices(data.group) };
 
     const exchange = data.exchange === configurableValue ? config.exchange : data.exchange;
     assert(exchange, 'Missing exchange');
@@ -73,7 +76,7 @@ act.addAction<Config>({
         continue;
       }
       const amount = materials[ticker];
-      const priceLimit = data.priceLimits?.[ticker] ?? Infinity;
+      const priceLimit = priceLimits[ticker] ?? Infinity;
       if (isNaN(priceLimit)) {
         log.error('Non-numerical price limit on ' + ticker);
         continue;

@@ -32,6 +32,10 @@ function reconciliate(mutations: MutationRecord[]) {
     return;
   }
 
+  activateExistingFrames();
+}
+
+function activateExistingFrames() {
   const frameElements = document.getElementsByClassName(C.TileFrame.frame);
   if (frameElements.length === activeTiles.length) {
     let sameTiles = true;
@@ -159,11 +163,30 @@ function findByContainer(container?: HTMLElement | null) {
   return activeTiles.filter(tile => tile.container === container);
 }
 
+export interface ActiveTileMetadata {
+  id: string;
+  docked: boolean;
+  fullCommand: string;
+  command: string;
+  parameter?: string;
+}
+
+function snapshotActiveTileMetadata(): ActiveTileMetadata[] {
+  return activeTiles.map(({ id, docked, fullCommand, command, parameter }) => ({
+    id,
+    docked,
+    fullCommand,
+    command,
+    ...(parameter !== undefined ? { parameter } : {}),
+  }));
+}
+
 const tiles = {
   observe: observeTiles,
   observeAll: observeAllTiles,
   find: findTiles,
   findByContainer,
+  snapshotMetadata: snapshotActiveTileMetadata,
 };
 
 export default tiles;

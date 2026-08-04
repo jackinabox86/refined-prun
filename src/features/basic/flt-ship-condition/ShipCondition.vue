@@ -13,7 +13,7 @@ const labelClass = computed(() => {
   if (condition.value <= 0.79) {
     return C.ColoredValue.negative;
   }
-  if (condition.value <= 0.82) {
+  if (condition.value <= 0.81) {
     return coloredValue.warning;
   }
   return C.ColoredValue.positive;

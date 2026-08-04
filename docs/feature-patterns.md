@@ -50,13 +50,16 @@ Vue component filenames must match the import name:
 // The file MUST be: ContextRow.vue (not my-feature.vue)
 ```
 
-**Component basenames must be unique across the whole project.** CSS-module scoping
-hashes only the file's basename and class name, so two features that each have a
-`BaseRow.vue` emit rules under the same `rp-BaseRow__*` selectors — both land in the
-built CSS and the later one silently overrides the earlier (found live: DISPATCH's
-BaseRow styles were overridden by BS's and leaked back into XIT BS). Same-named files
-also break `[class*="rp-BaseRow__"]`-style test selectors, which match every feature
-sharing the basename. Pick a distinct name instead (DISPATCH's row is `PlanetRow.vue`).
+**Component basenames must be unique across the whole project.** `sanitizeModuleClassname` in
+`vite.config.mts` scopes CSS-module classes as `rp-<basename>__<class>___<hash of basename+class>` —
+the file's directory and contents are not part of it. Two components sharing a basename therefore
+emit *identical* class names and silently override each other's styles in the built CSS, with no
+build error (found live twice: `src/components/CargoBar.vue` and `src/features/XIT/FLT/CargoBar.vue`
+both emitted `rp-CargoBar__container`, so STO's rules were styling XIT FLT's bars; and DISPATCH's
+`BaseRow.vue` was overridden by BS's and leaked back into XIT BS). Same-named files also break
+`[class*="rp-BaseRow__"]`-style test selectors, which match every feature sharing the basename.
+Grep for the basename before adding a component, and prefix it when it collides — FLT's is now
+`FleetCargoBar.vue`, DISPATCH's row is `PlanetRow.vue`.
 
 ### Parameter Checks
 
@@ -576,6 +579,8 @@ const text = computed(() => someCondition ? 'value' : undefined);
 existingElement.appendChild(createReactiveSpan(owner, text));
 ```
 
+When deriving values from `textContent` on a container that also contains injected extension nodes, exclude the extension nodes from the parsed text. Otherwise reactive updates can feed the injected value back into the source value and create self-amplifying loops.
+
 ---
 
 ## Wrapping DOM Values as Refs
@@ -613,7 +618,32 @@ sitesStore.fetched.value  // boolean
 Map getters are keyed by API values, which don't always match what the game UI shows:
 
 - `materialsStore.getByName` is keyed by the API's camelCase internal name (`basicRations`). UI text holds the i18n **display** name ("Basic Rations") — resolve that with `getMaterialByName` from `@src/infrastructure/prun-ui/i18n` instead (reverse direction: `getMaterialName`).
-- `stationsStore.getByNaturalId` is keyed by the station's **own** natural id (`MOR`), but game address fields canonicalize stations to their **system** id (`OT-580`). To resolve a system id to its station, search `stationsStore.all.value` by `getSystemLineFromAddress(x.address)?.entity.naturalId`.
+- `stationsStore.getByNaturalId` is keyed by the station's **own** natural id (`MOR`), but game address fields canonicalize stations to their **system** id (`OT-580`). To resolve a system id to its station, search `stationsStore.all.value` by `getSystemLineFromAddress(x.address)?.entity.naturalId` (exported as `findStationBySystemId` from `@src/infrastructure/prun-ui/utils/select-address`).
+- `ship.address` is `null` while the ship is in flight. Docked, `getEntityNaturalIdFromAddress(ship.address)` gives the station's **own** natural id (`ANT`) — not the system id — so it compares directly against `stationsStore.getByNaturalId` keys.
+
+---
+
+## Filling an AddressSelector
+
+`selectAddress(container, locationName)` from `@src/infrastructure/prun-ui/utils/select-address`
+fills any game address field (`C.AddressSelector.container`): it translates a station/system
+id to the station name, types it, waits for the suggestion list, and clicks the entry.
+
+```ts
+subscribe($$(tile.anchor, C.AddressSelector.container), container => {
+  // "ANT", "OT-580b", "Moria Station" — all resolve.
+  button.onclick = () => selectAddress(container, 'ANT');
+});
+```
+
+Don't hand-roll this. Suggestions render in `#autosuggest-portal` **outside** the tile DOM,
+the first list shown is a stale default (own bases, warehouses, CX stations) that arrives
+before the typed query's server round-trip, and bare station ids never appear as suggestion
+text — every one of those is a trap the helper already handles. Typing fires a read-only
+`NOMENCLATURE_QUERY_ADDRESSES` lookup, so the call must stay behind a user click.
+
+> ACT's `action-steps/cont-utils.ts` still carries its own weaker `selectLocation`. Migrate
+> it if you touch those code paths.
 
 ---
 
@@ -682,6 +712,28 @@ configured":
 const state = ref(localStorage.getItem(key) ?? 'default');
 watch(state, value => localStorage.setItem(key, value));
 ```
+
+### Comparators in a Primary/Secondary Sort Chain
+
+A comparator that a chain calls for the primary key must return `0` on a tie. Folding a
+tiebreak into it makes every call return non-zero, and the secondary key becomes dead code —
+the UI offers a secondary-sort control that silently does nothing. Keep the tiebreak at the
+call site, after every user-chosen key has been tried.
+
+```ts
+// Bad: 'cargo' can never return 0, so the caller's secondary key is unreachable.
+case 'cargo': {
+  const primary = a.cargoRatio - b.cargoRatio;
+  return primary !== 0 ? primary : nameCompare;
+}
+
+// Good: ties fall through to the caller.
+case 'cargo':
+  return a.cargoRatio - b.cargoRatio;
+```
+
+Decide deliberately whether the final fallback is multiplied by the primary direction. Leaving
+it unmultiplied (XIT FLT) means full ties always read A→Z, even under a descending primary.
 
 ---
 
@@ -988,6 +1040,64 @@ Matching the exact header row **height** of another panel also needs more than m
 Body cells: the game's `td` computed padding is `2px 8px` (verified live). To left-align
 text outside a table with the table's first-column cell text (e.g. a summary line under
 the table in the same container), give it `padding-left: 8px`.
+
+### `data-tooltip` Changes the Box It Sits On
+
+The game styles `[data-tooltip]` globally with `display: inline-block` and `padding: 0 4px 0`.
+Adding the attribute to an existing element therefore silently changes its layout, not just its
+hover behaviour. Two verified consequences:
+
+- On a **percentage-width flex child** the padding is fatal. `min-width: auto` floors each item at
+  its own padding, so a bar built from `width: <n>%` segments can no longer shrink to fit: an
+  8-segment cargo bar in a 60px column overflowed by 4px and painted into the neighbouring cell.
+- On a **bar container** the padding insets the fill, leaving the container's background visible at
+  both ends (found in `InvBar.vue`, where an alarm supplies the tooltip).
+
+Reset it explicitly on any element you give a tooltip whose box matters:
+
+```css
+.segment {
+  display: block;
+  height: 100%;
+  padding: 0;
+}
+```
+
+Reference implementations: `.segment` in `src/components/CargoBar.vue` and
+`src/features/XIT/FLT/FleetCargoBar.vue`, `.container` in `src/features/XIT/BS/InvBar.vue`.
+
+### Grid and Table Sizing Traps
+
+Both verified by measurement in headless Chromium, not by inspection:
+
+- **`display: table` on divs is not a `<table>`.** Chrome distributes surplus column width
+  differently for a CSS table built from divs than for a real table element, even with byte-identical
+  CSS and content — on one 520px row, `129 | 97 | 132 | 115 | 47` became `139 | 81 | 141 | 118 | 40`.
+  No `box-sizing`, `border-collapse`, `table-layout` or explicit `table-row-group` tweak closes the
+  gap. To reproduce a real table's sizing, render real `table`/`tr`/`th`/`td` elements — Vue's
+  `<component :is="tag">` switches them per layout mode while the classes stay put (XIT FLT's legacy
+  layout). Keep the `display: table-cell` overrides anyway if the base cell rules set `display: flex`.
+- **`container-type: inline-size` on an `inline-grid` collapses it.** Size containment makes the
+  element's inline size compute without regard to its contents, so the grid box measures zero width
+  and stops responding to its container; the tracks lay out and overflow it.
+
+When a layout question is contested, settle it with a static HTML repro driven by
+`.local/pw-tools`' Playwright in headless mode. It gives exact numbers in seconds and needs no game
+session — far cheaper than reasoning about the cascade or booting the full harness.
+
+### Alignment Belongs to the Column, Not the Layout Mode
+
+When a cell component aligns its own content unconditionally, the matching header rule must be
+unconditional too. XIT FLT gated its right-aligning `.colTimeExpanded` class on
+`layoutMode === 'whitespace'` while `TimeCell` right-aligned in every mode, so the ETA header sat
+24px off its own body cells in the other three layouts. The fix was deleting the conditional class
+and folding its rules into the always-applied `.colTime`.
+
+Layout-mode variants still need their own selector when the mode's base rules outrank the column
+rule. Specificity, not source order, decides: `.legacyTable .headerCell { text-align: left }` is
+(0,2,0) and beats a bare `.colTime` at (0,1,0), so legacy mode needs an explicit
+`.legacyTable .colTime` to win it back. Also note that `justify-content` governs the flex-based grid
+modes and `text-align` the real `th`/`td` of table mode — a column that appears in both needs both.
 
 ### `:has` Selector
 
