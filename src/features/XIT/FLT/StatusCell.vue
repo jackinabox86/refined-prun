@@ -45,7 +45,7 @@ const posData = computed(() => {
       <span
         :class="[C.Link.link, $style.link]"
         data-tooltip="Open inventory"
-        data-tooltip-position="left"
+        data-tooltip-position="top"
         @click.stop="showBuffer(posData.invCommand)"
         >☒</span
       >
@@ -57,11 +57,7 @@ const posData = computed(() => {
         >{{ statusIcon }}</span
       >
     </div>
-    <div
-      :class="[C.Link.link, $style.link]"
-      data-tooltip="Open location"
-      data-tooltip-position="left"
-      @click.stop="showBuffer(posData.command)">
+    <div :class="[C.Link.link, $style.link]" @click.stop="showBuffer(posData.command)">
       {{ posData.name }}
     </div>
   </div>
