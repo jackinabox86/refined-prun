@@ -1,5 +1,7 @@
-import { changeInputValue, focusElement } from '@src/util';
+import { changeInputValue, focusElement, selectMaterialInMaterialSelector } from '@src/util';
 import PrunButton from '@src/components/PrunButton.vue';
+import { materialsStore } from '@src/infrastructure/prun-api/data/materials';
+import { getMaterialByName } from '@src/infrastructure/prun-ui/i18n';
 import $style from './contd-fill-all-button.module.css';
 
 function onTileReady(tile: PrunTile) {
@@ -22,7 +24,35 @@ function onTileReady(tile: PrunTile) {
     if (priceInput) {
       addAllButton(tile.anchor, priceInput, 'input[inputmode="decimal"]');
     }
+
+    // The button goes before the selector's own input, not before the selector container:
+    // the container is a block, so a button ahead of it would land on its own line.
+    const materialInput = group.querySelector(
+      `.${C.MaterialSelector.container} input`,
+    ) as HTMLInputElement | null;
+    if (materialInput) {
+      addCommodityAllButton(tile.anchor, group, materialInput);
+    }
   });
+}
+
+function addCommodityAllButton(anchor: Element, sourceGroup: Element, sourceInput: Element) {
+  // Filling a selector is asynchronous, so a second click could otherwise race the first.
+  let filling = false;
+  const onClick = () => {
+    if (filling) {
+      return;
+    }
+    filling = true;
+    void fillAllCommodity(anchor, sourceGroup).finally(() => {
+      filling = false;
+    });
+  };
+  createFragmentApp(() => (
+    <PrunButton dark inline class={$style.allButton} onClick={onClick}>
+      all
+    </PrunButton>
+  )).before(sourceInput);
 }
 
 function addAllButton(anchor: Element, sourceInput: HTMLInputElement, selector: string) {
@@ -48,6 +78,31 @@ function fillAll(anchor: Element, sourceInput: HTMLInputElement, selector: strin
   }
 }
 
+async function fillAllCommodity(anchor: Element, sourceGroup: Element) {
+  const sourceSelector = _$(sourceGroup, C.MaterialSelector.container);
+  if (sourceSelector === undefined) {
+    return;
+  }
+  const value = (_$(sourceSelector, 'input') as HTMLInputElement | undefined)?.value.trim();
+  // After a pick the game rewrites the input to the i18n display name, not the ticker.
+  const material = getMaterialByName(value) ?? materialsStore.getByTicker(value);
+  if (material === undefined) {
+    return;
+  }
+  const ticker = material.ticker;
+
+  for (const group of _$$(anchor, C.TemplateSelection.group)) {
+    if (group === sourceGroup) {
+      continue;
+    }
+    const container = _$(group, C.MaterialSelector.container);
+    if (container === undefined) {
+      continue;
+    }
+    await selectMaterialInMaterialSelector(container, ticker);
+  }
+}
+
 function init() {
   tiles.observe('CONTD', onTileReady);
 }
@@ -55,5 +110,5 @@ function init() {
 features.add(
   import.meta.url,
   init,
-  'CONTD: Adds "all" buttons next to the first amount/price per unit fields to copy the value to every commodity section.',
+  'CONTD: Adds "all" buttons next to the first commodity/amount/price per unit fields to copy the value to every commodity section.',
 );
