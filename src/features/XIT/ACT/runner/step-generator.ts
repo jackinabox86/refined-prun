@@ -25,7 +25,11 @@ export class StepGenerator {
 
   private groupPrices = new Map<string, Record<string, number>>();
 
-  async generateSteps(pkg: UserData.ActionPackageData, config: ActionPackageConfig) {
+  async generateSteps(
+    pkg: UserData.ActionPackageData,
+    config: ActionPackageConfig,
+    preview: boolean,
+  ) {
     this.groupPrices.clear();
     const state = generateState();
     const steps = [] as ActionStep[];
@@ -47,6 +51,7 @@ export class StepGenerator {
           data: action,
           config: actionConfig,
           packageName: pkg.global.name,
+          preview,
           log,
           fail: message => {
             if (message) {
@@ -172,5 +177,6 @@ function generateState() {
   }
   return {
     WAR: war,
+    reservedAgentIds: new Set<string>(),
   };
 }

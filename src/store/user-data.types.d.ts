@@ -62,9 +62,10 @@ declare namespace UserData {
     materials?: Record<string, number>;
     exclusions?: string[];
     consumablesOnly?: boolean;
+    materialFilter?: 'All' | 'Workforce' | 'Production';
   }
 
-  type ActionType = 'CX Buy' | 'MTRA' | 'Refuel' | 'CONT Ship' | 'CONT Trade';
+  type ActionType = 'CX Buy' | 'MTRA' | 'Refuel' | 'CONT Ship' | 'CONT Trade' | 'GovBurn Data';
 
   interface ActionData {
     type: ActionType;
@@ -81,8 +82,24 @@ declare namespace UserData {
 
     buyMissingFuel?: boolean;
 
+    // GovBurn Data: planet natural ID or name.
+    planet?: string;
+
     origin?: string;
     dest?: string;
+
+    // MTRA specific
+    postToAgent?: boolean;
+    noSfc?: boolean;
+    sfcDestination?: string;
+    printOffloadJson?: boolean;
+    offloadGroups?: string[];
+    agentGroups?: string[];
+    finishOnly?: boolean;
+    // Bases (group names) that had repair toggled on; stamps braPlanet on their offload packages.
+    repairGroups?: string[];
+    // When set, an OPEN_BRA step for this planet is emitted after the transfers.
+    braPlanet?: string;
 
     // CONT Ship specific
     currency?: string;
@@ -161,4 +178,56 @@ declare namespace UserData {
     name: string;
     screenIds: string[];
   }
+
+  interface GovBurnPlanet {
+    naturalId: string;
+    name: string;
+    capturedAt: number;
+    buildings: GovBurnBuilding[];
+    cogc?: GovBurnCogc;
+  }
+
+  interface GovBurnBuilding {
+    ticker: string;
+    type: string;
+    projectId: string;
+    level: number;
+    upkeeps?: GovBurnUpkeep[];
+    upkeepsCapturedAt?: number;
+    // Upkeep ticker -> last contribution timestamps (ms epoch).
+    contribHistory?: Record<string, GovBurnContrib>;
+  }
+
+  interface GovBurnContrib {
+    // Last contribution by the player's own company.
+    own?: number;
+    // Last contribution by anyone (including own).
+    any?: number;
+  }
+
+  interface GovBurnUpkeep {
+    ticker: string;
+    stored: number;
+    amount: number;
+    duration: number;
+    nextTick: number;
+  }
+
+  interface GovBurnCogc {
+    dueDate: number;
+    // Current-cycle bill with contributed amounts; paid when every currentAmount >= amount.
+    materials: GovBurnCogcMaterial[];
+  }
+
+  interface GovBurnCogcMaterial {
+    ticker: string;
+    amount: number;
+    currentAmount: number;
+  }
+
+  // Building ticker -> required count of supplied upkeep materials.
+  // -1 (or missing): unconfigured — treat as 0 days (red).
+  // 0: deliberately unsupplied — infinity days (green).
+  // 1..upkeepCount: number of upkeep materials the player keeps supplied.
+  type GovBurnPlanetConfig = Record<string, number>;
 }

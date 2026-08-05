@@ -4,10 +4,22 @@ Browser extension for Prosperous Universe. Intercepts the game's WebSocket and D
 
 Stack: TypeScript, Vue 3, Vite (content scripts), CSS Modules. Package manager: pnpm.
 
+## Commands
+
+| Command | Does |
+|---------|------|
+| `pnpm run compile` | `tsc --noEmit` + eslint. **The check to run on any change** — some rules (e.g. `strict-boolean-expressions`) fail only here, not in tsc. |
+| `pnpm run build` | clean + compile + `vite build` → `dist/` |
+| `pnpm run build:fast` | clean + `vite build`, skipping the checks — for the browser-test loop |
+| `pnpm run fix` | eslint `--fix` |
+| `pnpm run dev` | watch-mode development build |
+
 A fresh clone has no `node_modules` — run `pnpm install --frozen-lockfile` before
 `pnpm run compile` / `pnpm run lint`, or `tsc` reports missing `chrome`/`node`/`vite/client`
 type libraries, which reads like a broken tsconfig rather than a missing install. Cloud
 sessions (Claude Code on the web) always start from a fresh clone.
+
+Verifying UI-visible behaviour against the live game: `docs/browser-testing.md`.
 
 ## Path Aliases
 
@@ -97,6 +109,11 @@ The stores listen for api messages:
 import { onApiMessage } from '@src/infrastructure/prun-api/data/api-messages';
 onApiMessage({ SOME_MESSAGE_TYPE(data) { /* ... */ } });
 ```
+
+Stores fed only by ad-hoc `DATA_DATA` payloads (data that arrives per opened buffer, with
+no bulk fetch — e.g. `populations`, `population-projects`) must call `store.setFetched()`
+inside the handler: `.getById()`/`.all` return `undefined` until `fetched` flips, so
+without it the store looks permanently empty no matter how many payloads arrive.
 
 ### `prun-ui/` — DOM Layer
 

@@ -30,6 +30,11 @@
 - Provides 25% production bonus to chosen industry for duration of active program.
 - Members vote on programs (votes weighted by influence = workforce composition with tier multipliers: Pioneer 1x, Settler 1.25x, Technician 1.5x, Engineer 1.75x, Scientist 2x).
 - Requires upkeep (DW, MCG, PE, RAT) to stay active; scales with base count.
+- Upkeep runs on a 10-day cycle, independent of programs (programs are 7-day epochs). The full bill must be contributed before the cycle's due date for the CoGC to operate in the next cycle.
+
+### COGC API payload (verified live)
+
+`DATA_DATA path ["planets", <planetGuid>, "cogc", <cogcId>]` — arrives when the `COGC {planet}` buffer opens. The body's own `id` (and the planet body's `cogcId` field) can be the all-zero GUID even for a fully functional CoGC — never key a store by it; key by `planet.id` (the body carries a `planet` entity link with `id`/`naturalId`/`name`). `upkeep.dueDate` = end of the CURRENT 10-day upkeep cycle; `upkeep.billOfMaterial[]` entries have `amount` and `currentAmount`, and the cycle is fully paid when every entry has `currentAmount >= amount` — the next contribution deadline is `dueDate`, or `dueDate + 10 days` when paid. `upkeep.contributions[]` matches the population-project contribution shape. Some planets have no CoGC, and there is no reliable client-side way to detect absence before opening the buffer (the zero-GUID `cogcId` is useless per above) — a data-collection step must timeout-and-continue rather than fail (see `OPEN_COGC`).
 
 ## Population Needs (Tiers)
 
@@ -48,12 +53,18 @@ Priorities per tier:
 - Scientists: Education, Culture, Comfort
 
 ## Population Infrastructure (POPI)
-16 buildings under "Population Infrastructure" project (POPI). Each provides 2 needs, upgradeable to level 10.
+14 buildings under "Population Infrastructure" project (POPI): SST, SDP, EMC, INF, HOS, WCE, PAR, 4DA, ACA, ART, VRT, PBH, LIB, UNI (verified from a live POPI payload; the list always contains all 14, absent buildings have `level: 0`). Each provides 2 needs, upgradeable to level 10.
 
 - **Small (SST, INF, etc.)**: Provide 2,500 per need when fully filled.
 - **Mixed (EMC, PBH, etc.)**: Provide 1,000 per need each.
 - **Large (SDP, HOS, etc.)**: Provide 5,000 per need each.
 
 Upkeep consumed daily (reserve = 30 days). Effect scales linearly with upkeep availability (e.g., 4 of 7 days fed = 4/7 effect).
+
+### POPI/POPID API payloads (verified live)
+
+- `DATA_DATA path ["planets", <planetId>]` — planet body includes `populationId` (the planet↔population link).
+- `DATA_DATA path ["populations", <popId>]` (arrives with POPI) — `infrastructure[]`: all 14 buildings with `type`, `ticker`, `projectId`, `projectName`, `level`, `upkeepStatus`. `upkeepStatus` semantics are UNRESOLVED — do not use it in calculations. `0` correlates with "never fed" (verified live), but magnitude does not mean "fraction of upkeep provided": a building with ALL current ticks paid (OFF and TUB both inside paid periods) showed `0.0428`, not ~2/3. The same payload's `reports[]` (weekly POPR) has `needFulfillments[]` entries shaped `{infrastructureType, needType, fulfillment}` — these are provider SHARES of a need (BASE + building shares sum to 1 per need), not absolute fulfillment, and they do not track upkeep feeding; a building providing nothing does drop out of the list entirely.
+- `DATA_DATA path ["populations", <popId>, "projects", <projectId>]` (arrives with POPID) — per-building `upkeeps[]`: `material`, `amount` consumed per tick, `duration` (days between ticks — 5 or 15 observed), `nextTick.timestamp`, `stored` (reserve), `storeCapacity` (= 30 days' worth). Days until a material's first unpayable tick: `(nextTick − now) + floor(stored / amount) × duration`. Also `contributions[]` (contributor company id/name, materials, time) — it mixes upkeep and upgrade/building materials (filter against the body's own `upkeeps` ticker set), and may only cover recent history, so persisted history must merge, not replace. A fully empty `contributions[]` means nothing was ever provided (verified live together with `upkeepStatus: 0` and all `stored: 0` — the building consumed nothing at its last tick and provides no effect). `currentAmount` semantics unverified (always 0 in observed data). A single building's upkeep materials can mix periods with independent `nextTick`s (many buildings have both 5- and 15-day materials, e.g. INF: OFF every 5 days, TUB/STR every 15) — on a never-fed building the shortest-period material is the fastest way to start restoring effect. The tick-consumption model is verified exactly: a same-day contribution of 1500 OFF + 1000 TUB (30 days' worth of each) depleted to exactly 0 via 6 OFF ticks (5d grid) and 2 TUB ticks (15d grid), each tick consuming `amount` on that material's own grid anchored at `nextTick`. `nextTick` advances whether or not the tick was paid, so `stored: 0` alone cannot distinguish "fed exactly through the last tick" from "never fed" — a `contributions[]` entry for the material within its current period is the reliable disambiguator.
 
 Education infrastructure (PBH +0.001, LIB +0.002, UNI +0.004) boosts education growth rate.

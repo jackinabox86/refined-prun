@@ -4,6 +4,7 @@ import { Logger } from '@src/features/XIT/ACT/runner/logger';
 import { TileAllocator } from '@src/features/XIT/ACT/runner/tile-allocator';
 import { clickElement } from '@src/util';
 import { sleep } from '@src/utils/sleep';
+import { closeAgentChannelSession } from '@src/infrastructure/prun-ui/agent-channel-messaging';
 
 interface StepMachineOptions {
   tile: PrunTile;
@@ -14,9 +15,11 @@ interface StepMachineOptions {
   onEnd: () => void;
   onStatusChanged: (status: string, keepReady?: boolean) => void;
   onActReady: () => void;
+  onSkipReady: () => void;
 }
 
 const AssertionError = new Error('Assertion failed');
+const ExecutionStopped = new Error('Execution stopped');
 
 export class StepMachine {
   private next?: ActionStep;
@@ -49,7 +52,7 @@ export class StepMachine {
     nextAct?.();
   }
 
-  skip() {
+  skip(opts?: { silent?: boolean }) {
     if (!this.ensureRunning()) {
       return;
     }
@@ -57,8 +60,10 @@ export class StepMachine {
     if (!next) {
       return;
     }
-    const info = act.getActionStepInfo(next.type);
-    this.log.skip(info.description(next));
+    if (!opts?.silent) {
+      const info = act.getActionStepInfo(next.type);
+      this.log.skip(info.description(next));
+    }
     this.nextAct = undefined;
     void this.startNext();
   }
@@ -72,6 +77,7 @@ export class StepMachine {
   }
 
   stop() {
+    closeAgentChannelSession();
     this.next = undefined;
     this.nextAct = undefined;
     this.options.onEnd();
@@ -93,9 +99,9 @@ export class StepMachine {
         data: next,
         log,
         setStatus: status => this.options.onStatusChanged(status),
-        waitAct: async status => {
+        waitAct: async (status, opts) => {
           status ??= description ?? info.description(next);
-          await this.waitAct(status);
+          await this.waitAct(status, opts);
         },
         waitActionFeedback: async tile => {
           this.options.onStatusChanged('Waiting for action feedback...');
@@ -105,7 +111,7 @@ export class StepMachine {
             log.error(description ?? info.description(next));
             log.error('Action Package execution failed');
             this.stop();
-            return;
+            throw ExecutionStopped;
           }
         },
         cacheDescription: () => {
@@ -118,7 +124,7 @@ export class StepMachine {
           log.success(description ?? info.description(next));
           void this.startNext();
         },
-        skip: () => this.skip(),
+        skip: opts => this.skip(opts),
         fail: message => {
           if (message) {
             log.error(message);
@@ -136,6 +142,9 @@ export class StepMachine {
         requestTile: async command => await this.requestTile(command),
       });
     } catch (e) {
+      if (e === ExecutionStopped) {
+        return;
+      }
       if (e !== AssertionError) {
         log.runtimeError(e);
       }
@@ -158,10 +167,23 @@ export class StepMachine {
     return tile;
   }
 
-  private async waitAct(status: string) {
+  private async waitAct(status: string, opts?: { actDelayMs?: number }) {
     this.options.onStatusChanged(status);
-    this.options.onActReady();
-    await new Promise<void>(resolve => (this.nextAct = resolve));
+    const promise = new Promise<void>(resolve => (this.nextAct = resolve));
+    const actDelayMs = opts?.actDelayMs ?? 0;
+    if (actDelayMs > 0) {
+      // SKIP/CANCEL work during the delay; ACT stays grayed until it elapses.
+      this.options.onSkipReady();
+      const armed = this.nextAct;
+      await sleep(actDelayMs);
+      // Skipped/canceled/acted during the delay - don't re-arm the ACT button.
+      if (this.nextAct === armed) {
+        this.options.onActReady();
+      }
+    } else {
+      this.options.onActReady();
+    }
+    await promise;
   }
 
   private ensureRunning() {

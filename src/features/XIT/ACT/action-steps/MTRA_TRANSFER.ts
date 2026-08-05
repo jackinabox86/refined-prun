@@ -13,6 +13,12 @@ interface Data {
   to: string;
   ticker: string;
   amount: number;
+  // Resolve the transfer amount from the MTRA slider max at execution time
+  // instead of data.amount ("load everything available").
+  loadAll?: boolean;
+  // Reminder pause: prefill data.amount, then waitAct with actDelayMs 2000 so the
+  // player adjusts the amount in the MTRA buffer before clicking the re-armed ACT.
+  playerReview?: boolean;
 }
 
 export const MTRA_TRANSFER = act.addActionStep<Data>({
@@ -24,13 +30,19 @@ export const MTRA_TRANSFER = act.addActionStep<Data>({
     const to = storagesStore.getById(data.to);
     const fromName = from ? serializeStorage(from) : 'NOT FOUND';
     const toName = to ? serializeStorage(to) : 'NOT FOUND';
+    if (data.loadAll) {
+      return `Transfer all ${data.ticker} from ${fromName} to ${toName}`;
+    }
+    if (data.playerReview) {
+      return `Transfer up to ${fixed0(data.amount)} ${data.ticker} from ${fromName} to ${toName} (adjust in MTRA)`;
+    }
     return `Transfer ${fixed0(data.amount)} ${data.ticker} from ${fromName} to ${toName}`;
   },
   execute: async ctx => {
     const { data, log, setStatus, requestTile, waitAct, waitActionFeedback, complete, skip, fail } =
       ctx;
     const assert: AssertFn = ctx.assert;
-    const { ticker, amount } = data;
+    const { ticker, amount, loadAll, playerReview } = data;
     const from = storagesStore.getById(data.from);
     assert(from, 'Origin inventory not found');
     const to = storagesStore.getById(data.to);
@@ -42,7 +54,8 @@ export const MTRA_TRANSFER = act.addActionStep<Data>({
       return;
     }
 
-    if (amount <= 0) {
+    // Data.amount is only a snapshot estimate for loadAll totals/description.
+    if (!loadAll && amount <= 0) {
       log.warning(`No ${ticker} was transferred (target amount is 0)`);
       skip();
       return;
@@ -84,22 +97,49 @@ export const MTRA_TRANSFER = act.addActionStep<Data>({
     const allInputs = _$$(tile.anchor, 'input');
     const amountInput = allInputs[1];
     assert(amountInput !== undefined, 'Amount input not found');
-    if (amount > maxAmount) {
-      const leftover = amount - maxAmount;
-      log.warning(
-        `${fixed0(leftover)} ${ticker} not transferred ` +
-          `(${fixed0(maxAmount)} of ${fixed0(amount)} transferred)`,
-      );
+
+    if (loadAll) {
       if (maxAmount === 0) {
+        log.warning(`No ${ticker} was transferred (nothing available)`);
         skip();
         return;
       }
+      changeInputValue(amountInput, maxAmount.toString());
+    } else {
+      if (amount > maxAmount) {
+        if (maxAmount === 0) {
+          log.warning(`No ${ticker} was transferred (nothing available)`);
+          skip();
+          return;
+        }
+        // The playerReview pause comes next - the player picks the final amount,
+        // so a past-tense "transferred" claim here would be premature.
+        if (!playerReview) {
+          const leftover = amount - maxAmount;
+          log.warning(
+            `${fixed0(leftover)} ${ticker} not transferred ` +
+              `(${fixed0(maxAmount)} of ${fixed0(amount)} transferred)`,
+          );
+        }
+      }
+      changeInputValue(amountInput, Math.min(amount, maxAmount).toString());
     }
-    changeInputValue(amountInput, Math.min(amount, maxAmount).toString());
 
     const transferButton = await $(tile.anchor, C.Button.btn);
 
-    await waitAct();
+    if (playerReview) {
+      await waitAct(`Adjust ${ticker} amount in MTRA, then ACT (or SKIP)`, { actDelayMs: 2000 });
+      // Use whatever amount the player left in the input — do not rewrite it.
+      const reviewed = Number(amountInput.value);
+      if (!Number.isFinite(reviewed) || reviewed <= 0) {
+        log.warning(`No ${ticker} was transferred (player amount is 0)`);
+        skip();
+        return;
+      }
+    } else {
+      await waitAct();
+    }
+
     const destinationAmount = computed(() => {
       const store = storagesStore.getById(data.to);
       return (

@@ -124,6 +124,15 @@ export default ts.config(
   },
 
   {
-    ignores: ['dist/**/*', 'eslint.config.mjs', 'src/types/unimport.d.ts', 'scripts/**/*.mjs'],
+    ignores: [
+      'dist/**/*',
+      'eslint.config.mjs',
+      'src/types/unimport.d.ts',
+      'scripts/**/*.mjs',
+      '.local/**/*',
+      // Agent worktrees are full checkouts nested inside the repo. Their files aren't
+      // covered by this project's tsconfig, so typed linting can only ever error on them.
+      '.claude/worktrees/**/*',
+    ],
   },
 );

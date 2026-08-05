@@ -54,9 +54,12 @@ Vue component filenames must match the import name:
 `vite.config.mts` scopes CSS-module classes as `rp-<basename>__<class>___<hash of basename+class>` —
 the file's directory and contents are not part of it. Two components sharing a basename therefore
 emit *identical* class names and silently override each other's styles in the built CSS, with no
-build error (found live: `src/components/CargoBar.vue` and `src/features/XIT/FLT/CargoBar.vue` both
-emitted `rp-CargoBar__container`, so STO's rules were styling XIT FLT's bars). Grep for the basename
-before adding a component, and prefix it when it collides — FLT's is now `FleetCargoBar.vue`.
+build error (found live twice: `src/components/CargoBar.vue` and `src/features/XIT/FLT/CargoBar.vue`
+both emitted `rp-CargoBar__container`, so STO's rules were styling XIT FLT's bars; and DISPATCH's
+`BaseRow.vue` was overridden by BS's and leaked back into XIT BS). Same-named files also break
+`[class*="rp-BaseRow__"]`-style test selectors, which match every feature sharing the basename.
+Grep for the basename before adding a component, and prefix it when it collides — FLT's is now
+`FleetCargoBar.vue`, DISPATCH's row is `PlanetRow.vue`.
 
 ### Parameter Checks
 
@@ -81,6 +84,23 @@ XIT panels with filter toggles use `C.ComExOrdersPanel.filter` as the container 
   <RadioItem v-model="showBar" horizontal>BAR</RadioItem>
 </div>
 ```
+
+`RadioItem` is a boolean toggle, not a true radio group — the above pattern gives independent (AND-able) toggles. For an **exclusive** single-select filter (choosing one option clears any other), bind each option against one shared ref instead of `v-model`:
+
+```html
+<div :class="C.ComExOrdersPanel.filter">
+  <RadioItem
+    v-for="option in filterOptions"
+    :key="option.code"
+    :model-value="selected === option.code"
+    horizontal
+    @update:model-value="v => (selected = v ? option.code : undefined)">
+    {{ option.label }}
+  </RadioItem>
+</div>
+```
+
+Each option's `active` state is a computed read of the same `selected` ref, so setting one option re-evaluates the others to `false` automatically — no manual "clear the others" step needed. Clicking the active option again clears `selected` (shows everything).
 
 ---
 
@@ -140,9 +160,201 @@ const pkg: UserData.ActionPackageData = {
 
 The `pkg` is a plain hardcoded object, not persisted user data — `ExecuteActionPackage` runs it exactly like a saved package (CONFIGURE only appears if an action still needs runtime input; PREVIEW/EXECUTE always available). Trigger it from anywhere with `showBuffer('XIT REFUELACT')` (see `PlanetHeader.vue`'s `XIT BURNACT` button for a row-level example, or `FLT.vue`'s Fuel-column header button for another).
 
+**Never embed `ExecuteActionPackage` inside a long-lived planner tile.** It splits its
+host buffer at **mount** (`ActionRunner` → `TileAllocator`), so a `v-if` reveal remounts
+the host and wipes non-persisted planner state before the run starts (this broke
+DISPATCH's first embedded-run design and wiped GOVBURNACT's slot picks). Stage the built
+package in a module-level ref and open a dedicated XIT command that renders
+`ExecuteActionPackage` (`DISPATCH/staged.ts` + `DISPATCHACT.ts`; GOVBURN's `staged.ts` +
+`GOVBURNEXEC.ts`). To reuse the planner window rather than strand it, change that tile's
+command in place — `dispatchClientPrunMessage(UI_TILES_CHANGE_COMMAND(tile.id, null))`
+then `(tile.id, 'XIT <CMD>')`; the null-then-command two-step is required, with
+`showBuffer` as the fallback if the first dispatch fails (`GovBurnActWindow.vue`).
+Hooks: `beforeExecute` (logs land at the top of the run log) and `afterExecute`.
+
+**A host `v-if`/`v-else` gating `ExecuteActionPackage` must not depend on data the run
+itself mutates.** `XIT AGENT`'s `ExecuteStoredPackage.vue` used to resolve its `pkg` via
+a `computed` over `agentReadyPackages`, gated by `v-if="!entry"`. The run's own
+`AGENT_DONE` step posts a completion marker to the agent channel, which drops the
+message from `agentReadyPackages` (by design, to hide it from AGENT next time) —
+flipping the `v-if` and unmounting `ExecuteActionPackage`, and its runner, before later
+chained steps (e.g. `OPEN_SFC`) could execute. Resolve such an `entry` once as a plain
+non-reactive snapshot at setup instead of a live `computed`, so a step's own side effect
+can't unmount the component that's running it.
+
+**Automated posts to the agent channel must stay hidden.** `agent-channel.ts` exposes
+both a hidden path (`postAgentMessage` — `showBuffer` with `autoClose`) and a visible one
+(`openAgentChannel`/`openAgentChannelWithDraft`). Use the hidden path for anything an ACT
+step posts on the user's behalf (`POST_AGENT`, `AGENT_DONE`'s completion marker) —
+reserve the visible path for flows where the player is meant to review/send the message
+themselves (e.g. the AGENT panel's manual "dismiss" button).
+
+**Agent-channel ids are only unique against fetched history.** The channel store handles
+only `CHANNEL_MESSAGE_LIST` (the server sends full history once per connection), so posts
+made by another device mid-session never reach the store, and
+`generateAgentMessageId`/`generateAgentChainIds` treat only posted-and-visible ids as
+used. Two packages staged before either posts, or two devices in one day, can therefore
+pick the same day-letter id — a known, accepted limitation (single-member channel, 5-day
+window). Related preview cost: chain-id allocation runs inside MTRA's `generateSteps`, so
+PREVIEWing a package with 2+ agent stops triggers the once-per-session COMG fetch.
+
+**`waitActionFeedback` aborts the step on failure.** On an error overlay it logs, stops
+the machine, and throws an `ExecutionStopped` sentinel that the step machine's catch
+swallows — an `execute()` body never runs past a failed game action. Code after the
+await (e.g. a `watchWhile` for a storage update that will now never come) can rely on
+this; don't wrap `waitActionFeedback` in a step-local try/catch or the hang comes back.
+
+### Reminder Pauses in ACT Steps
+
+When a step needs the player to do something manually in a companion buffer before the
+run continues (repair buildings in BRA, submit the flight in SFC, adjust a transfer
+amount in MTRA), call `waitAct(status, { actDelayMs: 2000 })`. The step machine grays
+the ACT button for the delay while SKIP/CANCEL stay live, then re-arms ACT — see
+`OPEN_BRA.ts` / `OPEN_SFC.ts` / `MTRA_TRANSFER.ts`'s `playerReview` mode (which reads
+the player-adjusted input value after the pause instead of rewriting it).
+Don't add a bare `sleep()` for this; the delay belongs in `waitAct` so skipping/canceling
+during the pause is handled.
+
+### ACT Step Behaviors Worth Knowing
+
+- **Per-open click gate lives in `requestTile`.** A step that opens a buffer via
+  `ctx.requestTile(cmd)` already makes the player click ACT for that open — don't add
+  another `waitAct` around it.
+- **Steps can self-skip without a click.** Calling `ctx.skip()` and returning before any
+  `waitAct` consumes the step silently (logs a SKIP line). Used by `OPEN_POPID` to walk a
+  fixed 14-building step list while only present buildings cost a click — a static step
+  list plus self-skipping steps is simpler than generating steps dynamically from data
+  that only arrives mid-run.
+- **MTRA into a ship store auto-emits `OPEN_SFC`** (destination `sfcDestination ??` the
+  material group's `planet`) unless `noSfc` is set — a buy→load→launch package needs no
+  explicit launch step; the player still clicks the actual takeoff in SFC.
+- **`CX Buy` with `useCXInv: true` nets out warehouse stock**, so a PREVIEW showing
+  `Buy 900` against `Transfer 1,000` of the same ticker is correct (100 already in the
+  warehouse), not a quantity bug.
+
 ### Action-Specific Sentinel Values
 
 `configurableValue` and `groupTargetPrefix` (`shared-types.ts`) are sentinels shared across every ACT action/material-group type. If an action needs an extra dropdown option unique to itself (e.g. Refuel's "All Exchanges" origin, alongside "Configure on Execution" and specific storages), define that sentinel in the action's own `utils.ts`/`config.ts` instead of adding it to `shared-types.ts`.
+
+### Step Generation Runs Entirely Before Execution
+
+`StepGenerator.generateSteps` loops over *every* action and emits *all* their steps before the
+`StepMachine` runs the first one. So an action that allocates a scarce resource during generation
+cannot see what a sibling action allocated by reading live game state — that state is byte-identical
+for all of them.
+
+Found live: DISPATCH emits one finish-MTRA action per ship, each allocating an agent-channel message
+id by scanning the channel history for a free letter. Every ship got the same base, so two ships both
+posted `a3-1`/`a3-2` and one dismissal marker hid both.
+
+Carry cross-action allocations in `ctx.state` — the object `generateState()` builds once per pass and
+hands to every action (`reservedAgentIds` is the reference case). Reach for live game state only for
+things no sibling action can change.
+
+---
+
+## Tile UI Gotchas
+
+### Let the game's ScrollView do the scrolling
+
+Never create an inner scroll container inside a tile (`height: 100%` on the root plus
+`overflow: auto` on a pane). The game wraps every tile in its own ScrollView; an inner
+scroller reserves a second scrollbar's width next to the game's scroll gutter, making
+the buffer visibly wider on the right than every other buffer (this was DISPATCH's
+right-edge gap). Let content flow at natural height and the game scrolls it.
+
+### Forms need `@submit.prevent`
+
+A native form submission navigates the page — i.e. force-reloads the whole game tab.
+`PrunButton` renders `type="button"`, so extension forms usually have no submit button,
+but the HTML implicit-submission rule still fires a native submit on Enter in a form
+with a **single** text input (GOVBURN's Add Planet form reloaded the game this way; an
+Enter handler on the input does not stop it). Put `@submit.prevent` on every `<form>`
+in extension UI.
+
+### Auto-fitting a window to its content
+
+The game applies the registered `bufferSize` asynchronously around tile creation, so a
+direct `style.width` write gets clobbered — dispatch `setBufferSize(tile.id, ...)` after
+the first data render instead (one-shot watch; see `DISPATCH.vue`). Measure width as
+`content + (bodyEl.offsetWidth − contentEl.clientWidth)`; that chrome term is real
+structural overhead on every floating window: a 6px `Tile__tile` margin per side plus
+the ScrollView's 10px right gutter (which hosts its 6px scrollbar track).
+
+For **height**, call `useMinBufferHeight()` (`src/hooks/use-min-buffer-height.ts`) in
+the window component's setup — at mount it grows the floating window body by the
+largest content overflow (`scrollHeight − clientHeight` over all descendants), so table
+rows and the action bar are never hidden behind a scrollbar. Origin: BURNACT; also used
+by GOVBURN's planner and runner windows.
+
+### Matching the ACT runner window look
+
+A planner/companion window meant to feel like `ExecuteActionPackage` (GOVBURNEXEC, ACT
+runs) mirrors its layout: a `height: 100%` flex-column root; a main pane with
+`flex-grow: 1; margin: 5px 0 0 4px; background: #23282b; border: 1px solid #2b485a`
+(the LogWindow/ConfigureWindow look); status/summary lines below it with
+`margin-left: 5px`; and a bottom-anchored `ActionBar` with `margin-left: 2px;
+justify-content: flex-start`. The flex-grow pane is what pins the action bar to the
+window's bottom edge (see `GovBurnActWindow.vue`).
+
+### Invisible FontAwesome glyphs in templates
+
+Icon buttons like the clear-✕ (`<PrunButton :class="[fa.solid, ...]">{{ '' }}</PrunButton>`
+in `BS.vue`/`INV.vue`) hold the icon as a literal private-use glyph (U+F00D) inside the
+seemingly empty `'…'` string — it renders as nothing in file reads and diffs. Copying or
+moving such markup by retyping what you see silently drops the glyph and ships an empty
+button. Move the original bytes (cut the exact lines) instead, and after any relocation
+verify with `sed -n '<line>p' file | od -c` that the multi-byte glyph survived.
+
+The `v-draggable` directive binds once at mount, and a template binding
+(`v-draggable="[list, opts]"`) auto-unwraps a ref — the directive captures that array
+instance and mutates it in place on drag. Two safe patterns:
+
+- A reactive array that is only ever mutated in place (TODO/SORT/ACT lists) — the
+  template binding is fine.
+- If any code REPLACES the array (`ids.value = next` in a sync watcher), the directive
+  is left mutating an orphaned snapshot and drags silently revert. Pass the ref itself
+  by building the tuple in script (`const dragBinding = [idsRef, opts]`) — the library
+  handles refs natively (see `DISPATCH.vue`).
+
+### Clamping a numeric input needs a raw input + DOM write-back
+
+`NumberInput` (a `defineModel` + computed v-model wrapper) cannot enforce min/max: its
+attrs land on the wrapper div, and when the parent clamps the emitted value back to what
+the store already holds, no prop change occurs, so Vue never rewrites the DOM and the
+input keeps displaying the out-of-range typed value. For clamped fields use a raw
+`<input type="number" :min :max :value @change>` and, in the handler, write the clamped
+value back explicitly (`input.value = String(clamped)`) after updating the store — the
+`min`/`max` attributes bound the spinner arrows, the write-back fixes typed values (see
+`GovBurnConfig.vue`).
+
+### Opening a companion buffer (split pane) next to a tile
+
+`openCompanionBuffer(tile, command)` in `src/infrastructure/prun-ui/companion-buffer.ts`
+splits the tile's window (widening a floating window by 450px first) and loads `command`
+into the sibling pane. Get the tile inside a Vue component via `useTile()`. Used by the
+POPI details shift-click feature and GOVBURN's planet view.
+
+### Planet names and the right-click planet menu
+
+To display a planet the way BURN does, derive the name with
+`getEntityNameFromAddress(planet.address)` — named planets show their name, unnamed
+ones get a "SystemName letter" nickname when their system is named (raw natural id
+otherwise). Pair it with the shared right-click menu (PLI/COGC/POPR/POPI/ADM):
+
+```html
+<td @contextmenu.prevent="planetContextMenu.showMenu($event, naturalId)">{{ name }}</td>
+```
+
+where `planetContextMenu` is `import { store as planetContextMenu } from
+'@src/features/XIT/planet-context-menu'` (see `PlanetHeader.vue`, `GovBurnOverview.vue`).
+
+### Tile state is ephemeral for floating buffers
+
+`useTileState` persists only for docked tiles (non-numeric tile ids). Floating buffers
+get numeric ids and their state is deleted on close (`tileRemoved` in
+`user-data-tiles.ts`). Don't promise cross-open persistence for a floating-buffer
+feature; put durable state in `userData` instead.
 
 ---
 
@@ -187,7 +399,7 @@ Four auto-imported functions for finding elements by CSS class name (`C.X.y`) or
 | Function | Returns | Mechanism | Use When |
 |----------|---------|-----------|----------|
 | `$` | `Promise<Element>` | MutationObserver — resolves when first match appears | Waiting for element to render (gate pattern) |
-| `$$` | `AsyncIterable<Element>` | MutationObserver — yields existing + future matches | Processing current and dynamically added elements |
+| `$$` | `Observable<Element>` | MutationObserver — emits existing + future matches | Processing current and dynamically added elements |
 | `_$` | `Element \| undefined` | Sync `getElementsByClassName` / `getElementsByTagName` | Element is guaranteed to exist already |
 | `_$$` | `Element[]` | Sync snapshot of all matches | All target elements exist already |
 
@@ -211,9 +423,9 @@ const container = await $(tile.anchor, C.StoreView.container);
 const text = await $(container, C.CommodityAd.text);
 ```
 
-### `$$` — Async Iterable (Subscribe Pattern)
+### `$$` — Observable (Subscribe Pattern)
 
-`AsyncIterable` that yields existing matches immediately, then watches for new ones via MutationObserver. Almost always paired with `subscribe()`.
+`Observable` (`src/utils/observable.ts`) that emits existing matches immediately, then watches for new ones via MutationObserver. Always paired with `subscribe()` — it is not an async iterable, so `for await` does not work on it.
 
 ```ts
 // Process each row as it appears (current + future)
@@ -466,9 +678,22 @@ Avoid matching on localized text (like "Weight", "Volume"). Use element index or
 const line = computed(() => productionStore.getById(tile.parameter));
 ```
 
+**A `watchEffect` that writes its own dependency must gate on value inequality, not
+just a condition.** DISPATCH's persisted-config migration rebuilt the patched object
+whenever the migration *condition* held; with a repair offset of 0 the migrated value
+equaled the old one — same values, new object identity, so the effect re-fired on its
+own write in an unbounded loop. Before a self-write, prove the patch actually changes a
+value (e.g. `newDefault !== oldDefault`), not merely that the migration applies.
+
 **Never use `onApiMessage` in features.** It's a low-level API for entity stores in `infrastructure/prun-api`. All API data lands in entity stores — derive what you need with `computed` or `watchEffect`.
 
 **Timestamps in ETAs must stay reactive.** Use `timestampEachMinute` (not `Date.now()`) when calculating ETAs, so it re-renders automatically.
+
+**Don't rebuild editable UI state when its source store object is rewritten.** Data
+capture rewrites whole `userData` objects on any change, so a `watch` that
+reinitializes a local editable structure from that object re-fires mid-edit and wipes
+the user's input. Merge instead: keep still-valid user picks, only fill new/missing
+entries (see the slots watch in `GovBurnActWindow.vue`).
 
 ### Persisting a Small UI Preference
 
@@ -478,22 +703,12 @@ for the established pattern. Don't reach for the tile-state store (`useTileState
 `user-data-tiles.ts`) for this; that's for state scoped to a specific saved tile instance
 (used by XIT panels), not a general feature preference.
 
-**Don't use `removeItem` to represent a falsy/off state if the key's absence already means
-something else (like "never configured, use the default").** `getItem` returns `null` for
-both "key was removed" and "key was never set" — those collapse into the same value, so a
-`?? defaultValue` fallback silently overrides an explicit off state on the next load. Store
-an explicit value (e.g. `''`) for the off state instead, so presence vs. absence of the key
-stays meaningful:
+**Always `setItem` an explicit off-value; never `removeItem`.** `getItem` returns `null`
+for both "removed" and "never set", so a `?? defaultValue` fallback silently overrides an
+explicit off state on the next load. Keep absence of the key meaning only "never
+configured":
 
 ```ts
-// Bad: hiding removes the key, so the next `getItem` returns null and falls
-// through to the "open by default" default — the hidden state doesn't stick.
-watch(isOpen, value => {
-  if (value) localStorage.setItem(key, value);
-  else localStorage.removeItem(key);
-});
-
-// Good: always set — absence of the key only ever means "never configured".
 const state = ref(localStorage.getItem(key) ?? 'default');
 watch(state, value => localStorage.setItem(key, value));
 ```
@@ -530,69 +745,87 @@ import { showBuffer } from '@src/infrastructure/prun-ui/buffers';
 showBuffer('CXM AI1.RAT');  // opens a buffer with the given command
 ```
 
-### Companion Buffers (Splitting)
+### Repeatable Hidden-Buffer Fetches
 
-To split a tile and set a companion command, click the tile's split button then wait for the node and change the companion's command.
+`showBuffer(cmd, { autoClose: true, closeWhen })` (the `XIT BURN`-style invisible-fetch
+pattern, see `docs/contributing.md` → "Server Communication & ToS") has two gotchas for
+code that calls it more than once for the same command:
 
-Split button characters (found via `C.TileControls.control`):
-- `'–'` (en-dash) = vertical split (top / bottom)
-- `'|'` = horizontal split (left / right)
+- **`autoClose` closes the window via a detached `closeWhenDone()` that `showBuffer()`
+  doesn't await** — its returned promise resolves once the command is submitted, not
+  once the window is actually removed from the DOM. A caller that needs to know the
+  window is truly gone (e.g. before opening another one for the same command) must
+  separately await `onNodeDisconnected(window, resolve)` on the returned element.
+- **Without `{ force: true }`, `showBuffer()` silently reuses an existing non-docked
+  tile for the same command instead of resubmitting it** — fine for the existing
+  single-shot `request-hooks.ts` pattern (each command is only ever requested once per
+  connection), but wrong for anything meant to be re-triggered repeatedly (e.g. a manual
+  refresh button): a second call can reuse a tile that's still mid-close and never
+  re-fetch.
 
-**Important:** `tile.frame` may be destroyed after a split. Capture `windowEl` and read `tile.container` / `tile.id` *before* clicking.
+Neither of these solves data staleness by itself — see `docs/game/screens-comms.md` for
+a deeper case (channel data) where the server won't resend a full data set a second time
+no matter how the buffer is managed client-side.
+
+### Submitting a Formless Input Programmatically
+
+Some game inputs (e.g. the chat channel compose box) have no `<form>` to call
+`requestSubmit()` on — submission only happens via a real Enter keypress. A plain
+`new KeyboardEvent(...)` Enter is **silently ignored** by these handlers: a constructed
+event leaves the legacy `keyCode`/`which` fields at 0, the game reads them, nothing
+sends, and no error surfaces anywhere (this shipped as a "verified" pattern and was
+only caught by checking server-side history). The working, server-verified recipe —
+reference implementation `postAgentMessage()` in
+`src/infrastructure/prun-api/data/agent-channel.ts`:
+
+1. `focusElement(input)`, then set the value with `changeInputValue`/`changeTextAreaValue`.
+2. Wait ~300ms (a keydown fired immediately after the value change is silently dropped).
+3. Dispatch the full `keydown`+`keypress`+`keyup` sequence with `keyCode`/`which`
+   patched to 13 via `Object.defineProperty` (the constructor ignores them).
+4. Verify the send: poll until the input clears (the game empties the compose box only
+   on an actual send) and throw on timeout — never assume the dispatch worked.
+
+Input clearing only proves the client dispatched the message — not that the server
+received it. If a caller treats "sent" as authoritative (e.g. folding the message into
+a local store, like the agent channel does), that's not enough: poll for the message's
+`C.Message.unconfirmed` class to clear on its `C.Message.text` span instead (see
+`docs/game/screens-comms.md` → "API Notes for Building on Channel Data", and
+`waitForServerConfirmation()` in `agent-channel.ts` for the reference implementation).
 
 ```ts
-import { setBufferSize } from '@src/infrastructure/prun-ui/buffers';
-import { clickElement, changeInputValue } from '@src/util';
-import { getPrunId } from '@src/infrastructure/prun-ui/attributes';
-import { UI_TILES_CHANGE_COMMAND } from '@src/infrastructure/prun-api/client-messages';
-import { dispatchClientPrunMessage } from '@src/infrastructure/prun-api/prun-api-listener';
-
-async function splitVertically(tile: PrunTile, companionCommand: string) {
-  // Capture window reference before the split destroys tile.frame.
-  const windowEl = tile.frame.closest(`.${C.Window.window}`) as HTMLElement;
-
-  if (tile.container.classList.contains(C.Window.body)) {
-    // Solo floating buffer: make taller, then split.
-    const w = parseInt(tile.container.style.width, 10) || 600;
-    const h = parseInt(tile.container.style.height, 10) || 400;
-    setBufferSize(tile.id, w, h + 450);
-
-    const splitBtn = _$$(tile.frame, C.TileControls.control).find(x => x.textContent === '–');
-    await clickElement(splitBtn);
-
-    // MutationObserver waits for the Node to appear after the split.
-    const node = await $(windowEl, C.Node.node);
-    const companion = _$$(node, C.Node.child)[1]; // new tile is always the second child
-    if (companion) await setTileCommand(companion, companionCommand);
-  } else if (tile.container.classList.contains(C.Node.child)) {
-    // Already in a split: reuse the sibling.
-    const node = tile.container.parentElement!;
-    const sibling = _$$(node, C.Node.child).find(x => x !== tile.container);
-    if (sibling) await setTileCommand(sibling, companionCommand);
-  }
+focusElement(input);
+changeInputValue(input, text);
+await sleep(300);
+for (const type of ['keydown', 'keypress', 'keyup'] as const) {
+  const event = new KeyboardEvent(type, {
+    key: 'Enter',
+    code: 'Enter',
+    bubbles: true,
+    cancelable: true,
+  });
+  Object.defineProperty(event, 'keyCode', { get: () => 13 });
+  Object.defineProperty(event, 'which', { get: () => 13 });
+  input.dispatchEvent(event);
 }
-
-async function setTileCommand(child: Element, command: string) {
-  const tileEl = _$(child, C.Tile.tile) as HTMLElement | null;
-  if (!tileEl) return;
-  const id = getPrunId(tileEl)!;
-  if (!dispatchClientPrunMessage(UI_TILES_CHANGE_COMMAND(id, command))) {
-    const input = (await $(child, C.PanelSelector.input)) as HTMLInputElement;
-    changeInputValue(input, command);
-    input.form!.requestSubmit();
-  }
-}
+// Poll input.value === '' against a deadline; throw if it never clears.
 ```
 
-See also `src/features/XIT/ACT/runner/tile-allocator.ts` for the full horizontal-split companion pattern used by ACT.
+### Companion Buffers (Splitting)
 
-> **Note:** `openCompanionBuffer` + `setChildCommand` (horizontal variant of the above) is duplicated across `inv-analysis-button.tsx`, `shpi-base-inv-button.tsx`, and `shpi-warehouse-button.tsx`. Consider extracting to a shared utility in `buffers.ts` if a fourth caller appears.
+Use `openCompanionBuffer(tile, command)` (see above) — it owns the whole sequence.
+Splitting by hand is a trap: `tile.frame` is destroyed by the split, so anything read
+from the tile has to be captured first, and the companion has to be located and
+commanded after a MutationObserver wait. The split control characters (found via
+`C.TileControls.control`) are `'–'` for a vertical split and `'|'` for a horizontal one.
+
+ACT allocates its runner panes the same way — see
+`src/features/XIT/ACT/runner/tile-allocator.ts` for the multi-pane variant.
 
 ---
 
 ## Left Sidebar Replacement
 
-The `custom-left-sidebar` feature hides the base-game sidebar buttons (`#TOUR_TARGET_SIDEBAR_LEFT_02`) and renders its own configurable set from `userData.settings.sidebar` (label → command pairs, drag-reorderable). Defaults remap several labels to XIT buffers (CONT → `XIT CONTS`, FIN → `XIT FIN`, MAP → `MU`) and append extension-only entries (ACT, BURN, REP, SET, HELP → `XIT *`). Consequence for testing: sidebar clicks in the harness hit extension buttons, not base-game ones — the base mapping is documented in `docs/game/sidebar-screens.md`.
+The `custom-left-sidebar` feature hides the base-game sidebar buttons (`#TOUR_TARGET_SIDEBAR_LEFT_02`) and renders its own configurable set from `userData.settings.sidebar` (label → command pairs, drag-reorderable). Defaults remap several labels to XIT buffers (CONT → `XIT CONTS`, FIN → `XIT FIN`, MAP → `MU`) and append extension-only entries (ACT, BURN, REP, SET, HELP → `XIT *`). Consequence for testing: sidebar clicks in a browser with the extension loaded hit extension buttons, not base-game ones — the base mapping is documented in `docs/game/sidebar-screens.md`.
 
 ## Context Controls
 
@@ -744,6 +977,18 @@ Two verified quirks when pairing such an input with sibling elements:
   of descender gap below it. Give it `display: block` when its footprint must match a
   block-level sibling pane, or the panes' total heights differ even with identical rects.
 
+For a `<select>` there is no class on the element itself — the game styles selects
+through an ancestor: `.${C.forms.input} select` provides the standard look (17px
+height, dark background, amber bottom border, amber focus underline). When using the
+shared `SelectInput` outside a game form (e.g. in a table cell), wrap it in a div
+carrying `C.forms.input`:
+
+```html
+<div :class="[C.forms.input, $style.selectWrap]">
+  <SelectInput v-model="value" :options="options" />
+</div>
+```
+
 ### Matching the Game's Scrollbar
 
 An overflowing element added to the game UI gets the wide native browser scrollbar
@@ -771,6 +1016,30 @@ rules verbatim:
 There is no game class to reuse for this: the game's main `ScrollView` machinery never
 restyles the scrollbar — it hides the native one by pushing it outside a clipped parent
 (`margin-right: -15px`) — so copy the values.
+
+### Beating the Game's `td:first-child` Border Reset
+
+The game's base table CSS includes `table tbody td:first-child { border-left-style: none }`. A feature's own `.myFirstColumnCell { border-left: ... }` rule loses to it: both selectors have one class/pseudo-class-level selector, and CSS specificity compares that count before type-selector count, so the game rule's three type selectors (`table`, `tbody`, `td`) become the tiebreaker and it wins regardless of source order. This silently drops a border-left declared on a table's first column (found live: DISPATCH's Assign-column divider rendered nowhere despite a correct, present-in-build rule).
+
+Beat it with a compound selector using two local classes instead of one — e.g. the cell's own class plus its row's class:
+
+```css
+/* Loses to the game's td:first-child reset */
+.cell {
+  border-left: 1px solid gold;
+}
+
+/* Wins: two class selectors outrank the game rule's one pseudo-class */
+.row .cell {
+  border-left: 1px solid gold;
+}
+```
+
+Matching the exact header row **height** of another panel also needs more than matching font-size: the game's unstyled `<th>` carries native padding (roughly `5px 8px 2px`). A feature that sets `thead th { padding: 0 4px }` collapses its header to about half that height even with identical font-size — to match another panel's header, don't override `th` padding at all and let it inherit the native value.
+
+Body cells: the game's `td` computed padding is `2px 8px` (verified live). To left-align
+text outside a table with the table's first-column cell text (e.g. a summary line under
+the table in the same container), give it `padding-left: 8px`.
 
 ### `data-tooltip` Changes the Box It Sits On
 
@@ -867,6 +1136,7 @@ Signature: `(value: number) => string`. Do **not** accept `undefined`.
 | `fixed02` | 0–2 | `"1,234"`, `"1,234.56"` | Values where trailing zeros are noise |
 | `fixed1` | 1 | `"1,234.6"` | Always 1 decimal |
 | `fixed2` | 2 | `"1,234.56"` | Prices, always exactly 2 decimals |
+| `fixed4` | 4 | `"1,234.5678"` | Rates and per-unit factors |
 | `percent0` | 0 | `"43%"` | Large percentages (>100%) |
 | `percent1` | 1 | `"42.5%"` | Medium percentages (10–100%) |
 | `percent2` | 2 | `"3.45%"` | Small percentages (<10%) |

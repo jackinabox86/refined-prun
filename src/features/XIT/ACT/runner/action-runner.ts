@@ -17,6 +17,7 @@ interface ActionRunnerOptions {
   onEnd: () => void;
   onStatusChanged: (status: string, keepReady?: boolean) => void;
   onActReady: () => void;
+  onSkipReady: () => void;
 }
 
 export class ActionRunner {
@@ -37,14 +38,21 @@ export class ActionRunner {
     return this.stepMachine?.isRunning ?? false;
   }
 
-  async preview(pkg: UserData.ActionPackageData, config: ActionPackageConfig) {
+  async preview(
+    pkg: UserData.ActionPackageData,
+    config: ActionPackageConfig,
+    extraSteps?: ActionStep[],
+  ) {
     if (this.isRunning) {
       this.log.error('Action Package is already running');
       return;
     }
     // Create a copy to prevent changes during execution.
     const copy = structuredClone(deepToRaw(pkg));
-    const { steps, fail } = await this.stepGenerator.generateSteps(copy, config);
+    const { steps, fail } = await this.stepGenerator.generateSteps(copy, config, true);
+    if (!fail && extraSteps && extraSteps.length > 0) {
+      steps.push(...extraSteps);
+    }
     if (steps.length === 0) {
       return;
     }
@@ -58,17 +66,24 @@ export class ActionRunner {
     }
   }
 
-  async execute(pkg: UserData.ActionPackageData, config: ActionPackageConfig) {
+  async execute(
+    pkg: UserData.ActionPackageData,
+    config: ActionPackageConfig,
+    extraSteps?: ActionStep[],
+  ) {
     if (this.isRunning) {
       this.log.error('Action Package is already running');
       return;
     }
     // Create a copy to prevent changes during execution.
     const copy = structuredClone(deepToRaw(pkg));
-    const { steps, fail } = await this.stepGenerator.generateSteps(copy, config);
+    const { steps, fail } = await this.stepGenerator.generateSteps(copy, config, false);
     if (fail) {
       this.log.error('Action Package execution failed');
       return;
+    }
+    if (extraSteps && extraSteps.length > 0) {
+      steps.push(...extraSteps);
     }
     this.log.info('Action Package execution started');
     this.log.info(formatTotals(steps));

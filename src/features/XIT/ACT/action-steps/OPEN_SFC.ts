@@ -2,6 +2,8 @@ import { act } from '@src/features/XIT/ACT/act-registry';
 import { shipsStore } from '@src/infrastructure/prun-api/data/ships';
 import { focusElement, changeInputValue, clickElement } from '@src/util';
 import { AssertFn } from '@src/features/XIT/ACT/shared-types';
+import { getPlanetName } from '@src/core/planet-name';
+import { convertToPlanetNaturalId } from '@src/core/planet-natural-id';
 
 interface Data {
   shipId: string;
@@ -14,7 +16,7 @@ export const OPEN_SFC = act.addActionStep<Data>({
     const ship = shipsStore.getById(data.shipId);
     const shipLabel = ship?.name ?? ship?.registration ?? 'unknown ship';
     return data.destination
-      ? `Open SFC for ${shipLabel}, set destination to ${data.destination}`
+      ? `Open SFC for ${shipLabel}, set destination to ${getPlanetName(data.destination)}`
       : `Open SFC for ${shipLabel}`;
   },
   execute: async ctx => {
@@ -29,6 +31,8 @@ export const OPEN_SFC = act.addActionStep<Data>({
       return;
     }
 
+    const destinationName = data.destination ? getPlanetName(data.destination) : undefined;
+
     if (data.destination) {
       const input = _$$(document.documentElement, C.AddressSelector.input)[0] as
         | HTMLInputElement
@@ -39,9 +43,9 @@ export const OPEN_SFC = act.addActionStep<Data>({
         return;
       }
 
-      await waitAct(`Set destination to ${data.destination}?`);
+      await waitAct(`Set destination to ${destinationName}?`);
       focusElement(input);
-      changeInputValue(input, data.destination);
+      changeInputValue(input, convertToPlanetNaturalId(data.destination) ?? data.destination);
 
       await waitAct('Select destination?');
       const portal = document.getElementById('autosuggest-portal');
@@ -50,9 +54,9 @@ export const OPEN_SFC = act.addActionStep<Data>({
         | undefined;
       if (suggestion) {
         await clickElement(suggestion);
-        log.info(`Destination set: ${data.destination}`);
+        log.info(`Destination set: ${destinationName}`);
       } else {
-        log.warning(`No suggestion found for ${data.destination} — select manually`);
+        log.warning(`No suggestion found for ${destinationName} — select manually`);
       }
     }
 
@@ -64,6 +68,12 @@ export const OPEN_SFC = act.addActionStep<Data>({
     if (bodyEl) {
       bodyEl.style.width = '975px';
       bodyEl.style.height = '750px';
+    }
+    if (data.destination) {
+      // Reminder pause: keep ACT grayed so the player submits the flight first.
+      await waitAct(`Submit flight to ${destinationName} in SFC, then continue`, {
+        actDelayMs: 2000,
+      });
     }
     complete();
   },

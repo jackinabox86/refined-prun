@@ -28,6 +28,7 @@ export interface ActionStepGenerateContext<TConfig>
   extends ActionRunnerContext<UserData.ActionData> {
   config: TConfig;
   packageName: string;
+  preview: boolean;
   fail: (message?: string) => void;
   assert: AssertFn;
   getMaterialGroup: (name: string | undefined) => Promise<Record<string, number> | undefined>;
@@ -40,16 +41,20 @@ export interface ActionStepGenerateContext<TConfig>
         [mat: string]: number;
       };
     };
+    // Agent message ids handed out during this generation pass but not yet posted.
+    // Every action generates its steps before any of them run, so the channel history
+    // looks identical to all of them and can't keep two ships' chains apart on its own.
+    reservedAgentIds: Set<string>;
   };
 }
 
 export interface ActionStepExecuteContext<T> extends ActionRunnerContext<T> {
   setStatus: (status: string) => void;
-  waitAct: (status?: string) => Promise<void>;
+  waitAct: (status?: string, opts?: { actDelayMs?: number }) => Promise<void>;
   waitActionFeedback: (tile: PrunTile) => Promise<void>;
   cacheDescription: () => void;
   complete: () => void;
-  skip: () => void;
+  skip: (opts?: { silent?: boolean }) => void;
   fail: (message?: string) => void;
   assert: AssertFn;
   requestTile: (Command: string) => Promise<PrunTile | undefined>;

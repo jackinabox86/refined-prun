@@ -46,7 +46,7 @@ jobs:
           $dt = [DateTimeOffset]::Parse($commitTimestamp).UtcDateTime
           $fileTimestamp = $dt.ToString("yyyyMMdd-HHmmss")
 
-          $outDir = "C:\Users\cyrus\Codex\refined-prun-commits"
+          $outDir = "$env:USERPROFILE\Codex\refined-prun-commits"
           New-Item -ItemType Directory -Force -Path $outDir | Out-Null
 
           $json = [ordered]@{

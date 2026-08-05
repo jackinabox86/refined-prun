@@ -7,15 +7,16 @@ import { useTile } from '@src/hooks/use-tile';
 import { Logger, LogTag, LogContent } from '@src/features/XIT/ACT/runner/logger';
 import LogWindow from '@src/features/XIT/ACT/LogWindow.vue';
 import ConfigWindow from '@src/features/XIT/ACT/ConfigureWindow.vue';
-import { ActionPackageConfig } from '@src/features/XIT/ACT/shared-types';
+import { ActionPackageConfig, ActionStep } from '@src/features/XIT/ACT/shared-types';
 import { act } from '@src/features/XIT/ACT/act-registry';
 
-const { pkg, afterExecute } = defineProps<{
+const { pkg, afterExecute, extraSteps } = defineProps<{
   pkg: UserData.ActionPackageData;
   afterExecute?: (
     config: ActionPackageConfig,
     log: (tag: LogTag, message: LogContent) => void,
   ) => void;
+  extraSteps?: ActionStep[];
 }>();
 
 const tile = useTile();
@@ -32,6 +33,7 @@ const isPreviewing = ref(false);
 const isRunning = ref(false);
 const status = ref(undefined as string | undefined);
 const actReady = ref(false);
+const skipReady = ref(false);
 
 watch(config, clearLog, { deep: true });
 
@@ -104,10 +106,14 @@ const runner = new ActionRunner({
     status.value = title;
     if (!keepReady) {
       actReady.value = false;
+      skipReady.value = false;
     }
   },
   onActReady: () => {
     actReady.value = true;
+  },
+  onSkipReady: () => {
+    skipReady.value = true;
   },
 });
 
@@ -123,7 +129,7 @@ async function onPreviewClick() {
   logScrolling.value = false;
   clearLog();
   isPreviewing.value = true;
-  await runner.preview(pkg, config.value);
+  await runner.preview(pkg, config.value, extraSteps);
   isPreviewing.value = false;
   status.value = undefined;
 }
@@ -132,21 +138,25 @@ function onExecuteClick() {
   logScrolling.value = true;
   clearLog();
   actReady.value = false;
-  runner.execute(pkg, config.value);
+  skipReady.value = false;
+  runner.execute(pkg, config.value, extraSteps);
 }
 
 function onCancelClick() {
   actReady.value = false;
+  skipReady.value = false;
   runner.cancel();
 }
 
 function onActClick() {
   actReady.value = false;
+  skipReady.value = false;
   runner.act();
 }
 
 function onSkipClick() {
   actReady.value = false;
+  skipReady.value = false;
   runner.skip();
 }
 
@@ -198,13 +208,15 @@ function clearLog() {
         <PrunButton primary disabled>PREVIEW</PrunButton>
         <PrunButton
           danger
-          :disabled="!actReady"
+          :disabled="!actReady && !skipReady"
           :class="$style.executeButton"
           @click="onCancelClick">
           CANCEL
         </PrunButton>
         <PrunButton primary :disabled="!actReady" @click="onActClick">ACT</PrunButton>
-        <PrunButton neutral :disabled="!actReady" @click="onSkipClick">SKIP</PrunButton>
+        <PrunButton neutral :disabled="!actReady && !skipReady" @click="onSkipClick">
+          SKIP
+        </PrunButton>
       </template>
     </ActionBar>
   </div>

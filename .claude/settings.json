@@ -21,7 +21,13 @@
       "Bash(pnpm exec eslint *)",
       "Bash(tasklist *)",
       "Bash(node .local/scratch/*)",
+      "Bash(python3 .local/scratch/*)",
       "Bash(pgrep *)",
+      "Bash(grok --no-auto-update --no-alt-screen --always-approve -p *)",
+      "Bash(grok --help)",
+      "Bash(grok models)",
+      "Bash(git merge-base *)",
+      "Bash(git grep *)",
       "Bash(git -C /home/cyrus/code/refined-prun status *)",
       "Bash(git -C /home/cyrus/code/refined-prun diff *)",
       "Bash(git -C /home/cyrus/code/refined-prun log *)",
@@ -30,17 +36,25 @@
       "Bash(git -C /home/cyrus/code/refined-prun worktree *)",
       "Bash(git -C /home/cyrus/code/refined-prun remote *)",
       "Bash(git -C /home/cyrus/code/refined-prun rev-parse *)",
-      "Bash(git grep *)",
-      "Bash(grok --help)",
-      "Bash(grok models)",
+      "Edit",
+      "Write",
       "Agent",
       "SendMessage",
       "ToolSearch",
-      "Skill"
+      "Skill",
+      "TaskCreate",
+      "TaskUpdate",
+      "TaskGet",
+      "TaskList",
+      "TaskOutput",
+      "TaskStop"
     ]
   },
   "sandbox": {
     "autoAllowBashIfSandboxed": true,
+    "network": {
+      "allowedDomains": ["api.x.ai", "auth.x.ai"]
+    },
     "excludedCommands": [
       "node scripts/local-browser-test.mjs",
       "node scripts/pw-act.mjs *",

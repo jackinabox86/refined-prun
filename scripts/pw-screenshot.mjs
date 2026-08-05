@@ -1,18 +1,17 @@
 // Attaches to the already-running browser (launched by local-browser-test.mjs)
 // via CDP and takes a screenshot without touching the profile or relaunching.
+// Same as `pw-act.mjs screenshot`, plus the current URL/title — handy as a
+// first "what is on screen right now" call.
 // Usage: node scripts/pw-screenshot.mjs <output-path>
-import { playwright, CDP_ENDPOINT } from './pw-helper.mjs';
+import { connect } from './pw-helper.mjs';
 
-const { chromium } = playwright;
 const outPath = process.argv[2];
 if (!outPath) {
   console.error('Usage: node scripts/pw-screenshot.mjs <output-path>');
   process.exit(1);
 }
 
-const browser = await chromium.connectOverCDP(CDP_ENDPOINT);
-const context = browser.contexts()[0];
-const page = context.pages()[0];
+const { page } = await connect();
 console.log('URL:', page.url());
 console.log('Title:', await page.title());
 await page.screenshot({ path: outPath });

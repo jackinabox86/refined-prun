@@ -45,7 +45,7 @@ check, not something to skip because nothing else stood out:
   `python -c`, and similar) rather than plain data (a path, a selector, a flag)? That's
   not fixable by widening an allowlist — allowlisting arbitrary code execution is unsafe
   regardless of how repetitive it feels. The fix is a new fixed-logic action that takes
-  data-only arguments instead (see `.claude/skills/run/SKILL.md` gotcha #8 for a worked
+  data-only arguments instead (see `docs/browser-testing.md` for a worked
   example: `list-windows`/`styles` actions replacing bespoke `eval` snippets).
 - Did an existing allowlist entry fail to match because of a quote-style or
   absolute-vs-relative-path mismatch? Fix the invocation habit (record it as a

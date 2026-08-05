@@ -9,7 +9,7 @@
     "url": "https://github.com/refined-prun/refined-prun.git"
   },
   "scripts": {
-    "compile": "tsc --noEmit",
+    "compile": "tsc --noEmit && pnpm run lint",
     "build": "pnpm run clean && pnpm run compile && vite build",
     "build:fast": "pnpm run clean && vite build",
     "build:firefox": "bash scripts/build-firefox.sh",
