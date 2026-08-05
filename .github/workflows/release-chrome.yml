@@ -17,6 +17,9 @@ jobs:
   release:
     name: Build and publish
     runs-on: ubuntu-latest
+    environment:
+      name: Chrome
+      url: https://chromewebstore.google.com/detail/pcakabdnefjhjdgbiapchkejbkhdeebn
     permissions:
       contents: write
     steps:
