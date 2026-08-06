@@ -21,6 +21,31 @@ sessions (Claude Code on the web) always start from a fresh clone.
 
 Verifying UI-visible behaviour against the live game: `docs/browser-testing.md`.
 
+## Release Workflows
+
+All release workflows are `workflow_dispatch` only, and dispatch runs the definition from
+whatever ref you pick — a workflow change has to land on `main` before it affects a real
+release.
+
+| Workflow | Publishes | Versioning |
+|----------|-----------|------------|
+| `release-chrome.yml` | Chrome Web Store, via the CWS API | semver read from `VERSION`, bumped by a `patch`/`minor`/`major` input, then committed and tagged |
+| `release-firefox.yml` | self-hosted unlisted XPI on GCS, signed by Mozilla, with a generated `updates.json` | date-stamped `YYYY.M.D.<run_number>` |
+
+(A third workflow, `release.yml`, was inherited from upstream and deleted — it was never
+dispatched and would have failed, wanting `CLIENT_ID`/`CLIENT_SECRET`/`REFRESH_TOKEN`
+secrets this fork does not define. Don't reintroduce it by re-syncing upstream wholesale.)
+
+GitHub records a run under Deployments/Environments only when the *job* declares an
+`environment:` key — publishing to a store is not itself enough. This is why Chrome
+releases were long invisible there while Firefox ones showed up. Use the
+`{ name, url }` mapping form rather than a bare string, so the Deployments entry links
+somewhere: the store listing for Chrome, the latest self-hosted XPI for Firefox.
+
+Environment-scoped jobs still read repository-level secrets, so adding `environment:` to a
+job does not cut it off from existing secrets. It can, however, introduce an approval gate
+if that environment carries protection rules.
+
 ## Path Aliases
 
 | Alias | Resolves to |

@@ -24,6 +24,17 @@ silently drops the tracking config, leaving the branch pushed but untracked. Run
 config-writing git commands unsandboxed from the start; the `.git/config` deny is
 intentional, so never work around it by widening the allowlist.
 
+Scope that bypass to commands that actually write config, though — a plain
+`git push origin <branch>` (no `-u`) touches only refs, and github.com is already an
+allowed host, so it runs fine sandboxed. Reaching for `dangerouslyDisableSandbox` "because
+it's a push" spends a user approval for nothing.
+
+Watch one non-obvious config write: `git branch -f <branch> origin/main`, used to reset a
+merged branch, *also* re-points that branch's upstream to `origin/main` via
+`branch.autoSetupMerge`. Restore it with
+`git branch --set-upstream-to=origin/<branch> <branch>` or the next bare `git push` on it
+targets main.
+
 ## Approvals are the scarce resource
 
 Allowlisted prefixes in `.claude/settings.json` only help when the command matches
