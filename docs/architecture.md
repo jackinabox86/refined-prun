@@ -31,13 +31,16 @@ release.
 |----------|-----------|------------|
 | `release-chrome.yml` | Chrome Web Store, via the CWS API | semver read from `VERSION`, bumped by a `patch`/`minor`/`major` input, then committed and tagged |
 | `release-firefox.yml` | self-hosted unlisted XPI on GCS, signed by Mozilla, with a generated `updates.json` | date-stamped `YYYY.M.D.<run_number>` |
-| `release.yml` | nothing — **inherited upstream dead code** | would fail: it wants `CLIENT_ID`/`CLIENT_SECRET`/`REFRESH_TOKEN` secrets this fork does not define |
+
+(A third workflow, `release.yml`, was inherited from upstream and deleted — it was never
+dispatched and would have failed, wanting `CLIENT_ID`/`CLIENT_SECRET`/`REFRESH_TOKEN`
+secrets this fork does not define. Don't reintroduce it by re-syncing upstream wholesale.)
 
 GitHub records a run under Deployments/Environments only when the *job* declares an
 `environment:` key — publishing to a store is not itself enough. This is why Chrome
-releases were long invisible there while Firefox ones showed up. Note that `release.yml`
-sets `environment: Chrome` despite never running, which makes the Environments list
-misleading when diagnosing this.
+releases were long invisible there while Firefox ones showed up. Use the
+`{ name, url }` mapping form rather than a bare string, so the Deployments entry links
+somewhere: the store listing for Chrome, the latest self-hosted XPI for Firefox.
 
 Environment-scoped jobs still read repository-level secrets, so adding `environment:` to a
 job does not cut it off from existing secrets. It can, however, introduce an approval gate

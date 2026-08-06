@@ -32,7 +32,9 @@ jobs:
   firefox:
     needs: build
     name: Sign and publish (Firefox)
-    environment: Firefox
+    environment:
+      name: Firefox
+      url: https://storage.googleapis.com/oog-fork-gcs-bucket/refined-prun-latest.xpi
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
