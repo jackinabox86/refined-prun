@@ -1,5 +1,6 @@
 import { DataCatalog } from '@src/core/data-query/catalog';
 import { DataQuery } from '@src/core/data-query/types';
+import { nativeWebSocket } from '@src/infrastructure/prun-api/socket-io-middleware';
 import { ref } from 'vue';
 
 export type AgentConnectionStatus =
@@ -32,6 +33,8 @@ const maxIncomingMessageSize = 64 * 1024;
 const maxOutgoingMessageSize = 4 * 1024 * 1024;
 const authenticationTimeoutMs = 10_000;
 const protocolVersion = 1;
+// WebSocket.OPEN, inlined so the page's proxied constructor is never read from.
+const webSocketOpen = 1;
 
 export class AgentQueryConnection {
   readonly status = ref<AgentConnectionStatus>('disconnected');
@@ -46,7 +49,7 @@ export class AgentQueryConnection {
   constructor(
     private readonly catalog: DataCatalog,
     private readonly socketFactory: AgentSocketFactory = endpoint =>
-      new WebSocket(endpoint) as unknown as AgentSocket,
+      new nativeWebSocket(endpoint) as unknown as AgentSocket,
   ) {}
 
   connect(endpoint: string, token: string) {
@@ -210,7 +213,7 @@ export class AgentQueryConnection {
 
   private sendRaw(message: object, requestId?: string) {
     const socket = this.socket;
-    if (!socket || socket.readyState !== WebSocket.OPEN) {
+    if (!socket || socket.readyState !== webSocketOpen) {
       return;
     }
     const serialized = JSON.stringify(message);
