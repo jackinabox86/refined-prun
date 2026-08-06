@@ -1,5 +1,6 @@
 import { DataCatalog } from '@src/core/data-query/catalog';
 import { DataQuery } from '@src/core/data-query/types';
+import { nativeWebSocket } from '@src/infrastructure/prun-api/socket-io-middleware';
 import { ref } from 'vue';
 
 export type AgentConnectionStatus =
@@ -32,9 +33,7 @@ const maxIncomingMessageSize = 64 * 1024;
 const maxOutgoingMessageSize = 4 * 1024 * 1024;
 const authenticationTimeoutMs = 10_000;
 const protocolVersion = 1;
-// Capture the constructor before the PrUn API middleware proxies window.WebSocket.
-const agentWebSocket = WebSocket;
-// Chromium brand-checks WebSocket constants when the page constructor is proxied.
+// WebSocket.OPEN, inlined so the page's proxied constructor is never read from.
 const webSocketOpen = 1;
 
 export class AgentQueryConnection {
@@ -50,7 +49,7 @@ export class AgentQueryConnection {
   constructor(
     private readonly catalog: DataCatalog,
     private readonly socketFactory: AgentSocketFactory = endpoint =>
-      new agentWebSocket(endpoint) as unknown as AgentSocket,
+      new nativeWebSocket(endpoint) as unknown as AgentSocket,
   ) {}
 
   connect(endpoint: string, token: string) {

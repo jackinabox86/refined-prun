@@ -158,12 +158,14 @@ Security requirements enforced by the client:
 Chrome may show its Local Network Access permission prompt on the first loopback connection. The user
 must grant that browser permission for the connection to proceed.
 
-The PrUn API middleware proxies the page's `WebSocket` constructor to observe game traffic. The agent
-client therefore captures the native constructor before that proxy is installed, and the middleware
-forwards `addEventListener` through the saved native method. Calling the overridden listener method
-recursively causes a stack overflow, while reading branded static properties such as `WebSocket.OPEN`
-through the proxy can produce an `Illegal invocation` error. These failures are interception bugs and
-do not require changing the authenticated loopback protocol.
+The PrUn API middleware proxies the page's `WebSocket` constructor to observe game traffic. The
+agent client therefore imports the native constructor that the middleware module captures before
+installing the proxy, so the loopback socket is never routed through the game's socket.io
+interception. The middleware forwards `addEventListener` through the saved native method, because
+calling the overridden listener method recursively causes a stack overflow. The agent client also
+compares `readyState` against the numeric open state instead of reading constants off the page
+constructor. These are interception concerns and do not require changing the authenticated
+loopback protocol.
 
 ### Protocol
 
