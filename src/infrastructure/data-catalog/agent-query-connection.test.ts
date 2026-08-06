@@ -7,7 +7,7 @@ import {
 } from '@src/infrastructure/data-catalog/agent-query-connection';
 
 class FakeSocket {
-  readyState: number = WebSocket.CONNECTING;
+  readyState = 0;
   sent: string[] = [];
   closed?: { code?: number; reason?: string };
   private readonly listeners = new Map<string, Array<(event: { data?: unknown }) => void>>();
@@ -24,12 +24,12 @@ class FakeSocket {
 
   close(code?: number, reason?: string) {
     this.closed = { code, reason };
-    this.readyState = WebSocket.CLOSED;
+    this.readyState = 3;
   }
 
   emit(type: string, data?: unknown) {
     if (type === 'open') {
-      this.readyState = WebSocket.OPEN;
+      this.readyState = 1;
     }
     for (const listener of this.listeners.get(type) ?? []) {
       listener({ data });
@@ -83,6 +83,30 @@ describe('agent endpoint and token validation', () => {
 });
 
 describe('AgentQueryConnection', () => {
+  it('authenticates when the page WebSocket constructor has branded static properties', () => {
+    const nativeWebSocket = WebSocket;
+    const proxiedWebSocket = new Proxy(nativeWebSocket, {
+      get(target, property, receiver) {
+        if (property === 'OPEN') {
+          throw new TypeError('Illegal invocation');
+        }
+        return Reflect.get(target, property, receiver);
+      },
+    });
+    vi.stubGlobal('WebSocket', proxiedWebSocket);
+
+    try {
+      const socket = new FakeSocket();
+      const connection = new AgentQueryConnection(createTestCatalog(), () => socket);
+      connection.connect('ws://127.0.0.1:47800', token);
+
+      expect(() => socket.emit('open')).not.toThrow();
+      expect(socket.messages()[0]).toMatchObject({ type: 'authenticate', token });
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
   it('is disabled until explicitly connected and authenticates before querying', () => {
     const socket = new FakeSocket();
     const factory = vi.fn(() => socket);

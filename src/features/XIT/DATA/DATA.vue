@@ -16,7 +16,9 @@ import {
 } from '@src/infrastructure/data-catalog';
 import { isRequestTransportAvailable } from '@src/infrastructure/prun-api/data/request-hooks';
 import { agentQueryConnection } from '@src/infrastructure/data-catalog/agent-query';
+import { useXitParameters } from '@src/hooks/use-xit-parameters';
 import { downloadJson } from '@src/utils/json-file';
+import { parseDataExplorerParameters } from '@src/features/XIT/DATA/parameters';
 
 interface FilterInput {
   id: number;
@@ -45,8 +47,20 @@ const directionOptions = [
   { label: 'DESCENDING', value: 'desc' },
 ];
 
+const parameters = useXitParameters();
+const parsedParameters = parseDataExplorerParameters(parameters);
 const sources = computed(() => dataCatalog.list());
-const selectedSourceId = ref('balances');
+const requestedSourceId = parsedParameters.sourceId?.trim().toLowerCase();
+const defaultSourceId = sources.value.some(x => x.id === 'balances')
+  ? 'balances'
+  : (sources.value[0]?.id ?? '');
+const hasRequestedSource = sources.value.some(x => x.id === requestedSourceId);
+const selectedSourceId = ref(hasRequestedSource ? requestedSourceId! : defaultSourceId);
+const parameterMessage = ref(
+  requestedSourceId && !hasRequestedSource
+    ? `Unknown data source "${parsedParameters.sourceId}"; showing the default source.`
+    : '',
+);
 const search = ref('');
 const filters = ref<FilterInput[]>([]);
 const sortPath = ref('');
@@ -54,7 +68,7 @@ const sortDirection = ref<'asc' | 'desc'>('asc');
 const limit = ref<number | undefined>(250);
 const siteId = ref('');
 const loadMessage = ref('');
-const agentEndpoint = ref('ws://127.0.0.1:47800');
+const agentEndpoint = ref(parsedParameters.endpoint ?? 'ws://127.0.0.1:47800');
 const agentToken = ref('');
 const agentStatus = agentQueryConnection.status;
 const agentError = agentQueryConnection.lastError;
@@ -108,6 +122,7 @@ const prettyResult = computed(() => preview.value.text ?? queryError.value);
 const agentStatusLabel = computed(() => agentStatus.value.replace('-', ' ').toUpperCase());
 
 watch(selectedSourceId, () => {
+  parameterMessage.value = '';
   loadMessage.value = '';
 });
 
@@ -250,6 +265,9 @@ function buildPreview(result?: DataQueryResult): {
 
           <div v-if="source" :class="$style.sourceInfo">
             <div :class="$style.sourceDescription">{{ source.description }}</div>
+            <div v-if="parameterMessage" :class="$style.error">
+              {{ parameterMessage }}
+            </div>
             <div :class="$style.badges">
               <span :class="$style.badge">{{ provenanceLabel }}</span>
               <span :class="[$style.badge, $style[source.completeness]]">
@@ -332,7 +350,7 @@ function buildPreview(result?: DataQueryResult): {
         </div>
       </template>
 
-      <details :class="$style.agentPanel">
+      <details v-if="parsedParameters.connectionEnabled" :class="$style.agentPanel">
         <summary :class="$style.agentSummary">
           <span>Agent Query Connection</span>
           <span :class="[$style.badge, $style.agentStatus, $style[agentStatus]]">
@@ -410,7 +428,7 @@ function buildPreview(result?: DataQueryResult): {
 }
 
 .controls {
-  flex: 0 1 auto;
+  flex: 0 0 auto;
   max-height: 48%;
   min-height: 0;
   border: 1px solid rgb(51, 51, 51);

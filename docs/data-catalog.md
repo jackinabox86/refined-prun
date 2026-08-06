@@ -100,8 +100,13 @@ completeness, the normalized query, counts, truncation metadata, timestamp, and 
 
 ## XIT DATA
 
-Open `XIT DATA` to use the human explorer. Selecting datasets, editing search/filter/sort inputs,
-previewing, and downloading are passive.
+Open `XIT DATA` to use the human explorer. Pass an optional catalog source ID to select it immediately,
+for example `XIT DATA ships`; plain `XIT DATA` opens the default source. An optional loopback endpoint
+can also prefill the agent connection field: `XIT DATA ships ws://127.0.0.1:47800` or, without a source,
+`XIT DATA ws://127.0.0.1:47800`. Add the optional `JSON` parameter to omit the agent connection feature
+for an explorer instance, for example `XIT DATA ships JSON` or
+`XIT DATA ships ws://127.0.0.1:47800 JSON`. Parameters never connect automatically. Selecting datasets,
+editing search/filter/sort inputs, previewing, and downloading are passive.
 
 Filter values are parsed as JSON when valid. For example, `true`, `42`, `null`, `["RAT"]`, and
 `{"mode":"safe"}` retain their JSON types. Other input is treated as a string.
@@ -152,6 +157,13 @@ Security requirements enforced by the client:
 
 Chrome may show its Local Network Access permission prompt on the first loopback connection. The user
 must grant that browser permission for the connection to proceed.
+
+The PrUn API middleware proxies the page's `WebSocket` constructor to observe game traffic. The agent
+client therefore captures the native constructor before that proxy is installed, and the middleware
+forwards `addEventListener` through the saved native method. Calling the overridden listener method
+recursively causes a stack overflow, while reading branded static properties such as `WebSocket.OPEN`
+through the proxy can produce an `Illegal invocation` error. These failures are interception bugs and
+do not require changing the authenticated loopback protocol.
 
 ### Protocol
 

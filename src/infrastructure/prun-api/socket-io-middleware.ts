@@ -55,7 +55,7 @@ export default function socketIOMiddleware<T>(middleware: Middleware<T>) {
   // I don't remember what this override is for, lol. Probably some FIO compatibility issues.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   WebSocket.prototype.addEventListener = function (type: any, listener: any, options: any) {
-    return this.addEventListener(type, listener, options);
+    return addEventListener.call(this, type, listener, options);
   };
 
   window.XMLHttpRequest = new Proxy(XMLHttpRequest, {
