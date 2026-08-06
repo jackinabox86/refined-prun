@@ -2,6 +2,10 @@ import { decodePayload, encodePayload, Packet as EIOPacket } from 'engine.io-par
 import { Decoder, Encoder, Packet as SIOPacket, PacketType } from 'socket.io-parser';
 import { castArray } from '@src/utils/cast-array';
 
+// Captured before socketIOMiddleware() replaces window.WebSocket with a proxy.
+// Code that needs the real constructor imports this instead of reading the global.
+export const nativeWebSocket = WebSocket;
+
 export type Middleware<T> = {
   onOpen: () => void;
   onMessage: (payload: T) => Promise<boolean>;
