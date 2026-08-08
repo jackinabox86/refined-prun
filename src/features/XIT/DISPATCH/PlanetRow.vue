@@ -134,7 +134,9 @@ function clearShip() {
       @drop="onDrop">
       <template v-if="config.ship && shipLabel">
         <div :class="$style.shipAssigned">
-          <PrunButton primary inline :class="$style.shipButton">{{ shipLabel }}</PrunButton>
+          <PrunButton primary inline :class="$style.shipButton">
+            <span :class="$style.shipLabel">{{ shipLabel }}</span>
+          </PrunButton>
           <PrunButton dark inline :class="$style.clearButton" @click="clearShip">×</PrunButton>
         </div>
       </template>
@@ -302,6 +304,16 @@ function clearShip() {
 .shipButton {
   flex: 1;
   min-width: 0;
+  overflow: hidden;
+}
+
+/* Same reason as ShipPool's .shipLabel: a <button> clips at its padding box,
+   so truncating on the button drops the right padding and cuts a glyph in
+   half against the ✕. Truncate on an inner block instead. */
+.shipLabel {
+  display: block;
+  width: 100%;
+  white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
