@@ -173,7 +173,16 @@ The extension does make some background server requests (e.g., `XIT BURN` opens 
 
 ### Changelog
 
-Don't modify `CHANGELOG.md` in PRs. The maintainer adds changelog notes right before merging. This avoids merge conflicts.
+If a PR has a user-facing change (a feature, a behavior change, a bug fix a player would notice),
+add a bullet under the `## Unreleased` → `### Added`/`### Changed`/`### Fixed`/`### Removed`
+heading in `CHANGELOG.md` (create the subheading if it's not there yet). Follow the existing
+entry style: `` `feature-id-or-XIT-CMD`: Sentence describing the change. `` Skip it for
+non-user-facing changes (refactors, docs, CI, tests).
+
+Release automation renames `## Unreleased` to the shipped version number and opens a fresh
+`## Unreleased` section — don't rename it yourself, and don't touch anything above the current
+`## Unreleased` heading. `XIT WHATSNEW` (`src/features/XIT/WHATSNEW/`) reads `CHANGELOG.md` at
+build time to show players what changed since they last looked.
 
 ### Import Sorting
 

@@ -46,6 +46,13 @@ Environment-scoped jobs still read repository-level secrets, so adding `environm
 job does not cut it off from existing secrets. It can, however, introduce an approval gate
 if that environment carries protection rules.
 
+Chrome's and Firefox's shipped versions are not comparable: Chrome's `VERSION`-derived
+semver and Firefox's date-stamped one are stamped independently, only into
+`dist/manifest.json` at build time — `VERSION` itself never changes for a Firefox release.
+Anything that needs a stable, cross-store "release identity" (e.g. `XIT WHATSNEW`'s
+changelog view, `src/features/XIT/WHATSNEW/changelog-data.ts`) must key off `CHANGELOG.md`'s
+own version headings, never `chrome.runtime.getManifest().version` / `config.version`.
+
 ## Path Aliases
 
 | Alias | Resolves to |
