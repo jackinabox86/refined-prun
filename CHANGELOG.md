@@ -11,6 +11,10 @@ ships and opens a fresh `Unreleased` section.
 
 - `XIT WHATSNEW`: Shows release notes since your last update, opened automatically after an update
 
+### Changed
+
+- `XIT ACT`: Auto-SFC step now sets the destination planet with the same address-select helper used by CONTD import, dropping two redundant confirmation clicks
+
 ### Fixed
 
 - `XIT DATA`: Stabilize the agent query connection and parameter handling
