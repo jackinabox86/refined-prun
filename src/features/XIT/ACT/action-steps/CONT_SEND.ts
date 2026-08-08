@@ -2,9 +2,9 @@ import { act } from '@src/features/XIT/ACT/act-registry';
 import { fixed0 } from '@src/utils/format';
 import { changeInputValue, changeSelectIndex, focusElement } from '@src/util';
 import { materialsStore } from '@src/infrastructure/prun-api/data/materials';
+import { selectAddress } from '@src/infrastructure/prun-ui/utils/select-address';
 import {
   waitFor,
-  selectLocation,
   createNewDraft,
   setDraftNameAndPreamble,
   saveDraftDetails,
@@ -154,7 +154,7 @@ export const CONT_SEND = act.addActionStep<Data>({
 
     if (addressContainers.length >= 1 && data.contOrigin) {
       await waitAct(`Set origin to ${data.contOrigin}?`);
-      const ok = await selectLocation(addressContainers[0], data.contOrigin);
+      const ok = await selectAddress(addressContainers[0], data.contOrigin);
       if (ok) {
         log.info(`Origin set: ${data.contOrigin}`);
       } else {
@@ -165,7 +165,7 @@ export const CONT_SEND = act.addActionStep<Data>({
     // Step 4: Set destination address
     if (addressContainers.length >= 2 && data.contDest) {
       await waitAct(`Set destination to ${data.contDest}?`);
-      const ok = await selectLocation(addressContainers[1], data.contDest);
+      const ok = await selectAddress(addressContainers[1], data.contDest);
       if (ok) {
         log.info(`Destination set: ${data.contDest}`);
       } else {
