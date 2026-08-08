@@ -6,7 +6,7 @@ Table of all stores. Columns: Type, Location, Name, Weight, Volume, plus an `ope
 
 Type filter chips above the table (toggle to include/exclude): `BS` (base storage), `SHP` (ship cargo), `STL`/`FTL` (fuel tanks), `WAR` (warehouse), `CON` (?), `UPK` (?), `VTX` (?) — unverified expansions marked (?).
 
-`INV <address>` shows only stores at that address (used by the `INV <planet>` context link on `BS <planet>`).
+`INV <address>` shows only stores at that address (used by the `INV <planet>` context link on `BS <planet>`). Natively this opens the single store directly only when exactly one exists there; with more than one (e.g. a ship docked at the base) it falls back to the filtered list instead. Refined PrUn overrides this: `INV <planet>` always redirects straight to the base store when one exists, regardless of other stores at the address (`src/features/basic/correct-commands/planet-commands.ts`) — open other inventories via their own commands (`SHPI`, `WAR`, ...).
 
 ## INV `<store-id>` — Single Inventory
 

@@ -1,5 +1,7 @@
 import { planetsStore } from '@src/infrastructure/prun-api/data/planets';
 import { stationsStore } from '@src/infrastructure/prun-api/data/stations';
+import { sitesStore } from '@src/infrastructure/prun-api/data/sites';
+import { storagesStore } from '@src/infrastructure/prun-api/data/storage';
 import { convertToPlanetNaturalId } from '@src/core/planet-natural-id';
 
 const correctableCommands = new Set([
@@ -37,6 +39,9 @@ export function correctPlanetCommand(parts: string[]) {
   if (args.length === 1) {
     // For example, `LM VH-331a`
     if (planetsStore.getByNaturalId(args[0])) {
+      if (command === 'INV') {
+        redirectInvToBaseStore(parts, args[0]);
+      }
       return;
     }
     // For example, `LM HRT`
@@ -50,5 +55,25 @@ export function correctPlanetCommand(parts: string[]) {
   if (naturalId && joinedArgs !== naturalId) {
     parts.splice(1);
     parts.push(naturalId);
+    if (command === 'INV') {
+      redirectInvToBaseStore(parts, naturalId);
+    }
   }
+}
+
+// Native `INV <planet>` lists every store at the address (base, docked ships,
+// warehouse) whenever more than one is present. Players open those other
+// inventories through their own commands, so redirect straight to the base
+// store here instead.
+function redirectInvToBaseStore(parts: string[], naturalId: string) {
+  const site = sitesStore.getByPlanetNaturalId(naturalId);
+  if (!site) {
+    return;
+  }
+  const baseStore = storagesStore.getByAddressableId(site.siteId)?.find(x => x.type === 'STORE');
+  if (!baseStore) {
+    return;
+  }
+  parts.splice(1);
+  parts.push(baseStore.id.substring(0, 8));
 }
