@@ -1,10 +1,14 @@
 import {
   computeNeed,
+  getInboundShips,
   getInboundShipStores,
   getMinDaysLeft,
   getPlanetBurn,
   getResupplyDays,
 } from '@src/core/burn';
+import { getShipSize, ShipSize } from '@src/core/ship-sizes';
+import { userData } from '@src/store/user-data';
+import { fixed02 } from '@src/utils/format';
 import { storagesStore } from '@src/infrastructure/prun-api/data/storage';
 import { sitesStore } from '@src/infrastructure/prun-api/data/sites';
 import { materialsStore } from '@src/infrastructure/prun-api/data/materials';
@@ -29,6 +33,11 @@ export interface BaseStorageAnalysis {
   importVolume: number;
   exportWeight: number;
   exportVolume: number;
+
+  // Current inventory of strictly net-producing (dailyAmount > 0) materials —
+  // the goods a pickup run would actually carry away.
+  producedWeight: number;
+  producedVolume: number;
 
   // Current fill.
   fillPercentWeight: number;
@@ -215,6 +224,8 @@ function computeAnalysis(site: PrunApi.Site): BaseStorageAnalysis | undefined {
     importVolume,
     exportWeight,
     exportVolume,
+    producedWeight: shippedOutWeight,
+    producedVolume: shippedOutVolume,
     fillPercentWeight,
     fillPercentVolume,
     fillPercentWeightNoInf,
@@ -310,6 +321,49 @@ export function getStorageAlarmLevel(
     };
   }
   return { level: 'none' };
+}
+
+export interface PickupAlarm {
+  // The ship size the base is waiting for.
+  shipSize: ShipSize;
+  // Short human-readable explanation of what filled the ship.
+  reason: string;
+}
+
+// Alarm for XIT BS's Inv column: a base whose accumulated produced goods would
+// already fill the pickup ship picked for it in XIT PLANETS. Returns undefined
+// when no ship size is configured, when the pile is still too small, or when a
+// ship is already in flight to the planet — a dispatched ship clears the alarm
+// so the player doesn't send a second one, while a ship that has already landed
+// does not (its cargo run isn't done until it leaves).
+export function getPickupAlarm(siteOrId?: PrunApi.Site | string | null): PickupAlarm | undefined {
+  const analysis = getBaseStorageAnalysis(siteOrId);
+  if (!analysis) {
+    return undefined;
+  }
+
+  const shipSize = getShipSize(userData.settings.burn.planetPickup?.[analysis.naturalId]);
+  if (!shipSize) {
+    return undefined;
+  }
+
+  if (getInboundShips(analysis.naturalId).length > 0) {
+    return undefined;
+  }
+
+  const fillsWeight = analysis.producedWeight >= shipSize.weight;
+  const fillsVolume = analysis.producedVolume >= shipSize.volume;
+  if (!fillsWeight && !fillsVolume) {
+    return undefined;
+  }
+
+  const binding = fillsWeight ? 'weight' : 'volume';
+  return {
+    shipSize,
+    reason:
+      `Pickup ready: ${fixed02(analysis.producedWeight)}t / ` +
+      `${fixed02(analysis.producedVolume)}m³ fills a ${shipSize.label} ship (${binding})`,
+  };
 }
 
 // Returns a synthetic Store representing the base's STORE after a full resupply

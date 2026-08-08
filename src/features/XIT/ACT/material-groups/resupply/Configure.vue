@@ -16,6 +16,7 @@ import { getResupplyDays } from '@src/core/burn';
 import { materialsStore } from '@src/infrastructure/prun-api/data/materials';
 import { shipsStore } from '@src/infrastructure/prun-api/data/ships';
 import { fixed02 } from '@src/utils/format';
+import { shipSizes } from '@src/core/ship-sizes';
 
 const { data, config, shipStore } = defineProps<{
   data: UserData.MaterialGroupData;
@@ -89,12 +90,6 @@ const totals = computed(() => {
   }
   return billTotals(entries);
 });
-
-const shipSizes = [
-  { label: '2k/2k', weight: 2000, volume: 2000 },
-  { label: '3k/1k', weight: 3000, volume: 1000 },
-  { label: '5k/5k', weight: 5000, volume: 5000 },
-];
 
 // Binary search for the maximum whole-day count whose bill fits the ship.
 function fitToShip(maxWeight: number, maxVolume: number) {

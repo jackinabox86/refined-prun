@@ -4,7 +4,7 @@ xit.add({
   command: ['PLANETS', 'PLNT'],
   name: 'BASE PLANETS',
   description:
-    'Per-planet overrides (resupply days, repair threshold, repair offset) for bases you own.',
+    'Per-planet settings (resupply days, pickup ship size, repair threshold, repair offset) for bases you own.',
   component: () => PLANETS,
   bufferSize: [700, 400],
 });
