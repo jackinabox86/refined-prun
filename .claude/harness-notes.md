@@ -35,6 +35,16 @@ merged branch, *also* re-points that branch's upstream to `origin/main` via
 `git branch --set-upstream-to=origin/<branch> <branch>` or the next bare `git push` on it
 targets main.
 
+The sandbox blocks reads of dotfile paths by bind-mounting `/dev/null` over them, and it does
+that relative to the *working directory* as well as `$HOME`. So a sandboxed `git status` in the
+repo root reports phantom untracked entries — `.bashrc`, `.zshrc`, `.profile`, `.gitconfig`,
+`.gitmodules`, `.mcp.json`, `.ripgreprc`, `.vscode`, `.claude/commands` — none of which exist
+outside the sandbox (`ls -l` shows them as character devices, `crw-rw-rw- ... 1, 3`). The same
+mounts make `git fetch` print `warning: unable to access '.gitmodules': Permission denied`; it is
+cosmetic and the fetch succeeds. Two consequences: never stage with `git add -A`/`git add .` from
+inside the sandbox — it would try to add character devices — always stage explicit paths; and
+read the real working-tree state with an unsandboxed `git status` before trusting it.
+
 ## Approvals are the scarce resource
 
 Allowlisted prefixes in `.claude/settings.json` only help when the command matches

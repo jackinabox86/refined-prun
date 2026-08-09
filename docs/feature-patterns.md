@@ -620,6 +620,7 @@ Map getters are keyed by API values, which don't always match what the game UI s
 - `materialsStore.getByName` is keyed by the API's camelCase internal name (`basicRations`). UI text holds the i18n **display** name ("Basic Rations") — resolve that with `getMaterialByName` from `@src/infrastructure/prun-ui/i18n` instead (reverse direction: `getMaterialName`).
 - `stationsStore.getByNaturalId` is keyed by the station's **own** natural id (`MOR`), but game address fields canonicalize stations to their **system** id (`OT-580`). To resolve a system id to its station, search `stationsStore.all.value` by `getSystemLineFromAddress(x.address)?.entity.naturalId` (exported as `findStationBySystemId` from `@src/infrastructure/prun-ui/utils/select-address`).
 - `ship.address` is `null` while the ship is in flight. Docked, `getEntityNaturalIdFromAddress(ship.address)` gives the station's **own** natural id (`ANT`) — not the system id — so it compares directly against `stationsStore.getByNaturalId` keys.
+- Getters built with `createMapGetter`/`createGroupMapGetter` upper-case both the stored key and the lookup value, so they are already case-insensitive. Don't lower-case a parameter before passing it in, and don't add a case-normalizing wrapper of your own.
 
 ---
 
@@ -753,6 +754,13 @@ import { showBuffer } from '@src/infrastructure/prun-ui/buffers';
 
 showBuffer('CXM AI1.RAT');  // opens a buffer with the given command
 ```
+
+`showBuffer` applies only `correctXitArgs`, **not** the rest of the command-correction chain in
+`src/features/basic/correct-commands/`. That chain runs from a `submit` listener on each tile's
+own command-input `<form>`, so it covers what the player types and nothing else — neither
+`showBuffer` calls nor clicks on the game's own links and context items reach it. Pass a command
+that is already in its final form, and if a feature depends on a correction (planet name →
+natural id, `INV <planet>` → base store, ...) apply it explicitly before calling `showBuffer`.
 
 ### Auto-Opening a Buffer Once at Startup
 
