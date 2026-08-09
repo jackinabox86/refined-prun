@@ -1,8 +1,7 @@
 import { planetsStore } from '@src/infrastructure/prun-api/data/planets';
 import { stationsStore } from '@src/infrastructure/prun-api/data/stations';
-import { sitesStore } from '@src/infrastructure/prun-api/data/sites';
-import { storagesStore } from '@src/infrastructure/prun-api/data/storage';
 import { convertToPlanetNaturalId } from '@src/core/planet-natural-id';
+import { getBaseStore } from '@src/core/store-id';
 
 const correctableCommands = new Set([
   'ADM',
@@ -66,14 +65,10 @@ export function correctPlanetCommand(parts: string[]) {
 // inventories through their own commands, so redirect straight to the base
 // store here instead.
 function redirectInvToBaseStore(parts: string[], naturalId: string) {
-  const site = sitesStore.getByPlanetNaturalId(naturalId);
-  if (!site) {
-    return;
-  }
-  const baseStore = storagesStore.getByAddressableId(site.siteId)?.find(x => x.type === 'STORE');
-  if (!baseStore) {
+  const store = getBaseStore(naturalId);
+  if (store === undefined) {
     return;
   }
   parts.splice(1);
-  parts.push(baseStore.id.substring(0, 8));
+  parts.push(store.id.substring(0, 8));
 }

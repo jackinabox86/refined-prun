@@ -900,6 +900,30 @@ createFragmentApp(() => (
 )).prependTo(contextBar);
 ```
 
+### Overriding a native context item
+
+Native context items carry no command attributes. Match them on
+`_$(item, C.ContextControls.cmd)?.textContent` (the **verb only** — the parameter is a bare
+text node sibling). The game's click listener is on the outer `C.ContextControls.item` div, so a
+bubble-phase listener on that element with `e.preventDefault()` + `e.stopPropagation()` pre-empts
+it; then call `showBuffer` with the command you actually want.
+
+```ts
+subscribe($$(tile.frame, C.ContextControls.item), item => {
+  if (_$(item, C.ContextControls.cmd)?.textContent !== 'INV') {
+    return;
+  }
+  item.addEventListener('click', e => {
+    // Resolve desired target, then:
+    e.preventDefault();
+    e.stopPropagation();
+    void showBuffer(`INV ${storeId}`);
+  });
+});
+```
+
+See `src/features/basic/bs-inv-base-store-link.ts`.
+
 ---
 
 ## CSS
