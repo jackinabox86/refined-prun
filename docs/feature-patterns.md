@@ -642,8 +642,14 @@ before the typed query's server round-trip, and bare station ids never appear as
 text — every one of those is a trap the helper already handles. Typing fires a read-only
 `NOMENCLATURE_QUERY_ADDRESSES` lookup, so the call must stay behind a user click.
 
-> ACT's `action-steps/cont-utils.ts` still carries its own weaker `selectLocation`. Migrate
-> it if you touch those code paths.
+ACT's `OPEN_SFC.ts`, `CONT_SEND.ts`, and `CONT_TRADE.ts` all call this helper directly for
+destination/origin/location fields — `cont-utils.ts`'s old `selectLocation` duplicate is gone.
+`OPEN_SFC` in particular used to burn two extra `waitAct` clicks (`Set destination?` /
+`Select destination?`) hand-rolling the type-then-click sequence `selectAddress` already does
+in one call, scoped to a raw `document.documentElement` lookup that could grab the wrong
+tile's input if more than one `AddressSelector` was open. Scope to the tile instead
+(`await $(tile.anchor, C.AddressSelector.container)`) and call `selectAddress` directly — no
+pause needed, since filling the field isn't a server-mutating action worth a reminder click.
 
 ---
 

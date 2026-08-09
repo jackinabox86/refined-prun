@@ -1,8 +1,8 @@
 import { act } from '@src/features/XIT/ACT/act-registry';
 import { fixed0 } from '@src/utils/format';
 import { changeInputValue, focusElement } from '@src/util';
+import { selectAddress } from '@src/infrastructure/prun-ui/utils/select-address';
 import {
-  selectLocation,
   createNewDraft,
   setDraftNameAndPreamble,
   saveDraftDetails,
@@ -123,7 +123,7 @@ export const CONT_TRADE = act.addActionStep<Data>({
     const addressContainers = _$$(draftTile.anchor, C.AddressSelector.container) as HTMLElement[];
     if (addressContainers.length >= 1 && data.location) {
       await waitAct(`Set location to ${data.location}?`);
-      const ok = await selectLocation(addressContainers[0], data.location);
+      const ok = await selectAddress(addressContainers[0], data.location);
       if (ok) {
         log.info(`Location set: ${data.location}`);
       } else {
