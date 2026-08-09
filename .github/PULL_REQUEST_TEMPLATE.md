@@ -13,4 +13,4 @@
 - [ ] Feature has single responsibility, no cross-feature deps
 - [ ] CSS class names describe WHERE, not WHAT
 - [ ] Uses `C.Component.className` not hardcoded hashed classes
-- [ ] CHANGELOG.md not modified
+- [ ] CHANGELOG.md updated under `## Unreleased` (or N/A — no user-facing change)

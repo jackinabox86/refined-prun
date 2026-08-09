@@ -51,6 +51,9 @@ jobs:
           echo "new=$NEW" >> "$GITHUB_OUTPUT"
           echo "$NEW" > VERSION
 
+      - name: Cut CHANGELOG.md release section
+        run: node scripts/cut-changelog-release.mjs "${{ steps.version.outputs.new }}"
+
       - name: Build extension
         run: pnpm build
 
@@ -104,7 +107,7 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add VERSION
+          git add VERSION CHANGELOG.md
           git commit -m "Release v${{ steps.version.outputs.new }}"
           git tag "v${{ steps.version.outputs.new }}"
           git push origin HEAD:${{ github.ref_name }}
