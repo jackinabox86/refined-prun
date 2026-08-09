@@ -285,10 +285,12 @@ function clearShip() {
   background: #2b485a;
 }
 
+/* The empty drop target and the filled state have to stay the same width, or
+   the column jumps as ships are assigned and cleared. */
 .shipPlaceholder {
   border: 1px dashed #444;
   height: 18px;
-  width: 74px;
+  width: 84px;
   border-radius: 2px;
   box-sizing: border-box;
 }
@@ -297,7 +299,7 @@ function clearShip() {
   display: inline-flex;
   align-items: center;
   gap: 2px;
-  width: 74px;
+  width: 84px;
   box-sizing: border-box;
 }
 

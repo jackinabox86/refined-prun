@@ -118,7 +118,7 @@ function onDragStart(event: DragEvent, shipId: string) {
    past this box and the yellow buttons paint over the Assign divider. Kept in
    px, not ch, so the 12px pool and the 11px label resolve the same length. */
 .pool {
-  --poolMaxWidth: 100px;
+  --poolMaxWidth: 110px;
   width: max-content;
   min-width: 10ch;
   max-width: var(--poolMaxWidth);
