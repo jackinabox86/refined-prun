@@ -10,6 +10,11 @@ ships and opens a fresh `Unreleased` section.
 ### Added
 
 - `XIT WHATSNEW`: Shows release notes since your last update, opened automatically after an update
+- `production-companion-buffers`: Shift-click a production line button in PROD, PRODQ or PRODCO to open PRODCO and PRODQ side by side as a companion pair
+
+### Changed
+
+- `popi-details-companion-buffer`: Companion buffers now open at the width and height registered for their own command instead of a fixed 450px
 
 ### Fixed
 
