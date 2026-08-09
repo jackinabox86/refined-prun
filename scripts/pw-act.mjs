@@ -26,6 +26,7 @@ const ACTIONS = {
   'click-force': "click-force '<selector>' — bypass actionability checks",
   'click-nth': "click-nth '<selector>' <index|first|last>",
   'ctrl-click': "ctrl-click '<selector>' — real Control+click (inventory multi-select)",
+  'shift-click': "shift-click '<selector>' — real Shift+click (production-line companion buffers)",
   'type': "type '<selector>' <text> — page.fill",
   'fill-nth': "fill-nth '<selector>' <index|first|last> <text>",
   'fill-file': "fill-file '<selector>' <path> — fill from a file (large/multiline text)",
@@ -192,6 +193,15 @@ switch (action) {
     await page.keyboard.down('Control');
     await page.click(rest[0]);
     await page.keyboard.up('Control');
+    break;
+  }
+  case 'shift-click': {
+    // Holds Shift while clicking — production-companion-buffers.ts listens
+    // for shift-clicks on production-line tile buttons. Real keydown+click+keyup,
+    // same rationale as ctrl-click above.
+    await page.keyboard.down('Shift');
+    await page.click(rest[0]);
+    await page.keyboard.up('Shift');
     break;
   }
   case 'type': {
