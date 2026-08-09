@@ -32,7 +32,7 @@ Check for these specific violations:
 10. CSS CLASS NAMES describe WHERE they apply (e.g., .sortControls), not WHAT they do (e.g., .flexRow).
 11. Use C.Component.className instead of hardcoded hashed CSS class strings.
 12. STYLE: early returns to reduce nesting, single-param lambdas use x, no unnecessary type annotations, comments on separate lines starting with capital letter.
-13. Do NOT modify CHANGELOG.md in PRs.
+13. CHANGELOG.md: a PR with a user-facing change (feature, behavior change, player-visible bug fix) should add a bullet under the `## Unreleased` heading. Flag if such a change has no corresponding entry. Also flag if the diff edits anything other than the `## Unreleased` section (renaming it, or editing an already-released version) — that's release automation's job, not a PR's.
 
 Instructions:
 - Only flag genuine violations of the rules above. Do not flag style preferences beyond what the docs specify.

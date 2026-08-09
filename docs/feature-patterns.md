@@ -713,6 +713,15 @@ const state = ref(localStorage.getItem(key) ?? 'default');
 watch(state, value => localStorage.setItem(key, value));
 ```
 
+### Adding a Field to `initialUserData`
+
+A new field whose default in `initialUserData` (`src/store/user-data.ts`) already means
+"unset" (e.g. `lastSeenChangelogVersion: undefined`) needs no entry in
+`user-data-migrations.ts`. `applyUserData`'s `Object.assign(userData, newData)` only
+overwrites keys present in the loaded blob — a key absent from an existing user's stored
+data (because it predates the field) is simply left at the `initialUserData` default.
+Migrations are only for transforming a field that already has a *different* stored value.
+
 ### Comparators in a Primary/Secondary Sort Chain
 
 A comparator that a chain calls for the primary key must return `0` on a tie. Folding a
@@ -744,6 +753,16 @@ import { showBuffer } from '@src/infrastructure/prun-ui/buffers';
 
 showBuffer('CXM AI1.RAT');  // opens a buffer with the given command
 ```
+
+### Auto-Opening a Buffer Once at Startup
+
+For a panel that should open itself once, based on a condition, without the player typing
+the command — not a bespoke overlay — pair a `setTimeout(() => showBuffer('XIT CMD'), delayMs)`
+in `initializeXitCommands()` (`src/features/XIT/xit-commands.ts`) with a `userData` flag that
+flips once shown, so it never re-fires. `XIT START` (feature-set picker, fires when
+`userData.settings.mode === undefined`) and `XIT WHATSNEW` (release notes, fires when
+`userData.lastSeenChangelogVersion` is behind the latest changelog version) are the two
+reference implementations — stagger their delays if a startup sequence could trigger both.
 
 ### Repeatable Hidden-Buffer Fetches
 
