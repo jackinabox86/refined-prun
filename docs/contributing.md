@@ -189,6 +189,21 @@ merging" policy existed to avoid: two branches both adding a bullet under `## Un
 can conflict where they land near each other. Resolution is normally trivial (keep both
 bullets) — accept it as the tradeoff for PRs writing their own entries.
 
+### Editing a PR with `gh`
+
+`gh pr edit` is broken against this repo on `gh` 2.46.0 (the Ubuntu package): it still requests
+the `repository.pullRequest.projectCards` GraphQL field, which GitHub removed with Projects
+(classic), so every invocation fails with a deprecation notice naming Projects rather than
+anything about your edit, and the PR is left unchanged. It does exit 1, so check the exit code —
+piping the output to `tail` hides it behind the pipe's status.
+
+`gh pr create` is unaffected. To change an existing PR, either upgrade `gh` past the versions that
+query that field, or go through REST:
+
+```
+gh api repos/<owner>/<repo>/pulls/<number> -X PATCH -f title="..." -F body=@body.md
+```
+
 ### Import Sorting
 
 Don't enable auto-import-sorting in your editor. It creates merge conflicts when the same file is touched in two branches. Import sorting should be project-wide (via eslint/prettier), not per-editor.
