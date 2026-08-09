@@ -159,6 +159,10 @@ function onDragStart(event: DragEvent, shipId: string) {
   cursor: grab;
 }
 
+/* vertical-align keeps the row at the table's 24px. The button is an
+   inline-block, so by default it sits on its line's baseline and reserves
+   descender space beneath itself; once .shipLabel made the content a block
+   that gap grew the cell to ~27px, taller than every other row in DISPATCH. */
 .shipButton {
   width: 100%;
   height: 100%;
@@ -167,6 +171,7 @@ function onDragStart(event: DragEvent, shipId: string) {
   padding: 0 4px;
   font-size: 11px;
   pointer-events: none;
+  vertical-align: middle;
   box-sizing: border-box;
 }
 
