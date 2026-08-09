@@ -10,6 +10,11 @@ ships and opens a fresh `Unreleased` section.
 ### Added
 
 - `XIT WHATSNEW`: Shows release notes since your last update, opened automatically after an update
+- `XIT GOVBURN`: Import a planet's POPI plan from JSON in the config pane, with a preview of what it overwrites
+
+### Changed
+
+- `XIT GOVBURNACT`: Upkeep material slot picks are saved, instead of being re-guessed every time the buffer opens
 
 ### Fixed
 
