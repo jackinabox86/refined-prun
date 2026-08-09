@@ -13,11 +13,21 @@ Stack: TypeScript, Vue 3, Vite (content scripts), CSS Modules. Package manager: 
 | `pnpm run build:fast` | clean + `vite build`, skipping the checks — for the browser-test loop |
 | `pnpm run fix` | eslint `--fix` |
 | `pnpm run dev` | watch-mode development build |
+| `pnpm run test` | `vitest run` — see the stale-`dist` trap below |
 
 A fresh clone has no `node_modules` — run `pnpm install --frozen-lockfile` before
 `pnpm run compile` / `pnpm run lint`, or `tsc` reports missing `chrome`/`node`/`vite/client`
 type libraries, which reads like a broken tsconfig rather than a missing install. Cloud
 sessions (Claude Code on the web) always start from a fresh clone.
+
+**Run `pnpm run clean` before `vitest` if you have built since the last test run.** There is
+no vitest config, so vitest keeps its default include glob, which does not exclude `dist/` —
+and `vite build` emits every `*.test.ts` as its own `dist/**/*.test.js` chunk. Vitest then
+collects those compiled copies and the suite dies on `document is not defined`, thrown from
+`src/infrastructure/shell/config.ts` at import time. The failure names a source file and
+looks like a real regression; the giveaway is a `dist/` path in the failing-suite header.
+`src/features/index.ts` excluding test files from `import.meta.glob` does not help — that
+stops tests being pulled *into* the bundle, not from being emitted alongside it.
 
 Verifying UI-visible behaviour against the live game: `docs/browser-testing.md`.
 
