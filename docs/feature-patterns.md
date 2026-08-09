@@ -376,6 +376,16 @@ feature; put durable state in `userData` instead.
 
 ESLint bans `.reduce()` for summation (`no-restricted-syntax`) — use `sumBy(array, x => x.value)` instead.
 
+**Never use an auto-imported name as a local identifier in a module you want to unit-test.**
+unimport's injection is not scope-aware enough to see that a parameter or `const` already
+binds the name, so it adds the import anyway. For `config` that pulls in
+`@src/infrastructure/shell/config`, which touches `document` at module scope — the feature
+still works in the browser, but the moment a vitest file imports that module the whole test
+run dies with `document is not defined`, pointing at a module that never mentions the DOM.
+GOVBURN's `planetDays(planet, config, now)` hit exactly this and had to become
+`planetDays(planet, planetConfig, now)` before `utils.ts` could be tested. `config` is the
+sharp edge, but the rule covers every name in the table above.
+
 ---
 
 ## `C` Object
