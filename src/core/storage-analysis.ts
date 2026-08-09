@@ -326,16 +326,21 @@ export function getStorageAlarmLevel(
 export interface PickupAlarm {
   // The ship size the base is waiting for.
   shipSize: ShipSize;
-  // Short human-readable explanation of what filled the ship.
+  // Short human-readable explanation of what fills the ship.
   reason: string;
 }
 
-// Alarm for XIT BS's Inv column: a base whose accumulated produced goods would
-// already fill the pickup ship picked for it in XIT PLANETS. Returns undefined
-// when no ship size is configured, when the pile is still too small, or when a
-// ship is already in flight to the planet — a dispatched ship clears the alarm
-// so the player doesn't send a second one, while a ship that has already landed
-// does not (its cargo run isn't done until it leaves).
+// How far ahead the alarm looks. A pickup run takes time to arrange, so the
+// badge lights up a day before the produced goods actually fill the ship.
+const PICKUP_LEAD_DAYS = 1;
+
+// Alarm for XIT BS's Inv column: a base whose accumulated produced goods fill —
+// or within PICKUP_LEAD_DAYS will fill — the pickup ship picked for it in XIT
+// PLANETS. Returns undefined when no ship size is configured, when the pile is
+// still too small, or when a ship is already in flight to the planet — a
+// dispatched ship clears the alarm so the player doesn't send a second one,
+// while a ship that has already landed does not (its cargo run isn't done until
+// it leaves).
 export function getPickupAlarm(siteOrId?: PrunApi.Site | string | null): PickupAlarm | undefined {
   const analysis = getBaseStorageAnalysis(siteOrId);
   if (!analysis) {
@@ -351,18 +356,28 @@ export function getPickupAlarm(siteOrId?: PrunApi.Site | string | null): PickupA
     return undefined;
   }
 
-  const fillsWeight = analysis.producedWeight >= shipSize.weight;
-  const fillsVolume = analysis.producedVolume >= shipSize.volume;
+  // The analysis' export rates are the per-day rate at which net-produced goods
+  // pile up, so this is the stock PICKUP_LEAD_DAYS from now.
+  const projectedWeight = analysis.producedWeight + analysis.exportWeight * PICKUP_LEAD_DAYS;
+  const projectedVolume = analysis.producedVolume + analysis.exportVolume * PICKUP_LEAD_DAYS;
+
+  const fillsWeight = projectedWeight >= shipSize.weight;
+  const fillsVolume = projectedVolume >= shipSize.volume;
   if (!fillsWeight && !fillsVolume) {
     return undefined;
   }
 
+  const full =
+    analysis.producedWeight >= shipSize.weight || analysis.producedVolume >= shipSize.volume;
   const binding = fillsWeight ? 'weight' : 'volume';
+  const current = `${fixed02(analysis.producedWeight)}t / ${fixed02(analysis.producedVolume)}m³`;
+  const projected = `${fixed02(projectedWeight)}t / ${fixed02(projectedVolume)}m³`;
   return {
     shipSize,
-    reason:
-      `Pickup ready: ${fixed02(analysis.producedWeight)}t / ` +
-      `${fixed02(analysis.producedVolume)}m³ fills a ${shipSize.label} ship (${binding})`,
+    reason: full
+      ? `Pickup ready: ${current} fills a ${shipSize.label} ship (${binding})`
+      : `Pickup ready within 24h: ${current} now, ${projected} in 24h — ` +
+        `fills a ${shipSize.label} ship (${binding})`,
   };
 }
 

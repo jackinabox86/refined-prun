@@ -127,7 +127,7 @@ function setRepairField(
               Pickup
               <Tooltip
                 position="bottom"
-                tooltip="Cargo size of the ship you collect this base's output with. XIT BS shows a green &#x1F680; next to the base's inventory bar once its produced goods would fill that ship — until a ship is in flight to the planet." />
+                tooltip="Cargo size of the ship you collect this base's output with. XIT BS shows a green &#x1F680; next to the base's inventory bar 24 hours before the base's produced goods fill that ship — until a ship is in flight to the planet." />
             </InlineFlex>
           </th>
           <th>

@@ -11,13 +11,12 @@ ships and opens a fresh `Unreleased` section.
 
 - `XIT WHATSNEW`: Shows release notes since your last update, opened automatically after an update
 - `bs-inv-base-store-link`: Makes the `INV` context link on `BS` open the base store directly
+- `XIT PLANETS`: New Pickup column picks the cargo size of the ship you collect each base's output with
+- `XIT BS`: Shows a green 🚀 next to a base's inventory bar 24 hours before its produced goods fill the ship picked in `XIT PLANETS`, and hides it while a ship is already in flight there
 
 ### Changed
 
 - `correct-commands`: `INV <planet>` opens the base store directly instead of the store list
-
-### Changed
-
 - `XIT ACT`: Auto-SFC step now sets the destination planet with the same address-select helper used by CONTD import, dropping two redundant confirmation clicks
 - `XIT ACT`: A commodity exchange short on stock no longer aborts the whole action package. The buy warns and offers whatever the order book can fill, so you can ACT on the partial amount, adjust it by hand, or SKIP it
 
