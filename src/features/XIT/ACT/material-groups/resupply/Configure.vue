@@ -167,11 +167,11 @@ const shipName = computed(() => {
     <span>Fit to Ship</span>
     <PrunButton
       v-for="ship in shipSizes"
-      :key="ship.label"
+      :key="ship.id"
       primary
       :disabled="!canFit"
       @click="fitToShip(ship.weight, ship.volume)">
-      {{ ship.label }}
+      {{ ship.id }}
     </PrunButton>
     <template v-if="shipName && shipFree">
       <span>Fit Selected</span>

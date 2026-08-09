@@ -375,9 +375,9 @@ export function getPickupAlarm(siteOrId?: PrunApi.Site | string | null): PickupA
   return {
     shipSize,
     reason: full
-      ? `Pickup ready: ${current} fills a ${shipSize.label} ship (${binding})`
+      ? `Pickup ready: ${current} fills a ${shipSize.id} ship (${binding})`
       : `Pickup ready within 24h: ${current} now, ${projected} in 24h — ` +
-        `fills a ${shipSize.label} ship (${binding})`,
+        `fills a ${shipSize.id} ship (${binding})`,
   };
 }
 
