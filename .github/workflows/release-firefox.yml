@@ -23,7 +23,10 @@ jobs:
       - run: pnpm build
       - name: Stamp version
         run: |
-          version="$(date -u +'%Y.%-m.%-d').${{ github.run_number }}"
+          # Follows the same release identity as Chrome (VERSION file / CHANGELOG.md), with a
+          # run-number suffix so repeat Firefox-only dispatches against an unchanged VERSION
+          # still strictly increase - required for updates.json to trigger an update check.
+          version="$(cat VERSION).${{ github.run_number }}"
           npx dot-json@1 "$DIRECTORY/manifest.json" version "$version"
       - uses: actions/upload-artifact@v4
         with:
