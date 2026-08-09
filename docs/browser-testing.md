@@ -52,6 +52,13 @@ pnpm install          # only if node_modules is missing
 pnpm run build:fast   # skips tsc; run `pnpm run compile` separately for type/lint errors
 ```
 
+If `build:fast` dies with `Cannot find module @rollup/rollup-linux-x64-gnu` (or a similar
+platform-specific optional-dependency package), `node_modules` is stale — a known
+npm/pnpm optional-deps bug, not a code problem. Fix with a clean reinstall:
+`CI=true pnpm install` (plain `pnpm install` aborts with `ERR_PNPM_ABORTED_REMOVE_MODULES_DIR_NO_TTY`
+in a non-interactive shell when it wants to prune `node_modules` first; `CI=true` skips
+that prompt).
+
 **A stale build fails silently, and this is the single most common false bug report.**
 The browser holds whatever was last built, `dist/` and the checked-out branch are shared
 mutable state, and the owner switches branches often — so assume the loaded build is not

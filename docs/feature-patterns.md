@@ -390,6 +390,20 @@ applyCssRule('.Frame__logo___qu6xPzo', $style.logo);
 applyCssRule(`.${C.Frame.logo}`, $style.logo);
 ```
 
+### Bundled Image Assets in Feature CSS
+
+`url('~/asset.png')` inside a feature `.module.css` works with `applyCssRule` — it
+resolves to the correct extension-origin URL at runtime (`refined-prun-startup.ts`
+resolves relative `url()`s against the stylesheet's own `href` before the rule text gets
+replanted into a feature's own `<style>` tag). This used to be broken (the URL resolved
+against the game page's origin instead, 404ing), which is why `funny-materials.module.css`
+used a full external absolute URL for its background-image instead of a local asset —
+that workaround is no longer necessary.
+
+Whatever extension you bundle (`.png`, `.gif`, etc.) must also be listed in
+`web_accessible_resources` in `public/manifest.json`, or the page context can't load it
+even once the URL itself is correct.
+
 ---
 
 ## DOM Helpers

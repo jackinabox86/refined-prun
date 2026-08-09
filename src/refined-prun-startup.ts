@@ -19,6 +19,8 @@ async function startup() {
   });
   // This serialization is needed because accessing css.sheet in Firefox from the page script
   // will throw a CORS error.
+  // Rule text is later replanted into an href-less <style> element (refined-prun-css.ts), so
+  // any relative url() must be resolved to absolute here, while css.href is still known.
   const rules: { [id: string]: string } = {};
   const sheet = css.sheet!;
   for (let i = 0; i < sheet.cssRules.length; i++) {
@@ -26,7 +28,7 @@ async function startup() {
     if (!rule) {
       continue;
     }
-    rules[(rule as CSSStyleRule).selectorText] = rule.cssText;
+    rules[(rule as CSSStyleRule).selectorText] = resolveCssUrls(rule.cssText, css.href);
   }
   css.textContent = JSON.stringify(rules);
   const script = document.createElement('script');
@@ -43,6 +45,15 @@ async function startup() {
   };
   script.textContent = JSON.stringify(config);
   container.appendChild(script);
+}
+
+function resolveCssUrls(cssText: string, base: string): string {
+  return cssText.replace(/url\((['"]?)(.*?)\1\)/g, (match, quote: string, url: string) => {
+    if (/^(https?:|data:|chrome-extension:|moz-extension:)/.test(url)) {
+      return match;
+    }
+    return `url(${quote}${new URL(url, base).href}${quote})`;
+  });
 }
 
 async function loadUserData() {
