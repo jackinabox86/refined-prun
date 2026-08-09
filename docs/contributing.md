@@ -184,6 +184,11 @@ Release automation renames `## Unreleased` to the shipped version number and ope
 `## Unreleased` heading. `XIT WHATSNEW` (`src/features/XIT/WHATSNEW/`) reads `CHANGELOG.md` at
 build time to show players what changed since they last looked.
 
+This reintroduces the merge-conflict surface the old "maintainer edits it once before
+merging" policy existed to avoid: two branches both adding a bullet under `## Unreleased`
+can conflict where they land near each other. Resolution is normally trivial (keep both
+bullets) — accept it as the tradeoff for PRs writing their own entries.
+
 ### Import Sorting
 
 Don't enable auto-import-sorting in your editor. It creates merge conflicts when the same file is touched in two branches. Import sorting should be project-wide (via eslint/prettier), not per-editor.
