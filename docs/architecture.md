@@ -30,7 +30,13 @@ release.
 | Workflow | Publishes | Versioning |
 |----------|-----------|------------|
 | `release-chrome.yml` | Chrome Web Store, via the CWS API | semver read from `VERSION`, bumped by a `patch`/`minor`/`major` input, then committed and tagged |
-| `release-firefox.yml` | self-hosted unlisted XPI on GCS, signed by Mozilla, with a generated `updates.json` | date-stamped `YYYY.M.D.<run_number>` |
+| `release-firefox.yml` | self-hosted unlisted XPI on GCS, signed by Mozilla, with a generated `updates.json` | reads `VERSION` (doesn't bump it — only Chrome's dispatch does) and appends `.<run_number>`, e.g. `1.2.0.47` |
+
+Firefox never bumps `VERSION` itself, so its shipped version only advances when Chrome's
+workflow last bumped it; the `.<run_number>` suffix exists solely so a second Firefox-only
+dispatch against an unchanged `VERSION` still strictly increases — `updates.json`-driven
+auto-update only fires on a version increase. Run the two workflows in either order; Firefox
+just reads whatever `VERSION` currently says.
 
 (A third workflow, `release.yml`, was inherited from upstream and deleted — it was never
 dispatched and would have failed, wanting `CLIENT_ID`/`CLIENT_SECRET`/`REFRESH_TOKEN`
@@ -46,12 +52,13 @@ Environment-scoped jobs still read repository-level secrets, so adding `environm
 job does not cut it off from existing secrets. It can, however, introduce an approval gate
 if that environment carries protection rules.
 
-Chrome's and Firefox's shipped versions are not comparable: Chrome's `VERSION`-derived
-semver and Firefox's date-stamped one are stamped independently, only into
-`dist/manifest.json` at build time — `VERSION` itself never changes for a Firefox release.
-Anything that needs a stable, cross-store "release identity" (e.g. `XIT WHATSNEW`'s
-changelog view, `src/features/XIT/WHATSNEW/changelog-data.ts`) must key off `CHANGELOG.md`'s
-own version headings, never `chrome.runtime.getManifest().version` / `config.version`.
+Both stores now share the same base version (`VERSION`/`CHANGELOG.md`), but the *installed*
+manifest version still isn't directly comparable across them — Firefox's `.<run_number>`
+suffix and Chrome's plain `X.Y.Z` diverge, and neither is written until each store's own
+build step. Anything that needs a stable, cross-store "release identity" (e.g. `XIT
+WHATSNEW`'s changelog view, `src/features/XIT/WHATSNEW/changelog-data.ts`) should still key
+off `CHANGELOG.md`'s own version headings, never `chrome.runtime.getManifest().version` /
+`config.version`.
 
 ## Path Aliases
 

@@ -75,9 +75,11 @@ function onTileReady(tile: PrunTile) {
 export function initializeXitCommands() {
   tiles.observe('XIT', onTileReady);
   if (userData.settings.mode === undefined) {
+    // A brand-new user chooses a feature set first; XIT START itself opens XIT WHATSNEW
+    // once that choice is made (immediately for BASIC, after the reload for FULL), so it
+    // doesn't race START for the same 1-2s startup window.
     setTimeout(() => showBuffer('XIT START'), 1000);
-  }
-  if (hasUnseenChangelog(userData.lastSeenChangelogVersion)) {
+  } else if (hasUnseenChangelog(userData.lastSeenChangelogVersion)) {
     setTimeout(() => showBuffer('XIT WHATSNEW'), 1500);
   }
 }
