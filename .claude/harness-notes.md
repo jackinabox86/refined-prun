@@ -35,6 +35,18 @@ merged branch, *also* re-points that branch's upstream to `origin/main` via
 `git branch --set-upstream-to=origin/<branch> <branch>` or the next bare `git push` on it
 targets main.
 
+## `sudo` needs a real terminal
+
+Anything requiring `sudo` cannot run from this session — not from a Bash tool call, and not
+from the `!` prefix either. Both land in a non-interactive shell with no TTY, so `sudo` dies
+with `sudo: A terminal is required to authenticate` before doing anything. Suggesting `!` for
+a sudo command wastes the user's time twice: once when it fails, once when they retry it.
+
+When a task needs sudo (upgrading `gh` off the distro package, the `libnss3 libnspr4
+libasound2t64` install in `docs/browser-testing.md`), hand the user the command and say to run
+it in a real WSL terminal — Windows Terminal, or `wsl` from PowerShell — where it can prompt
+for their password. Everything after the install is normally sudo-free and runs fine in-session.
+
 ## Approvals are the scarce resource
 
 Allowlisted prefixes in `.claude/settings.json` only help when the command matches

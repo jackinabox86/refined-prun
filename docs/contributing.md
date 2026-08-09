@@ -191,18 +191,19 @@ bullets) — accept it as the tradeoff for PRs writing their own entries.
 
 ### Editing a PR with `gh`
 
-`gh pr edit` is broken against this repo on `gh` 2.46.0 (the Ubuntu package): it still requests
-the `repository.pullRequest.projectCards` GraphQL field, which GitHub removed with Projects
-(classic), so every invocation fails with a deprecation notice naming Projects rather than
-anything about your edit, and the PR is left unchanged. It does exit 1, so check the exit code —
-piping the output to `tail` hides it behind the pipe's status.
-
-`gh pr create` is unaffected. To change an existing PR, either upgrade `gh` past the versions that
-query that field, or go through REST:
+If `gh pr edit` fails with a Projects (classic) deprecation notice naming
+`repository.pullRequest.projectCards`, `gh` is too old — it is requesting a GraphQL field GitHub
+removed. The error mentions Projects, not your edit, and the PR is left unchanged; `gh pr create`
+is unaffected. Ubuntu's own package (2.46.0) has this; 2.97.0 does not, so a fresh container that
+installed `gh` from the distro repo will hit it again. Fix by installing from `cli.github.com`
+rather than the distro, or work around it with REST:
 
 ```
 gh api repos/<owner>/<repo>/pulls/<number> -X PATCH -f title="..." -F body=@body.md
 ```
+
+Either way, check the exit code rather than eyeballing output: piping to `tail` reports the pipe's
+status, which hid this failure once already.
 
 ### Import Sorting
 
