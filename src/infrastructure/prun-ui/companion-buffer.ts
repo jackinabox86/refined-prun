@@ -3,8 +3,12 @@ import { setBufferSize } from '@src/infrastructure/prun-ui/buffers';
 import { matchBufferSize } from '@src/infrastructure/prun-ui/buffer-sizes';
 import { clickElement, changeInputValue } from '@src/util';
 import { getPrunId } from '@src/infrastructure/prun-ui/attributes';
-import { UI_TILES_CHANGE_COMMAND } from '@src/infrastructure/prun-api/client-messages';
+import {
+  UI_TILES_CHANGE_COMMAND,
+  UI_TILES_CHANGE_SIZE,
+} from '@src/infrastructure/prun-api/client-messages';
 import { dispatchClientPrunMessage } from '@src/infrastructure/prun-api/prun-api-listener';
+import { clamp } from '@src/utils/clamp';
 
 // Size of a companion whose command has no registered default buffer size.
 const fallbackSize: [number, number] = [450, 300];
@@ -40,6 +44,9 @@ export async function openCompanionBuffer(tile: PrunTile, command: string) {
     return;
   }
 
+  // Window width is the sum of both panes, so a 50/50 split would starve the
+  // companion (or the original) of the width it was sized for.
+  setDividerPosition(tile.id, width, companionWidth);
   await setChildCommand(children[1], command);
 }
 
@@ -66,6 +73,9 @@ export async function openCompanionPair(tile: PrunTile, leftCommand: string, rig
     return;
   }
 
+  // Window width is the sum of both panes, so a 50/50 split would starve one
+  // command of the width it was sized for.
+  setDividerPosition(tile.id, leftWidth, rightWidth);
   await setChildCommand(children[0], leftCommand);
   await setChildCommand(children[1], rightCommand);
 }
@@ -108,6 +118,18 @@ async function setChildCommand(child: Element, command: string) {
   const input = (await $(child, C.PanelSelector.input)) as HTMLInputElement;
   changeInputValue(input, command);
   input.form!.requestSubmit();
+}
+
+// Sets the split ratio so each pane gets the width it was sized for. No DOM
+// fallback: if the dispatch fails the game keeps its default 50/50 split.
+function setDividerPosition(tileId: string, leftWidth: number, rightWidth: number) {
+  const total = leftWidth + rightWidth;
+  if (total === 0 || Number.isNaN(total)) {
+    return;
+  }
+
+  const fraction = clamp(leftWidth / total, 0.15, 0.85);
+  dispatchClientPrunMessage(UI_TILES_CHANGE_SIZE(tileId, fraction));
 }
 
 function commandSize(command: string) {

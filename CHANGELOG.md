@@ -14,7 +14,7 @@ ships and opens a fresh `Unreleased` section.
 
 ### Changed
 
-- `popi-details-companion-buffer`: Companion buffers now open at the width and height registered for their own command instead of a fixed 450px
+- `popi-details-companion-buffer`: Companion buffers now open at the width and height registered for their own command instead of a fixed 450px, and the split divider is positioned to match those widths instead of 50/50
 
 ### Fixed
 
