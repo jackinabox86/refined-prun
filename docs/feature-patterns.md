@@ -204,6 +204,12 @@ swallows — an `execute()` body never runs past a failed game action. Code afte
 await (e.g. a `watchWhile` for a storage update that will now never come) can rely on
 this; don't wrap `waitActionFeedback` in a step-local try/catch or the hang comes back.
 
+**`ctx.skip()` and `ctx.fail()` do not unwind `execute()`** — unlike `waitActionFeedback`,
+they just advance/stop the machine and return, so the caller must `return` right after one.
+The reverse also holds: a step parked in `await waitAct()` when the machine moves on (user
+SKIP, or a self-skip from a reactive watcher) never resumes, and everything after that await
+— listener cleanup included — is dropped. Do teardown before the skip, not after the await.
+
 ### Reminder Pauses in ACT Steps
 
 When a step needs the player to do something manually in a companion buffer before the
@@ -231,6 +237,27 @@ during the pause is handled.
 - **`CX Buy` with `useCXInv: true` nets out warehouse stock**, so a PREVIEW showing
   `Buy 900` against `Transfer 1,000` of the same ticker is correct (100 already in the
   warehouse), not a quantity bug.
+- **A short CX order book only warns, never aborts the package.** Both the generation-time
+  check (`cx-buy.ts`) and the live one in `CXPO_BUY` log a warning and buy what
+  `fillAmount()` says is available; a ticker with nothing available is skipped. `buyPartial`
+  no longer decides whether a shortage is fatal — it only decides whether the quantity is
+  frozen at generation (on) or re-checked against the live book when the step runs (off).
+  `allowUnfilled` is the separate "rest the remainder as a standing bid" flag.
+- **Size follow-up steps by what the CX can fill.** An action that emits a purchase and then
+  emits steps consuming it must plan against `fillAmount()`, not the requested amount —
+  Refuel's `emitFuelPurchase` returns the fillable amount for exactly this reason. The
+  consuming steps survive either way (`MTRA_TRANSFER` clamps to the MTRA slider max and
+  warns), so what the sizing buys is *where the player finds out*: planned against the
+  request, the first ships are promised full loads and the last ones quietly get nothing,
+  one loading step at a time. Planned against the fill, the shortfall warns once, up front,
+  next to the purchase that caused it.
+- **`CXPO_BUY`'s quantity `watchEffect` reruns on every order-book tick** while the buffer
+  sits open waiting for ACT. Anything with a side effect inside it (logging above all) must
+  dedupe, or one slow CX fills the log with the same warning.
+- **Step `Data` is per-run, not persisted.** `action-steps/*` interfaces are rebuilt by
+  every generation pass, so fields can be added or dropped freely. `UserData.ActionData`
+  fields are the opposite: they persist in saved packages and are mirrored in
+  `agent-sync.ts`'s short-key map, so removing one needs a migration.
 
 ### Action-Specific Sentinel Values
 

@@ -19,6 +19,7 @@ ships and opens a fresh `Unreleased` section.
 ### Changed
 
 - `XIT ACT`: Auto-SFC step now sets the destination planet with the same address-select helper used by CONTD import, dropping two redundant confirmation clicks
+- `XIT ACT`: A commodity exchange short on stock no longer aborts the whole action package. The buy warns and offers whatever the order book can fill, so you can ACT on the partial amount, adjust it by hand, or SKIP it
 
 ### Fixed
 
