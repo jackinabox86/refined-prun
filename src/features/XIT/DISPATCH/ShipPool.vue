@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import PrunButton from '@src/components/PrunButton.vue';
 import type { DispatchBaseConfig, DispatchShip } from '@src/features/XIT/DISPATCH/utils';
+import tableAlternatingColors from '@src/features/basic/table-rows-alternating-colors.module.css';
 
 const { ships, baseConfigs } = defineProps<{
   ships: DispatchShip[];
@@ -68,7 +69,7 @@ function onDragStart(event: DragEvent, shipId: string) {
 
 <template>
   <div :class="$style.pool">
-    <table :class="$style.table">
+    <table :class="[$style.table, tableAlternatingColors.optOut]">
       <thead>
         <tr>
           <th>Ships</th>
@@ -114,16 +115,16 @@ function onDragStart(event: DragEvent, shipId: string) {
 
 <style module>
 .pool {
-  width: max-content;
-  min-width: 10ch;
-  max-width: 15ch;
+  width: 15ch;
   flex: 0 0 auto;
+  overflow: hidden;
   border-left: 1px solid #2b485a;
   box-sizing: border-box;
 }
 
 .table {
   border-collapse: collapse;
+  table-layout: fixed;
   width: 100%;
 }
 
