@@ -110,7 +110,6 @@ function refuelFromOrigin(
           ticker: stlMaterial.ticker,
           amount: totalStlRefuel - presentStlFuel,
           priceLimit: Number.POSITIVE_INFINITY,
-          buyPartial: false,
           allowUnfilled: false,
         }),
       );
@@ -132,7 +131,6 @@ function refuelFromOrigin(
           ticker: ftlMaterial.ticker,
           amount: totalFtlRefuel - presentFtlFuel,
           priceLimit: Number.POSITIVE_INFINITY,
-          buyPartial: false,
           allowUnfilled: false,
         }),
       );

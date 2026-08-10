@@ -30,8 +30,7 @@ act.addAction<Config>({
     data.exchange !== configurableValue ||
     config.exchange !== undefined,
   generateSteps: async ctx => {
-    const { data, config, state, log, fail, getMaterialGroup, getMaterialGroupPrices, emitStep } =
-      ctx;
+    const { data, config, state, log, getMaterialGroup, getMaterialGroupPrices, emitStep } = ctx;
 
     if (data.skippable && config.skip) {
       return;
@@ -87,15 +86,6 @@ act.addAction<Config>({
       let bidAmount = amount;
 
       if (filled && filled.amount < amount && !allowUnfilled) {
-        if (!buyPartial) {
-          let message = `Not enough materials on ${exchange} to buy ${fixed0(amount)} ${ticker}`;
-          if (isFinite(priceLimit)) {
-            message += ` with price limit ${fixed02(priceLimit)}/u`;
-          }
-          fail(message);
-          return;
-        }
-
         const leftover = amount - filled.amount;
         let message =
           `${fixed0(leftover)} ${ticker} will not be bought on ${exchange} ` +
@@ -108,8 +98,11 @@ act.addAction<Config>({
         if (filled.amount === 0) {
           continue;
         }
-
-        bidAmount = filled.amount;
+        if (buyPartial) {
+          // Lock the order to what is available now. Otherwise the full amount is
+          // kept and the step buys whatever is available when it actually runs.
+          bidAmount = filled.amount;
+        }
       }
 
       emitStep(
@@ -118,7 +111,6 @@ act.addAction<Config>({
           ticker,
           amount: bidAmount,
           priceLimit: priceLimit,
-          buyPartial: buyPartial,
           allowUnfilled: allowUnfilled,
         }),
       );
