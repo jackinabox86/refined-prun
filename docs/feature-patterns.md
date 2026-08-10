@@ -840,6 +840,17 @@ commanded after a MutationObserver wait. The split control characters (found via
 ACT allocates its runner panes the same way — see
 `src/features/XIT/ACT/runner/tile-allocator.ts` for the multi-pane variant.
 
+**The 50/50 split is a default, not a constraint.** `UI_TILES_SPLIT` creates the container
+with `dividerPosition: 0.5`, and `UI_TILES_CHANGE_SIZE({ id, newDividerPosition })` — handled
+in `src/infrastructure/prun-api/data/tiles.ts` — moves it. The id is the tile that *owns the
+container*, i.e. the one that was split, not either child. The fraction renders as inline
+`width: N%` on both `Node__child` elements plus `left: N%` on the `TileDivider`.
+
+Sizing a companion window to the sum of both commands' widths is only half the job: without
+setting the divider to match, each pane still gets 50%, so both are the wrong size. Dispatch
+the message; never hand-write the inline percentages, because the game's own state would not
+know about them and the next re-render or user drag overwrites them.
+
 ---
 
 ## Left Sidebar Replacement
