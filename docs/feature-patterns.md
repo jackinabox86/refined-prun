@@ -244,10 +244,13 @@ during the pause is handled.
   frozen at generation (on) or re-checked against the live book when the step runs (off).
   `allowUnfilled` is the separate "rest the remainder as a standing bid" flag.
 - **Size follow-up steps by what the CX can fill.** An action that emits a purchase and then
-  emits steps consuming it must plan against `fillAmount()`, not the requested amount, or
-  those steps ask the game for materials that never arrived — Refuel's `emitFuelPurchase`
-  returns the fillable amount for exactly this reason. A residual gap stays: the book can
-  drop further between generation and execution, and already-emitted steps can't shrink.
+  emits steps consuming it must plan against `fillAmount()`, not the requested amount —
+  Refuel's `emitFuelPurchase` returns the fillable amount for exactly this reason. The
+  consuming steps survive either way (`MTRA_TRANSFER` clamps to the MTRA slider max and
+  warns), so what the sizing buys is *where the player finds out*: planned against the
+  request, the first ships are promised full loads and the last ones quietly get nothing,
+  one loading step at a time. Planned against the fill, the shortfall warns once, up front,
+  next to the purchase that caused it.
 - **`CXPO_BUY`'s quantity `watchEffect` reruns on every order-book tick** while the buffer
   sits open waiting for ACT. Anything with a side effect inside it (logging above all) must
   dedupe, or one slow CX fills the log with the same warning.
