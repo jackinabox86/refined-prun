@@ -85,6 +85,24 @@ cosmetic and the fetch succeeds. Two consequences: never stage with `git add -A`
 inside the sandbox — it would try to add character devices — always stage explicit paths; and
 read the real working-tree state with an unsandboxed `git status` before trusting it.
 
+## Git LFS in the cloud container
+
+Claude Code on the web starts without `git-lfs`; `apt-get install -y git-lfs` then
+`git lfs install --local` sets it up. Reading is fine — `git lfs fetch origin <ref>` pulls
+objects, including those referenced by a fork's PR (fetch `pull/<n>/head` first), because
+LFS storage is shared across a fork network.
+
+**Writing a new LFS object is impossible there.** The agent proxy denies `lfs.github.com`
+(403 on CONNECT), so `git lfs push` fails with `Forbidden` on the verify call and the push
+is rejected with `GH008: Your push referenced at least 1 unknown Git LFS object`. Reusing
+an object the remote already knows pushes fine — only newly created ones are blocked. So
+never plan a commit that migrates a file into LFS from a cloud session: ship it in the
+form that pushes and hand the migration back to the local checkout.
+
+Run `git lfs` subcommands unsandboxed; they write under `.git/`. Migrating an already
+staged file into LFS also needs `git rm --cached -f` — the plain form aborts with "staged
+content different from both the file and the HEAD".
+
 ## Approvals are the scarce resource
 
 Allowlisted prefixes in `.claude/settings.json` only help when the command matches
