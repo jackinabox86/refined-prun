@@ -28,6 +28,8 @@ export const initialUserData = deepFreeze({
       yellow: 7,
       resupply: 16,
       planetResupply: {} as Record<string, number>,
+      // Planet natural id -> ship-size label from core/ship-sizes.
+      planetPickup: {} as Record<string, string>,
     },
     repair: {
       threshold: 60,

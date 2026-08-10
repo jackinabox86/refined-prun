@@ -5,7 +5,7 @@ import InvBar from '@src/features/XIT/BS/InvBar.vue';
 import { showBuffer } from '@src/infrastructure/prun-ui/buffers';
 import { getPlanetBurn } from '@src/core/burn';
 import { countDays } from '@src/features/XIT/BURN/utils';
-import { getStorageAlarmLevel } from '@src/core/storage-analysis';
+import { getPickupAlarm, getStorageAlarmLevel } from '@src/core/storage-analysis';
 import { fixed1 } from '@src/utils/format';
 import { getPlanetProduction } from '@src/core/production';
 import { warehousesStore } from '@src/infrastructure/prun-api/data/warehouses';
@@ -128,6 +128,9 @@ const barAlarmReason = computed(() =>
   storageAlarm.value?.level === 'red' ? storageAlarm.value.reason : undefined,
 );
 
+const pickupAlarm = computed(() => getPickupAlarm(siteId));
+const rocket = '\u{1F680}';
+
 const warehouse = computed(() => warehousesStore.getByEntityNaturalId(naturalId));
 const warehouseStore = computed(() =>
   storagesStore
@@ -194,6 +197,13 @@ const warehouseStore = computed(() =>
           :data-tooltip="storageAlarm.reason"
           data-tooltip-position="top">
           <span :class="$style.statusNum">{{ fillDaysText }}</span>
+        </div>
+        <div
+          v-if="pickupAlarm"
+          :class="[C.ProgressBar.progress, $style.pickupBox, C.Workforces.daysSupplied]"
+          :data-tooltip="pickupAlarm.reason"
+          data-tooltip-position="top">
+          <span>{{ rocket }}</span>
         </div>
       </div>
     </td>
@@ -294,5 +304,20 @@ const warehouseStore = computed(() =>
   justify-content: center;
   height: 13px;
   padding: 0 1px;
+}
+
+/* padding: 0 cancels the game's [data-tooltip] rule (`padding: 0 4px 0`), which
+   would otherwise widen the box beyond the glyph it centres. */
+.pickupBox {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 13px;
+  padding: 0;
+  margin: 0;
+  font-size: 10px;
+  line-height: 1;
 }
 </style>

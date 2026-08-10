@@ -649,6 +649,20 @@ Map getters are keyed by API values, which don't always match what the game UI s
 - `ship.address` is `null` while the ship is in flight. Docked, `getEntityNaturalIdFromAddress(ship.address)` gives the station's **own** natural id (`ANT`) — not the system id — so it compares directly against `stationsStore.getByNaturalId` keys.
 - Getters built with `createMapGetter`/`createGroupMapGetter` upper-case both the stored key and the lookup value, so they are already case-insensitive. Don't lower-case a parameter before passing it in, and don't add a case-normalizing wrapper of your own.
 
+### Core helpers can be feature-gated (returns nothing for most users)
+
+Not every helper in `src/core/` reads live game state unconditionally. `getInboundShipStores`
+(`src/core/burn.ts`) returns `[]` unless the `oog-burn-inflight-inventory` feature is on, and
+that feature ships **disabled by default** (`initialUserData.settings.disabled`) — so for most
+users it answers `[]` regardless of what ships are actually flying. It exists to answer "does
+in-flight cargo count toward this base's inventory", a deliberately opt-in accounting choice.
+
+Anything asking the *factual* question "is a ship already on its way to this planet" must use
+the ungated `getInboundShips` instead. The distinction is invisible at the call site and fails
+silently: XIT BS's pickup badge was written against the gated helper, so its clear-once-a-ship-
+is-dispatched rule would never have fired for a default install. Before reusing a `src/core/`
+helper, check whether its body opens with a feature-flag guard.
+
 ---
 
 ## Filling an AddressSelector
@@ -749,12 +763,19 @@ watch(state, value => localStorage.setItem(key, value));
 
 ### Adding a Field to `initialUserData`
 
-A new field whose default in `initialUserData` (`src/store/user-data.ts`) already means
-"unset" (e.g. `lastSeenChangelogVersion: undefined`) needs no entry in
+A new **top-level** field whose default in `initialUserData` (`src/store/user-data.ts`)
+already means "unset" (e.g. `lastSeenChangelogVersion: undefined`) needs no entry in
 `user-data-migrations.ts`. `applyUserData`'s `Object.assign(userData, newData)` only
 overwrites keys present in the loaded blob — a key absent from an existing user's stored
 data (because it predates the field) is simply left at the `initialUserData` default.
 Migrations are only for transforming a field that already has a *different* stored value.
+
+**That exemption stops at the top level.** `Object.assign` is a shallow merge, so a loaded
+blob's `settings` object replaces the default `settings` wholesale — every *nested* new
+field (`settings.burn.planetPickup`) reads back `undefined` for existing users no matter
+what its `initialUserData` default is. Nested fields always need a migration, and reads on
+the path should stay defensive (`settings.burn.planetPickup?.[id]`, as `getResupplyDays`
+already does for `planetResupply`) to cover data written before the migration lands.
 
 ### Comparators in a Primary/Secondary Sort Chain
 

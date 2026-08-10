@@ -67,19 +67,20 @@ const burnBySiteId = computed(() => {
   return bySiteId;
 });
 
-export function getInboundShipStores(planetNaturalId: string | undefined) {
-  if (!inboundShipInventoryEnabled.value) {
-    return [];
-  }
-  if (!planetNaturalId) {
+// Ships currently in flight towards the planet. A landed ship has no flightId,
+// so this is exactly "dispatched but not arrived yet". Unlike
+// getInboundShipStores this is not gated behind oog-burn-inflight-inventory —
+// it answers "is a ship already on its way", not "does its cargo count as
+// inventory".
+export function getInboundShips(planetNaturalId: string | undefined) {
+  if (planetNaturalId === undefined) {
     return [];
   }
   const ships = shipsStore.all.value;
-  const stores = storagesStore.all.value;
-  if (!ships || !stores) {
+  if (!ships) {
     return [];
   }
-  const result: PrunApi.Store[] = [];
+  const result: PrunApi.Ship[] = [];
   for (const ship of ships) {
     if (!ship.flightId) {
       continue;
@@ -91,6 +92,21 @@ export function getInboundShipStores(planetNaturalId: string | undefined) {
     if (getEntityNaturalIdFromAddress(flight.destination) !== planetNaturalId) {
       continue;
     }
+    result.push(ship);
+  }
+  return result;
+}
+
+export function getInboundShipStores(planetNaturalId: string | undefined) {
+  if (!inboundShipInventoryEnabled.value) {
+    return [];
+  }
+  const stores = storagesStore.all.value;
+  if (!stores) {
+    return [];
+  }
+  const result: PrunApi.Store[] = [];
+  for (const ship of getInboundShips(planetNaturalId)) {
     const shipStore = stores.find(x => x.id === ship.idShipStore);
     if (shipStore) {
       result.push(shipStore);
