@@ -27,7 +27,10 @@ intentional, so never work around it by widening the allowlist.
 Scope that bypass to commands that actually write config, though — a plain
 `git push origin <branch>` (no `-u`) touches only refs, and github.com is already an
 allowed host, so it runs fine sandboxed. Reaching for `dangerouslyDisableSandbox` "because
-it's a push" spends a user approval for nothing.
+it's a push" spends a user approval for nothing. Same trap on the branch side:
+`git checkout -b <new-branch>` off current HEAD moves no files and (branching from a local
+HEAD, not a remote-tracking ref) writes no config, so it needs no bypass either — the
+checkout rule above is about *switching between* existing branches.
 
 Watch one non-obvious config write: `git branch -f <branch> origin/main`, used to reset a
 merged branch, *also* re-points that branch's upstream to `origin/main` via
@@ -53,6 +56,15 @@ literally. Things that quietly cost the user a manual approval:
   excluded command.
 - **Absolute paths.** `node /home/.../repo/scripts/pw-act.mjs` matches neither the
   allowlist nor the exclusion. Always invoke repo scripts by their relative path.
+
+## Web/cloud sessions
+
+The container is a fresh clone with **no `node_modules`**, so the first
+`pnpm run compile` fails with `Cannot find type definition file for 'chrome'` and
+`File '@vue/tsconfig/tsconfig.dom.json' not found` — that is a missing install, not a
+broken tsconfig. Run `pnpm install --frozen-lockfile` first. `grok` is not installed
+either, so implement directly per `AGENTS.md`, and the browser harness below is
+unavailable — say so once, don't try to stand it up.
 
 ## Browser harness specifics
 
