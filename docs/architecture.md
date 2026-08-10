@@ -20,20 +20,16 @@ A fresh clone has no `node_modules` — run `pnpm install --frozen-lockfile` bef
 type libraries, which reads like a broken tsconfig rather than a missing install. Cloud
 sessions (Claude Code on the web) always start from a fresh clone.
 
-`vite.config.mts` doubles as the vitest config (hence its `defineConfig` comes from
-`vitest/config`, not `vite`). **Don't drop its `test.exclude` entry.** Vitest 4 narrowed its
-default exclude to `node_modules` and `.git` — `dist/**` used to be in it — so any compiled
-test that reaches `dist/` gets collected on the next run and dies on `document is not
-defined`, thrown from `src/infrastructure/shell/config.ts` at import time. The failure names
-a *source* file and reads like a real regression; the giveaway is a `dist/` path in the
-failing-suite header.
-
-Builds only emit modules that are in the import graph, so a test file lands in `dist/` only
-if something imports it. The way that happened was `src/features/index.ts`'s
-`import.meta.glob` sweeping `**/*.ts` — now excluded there with `!**/*.{test,spec}.{ts,tsx}`
-patterns, which is the primary fix. `test.exclude` is the backstop that makes it structural:
-a new glob without the exclusion, or a `dist/` left over from an older checkout, can't
-resurrect the trap.
+**Keep test files out of `src/features/index.ts`'s `import.meta.glob` sweeps** — each one
+carries a matching `!./<dir>/**/*.{test,spec}.{ts,tsx}` pattern. That glob is the only thing
+that ever pulls a test into the import graph, and a build emits exactly what is in the graph,
+so dropping the exclusion puts compiled `*.test.js` into `dist/`. Vitest 4 no longer excludes
+`dist/**` by default (its `defaultExclude` is just `node_modules` and `.git`), so it then
+collects those copies and the suite dies on `document is not defined`, thrown from
+`src/infrastructure/shell/config.ts` at import time. That failure names a *source* file and
+reads like a real regression — the giveaway is a `dist/` path in the failing-suite header.
+The same symptom appears from a `dist/` built before this exclusion existed; `pnpm run clean`
+clears it.
 
 Verifying UI-visible behaviour against the live game: `docs/browser-testing.md`.
 

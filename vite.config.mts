@@ -1,4 +1,4 @@
-import { configDefaults, defineConfig } from 'vitest/config';
+import { defineConfig } from 'vite';
 import { resolve } from 'path';
 import libAssetsPlugin from '@laynezh/vite-plugin-lib-assets';
 import vue from '@vitejs/plugin-vue';
@@ -111,13 +111,6 @@ export default defineConfig({
   define: {
     // This define is needed for vue npm packages
     'process.env.NODE_ENV': `"${process.env.NODE_ENV}"`,
-  },
-  test: {
-    // Vitest 4 narrowed its default exclude to node_modules and .git, and the
-    // build emits every *.test.ts as its own dist chunk. Without this the
-    // suite collects those compiled copies alongside the sources and dies on
-    // `document is not defined`.
-    exclude: [...configDefaults.exclude, 'dist/**'],
   },
 });
 
