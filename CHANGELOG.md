@@ -10,6 +10,11 @@ ships and opens a fresh `Unreleased` section.
 ### Added
 
 - `XIT WHATSNEW`: Shows release notes since your last update, opened automatically after an update
+- `bs-inv-base-store-link`: Makes the `INV` context link on `BS` open the base store directly
+
+### Changed
+
+- `correct-commands`: `INV <planet>` opens the base store directly instead of the store list
 
 ### Changed
 
