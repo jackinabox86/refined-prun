@@ -1200,6 +1200,26 @@ When a layout question is contested, settle it with a static HTML repro driven b
 `.local/pw-tools`' Playwright in headless mode. It gives exact numbers in seconds and needs no game
 session — far cheaper than reasoning about the cascade or booting the full harness.
 
+### Truncating Text Inside a Button
+
+Three traps, all hit while truncating ship names in XIT DISPATCH:
+
+- **A `<button>` clips at its padding box.** Putting `overflow: hidden; text-overflow: ellipsis`
+  on the button itself swallows its right padding and cuts a glyph in half flush against the cell
+  border. Truncate on an inner block instead, and keep the button's padding.
+- **The inner block then inflates the row.** A button is an `inline-block`, so it sits on its
+  line's baseline and reserves descender space beneath itself; with a block child that gap grew a
+  24px table row to 26.9px, taller than every other row in the same table. Fix with
+  `vertical-align: middle` on the button. Making the inner span `inline-block` does *not* fix it —
+  the gap belongs to the button, not the label — while `line-height: 0` on the wrapper or flexing
+  either box also work.
+- **Chromium has no custom truncation string.** `text-overflow: "<string>"` is Firefox-only;
+  `CSS.supports('text-overflow', '"."')` is `false` in Chromium 149 and assigning it yields `""`.
+  A single-period marker (narrower than `…`) therefore needs a JS measurement
+  (`scrollWidth > clientWidth`) driving a `::after`, since CSS cannot detect overflow. That costs a
+  directive, a ResizeObserver and a feedback-loop hazard — widening the column is usually the
+  better trade.
+
 ### Alignment Belongs to the Column, Not the Layout Mode
 
 When a cell component aligns its own content unconditionally, the matching header rule must be

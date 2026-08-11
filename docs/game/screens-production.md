@@ -23,3 +23,7 @@ Context bar: `PROD` (all), `BS <planet>`, `PROD <base-id>` (local), `PRODCO <lin
 ## PRODCO — Create Production Order
 
 Order configuration form (recipe pick, amount). Queuing the order is a server action — safe to open, do not submit in tests.
+
+Context bar: `PRODQ <line-id>: Queue` among others. Unlike PRODQ — which carries a `New Order` button straight to PRODCO — a floating PRODCO panel has **no** in-panel button back to PRODQ; the context bar is the only route. Anything matching a "go to the sibling command" button by label therefore works PRODQ → PRODCO but never PRODCO → PRODQ, and has to fall back to the context bar.
+
+Note the label drift across the three views that reach these commands: `PROD` uses `Queue`/`Order`, `PROD <base-id>` uses `new order`/`Details`. Match on the context bar's command text when the route has to work everywhere.

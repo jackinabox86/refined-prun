@@ -86,7 +86,7 @@ function onDragStart(event: DragEvent, shipId: string) {
               draggable="true"
               @dragstart="onDragStart($event, entry.ship.id)">
               <PrunButton primary :class="$style.shipButton">
-                {{ shipLabel(entry) }}
+                <span :class="$style.shipLabel">{{ shipLabel(entry) }}</span>
               </PrunButton>
             </div>
           </td>
@@ -102,7 +102,7 @@ function onDragStart(event: DragEvent, shipId: string) {
               draggable="true"
               @dragstart="onDragStart($event, entry.ship.id)">
               <PrunButton primary :class="$style.shipButton">
-                {{ shipLabel(entry) }}
+                <span :class="$style.shipLabel">{{ shipLabel(entry) }}</span>
               </PrunButton>
             </div>
           </td>
@@ -113,10 +113,15 @@ function onDragStart(event: DragEvent, shipId: string) {
 </template>
 
 <style module>
+/* The cap is shared with .shipLabel, which caps what the column may demand
+   from the auto-layout table — without it a long ship name widens the table
+   past this box and the yellow buttons paint over the Assign divider. Kept in
+   px, not ch, so the 12px pool and the 11px label resolve the same length. */
 .pool {
+  --poolMaxWidth: 110px;
   width: max-content;
   min-width: 10ch;
-  max-width: 15ch;
+  max-width: var(--poolMaxWidth);
   flex: 0 0 auto;
   border-left: 1px solid #2b485a;
   box-sizing: border-box;
@@ -154,17 +159,36 @@ function onDragStart(event: DragEvent, shipId: string) {
   cursor: grab;
 }
 
+/* vertical-align keeps the row at the table's 24px. The button is an
+   inline-block, so by default it sits on its line's baseline and reserves
+   descender space beneath itself; once .shipLabel made the content a block
+   that gap grew the cell to ~27px, taller than every other row in DISPATCH. */
 .shipButton {
   width: 100%;
   height: 100%;
+  min-width: 0;
+  overflow: hidden;
+  padding: 0 4px;
+  font-size: 11px;
+  pointer-events: none;
+  vertical-align: middle;
+  box-sizing: border-box;
+}
+
+/* A <button> clips at its padding box, so truncating on the button itself cuts
+   a glyph in half flush with the cell border and swallows the right padding.
+   Truncating on an inner block keeps the ellipsis inside the button's own
+   padding, mirrored left and right. The max-width (pool cap minus 1px pool
+   border, 4px cell padding, 8px button padding) is also what stops the column
+   from growing past .pool. */
+.shipLabel {
+  display: block;
+  width: 100%;
+  max-width: calc(var(--poolMaxWidth) - 13px);
   text-align: center;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  padding: 0 4px;
-  font-size: 11px;
-  pointer-events: none;
-  box-sizing: border-box;
 }
 
 .labelRow {

@@ -134,7 +134,9 @@ function clearShip() {
       @drop="onDrop">
       <template v-if="config.ship && shipLabel">
         <div :class="$style.shipAssigned">
-          <PrunButton primary inline :class="$style.shipButton">{{ shipLabel }}</PrunButton>
+          <PrunButton primary inline :class="$style.shipButton">
+            <span :class="$style.shipLabel">{{ shipLabel }}</span>
+          </PrunButton>
           <PrunButton dark inline :class="$style.clearButton" @click="clearShip">×</PrunButton>
         </div>
       </template>
@@ -283,10 +285,12 @@ function clearShip() {
   background: #2b485a;
 }
 
+/* The empty drop target and the filled state have to stay the same width, or
+   the column jumps as ships are assigned and cleared. */
 .shipPlaceholder {
   border: 1px dashed #444;
   height: 18px;
-  width: 74px;
+  width: 84px;
   border-radius: 2px;
   box-sizing: border-box;
 }
@@ -295,13 +299,23 @@ function clearShip() {
   display: inline-flex;
   align-items: center;
   gap: 2px;
-  width: 74px;
+  width: 84px;
   box-sizing: border-box;
 }
 
 .shipButton {
   flex: 1;
   min-width: 0;
+  overflow: hidden;
+}
+
+/* Same reason as ShipPool's .shipLabel: a <button> clips at its padding box,
+   so truncating on the button drops the right padding and cuts a glyph in
+   half against the ✕. Truncate on an inner block instead. */
+.shipLabel {
+  display: block;
+  width: 100%;
+  white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }

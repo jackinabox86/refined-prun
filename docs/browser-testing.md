@@ -305,6 +305,18 @@ Two consequences worth knowing before blaming the browser:
   echoes and reactive UI updates all happen without a server round trip. The authoritative
   check that something reached the server is `node scripts/pw-act.mjs reload` (fresh
   WebSocket) and re-reading the data from scratch.
+- **Live data may never exercise the code path.** A truncation fix was reported "verified" against
+  a fleet whose every ship registration was three characters, so nothing ever truncated — the pass
+  proved only that short names render. When the change targets an edge case the account doesn't
+  contain, force it: overwrite `textContent` on the rendered elements and measure. That is a DOM-only
+  mutation, so it touches no game data, but re-apply it after any reload or re-render.
+- **Prefer whole-window screenshots to clipped ones.** `page.screenshot({ clip })` repeatedly
+  targeted the wrong element here even when fed a correct `getBoundingClientRect()` (the tab reports
+  `devicePixelRatio: 1.25`, the likely cause). `Locator.screenshot()` on the window works; for
+  sub-pixel questions, trust a `Range.getBoundingClientRect()` measurement over a picture.
+- **Select by the full CSS-module class, never a fragment.** Module basenames collide across
+  components — `[class*="shipCell"]` matches both `ShipPool__shipCell` and `PlanetRow__shipCell`,
+  and a script relying on the fragment silently mutated the wrong button.
 - **Live game state drifts, so pure logic may need offline verification.** A calculation
   fix can become unobservable between coding and testing (a third party refilled the
   reserve that made the scenario exist). Don't force it live: import the built module from
@@ -320,7 +332,10 @@ does **not** check anything below — `node --check <file>` is the syntax check,
 makes it a cheap smoke test after editing the runner.
 
 - `scripts/pw-helper.mjs` — shared constants (paths, CDP port, APEX URL), the lazy loader
-  for the isolated Playwright install, and `connect()` (attach + friendly failure).
+  for the isolated Playwright install, and `connect()` (attach + friendly failure). An ad-hoc
+  script that calls it must end with `process.exit(0)`: the open CDP connection keeps the event
+  loop alive, so without it the script hangs after its work is done and never flushes its output —
+  which reads exactly like a script that failed to connect.
 - `scripts/local-browser-test.mjs` — the long-running launcher.
 - `scripts/pw-act.mjs` — the action runner; `help` lists every action. Holds the shared
   `openBuffer()` helper used by every tile, plus compound actions built on it.
