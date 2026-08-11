@@ -6,12 +6,14 @@ import TextInput from '@src/components/forms/TextInput.vue';
 import PrunButton from '@src/components/PrunButton.vue';
 import SectionHeader from '@src/components/SectionHeader.vue';
 import { popiBuildings } from '@src/features/XIT/GOVBURN/buildings';
+import GovBurnImport from '@src/features/XIT/GOVBURN/GovBurnImport.vue';
 import { planetsStore } from '@src/infrastructure/prun-api/data/planets';
 import { userData } from '@src/store/user-data';
 import { comparePlanets } from '@src/util';
 
 const emit = defineEmits<{ (e: 'done'): void }>();
 
+const showImport = ref(false);
 const planetInput = ref('');
 const planetError = ref(false);
 
@@ -74,6 +76,7 @@ function addPlanet() {
 
 function removePlanet(naturalId: string) {
   delete userData.govburn.config.planets[naturalId];
+  delete userData.govburn.config.slots[naturalId];
 }
 
 function onInputKeydown(ev: KeyboardEvent) {
@@ -84,61 +87,65 @@ function onInputKeydown(ev: KeyboardEvent) {
 </script>
 
 <template>
-  <div :class="C.ComExOrdersPanel.filter">
-    <div :class="$style.spacer" />
-    <PrunButton primary @click="emit('done')">DONE</PrunButton>
-  </div>
+  <GovBurnImport v-if="showImport" @done="showImport = false" />
+  <template v-else>
+    <div :class="C.ComExOrdersPanel.filter">
+      <div :class="$style.spacer" />
+      <PrunButton @click="showImport = true">IMPORT</PrunButton>
+      <PrunButton primary @click="emit('done')">DONE</PrunButton>
+    </div>
 
-  <SectionHeader>Thresholds</SectionHeader>
-  <form @submit.prevent>
-    <Active label="Red (days)">
-      <NumberInput v-model="userData.govburn.config.red" />
-    </Active>
-    <Active label="Yellow (days)">
-      <NumberInput v-model="userData.govburn.config.yellow" />
-    </Active>
-  </form>
+    <SectionHeader>Thresholds</SectionHeader>
+    <form @submit.prevent>
+      <Active label="Red (days)">
+        <NumberInput v-model="userData.govburn.config.red" />
+      </Active>
+      <Active label="Yellow (days)">
+        <NumberInput v-model="userData.govburn.config.yellow" />
+      </Active>
+    </form>
 
-  <SectionHeader>Add Planet</SectionHeader>
-  <form @submit.prevent>
-    <Active label="Planet" :error="planetError">
-      <TextInput v-model="planetInput" @keydown="onInputKeydown" />
-    </Active>
-    <Commands>
-      <PrunButton primary @click="addPlanet">ADD</PrunButton>
-    </Commands>
-  </form>
-  <p v-if="planetError" :class="$style.error">Planet not found.</p>
+    <SectionHeader>Add Planet</SectionHeader>
+    <form @submit.prevent>
+      <Active label="Planet" :error="planetError">
+        <TextInput v-model="planetInput" @keydown="onInputKeydown" />
+      </Active>
+      <Commands>
+        <PrunButton primary @click="addPlanet">ADD</PrunButton>
+      </Commands>
+    </form>
+    <p v-if="planetError" :class="$style.error">Planet not found.</p>
 
-  <table v-if="configuredPlanets.length > 0">
-    <thead>
-      <tr>
-        <th>Planet</th>
-        <th v-for="building in popiBuildings" :key="building.ticker">{{ building.ticker }}</th>
-        <th />
-      </tr>
-    </thead>
-    <tbody>
-      <tr v-for="naturalId in configuredPlanets" :key="naturalId">
-        <td>{{ planetName(naturalId) }}</td>
-        <td v-for="building in popiBuildings" :key="building.ticker">
-          <div
-            v-if="hasBuilding(naturalId, building.ticker)"
-            :class="[C.forms.input, $style.numberWrap]">
-            <input
-              type="number"
-              :min="-1"
-              :max="maxRequired(naturalId, building.ticker)"
-              :value="getRequired(naturalId, building.ticker)"
-              @change="onRequiredChange(naturalId, building.ticker, $event)" />
-          </div>
-        </td>
-        <td>
-          <PrunButton danger inline @click="removePlanet(naturalId)">REMOVE</PrunButton>
-        </td>
-      </tr>
-    </tbody>
-  </table>
+    <table v-if="configuredPlanets.length > 0">
+      <thead>
+        <tr>
+          <th>Planet</th>
+          <th v-for="building in popiBuildings" :key="building.ticker">{{ building.ticker }}</th>
+          <th />
+        </tr>
+      </thead>
+      <tbody>
+        <tr v-for="naturalId in configuredPlanets" :key="naturalId">
+          <td>{{ planetName(naturalId) }}</td>
+          <td v-for="building in popiBuildings" :key="building.ticker">
+            <div
+              v-if="hasBuilding(naturalId, building.ticker)"
+              :class="[C.forms.input, $style.numberWrap]">
+              <input
+                type="number"
+                :min="-1"
+                :max="maxRequired(naturalId, building.ticker)"
+                :value="getRequired(naturalId, building.ticker)"
+                @change="onRequiredChange(naturalId, building.ticker, $event)" />
+            </div>
+          </td>
+          <td>
+            <PrunButton danger inline @click="removePlanet(naturalId)">REMOVE</PrunButton>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </template>
 </template>
 
 <style module>

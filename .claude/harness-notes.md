@@ -32,6 +32,31 @@ it's a push" spends a user approval for nothing. Same trap on the branch side:
 HEAD, not a remote-tracking ref) writes no config, so it needs no bypass either — the
 checkout rule above is about *switching between* existing branches.
 
+**Never `git add -A` from inside the sandbox.** The sandbox materializes its deny-mounts as
+`/dev/null` character devices at paths under the working directory — a sandboxed
+`git status` in a worktree listed `.bashrc`, `.gitconfig`, `.gitmodules`, `.zshrc` and a
+dozen more as untracked, and `git add -A` then aborted with
+`error: .bash_profile: can only add regular files, symbolic links or git-directories`,
+staging nothing. They are not real files (`git status` unsandboxed shows only your actual
+changes) and `git fetch` warning `unable to access '.gitmodules': Permission denied` is the
+same illusion. Stage explicit paths (`git add src/ CHANGELOG.md`) and the problem
+disappears — no bypass needed.
+
+A sandboxed command can also fail spuriously with
+`bwrap: Can't find source path /home/cyrus/.claude/local: No such file or directory`. That
+is a transient sandbox-setup race, not a denial: re-run the same command and it works.
+Reaching for `dangerouslyDisableSandbox` on the first sight of a `bwrap:` line spends an
+approval that a plain retry would have saved.
+
+## Bash working directory does not persist
+
+The tool description's "working directory persists between calls" does not hold here — a
+standalone `cd /some/path` returns `Shell cwd was reset to <session cwd>`. You cannot `cd`
+into the main checkout to run repo scripts by their relative path from a worktree session
+(and a compound `cd X && node scripts/...` breaks the `sandbox.excludedCommands` match,
+since only the FIRST segment is tested). Bridge the missing files into the worktree
+instead — see `docs/browser-testing.md` on symlinking `.local/`.
+
 Watch one non-obvious config write: `git branch -f <branch> origin/main`, used to reset a
 merged branch, *also* re-points that branch's upstream to `origin/main` via
 `branch.autoSetupMerge`. Restore it with

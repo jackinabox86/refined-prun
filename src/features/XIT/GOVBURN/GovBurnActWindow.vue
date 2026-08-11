@@ -12,7 +12,7 @@ import { stagedGovBurn } from '@src/features/XIT/GOVBURN/staged';
 import {
   cogcRefills,
   planetGovBurnBill,
-  rankSlots,
+  resolveSlots,
   type SlotPick,
 } from '@src/features/XIT/GOVBURN/utils';
 import { useMinBufferHeight } from '@src/hooks/use-min-buffer-height';
@@ -98,7 +98,7 @@ const buildingRows = computed(() => {
   return result;
 });
 
-// Keyed by building ticker; initialized once from rankSlots(building, n).
+// Keyed by building ticker; seeded from saved picks via resolveSlots.
 const slots = ref<Record<string, SlotPick[]>>({});
 
 watch(
@@ -110,6 +110,7 @@ watch(
       return;
     }
     const config = planetConfig.value;
+    const savedSlots = userData.govburn.config.slots[naturalId.value];
     const next: Record<string, SlotPick[]> = {};
     for (const building of planet.buildings) {
       if (building.level <= 0) {
@@ -119,19 +120,7 @@ watch(
       if (n <= 0 || building.upkeeps === undefined) {
         continue;
       }
-      const previous = slots.value[building.ticker];
-      if (
-        previous !== undefined &&
-        previous.length === Math.max(0, Math.min(n, building.upkeeps.length))
-      ) {
-        // Preserve user picks across data refreshes; blank tickers that are no longer upkeeps.
-        const valid = new Set(building.upkeeps.map(x => x.ticker));
-        next[building.ticker] = previous.map(x =>
-          x.ticker === '' || valid.has(x.ticker) ? x : { ticker: '', source: 'manual' },
-        );
-      } else {
-        next[building.ticker] = rankSlots(building, n);
-      }
+      next[building.ticker] = resolveSlots(building, n, savedSlots?.[building.ticker]);
     }
     slots.value = next;
   },
@@ -176,6 +165,9 @@ function setSlot(buildingTicker: string, slotIndex: number, value: string | unde
     return;
   }
   list[slotIndex] = { ticker: value ?? '', source: 'manual' };
+  const naturalIdValue = naturalId.value;
+  const stored = (userData.govburn.config.slots[naturalIdValue] ??= {});
+  stored[buildingTicker] = list.map(x => x.ticker).filter(x => x !== '');
 }
 
 const allResolved = computed(() => {
