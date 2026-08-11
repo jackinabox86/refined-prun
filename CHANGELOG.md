@@ -14,6 +14,7 @@ ships and opens a fresh `Unreleased` section.
 ### Fixed
 
 - `XIT DATA`: Stabilize the agent query connection and parameter handling
+- `XIT DISPATCH`: Keeps long ship names inside their cell instead of spilling over the panel, and widens the ship columns to fit more of a name
 
 ## 1.1.0
 
