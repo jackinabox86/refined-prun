@@ -14,6 +14,7 @@ ships and opens a fresh `Unreleased` section.
 - `bs-inv-base-store-link`: Makes the `INV` context link on `BS` open the base store directly
 - `XIT PLANETS`: New Pickup column picks the cargo size of the ship you collect each base's output with, spelled out in tonnes and m³ so `3k/1k` can't be read backwards
 - `XIT BS`: Shows a green 🚀 next to a base's inventory bar 24 hours before its produced goods fill the ship picked in `XIT PLANETS`, and hides it while a ship is already in flight there
+- `production-companion-buffers`: Shift-click a production line button in PROD, PRODQ or PRODCO to open PRODCO and PRODQ side by side as a companion pair
 
 ### Changed
 
@@ -21,6 +22,7 @@ ships and opens a fresh `Unreleased` section.
 - `correct-commands`: `INV <planet>` opens the base store directly instead of the store list
 - `XIT ACT`: Auto-SFC step now sets the destination planet with the same address-select helper used by CONTD import, dropping two redundant confirmation clicks
 - `XIT ACT`: A commodity exchange short on stock no longer aborts the whole action package. The buy warns and offers whatever the order book can fill, so you can ACT on the partial amount, adjust it by hand, or SKIP it
+- `popi-details-companion-buffer`: Companion buffers now open at the width and height registered for their own command instead of a fixed 450px, and the split divider is positioned to match those widths instead of 50/50
 
 ### Fixed
 
