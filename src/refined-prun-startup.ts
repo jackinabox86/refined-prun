@@ -49,6 +49,13 @@ async function startup() {
 
 function resolveCssUrls(cssText: string, base: string): string {
   return cssText.replace(/url\((['"]?)(.*?)\1\)/g, (match, quote: string, url: string) => {
+    // A fragment-only url() (filter, clip-path, mask, SVG paint) references an element in
+    // the current document, not a file. Resolving it against the stylesheet points it at
+    // refined-prun.css, and Chromium ignores external references for those properties, so
+    // the rule silently stops applying.
+    if (url.startsWith('#')) {
+      return match;
+    }
     if (/^(https?:|data:|chrome-extension:|moz-extension:)/.test(url)) {
       return match;
     }
