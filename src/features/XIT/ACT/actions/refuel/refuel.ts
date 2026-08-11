@@ -4,6 +4,7 @@ import Configure from '@src/features/XIT/ACT/actions/refuel/Configure.vue';
 import { Config } from '@src/features/XIT/ACT/actions/refuel/config';
 import { allExchangesValue, getRefuelOrigins } from '@src/features/XIT/ACT/actions/refuel/utils';
 import { CXPO_BUY } from '@src/features/XIT/ACT/action-steps/CXPO_BUY';
+import { fillAmount } from '@src/features/XIT/ACT/actions/cx-buy/utils';
 import { MTRA_TRANSFER } from '@src/features/XIT/ACT/action-steps/MTRA_TRANSFER';
 import { ActionStep, AssertFn, configurableValue } from '@src/features/XIT/ACT/shared-types';
 import {
@@ -104,18 +105,14 @@ function refuelFromOrigin(
 
   if (presentStlFuel < totalStlRefuel) {
     if (isCX && data.buyMissingFuel) {
-      emitStep(
-        CXPO_BUY({
-          exchange: exchangeCode,
-          ticker: stlMaterial.ticker,
-          amount: totalStlRefuel - presentStlFuel,
-          priceLimit: Number.POSITIVE_INFINITY,
-          buyPartial: false,
-          allowUnfilled: false,
-        }),
+      presentStlFuel += emitFuelPurchase(
+        exchangeCode,
+        stlMaterial.ticker,
+        totalStlRefuel - presentStlFuel,
+        emitStep,
       );
-      presentStlFuel = totalStlRefuel;
-    } else {
+    }
+    if (presentStlFuel < totalStlRefuel) {
       log.warning(`Not enough SF at ${originName}. Some ships will not be refueled.`);
     }
   }
@@ -126,18 +123,14 @@ function refuelFromOrigin(
 
   if (presentFtlFuel < totalFtlRefuel) {
     if (isCX && data.buyMissingFuel) {
-      emitStep(
-        CXPO_BUY({
-          exchange: exchangeCode,
-          ticker: ftlMaterial.ticker,
-          amount: totalFtlRefuel - presentFtlFuel,
-          priceLimit: Number.POSITIVE_INFINITY,
-          buyPartial: false,
-          allowUnfilled: false,
-        }),
+      presentFtlFuel += emitFuelPurchase(
+        exchangeCode,
+        ftlMaterial.ticker,
+        totalFtlRefuel - presentFtlFuel,
+        emitStep,
       );
-      presentFtlFuel = totalFtlRefuel;
-    } else {
+    }
+    if (presentFtlFuel < totalFtlRefuel) {
       log.warning(`Not enough FF at ${originName}. Some ships will not be refueled.`);
     }
   }
@@ -173,6 +166,33 @@ function refuelFromOrigin(
     );
     presentFtlFuel -= amount;
   }
+}
+
+// Emits a purchase for the missing fuel and returns how much of it the exchange
+// can actually supply. A short order book only warns, so the transfers planned
+// after this must count on the fillable amount instead of the requested one.
+function emitFuelPurchase(
+  exchange: string,
+  ticker: string,
+  amount: number,
+  emitStep: (step: ActionStep) => void,
+) {
+  const filled = fillAmount(`${ticker}.${exchange}`, amount, Number.POSITIVE_INFINITY);
+  // Without order book data there is nothing better to assume than a full fill.
+  const buyAmount = filled === undefined ? amount : filled.amount;
+  if (buyAmount === 0) {
+    return 0;
+  }
+  emitStep(
+    CXPO_BUY({
+      exchange,
+      ticker,
+      amount: buyAmount,
+      priceLimit: Number.POSITIVE_INFINITY,
+      allowUnfilled: false,
+    }),
+  );
+  return buyAmount;
 }
 
 function getExchangeCode(store: PrunApi.Store) {

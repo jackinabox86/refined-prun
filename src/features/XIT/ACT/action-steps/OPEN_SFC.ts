@@ -1,9 +1,9 @@
 import { act } from '@src/features/XIT/ACT/act-registry';
 import { shipsStore } from '@src/infrastructure/prun-api/data/ships';
-import { focusElement, changeInputValue, clickElement } from '@src/util';
 import { AssertFn } from '@src/features/XIT/ACT/shared-types';
 import { getPlanetName } from '@src/core/planet-name';
 import { convertToPlanetNaturalId } from '@src/core/planet-natural-id';
+import { selectAddress } from '@src/infrastructure/prun-ui/utils/select-address';
 
 interface Data {
   shipId: string;
@@ -34,29 +34,12 @@ export const OPEN_SFC = act.addActionStep<Data>({
     const destinationName = data.destination ? getPlanetName(data.destination) : undefined;
 
     if (data.destination) {
-      const input = _$$(document.documentElement, C.AddressSelector.input)[0] as
-        | HTMLInputElement
-        | undefined;
-      if (!input) {
-        log.warning('SFC address input not found — set destination manually');
-        complete();
-        return;
-      }
-
-      await waitAct(`Set destination to ${destinationName}?`);
-      focusElement(input);
-      changeInputValue(input, convertToPlanetNaturalId(data.destination) ?? data.destination);
-
-      await waitAct('Select destination?');
-      const portal = document.getElementById('autosuggest-portal');
-      const suggestion = _$$(portal!, C.AddressSelector.suggestionContent)[0] as
-        | HTMLElement
-        | undefined;
-      if (suggestion) {
-        await clickElement(suggestion);
+      const container = await $(tile.anchor, C.AddressSelector.container);
+      const naturalId = convertToPlanetNaturalId(data.destination) ?? data.destination;
+      if (await selectAddress(container, naturalId)) {
         log.info(`Destination set: ${destinationName}`);
       } else {
-        log.warning(`No suggestion found for ${destinationName} — select manually`);
+        log.warning(`Could not set destination to ${destinationName} — select manually`);
       }
     }
 

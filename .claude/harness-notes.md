@@ -27,7 +27,10 @@ intentional, so never work around it by widening the allowlist.
 Scope that bypass to commands that actually write config, though — a plain
 `git push origin <branch>` (no `-u`) touches only refs, and github.com is already an
 allowed host, so it runs fine sandboxed. Reaching for `dangerouslyDisableSandbox` "because
-it's a push" spends a user approval for nothing.
+it's a push" spends a user approval for nothing. Same trap on the branch side:
+`git checkout -b <new-branch>` off current HEAD moves no files and (branching from a local
+HEAD, not a remote-tracking ref) writes no config, so it needs no bypass either — the
+checkout rule above is about *switching between* existing branches.
 
 **Never `git add -A` from inside the sandbox.** The sandbox materializes its deny-mounts as
 `/dev/null` character devices at paths under the working directory — a sandboxed
@@ -60,6 +63,16 @@ merged branch, *also* re-points that branch's upstream to `origin/main` via
 `git branch --set-upstream-to=origin/<branch> <branch>` or the next bare `git push` on it
 targets main.
 
+The sandbox blocks reads of dotfile paths by bind-mounting `/dev/null` over them, and it does
+that relative to the *working directory* as well as `$HOME`. So a sandboxed `git status` in the
+repo root reports phantom untracked entries — `.bashrc`, `.zshrc`, `.profile`, `.gitconfig`,
+`.gitmodules`, `.mcp.json`, `.ripgreprc`, `.vscode`, `.claude/commands` — none of which exist
+outside the sandbox (`ls -l` shows them as character devices, `crw-rw-rw- ... 1, 3`). The same
+mounts make `git fetch` print `warning: unable to access '.gitmodules': Permission denied`; it is
+cosmetic and the fetch succeeds. Two consequences: never stage with `git add -A`/`git add .` from
+inside the sandbox — it would try to add character devices — always stage explicit paths; and
+read the real working-tree state with an unsandboxed `git status` before trusting it.
+
 ## Approvals are the scarce resource
 
 Allowlisted prefixes in `.claude/settings.json` only help when the command matches
@@ -78,6 +91,15 @@ literally. Things that quietly cost the user a manual approval:
   excluded command.
 - **Absolute paths.** `node /home/.../repo/scripts/pw-act.mjs` matches neither the
   allowlist nor the exclusion. Always invoke repo scripts by their relative path.
+
+## Web/cloud sessions
+
+The container is a fresh clone with **no `node_modules`**, so the first
+`pnpm run compile` fails with `Cannot find type definition file for 'chrome'` and
+`File '@vue/tsconfig/tsconfig.dom.json' not found` — that is a missing install, not a
+broken tsconfig. Run `pnpm install --frozen-lockfile` first. `grok` is not installed
+either, so implement directly per `AGENTS.md`, and the browser harness below is
+unavailable — say so once, don't try to stand it up.
 
 ## Browser harness specifics
 

@@ -71,7 +71,7 @@ defineExpose({ validate, save });
   </Commands>
   <Active
     label="Buy Partial"
-    tooltip="Whether the action will be taken if there is not enough stock on the CX.">
+    tooltip="Lock the order to the stock available when the package starts. If off, the amount is re-checked when the step runs. Either way, a shortage only warns.">
     <RadioItem v-model="buyPartial">buy partial</RadioItem>
   </Active>
   <Active

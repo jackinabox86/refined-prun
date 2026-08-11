@@ -23,6 +23,12 @@ const migrations: MigrationEntry[] = [
     },
   ],
   [
+    '08.08.2026 Add per-planet pickup ship sizes',
+    userData => {
+      userData.settings.burn.planetPickup = {};
+    },
+  ],
+  [
     '13.07.2026 Add govburn thresholds',
     userData => {
       userData.govburn.config.red = 3;
