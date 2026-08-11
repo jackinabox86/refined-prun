@@ -26,6 +26,7 @@ const ACTIONS = {
   'click-force': "click-force '<selector>' — bypass actionability checks",
   'click-nth': "click-nth '<selector>' <index|first|last>",
   'ctrl-click': "ctrl-click '<selector>' — real Control+click (inventory multi-select)",
+  'shift-click': "shift-click '<selector>' — real Shift+click (production-line companion buffers)",
   'type': "type '<selector>' <text> — page.fill",
   'fill-nth': "fill-nth '<selector>' <index|first|last> <text>",
   'fill-file': "fill-file '<selector>' <path> — fill from a file (large/multiline text)",
@@ -36,6 +37,8 @@ const ACTIONS = {
   'dump-windows': 'dump-windows [index] — structured dump (cmd, context bar, columns, buttons)',
   'window-text': "window-text '<match>' [maxChars] — full innerText of one window",
   'styles': "styles '<selector>' 'prop1,prop2' — computed style values",
+  'rect': "rect '<selector>' — bounding box of every match (x/y/w/h + edges)",
+  'rect-gap': "rect-gap '<selA>' '<selB>' — signed gap between first matches",
   'local-storage-get': "local-storage-get '<key>'",
   'screenshot': 'screenshot <absolute-path> — full page',
   'screenshot-window': "screenshot-window '<match>' <absolute-path> — clip to one buffer",
@@ -192,6 +195,15 @@ switch (action) {
     await page.keyboard.down('Control');
     await page.click(rest[0]);
     await page.keyboard.up('Control');
+    break;
+  }
+  case 'shift-click': {
+    // Holds Shift while clicking — production-companion-buffers.ts listens
+    // for shift-clicks on production-line tile buttons. Real keydown+click+keyup,
+    // same rationale as ctrl-click above.
+    await page.keyboard.down('Shift');
+    await page.click(rest[0]);
+    await page.keyboard.up('Shift');
     break;
   }
   case 'type': {
@@ -472,6 +484,100 @@ switch (action) {
       return out;
     }, props);
     console.log(JSON.stringify(result, null, 2));
+    break;
+  }
+  case 'rect': {
+    // Bounding box of EVERY match for a selector (not just the first) —
+    // sessions routinely compare all rows in a column. Read-only: no click,
+    // scroll, or focus. Rounds to 2 decimals so sub-pixel diffs stay visible
+    // without dumping full float noise. Use instead of a bespoke
+    // `eval "() => getBoundingClientRect()"` snippet.
+    const [selector] = rest;
+    const locator = page.locator(selector);
+    const count = await locator.count();
+    if (count === 0) {
+      console.error(`No element matching "${selector}".`);
+      process.exit(1);
+    }
+    const rects = await locator.evaluateAll(els => {
+      const r2 = n => Math.round(n * 100) / 100;
+      return els.map(el => {
+        const r = el.getBoundingClientRect();
+        return {
+          x: r2(r.x),
+          y: r2(r.y),
+          width: r2(r.width),
+          height: r2(r.height),
+          top: r2(r.top),
+          right: r2(r.right),
+          bottom: r2(r.bottom),
+          left: r2(r.left),
+        };
+      });
+    });
+    console.log(JSON.stringify({ count, rects }, null, 2));
+    break;
+  }
+  case 'rect-gap': {
+    // Signed gap between the FIRST match of each selector. Read-only.
+    // Gap convention (same on both axes): positive = separation between the
+    // two boxes on that axis; negative = they overlap on that axis by that
+    // amount (magnitude is the overlap). Horizontal: if B is entirely to the
+    // right of A → b.left - a.right; entirely to the left → a.left - b.right;
+    // otherwise the negative overlap. Vertical: same with top/bottom.
+    // overlaps is true only when both axes have negative gaps (true 2D
+    // intersection); edge-touching (gap 0) is not overlap.
+    const [selectorA, selectorB] = rest;
+    const locA = page.locator(selectorA).first();
+    const locB = page.locator(selectorB).first();
+    if ((await locA.count()) === 0) {
+      console.error(`No element matching selector A "${selectorA}".`);
+      process.exit(1);
+    }
+    if ((await locB.count()) === 0) {
+      console.error(`No element matching selector B "${selectorB}".`);
+      process.exit(1);
+    }
+    const toRect = async loc =>
+      loc.evaluate(el => {
+        const r2 = n => Math.round(n * 100) / 100;
+        const r = el.getBoundingClientRect();
+        return {
+          x: r2(r.x),
+          y: r2(r.y),
+          width: r2(r.width),
+          height: r2(r.height),
+          top: r2(r.top),
+          right: r2(r.right),
+          bottom: r2(r.bottom),
+          left: r2(r.left),
+        };
+      });
+    const a = await toRect(locA);
+    const b = await toRect(locB);
+    // Axis gap: positive separation, negative overlap (see case comment).
+    const axisGap = (aStart, aEnd, bStart, bEnd) => {
+      if (bStart >= aEnd) return Math.round((bStart - aEnd) * 100) / 100;
+      if (aStart >= bEnd) return Math.round((aStart - bEnd) * 100) / 100;
+      return Math.round(-(Math.min(aEnd, bEnd) - Math.max(aStart, bStart)) * 100) / 100;
+    };
+    const horizontal = axisGap(a.left, a.right, b.left, b.right);
+    const vertical = axisGap(a.top, a.bottom, b.top, b.bottom);
+    console.log(
+      JSON.stringify(
+        {
+          a,
+          b,
+          gap: {
+            horizontal,
+            vertical,
+            overlaps: horizontal < 0 && vertical < 0,
+          },
+        },
+        null,
+        2,
+      ),
+    );
     break;
   }
   case 'local-storage-get': {

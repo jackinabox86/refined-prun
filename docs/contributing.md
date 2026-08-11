@@ -189,6 +189,22 @@ merging" policy existed to avoid: two branches both adding a bullet under `## Un
 can conflict where they land near each other. Resolution is normally trivial (keep both
 bullets) — accept it as the tradeoff for PRs writing their own entries.
 
+### Editing a PR with `gh`
+
+If `gh pr edit` fails with a Projects (classic) deprecation notice naming
+`repository.pullRequest.projectCards`, `gh` is too old — it is requesting a GraphQL field GitHub
+removed. The error mentions Projects, not your edit, and the PR is left unchanged; `gh pr create`
+is unaffected. Ubuntu's own package (2.46.0) has this; 2.97.0 does not, so a fresh container that
+installed `gh` from the distro repo will hit it again. Fix by installing from `cli.github.com`
+rather than the distro, or work around it with REST:
+
+```
+gh api repos/<owner>/<repo>/pulls/<number> -X PATCH -f title="..." -F body=@body.md
+```
+
+Either way, check the exit code rather than eyeballing output: piping to `tail` reports the pipe's
+status, which hid this failure once already.
+
 ### Import Sorting
 
 Don't enable auto-import-sorting in your editor. It creates merge conflicts when the same file is touched in two branches. Import sorting should be project-wide (via eslint/prettier), not per-editor.

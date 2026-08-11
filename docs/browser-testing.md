@@ -103,7 +103,7 @@ arguments — that list lives in the script and is not duplicated here. Grouped 
 | Build/session | `reload-extension`, `reload` |
 | Open a tile | `open-buffer '<CMD>'`, `open-contd-template` |
 | Interact | `click`, `click-force`, `click-nth`, `ctrl-click`, `type`, `fill-nth`, `fill-file`, `press`, `press-on`, `select-option` |
-| Read state | `list-windows`, `dump-windows`, `window-text`, `styles`, `local-storage-get`, `contd-template-fields` |
+| Read state | `list-windows`, `dump-windows`, `window-text`, `styles`, `rect`, `rect-gap`, `local-storage-get`, `contd-template-fields` |
 | Look | `screenshot`, `screenshot-window` |
 | Window layout | `move-window`, `resize-window`, `close-window` |
 | Drag & drop | `mouse-drag`, `drag-stack`, `real-drag-stack`, `drag-probe` |
