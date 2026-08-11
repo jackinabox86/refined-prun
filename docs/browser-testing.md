@@ -248,6 +248,15 @@ Two consequences worth knowing before blaming the browser:
 - **In a scrolled tile the fixed `TileFrame__header` covers the topmost visible row.** A
   press aimed there lands on the header and no-ops, which looks like a broken feature.
   Verify the press point with `elementFromPoint` first and target rows fully below it.
+- **A row's click handler often lives on one cell, not the `<tr>`.** GOVBURN's planet view
+  binds its shift-click to the first `<td>`, so a `tr:has-text("...")` click can land its
+  centre outside that cell and silently no-op — the row just shows its hover highlight,
+  which reads like a broken feature. Target the cell (`td:has-text("...")`).
+- **A zero-width element can be unclickable in practice.** The `TileDivider` between split
+  panes computes to `width: 0px` with `cursor: col-resize`; `elementFromPoint` did not
+  return it at ±3px, so a scripted drag never grabbed it. Don't conclude the feature is
+  broken from that — ask the owner to drag it by hand, or drive the underlying state
+  (here, the `UI_TILES_CHANGE_SIZE` message) instead of the pixels.
 - **Vue `@change` handlers don't fire from synthetic events.** Setting `input.value` and
   dispatching `input`/`blur`/`focusout` never triggers `@change`, so an edit looks like it
   "doesn't persist" — a false product bug that cost a diagnosis round on GOVBURN's config
