@@ -204,6 +204,12 @@ swallows — an `execute()` body never runs past a failed game action. Code afte
 await (e.g. a `watchWhile` for a storage update that will now never come) can rely on
 this; don't wrap `waitActionFeedback` in a step-local try/catch or the hang comes back.
 
+**`ctx.skip()` and `ctx.fail()` do not unwind `execute()`** — unlike `waitActionFeedback`,
+they just advance/stop the machine and return, so the caller must `return` right after one.
+The reverse also holds: a step parked in `await waitAct()` when the machine moves on (user
+SKIP, or a self-skip from a reactive watcher) never resumes, and everything after that await
+— listener cleanup included — is dropped. Do teardown before the skip, not after the await.
+
 ### Reminder Pauses in ACT Steps
 
 When a step needs the player to do something manually in a companion buffer before the
@@ -231,6 +237,27 @@ during the pause is handled.
 - **`CX Buy` with `useCXInv: true` nets out warehouse stock**, so a PREVIEW showing
   `Buy 900` against `Transfer 1,000` of the same ticker is correct (100 already in the
   warehouse), not a quantity bug.
+- **A short CX order book only warns, never aborts the package.** Both the generation-time
+  check (`cx-buy.ts`) and the live one in `CXPO_BUY` log a warning and buy what
+  `fillAmount()` says is available; a ticker with nothing available is skipped. `buyPartial`
+  no longer decides whether a shortage is fatal — it only decides whether the quantity is
+  frozen at generation (on) or re-checked against the live book when the step runs (off).
+  `allowUnfilled` is the separate "rest the remainder as a standing bid" flag.
+- **Size follow-up steps by what the CX can fill.** An action that emits a purchase and then
+  emits steps consuming it must plan against `fillAmount()`, not the requested amount —
+  Refuel's `emitFuelPurchase` returns the fillable amount for exactly this reason. The
+  consuming steps survive either way (`MTRA_TRANSFER` clamps to the MTRA slider max and
+  warns), so what the sizing buys is *where the player finds out*: planned against the
+  request, the first ships are promised full loads and the last ones quietly get nothing,
+  one loading step at a time. Planned against the fill, the shortfall warns once, up front,
+  next to the purchase that caused it.
+- **`CXPO_BUY`'s quantity `watchEffect` reruns on every order-book tick** while the buffer
+  sits open waiting for ACT. Anything with a side effect inside it (logging above all) must
+  dedupe, or one slow CX fills the log with the same warning.
+- **Step `Data` is per-run, not persisted.** `action-steps/*` interfaces are rebuilt by
+  every generation pass, so fields can be added or dropped freely. `UserData.ActionData`
+  fields are the opposite: they persist in saved packages and are mirrored in
+  `agent-sync.ts`'s short-key map, so removing one needs a migration.
 
 ### Action-Specific Sentinel Values
 
@@ -375,6 +402,16 @@ feature; put durable state in `userData` instead.
 | `sumBy` | `@src/utils/sum-by` |
 
 ESLint bans `.reduce()` for summation (`no-restricted-syntax`) — use `sumBy(array, x => x.value)` instead.
+
+**Never use an auto-imported name as a local identifier in a module you want to unit-test.**
+unimport's injection is not scope-aware enough to see that a parameter or `const` already
+binds the name, so it adds the import anyway. For `config` that pulls in
+`@src/infrastructure/shell/config`, which touches `document` at module scope — the feature
+still works in the browser, but the moment a vitest file imports that module the whole test
+run dies with `document is not defined`, pointing at a module that never mentions the DOM.
+GOVBURN's `planetDays(planet, config, now)` hit exactly this and had to become
+`planetDays(planet, planetConfig, now)` before `utils.ts` could be tested. `config` is the
+sharp edge, but the rule covers every name in the table above.
 
 ---
 
@@ -620,6 +657,21 @@ Map getters are keyed by API values, which don't always match what the game UI s
 - `materialsStore.getByName` is keyed by the API's camelCase internal name (`basicRations`). UI text holds the i18n **display** name ("Basic Rations") — resolve that with `getMaterialByName` from `@src/infrastructure/prun-ui/i18n` instead (reverse direction: `getMaterialName`).
 - `stationsStore.getByNaturalId` is keyed by the station's **own** natural id (`MOR`), but game address fields canonicalize stations to their **system** id (`OT-580`). To resolve a system id to its station, search `stationsStore.all.value` by `getSystemLineFromAddress(x.address)?.entity.naturalId` (exported as `findStationBySystemId` from `@src/infrastructure/prun-ui/utils/select-address`).
 - `ship.address` is `null` while the ship is in flight. Docked, `getEntityNaturalIdFromAddress(ship.address)` gives the station's **own** natural id (`ANT`) — not the system id — so it compares directly against `stationsStore.getByNaturalId` keys.
+- Getters built with `createMapGetter`/`createGroupMapGetter` upper-case both the stored key and the lookup value, so they are already case-insensitive. Don't lower-case a parameter before passing it in, and don't add a case-normalizing wrapper of your own.
+
+### Core helpers can be feature-gated (returns nothing for most users)
+
+Not every helper in `src/core/` reads live game state unconditionally. `getInboundShipStores`
+(`src/core/burn.ts`) returns `[]` unless the `oog-burn-inflight-inventory` feature is on, and
+that feature ships **disabled by default** (`initialUserData.settings.disabled`) — so for most
+users it answers `[]` regardless of what ships are actually flying. It exists to answer "does
+in-flight cargo count toward this base's inventory", a deliberately opt-in accounting choice.
+
+Anything asking the *factual* question "is a ship already on its way to this planet" must use
+the ungated `getInboundShips` instead. The distinction is invisible at the call site and fails
+silently: XIT BS's pickup badge was written against the gated helper, so its clear-once-a-ship-
+is-dispatched rule would never have fired for a default install. Before reusing a `src/core/`
+helper, check whether its body opens with a feature-flag guard.
 
 ---
 
@@ -642,8 +694,14 @@ before the typed query's server round-trip, and bare station ids never appear as
 text — every one of those is a trap the helper already handles. Typing fires a read-only
 `NOMENCLATURE_QUERY_ADDRESSES` lookup, so the call must stay behind a user click.
 
-> ACT's `action-steps/cont-utils.ts` still carries its own weaker `selectLocation`. Migrate
-> it if you touch those code paths.
+ACT's `OPEN_SFC.ts`, `CONT_SEND.ts`, and `CONT_TRADE.ts` all call this helper directly for
+destination/origin/location fields — `cont-utils.ts`'s old `selectLocation` duplicate is gone.
+`OPEN_SFC` in particular used to burn two extra `waitAct` clicks (`Set destination?` /
+`Select destination?`) hand-rolling the type-then-click sequence `selectAddress` already does
+in one call, scoped to a raw `document.documentElement` lookup that could grab the wrong
+tile's input if more than one `AddressSelector` was open. Scope to the tile instead
+(`await $(tile.anchor, C.AddressSelector.container)`) and call `selectAddress` directly — no
+pause needed, since filling the field isn't a server-mutating action worth a reminder click.
 
 ---
 
@@ -715,12 +773,19 @@ watch(state, value => localStorage.setItem(key, value));
 
 ### Adding a Field to `initialUserData`
 
-A new field whose default in `initialUserData` (`src/store/user-data.ts`) already means
-"unset" (e.g. `lastSeenChangelogVersion: undefined`) needs no entry in
+A new **top-level** field whose default in `initialUserData` (`src/store/user-data.ts`)
+already means "unset" (e.g. `lastSeenChangelogVersion: undefined`) needs no entry in
 `user-data-migrations.ts`. `applyUserData`'s `Object.assign(userData, newData)` only
 overwrites keys present in the loaded blob — a key absent from an existing user's stored
 data (because it predates the field) is simply left at the `initialUserData` default.
 Migrations are only for transforming a field that already has a *different* stored value.
+
+**That exemption stops at the top level.** `Object.assign` is a shallow merge, so a loaded
+blob's `settings` object replaces the default `settings` wholesale — every *nested* new
+field (`settings.burn.planetPickup`) reads back `undefined` for existing users no matter
+what its `initialUserData` default is. Nested fields always need a migration, and reads on
+the path should stay defensive (`settings.burn.planetPickup?.[id]`, as `getResupplyDays`
+already does for `planetResupply`) to cover data written before the migration lands.
 
 ### Comparators in a Primary/Secondary Sort Chain
 
@@ -753,6 +818,13 @@ import { showBuffer } from '@src/infrastructure/prun-ui/buffers';
 
 showBuffer('CXM AI1.RAT');  // opens a buffer with the given command
 ```
+
+`showBuffer` applies only `correctXitArgs`, **not** the rest of the command-correction chain in
+`src/features/basic/correct-commands/`. That chain runs from a `submit` listener on each tile's
+own command-input `<form>`, so it covers what the player types and nothing else — neither
+`showBuffer` calls nor clicks on the game's own links and context items reach it. Pass a command
+that is already in its final form, and if a feature depends on a correction (planet name →
+natural id, `INV <planet>` → base store, ...) apply it explicitly before calling `showBuffer`.
 
 ### Auto-Opening a Buffer Once at Startup
 
@@ -899,6 +971,30 @@ createFragmentApp(() => (
   </div>
 )).prependTo(contextBar);
 ```
+
+### Overriding a native context item
+
+Native context items carry no command attributes. Match them on
+`_$(item, C.ContextControls.cmd)?.textContent` (the **verb only** — the parameter is a bare
+text node sibling). The game's click listener is on the outer `C.ContextControls.item` div, so a
+bubble-phase listener on that element with `e.preventDefault()` + `e.stopPropagation()` pre-empts
+it; then call `showBuffer` with the command you actually want.
+
+```ts
+subscribe($$(tile.frame, C.ContextControls.item), item => {
+  if (_$(item, C.ContextControls.cmd)?.textContent !== 'INV') {
+    return;
+  }
+  item.addEventListener('click', e => {
+    // Resolve desired target, then:
+    e.preventDefault();
+    e.stopPropagation();
+    void showBuffer(`INV ${storeId}`);
+  });
+});
+```
+
+See `src/features/basic/bs-inv-base-store-link.ts`.
 
 ---
 

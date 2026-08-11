@@ -230,4 +230,9 @@ declare namespace UserData {
   // 0: deliberately unsupplied — infinity days (green).
   // 1..upkeepCount: number of upkeep materials the player keeps supplied.
   type GovBurnPlanetConfig = Record<string, number>;
+
+  // Building ticker -> chosen upkeep material tickers, in slot order.
+  // Persists GOVBURNACT's slot picks; may be shorter than the configured
+  // count when some slots are still unresolved.
+  type GovBurnPlanetSlots = Record<string, string[]>;
 }

@@ -24,44 +24,6 @@ export async function waitFor(
   return false;
 }
 
-// AddressSelector suggestions are rendered in #autosuggest-portal outside the tile DOM.
-// Only one portal can be open at a time, so we search it directly.
-export async function selectLocation(container: Element, locationName: string): Promise<boolean> {
-  const input = (await $(container, C.AddressSelector.input)) as HTMLInputElement | null;
-  if (!input) {
-    return false;
-  }
-
-  const portal = document.getElementById('autosuggest-portal');
-  if (!portal) {
-    return false;
-  }
-
-  focusElement(input);
-  changeInputValue(input, locationName);
-
-  const appeared = await waitFor(
-    () => _$$(portal, C.AddressSelector.suggestionContent).length > 0,
-    5000,
-  );
-  if (!appeared) {
-    return false;
-  }
-
-  const suggestions = _$$(portal, C.AddressSelector.suggestionContent) as HTMLElement[];
-  const match =
-    suggestions.find(s =>
-      s.textContent?.trim().toLowerCase().includes(locationName.toLowerCase()),
-    ) ?? suggestions.at(0);
-
-  if (!match) {
-    return false;
-  }
-
-  await clickElement(match);
-  return true;
-}
-
 export async function selectMaterial(container: Element, ticker: string) {
   const input = (await $(container, C.MaterialSelector.input)) as HTMLInputElement | null;
   if (!input) {

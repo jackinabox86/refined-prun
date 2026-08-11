@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import LoadingSpinner from '@src/components/LoadingSpinner.vue';
 import NumberInput from '@src/components/forms/NumberInput.vue';
+import SelectInput from '@src/components/forms/SelectInput.vue';
 import Tooltip from '@src/components/Tooltip.vue';
 import InlineFlex from '@src/components/InlineFlex.vue';
 import { sitesStore } from '@src/infrastructure/prun-api/data/sites';
@@ -10,6 +11,7 @@ import {
 } from '@src/infrastructure/prun-api/data/addresses';
 import { userData } from '@src/store/user-data';
 import { comparePlanets } from '@src/util';
+import { shipSizes } from '@src/core/ship-sizes';
 
 interface Row {
   siteId: string;
@@ -51,6 +53,26 @@ function setResupplyOverride(naturalId: string, value: number | undefined) {
   }
 }
 
+// The empty value is the "no pickup tracking" option — SelectInput binds
+// strings, so the absence of an override is spelled as ''.
+const pickupOptions = [
+  { label: '—', value: '' },
+  ...shipSizes.map(x => ({ label: x.label, value: x.id })),
+];
+
+function getPickup(naturalId: string) {
+  return userData.settings.burn.planetPickup?.[naturalId] ?? '';
+}
+
+function setPickup(naturalId: string, value: string | undefined) {
+  const map = userData.settings.burn.planetPickup;
+  if (value === undefined || value === '') {
+    delete map[naturalId];
+  } else {
+    map[naturalId] = value;
+  }
+}
+
 function getRepairOverride(naturalId: string) {
   return userData.settings.repair.planetOverrides[naturalId];
 }
@@ -85,7 +107,8 @@ function setRepairField(
   <div v-else-if="rows.length === 0" :class="$style.empty">No bases yet</div>
   <template v-else>
     <div :class="$style.note">
-      Clear any field to remove its override and use the default value (from XIT SET / XIT REP).
+      Clear any number field to remove its override and use the default value (from XIT SET / XIT
+      REP).
     </div>
     <table :class="$style.table">
       <thead>
@@ -97,6 +120,14 @@ function setRepairField(
               <Tooltip
                 position="bottom"
                 :tooltip="`Per-planet override. Leave empty to use the default (${defaultResupply} days) from XIT SET.`" />
+            </InlineFlex>
+          </th>
+          <th>
+            <InlineFlex>
+              Pickup
+              <Tooltip
+                position="bottom"
+                tooltip="Cargo size (weight / volume) of the ship you collect this base's output with. XIT BS shows a green &#x1F680; next to the base's inventory bar 24 hours before the base's produced goods fill that ship — until a ship is in flight to the planet." />
             </InlineFlex>
           </th>
           <th>
@@ -125,6 +156,14 @@ function setRepairField(
               :model-value="getResupplyOverride(row.naturalId)"
               optional
               @update:model-value="setResupplyOverride(row.naturalId, $event)" />
+          </td>
+          <td :class="$style.pickup">
+            <div :class="[C.forms.input, $style.selectWrap]">
+              <SelectInput
+                :model-value="getPickup(row.naturalId)"
+                :options="pickupOptions"
+                @update:model-value="setPickup(row.naturalId, $event)" />
+            </div>
           </td>
           <td :class="$style.input">
             <NumberInput
@@ -176,6 +215,21 @@ function setRepairField(
   &:focus {
     outline: none;
   }
+}
+
+.pickup {
+  width: 110px;
+}
+
+.selectWrap {
+  width: 100%;
+  display: inline-block;
+  vertical-align: middle;
+}
+
+.selectWrap :global(div) {
+  width: 100%;
+  margin-left: 0;
 }
 
 .empty {

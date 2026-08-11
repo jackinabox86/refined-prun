@@ -27,7 +27,35 @@ intentional, so never work around it by widening the allowlist.
 Scope that bypass to commands that actually write config, though — a plain
 `git push origin <branch>` (no `-u`) touches only refs, and github.com is already an
 allowed host, so it runs fine sandboxed. Reaching for `dangerouslyDisableSandbox` "because
-it's a push" spends a user approval for nothing.
+it's a push" spends a user approval for nothing. Same trap on the branch side:
+`git checkout -b <new-branch>` off current HEAD moves no files and (branching from a local
+HEAD, not a remote-tracking ref) writes no config, so it needs no bypass either — the
+checkout rule above is about *switching between* existing branches.
+
+**Never `git add -A` from inside the sandbox.** The sandbox materializes its deny-mounts as
+`/dev/null` character devices at paths under the working directory — a sandboxed
+`git status` in a worktree listed `.bashrc`, `.gitconfig`, `.gitmodules`, `.zshrc` and a
+dozen more as untracked, and `git add -A` then aborted with
+`error: .bash_profile: can only add regular files, symbolic links or git-directories`,
+staging nothing. They are not real files (`git status` unsandboxed shows only your actual
+changes) and `git fetch` warning `unable to access '.gitmodules': Permission denied` is the
+same illusion. Stage explicit paths (`git add src/ CHANGELOG.md`) and the problem
+disappears — no bypass needed.
+
+A sandboxed command can also fail spuriously with
+`bwrap: Can't find source path /home/cyrus/.claude/local: No such file or directory`. That
+is a transient sandbox-setup race, not a denial: re-run the same command and it works.
+Reaching for `dangerouslyDisableSandbox` on the first sight of a `bwrap:` line spends an
+approval that a plain retry would have saved.
+
+## Bash working directory does not persist
+
+The tool description's "working directory persists between calls" does not hold here — a
+standalone `cd /some/path` returns `Shell cwd was reset to <session cwd>`. You cannot `cd`
+into the main checkout to run repo scripts by their relative path from a worktree session
+(and a compound `cd X && node scripts/...` breaks the `sandbox.excludedCommands` match,
+since only the FIRST segment is tested). Bridge the missing files into the worktree
+instead — see `docs/browser-testing.md` on symlinking `.local/`.
 
 Watch one non-obvious config write: `git branch -f <branch> origin/main`, used to reset a
 merged branch, *also* re-points that branch's upstream to `origin/main` via
@@ -47,6 +75,16 @@ libasound2t64` install in `docs/browser-testing.md`), hand the user the command 
 it in a real WSL terminal — Windows Terminal, or `wsl` from PowerShell — where it can prompt
 for their password. Everything after the install is normally sudo-free and runs fine in-session.
 
+The sandbox blocks reads of dotfile paths by bind-mounting `/dev/null` over them, and it does
+that relative to the *working directory* as well as `$HOME`. So a sandboxed `git status` in the
+repo root reports phantom untracked entries — `.bashrc`, `.zshrc`, `.profile`, `.gitconfig`,
+`.gitmodules`, `.mcp.json`, `.ripgreprc`, `.vscode`, `.claude/commands` — none of which exist
+outside the sandbox (`ls -l` shows them as character devices, `crw-rw-rw- ... 1, 3`). The same
+mounts make `git fetch` print `warning: unable to access '.gitmodules': Permission denied`; it is
+cosmetic and the fetch succeeds. Two consequences: never stage with `git add -A`/`git add .` from
+inside the sandbox — it would try to add character devices — always stage explicit paths; and
+read the real working-tree state with an unsandboxed `git status` before trusting it.
+
 ## Approvals are the scarce resource
 
 Allowlisted prefixes in `.claude/settings.json` only help when the command matches
@@ -65,6 +103,15 @@ literally. Things that quietly cost the user a manual approval:
   excluded command.
 - **Absolute paths.** `node /home/.../repo/scripts/pw-act.mjs` matches neither the
   allowlist nor the exclusion. Always invoke repo scripts by their relative path.
+
+## Web/cloud sessions
+
+The container is a fresh clone with **no `node_modules`**, so the first
+`pnpm run compile` fails with `Cannot find type definition file for 'chrome'` and
+`File '@vue/tsconfig/tsconfig.dom.json' not found` — that is a missing install, not a
+broken tsconfig. Run `pnpm install --frozen-lockfile` first. `grok` is not installed
+either, so implement directly per `AGENTS.md`, and the browser harness below is
+unavailable — say so once, don't try to stand it up.
 
 ## Browser harness specifics
 

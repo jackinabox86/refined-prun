@@ -57,12 +57,13 @@ export function buildingDays(building: UserData.GovBurnBuilding, n: number, now:
   return days;
 }
 
-// Min over buildings with level > 0 of buildingDays(config[ticker] ?? -1).
+// Min over buildings with level > 0 of buildingDays(planetConfig[ticker] ?? -1).
 // hasData is true iff any level > 0 building has upkeeps captured.
 // Unconfigured buildings drag the planet to 0 (red); all-zero config is infinity (green).
+// Named planetConfig (not config) so unimport does not inject shell config.
 export function planetDays(
   planet: UserData.GovBurnPlanet,
-  config: UserData.GovBurnPlanetConfig,
+  planetConfig: UserData.GovBurnPlanetConfig,
   now: number,
 ) {
   let days = Number.POSITIVE_INFINITY;
@@ -74,7 +75,7 @@ export function planetDays(
     if (building.upkeeps !== undefined) {
       hasData = true;
     }
-    const n = config[building.ticker] ?? -1;
+    const n = planetConfig[building.ticker] ?? -1;
     days = Math.min(days, buildingDays(building, n, now));
   }
   return { days, hasData };
@@ -183,6 +184,58 @@ export function rankSlots(building: UserData.GovBurnBuilding, n: number): SlotPi
   while (result.length < slotCount) {
     result.push({ ticker: '', source: 'manual' });
   }
+  return result;
+}
+
+// Builds the slot list for a building, preferring saved picks.
+// Saved tickers that are still present in the building's current upkeeps
+// and not already used by an earlier index are kept as manual picks.
+// Remaining indices are filled from rankSlots, then left unresolved.
+// Always returns exactly slotCount entries (n clamped to upkeeps.length).
+export function resolveSlots(
+  building: UserData.GovBurnBuilding,
+  n: number,
+  saved: string[] | undefined,
+): SlotPick[] {
+  const upkeeps = building.upkeeps ?? [];
+  const slotCount = Math.max(0, Math.min(n, upkeeps.length));
+  if (slotCount === 0) {
+    return [];
+  }
+
+  const valid = new Set(upkeeps.map(x => x.ticker));
+  const used = new Set<string>();
+  const result: SlotPick[] = Array.from({ length: slotCount }, () => ({
+    ticker: '',
+    source: 'manual' as const,
+  }));
+
+  for (let i = 0; i < slotCount; i++) {
+    const ticker = saved?.[i];
+    if (ticker === undefined || ticker === '' || !valid.has(ticker) || used.has(ticker)) {
+      continue;
+    }
+    used.add(ticker);
+    result[i] = { ticker, source: 'manual' };
+  }
+
+  const ranked = rankSlots(building, slotCount);
+  let rankIndex = 0;
+  for (let i = 0; i < slotCount; i++) {
+    if (result[i].ticker !== '') {
+      continue;
+    }
+    while (rankIndex < ranked.length) {
+      const pick = ranked[rankIndex++];
+      if (pick.ticker === '' || used.has(pick.ticker)) {
+        continue;
+      }
+      used.add(pick.ticker);
+      result[i] = pick;
+      break;
+    }
+  }
+
   return result;
 }
 

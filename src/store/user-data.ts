@@ -28,6 +28,8 @@ export const initialUserData = deepFreeze({
       yellow: 7,
       resupply: 16,
       planetResupply: {} as Record<string, number>,
+      // Planet natural id -> ship-size label from core/ship-sizes.
+      planetPickup: {} as Record<string, string>,
     },
     repair: {
       threshold: 60,
@@ -81,6 +83,7 @@ export const initialUserData = deepFreeze({
     planets: {} as Record<string, UserData.GovBurnPlanet>,
     config: {
       planets: {} as Record<string, UserData.GovBurnPlanetConfig>,
+      slots: {} as Record<string, UserData.GovBurnPlanetSlots>,
       resupplyDays: 30,
       red: 3,
       yellow: 7,

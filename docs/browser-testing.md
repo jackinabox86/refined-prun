@@ -61,6 +61,17 @@ before concluding anything is broken, grep `dist/` for a string unique to your c
 Re-check mid-run if a long session starts producing surprising results (this has happened
 live: another session rebuilt `dist/` from a different branch mid-test).
 
+**From a git worktree the harness needs two bridges.** `.local/` is gitignored, so a
+worktree has neither `pw-tools/` nor `browser-profile/`, and `scripts/pw-act.mjs` resolves
+them from its own repo root — every call dies with `Playwright is not installed at
+<worktree>/.local/pw-tools/node_modules/playwright`. Symlink it once
+(`ln -sfn <main-checkout>/.local <worktree>/.local`); it stays gitignored. Second, the
+running browser was launched with `--load-extension=<main-checkout>/dist`, so building in
+the worktree changes nothing it can see — copy the worktree's `dist/` over the main
+checkout's before reloading. That overwrites shared state the whole machine tests against,
+which is the hazard the worktree existed to avoid: confirm with the owner first if another
+session might be mid-run.
+
 ### 2. Launch
 
 ```
