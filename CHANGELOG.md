@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 1.1.1
+
 ### Added
 
 - `XIT WHATSNEW`: Shows release notes since last update, opened automatically after an update
