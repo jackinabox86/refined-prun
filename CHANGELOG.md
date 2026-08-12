@@ -26,4 +26,4 @@
 
 ## 1.1.0
 
-Existing features and the 1.1.0 patch additions can be found at 
+Existing features and the 1.1.0 patch additions can be found at https://chromewebstore.google.com/detail/oog-rprun-test-fork/pcakabdnefjhjdgbiapchkejbkhdeebn
