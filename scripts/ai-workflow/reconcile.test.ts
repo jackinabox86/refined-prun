@@ -157,6 +157,62 @@ describe('WorkflowReconciler', () => {
     );
   });
 
+  it('refuses archive while the multi-repo portfolio has unresolved drift', async () => {
+    const { reconciler, store } = await harness();
+    await reconciler.reconcile(seed());
+    const data = await store.read();
+    data.mappings['JAC-6'].portfolio.alert = {
+      state: 'attention',
+      reason: 'portfolio-drift:linked-worktree-missing',
+      since: '2026-08-14T13:00:00.000Z',
+      eventId: 'portfolio:JAC-6:1',
+      findings: [
+        {
+          code: 'linked-worktree-missing',
+          repositoryId: 'github:repo-id',
+          expected: 'C:\\worktree',
+          observed: 'missing',
+        },
+      ],
+    };
+    await store.write(data);
+
+    await expect(reconciler.archive('JAC-6', true, 'done')).rejects.toThrow(
+      'multi-repo portfolio state needs attention',
+    );
+  });
+
+  it('refuses archive of linked repositories until a clean audit exists', async () => {
+    const { reconciler, store } = await harness();
+    await reconciler.reconcile(seed());
+    const data = await store.read();
+    data.repositories['github:repo-id'] = {
+      id: 'github:repo-id',
+      provider: 'github',
+      providerRepositoryId: 'repo-id',
+      owner: 'example',
+      name: 'repo',
+      remoteUrl: 'https://github.com/example/repo',
+      defaultBranch: 'main',
+      localCheckout: 'C:\\repos\\repo',
+      worktreeRoot: 'C:\\repos\\worktrees',
+      archivePolicy: 'retain',
+      updatedAt: '2026-08-14T13:00:00.000Z',
+    };
+    data.mappings['JAC-6'].portfolio.repositories = [
+      {
+        repositoryId: 'github:repo-id',
+        role: 'primary',
+        branch: 'JAC-6-linear-buzz-reconciler',
+        worktree: 'C:\\worktrees\\JAC-6-linear-buzz-reconciler',
+        pullRequestUrl: null,
+      },
+    ];
+    await store.write(data);
+
+    await expect(reconciler.archive('JAC-6', true, 'done')).rejects.toThrow('current clean audit');
+  });
+
   it('archives once and preserves the archived mapping on later reconcile', async () => {
     const { reconciler, buzz } = await harness();
     await reconciler.reconcile(seed());
@@ -193,9 +249,10 @@ describe('JsonMappingStore', () => {
 
     const migrated = await new JsonMappingStore(path).read();
 
-    expect(migrated.schemaVersion).toBe(3);
+    expect(migrated.schemaVersion).toBe(4);
     expect(migrated.teamPolicies).toEqual({});
     expect(migrated.attentionPolicies).toEqual({});
+    expect(migrated.repositories).toEqual({});
     expect(migrated.mappings['JAC-6'].execution).toMatchObject({
       desiredState: 'archived',
       observedState: 'archived',
@@ -203,6 +260,7 @@ describe('JsonMappingStore', () => {
     });
     expect(migrated.mappings['JAC-6'].lifecycle.deliveries).toEqual([]);
     expect(migrated.mappings['JAC-6'].attention.status).toBe('idle');
+    expect(migrated.mappings['JAC-6'].portfolio.alert.state).toBe('clear');
   });
 
   it('migrates schema-v2 lifecycle state without losing archived mappings', async () => {
@@ -231,10 +289,53 @@ describe('JsonMappingStore', () => {
 
     const migrated = await new JsonMappingStore(path).read();
 
-    expect(migrated.schemaVersion).toBe(3);
+    expect(migrated.schemaVersion).toBe(4);
     expect(migrated.teamPolicies['team-id'].inReview.enabled).toBe(true);
     expect(migrated.mappings['JAC-6'].execution.observedState).toBe('archived');
     expect(migrated.mappings['JAC-6'].attention.status).toBe('idle');
+  });
+
+  it('migrates schema-v3 attention state without losing archived mappings', async () => {
+    const directory = await temporaryDirectory();
+    const path = join(directory, 'mappings.json');
+    const mapping = createMapping(seed(), 'channel-id', '2026-08-14T03:00:00.000Z');
+    mapping.execution.desiredState = 'archived';
+    mapping.execution.observedState = 'archived';
+    mapping.attention.status = 'healthy';
+    const base = structuredClone(mapping) as unknown as Record<string, unknown>;
+    delete base.portfolio;
+    await writeFile(
+      path,
+      JSON.stringify({
+        schemaVersion: 3,
+        teamPolicies: {},
+        attentionPolicies: {
+          'team-id': {
+            'https://github.com/example/repo': {
+              enabled: true,
+              staleAfterSeconds: 60,
+              maxSignals: 100,
+              updatedAt: '2026-08-14T03:30:00.000Z',
+            },
+          },
+        },
+        mappings: { 'JAC-6': { ...base, schemaVersion: 3 } },
+      }),
+      'utf8',
+    );
+
+    const migrated = await new JsonMappingStore(path).read();
+
+    expect(migrated.schemaVersion).toBe(4);
+    expect(migrated.attentionPolicies['team-id']['https://github.com/example/repo'].enabled).toBe(
+      true,
+    );
+    expect(migrated.mappings['JAC-6'].attention.status).toBe('healthy');
+    expect(migrated.mappings['JAC-6'].portfolio).toMatchObject({
+      repositories: [],
+      audits: [],
+      alert: { state: 'clear' },
+    });
   });
 
   it('rejects a duplicate Buzz channel invariant', async () => {

@@ -1,4 +1,4 @@
-export const STORE_SCHEMA_VERSION = 3;
+export const STORE_SCHEMA_VERSION = 4;
 
 export const MEMBER_ROLES = ['owner', 'admin', 'member', 'guest', 'bot'] as const;
 export type MemberRole = (typeof MEMBER_ROLES)[number];
@@ -26,6 +26,15 @@ export type AttentionStateName = (typeof ATTENTION_STATES)[number];
 
 export const ATTENTION_DELIVERY_OUTCOMES = ['none', 'pending', 'applied', 'failed'] as const;
 export type AttentionDeliveryOutcome = (typeof ATTENTION_DELIVERY_OUTCOMES)[number];
+
+export const REPOSITORY_PROVIDERS = ['github'] as const;
+export type RepositoryProvider = (typeof REPOSITORY_PROVIDERS)[number];
+
+export const REPOSITORY_LINK_ROLES = ['primary', 'related'] as const;
+export type RepositoryLinkRole = (typeof REPOSITORY_LINK_ROLES)[number];
+
+export const REPOSITORY_ARCHIVE_POLICIES = ['retain'] as const;
+export type RepositoryArchivePolicy = (typeof REPOSITORY_ARCHIVE_POLICIES)[number];
 
 export interface DesiredMember {
   pubkey: string;
@@ -106,6 +115,55 @@ export interface LifecycleState {
   };
 }
 
+export interface RepositoryRegistration {
+  id: string;
+  provider: RepositoryProvider;
+  providerRepositoryId: string;
+  owner: string;
+  name: string;
+  remoteUrl: string;
+  defaultBranch: string;
+  localCheckout: string;
+  worktreeRoot: string;
+  archivePolicy: RepositoryArchivePolicy;
+  updatedAt: string;
+}
+
+export interface PortfolioRepositoryLink {
+  repositoryId: string;
+  role: RepositoryLinkRole;
+  branch: string | null;
+  worktree: string | null;
+  pullRequestUrl: string | null;
+}
+
+export interface PortfolioFinding {
+  code: string;
+  repositoryId: string | null;
+  expected: string | null;
+  observed: string | null;
+}
+
+export interface PortfolioAuditRecord {
+  eventId: string;
+  observationHash: string;
+  observedAt: string;
+  outcome: 'clear' | 'attention';
+  findings: PortfolioFinding[];
+}
+
+export interface PortfolioState {
+  repositories: PortfolioRepositoryLink[];
+  audits: PortfolioAuditRecord[];
+  alert: {
+    state: 'clear' | 'attention';
+    reason: string | null;
+    since: string | null;
+    eventId: string | null;
+    findings: PortfolioFinding[];
+  };
+}
+
 export interface ReconcileRequest {
   key: string;
   title?: string;
@@ -126,7 +184,7 @@ export interface ReconcileRequest {
 }
 
 export interface TaskMapping {
-  schemaVersion: 3;
+  schemaVersion: 4;
   linear: {
     key: string;
     title: string;
@@ -159,12 +217,14 @@ export interface TaskMapping {
   };
   lifecycle: LifecycleState;
   attention: AttentionState;
+  portfolio: PortfolioState;
 }
 
 export interface MappingStoreData {
-  schemaVersion: 3;
+  schemaVersion: 4;
   teamPolicies: Record<string, TeamLifecyclePolicy>;
   attentionPolicies: Record<string, Record<string, AttentionPolicy>>;
+  repositories: Record<string, RepositoryRegistration>;
   mappings: Record<string, TaskMapping>;
 }
 
@@ -184,7 +244,11 @@ type CreationRequest = ReconcileRequest &
     >
   >;
 
-interface TaskMappingV2 extends Omit<TaskMapping, 'schemaVersion' | 'attention'> {
+interface TaskMappingV3 extends Omit<TaskMapping, 'schemaVersion' | 'portfolio'> {
+  schemaVersion: 3;
+}
+
+interface TaskMappingV2 extends Omit<TaskMappingV3, 'schemaVersion' | 'attention'> {
   schemaVersion: 2;
 }
 
@@ -220,11 +284,20 @@ export function emptyAttentionState(): AttentionState {
   };
 }
 
+export function emptyPortfolioState(): PortfolioState {
+  return {
+    repositories: [],
+    audits: [],
+    alert: { state: 'clear', reason: null, since: null, eventId: null, findings: [] },
+  };
+}
+
 export function emptyStore(): MappingStoreData {
   return {
     schemaVersion: STORE_SCHEMA_VERSION,
     teamPolicies: {},
     attentionPolicies: {},
+    repositories: {},
     mappings: {},
   };
 }
@@ -237,12 +310,15 @@ export function migrateStore(value: unknown) {
     assertValidStore(value);
     return value;
   }
-  if ((value.schemaVersion !== 1 && value.schemaVersion !== 2) || !isRecord(value.mappings)) {
+  if (
+    (value.schemaVersion !== 1 && value.schemaVersion !== 2 && value.schemaVersion !== 3) ||
+    !isRecord(value.mappings)
+  ) {
     throw new Error(`Unsupported mapping store schema; expected ${STORE_SCHEMA_VERSION}`);
   }
 
   const migrated = emptyStore();
-  if (value.schemaVersion === 2) {
+  if (value.schemaVersion === 2 || value.schemaVersion === 3) {
     if (!isRecord(value.teamPolicies)) {
       throw new Error('Schema-v2 mapping store must contain teamPolicies');
     }
@@ -253,20 +329,33 @@ export function migrateStore(value: unknown) {
       migrated.teamPolicies[teamId] = policy;
     }
   }
+  if (value.schemaVersion === 3) {
+    if (!isRecord(value.attentionPolicies)) {
+      throw new Error('Schema-v3 mapping store must contain attentionPolicies');
+    }
+    for (const [teamId, repositoryPolicies] of Object.entries(value.attentionPolicies)) {
+      if (teamId === '' || !isRecord(repositoryPolicies)) {
+        throw new Error(`Invalid attention policy team: ${teamId}`);
+      }
+      migrated.attentionPolicies[teamId] = repositoryPolicies as Record<string, AttentionPolicy>;
+    }
+  }
   for (const [key, candidate] of Object.entries(value.mappings)) {
     const base =
       value.schemaVersion === 1 && isTaskMappingV1(candidate)
-        ? { ...candidate, lifecycle: emptyLifecycleState() }
+        ? { ...candidate, lifecycle: emptyLifecycleState(), attention: emptyAttentionState() }
         : value.schemaVersion === 2 && isTaskMappingV2(candidate)
-          ? candidate
-          : undefined;
+          ? { ...candidate, attention: emptyAttentionState() }
+          : value.schemaVersion === 3 && isTaskMappingV3(candidate)
+            ? candidate
+            : undefined;
     if (base === undefined || base.linear.key !== key) {
       throw new Error(`Invalid mapping record: ${key}`);
     }
     migrated.mappings[key] = {
       ...base,
       schemaVersion: STORE_SCHEMA_VERSION,
-      attention: emptyAttentionState(),
+      portfolio: emptyPortfolioState(),
     };
   }
   assertValidStore(migrated);
@@ -337,6 +426,7 @@ export function createMapping(
     },
     lifecycle: emptyLifecycleState(),
     attention: emptyAttentionState(),
+    portfolio: emptyPortfolioState(),
   } satisfies TaskMapping;
 }
 
@@ -413,6 +503,9 @@ export function assertValidStore(value: unknown): asserts value is MappingStoreD
   if (!isRecord(value.attentionPolicies)) {
     throw new Error('Mapping store must contain an attentionPolicies object');
   }
+  if (!isRecord(value.repositories)) {
+    throw new Error('Mapping store must contain a repositories object');
+  }
   for (const [teamId, policy] of Object.entries(value.teamPolicies)) {
     if (teamId === '' || !isTeamLifecyclePolicy(policy)) {
       throw new Error(`Invalid team lifecycle policy: ${teamId}`);
@@ -428,12 +521,26 @@ export function assertValidStore(value: unknown): asserts value is MappingStoreD
       }
     }
   }
+  for (const [id, repository] of Object.entries(value.repositories)) {
+    if (
+      !isRepositoryRegistration(repository) ||
+      repository.id !== id ||
+      repository.id !== `${repository.provider}:${repository.providerRepositoryId}`
+    ) {
+      throw new Error(`Invalid repository registration: ${id}`);
+    }
+  }
 
   const channelIds = new Set<string>();
   const issueIds = new Set<string>();
   for (const [key, candidate] of Object.entries(value.mappings)) {
     if (!isTaskMapping(candidate) || candidate.linear.key !== key) {
       throw new Error(`Invalid mapping record: ${key}`);
+    }
+    for (const link of candidate.portfolio.repositories) {
+      if (value.repositories[link.repositoryId] === undefined) {
+        throw new Error(`Mapping ${key} references unregistered repository: ${link.repositoryId}`);
+      }
     }
     if (channelIds.has(candidate.buzz.channelId)) {
       throw new Error(`Duplicate Buzz channel mapping: ${candidate.buzz.channelId}`);
@@ -452,10 +559,19 @@ export function renderCanvas(
   mapping: TaskMapping,
   teamPolicy?: TeamLifecyclePolicy,
   attentionPolicy?: AttentionPolicy,
+  repositories: Record<string, RepositoryRegistration> = {},
 ) {
   const statusIds = mapping.linear.statusIds;
   const lastDelivery = mapping.lifecycle.deliveries.at(-1);
   const lastSignal = mapping.attention.signals.at(-1);
+  const repositoryLinks = mapping.portfolio.repositories
+    .map(link => {
+      const repository = repositories[link.repositoryId];
+      const label =
+        repository === undefined ? link.repositoryId : `${repository.owner}/${repository.name}`;
+      return `- \`${link.role}\`: ${label} (\`${link.repositoryId}\`)`;
+    })
+    .join('\n');
   return `# ${mapping.linear.key} - ${mapping.linear.title}
 
 ## Task truth
@@ -491,6 +607,14 @@ export function renderCanvas(
 - Stall reason: ${mapping.attention.stallReason ?? 'none'}
 - Linear \`needs-human\`: desired \`${mapping.attention.label.desired}\`; observed \`${mapping.attention.label.observed ?? 'unknown'}\`; delivery \`${mapping.attention.label.outcome}\`
 
+## Multi-repo portfolio
+
+- Registered links: \`${mapping.portfolio.repositories.length}\`
+${repositoryLinks === '' ? '- Repositories: none' : repositoryLinks}
+- Audit ledger entries: \`${mapping.portfolio.audits.length}\`
+- Portfolio alert: \`${mapping.portfolio.alert.state}\`${mapping.portfolio.alert.reason === null ? '' : ` - ${mapping.portfolio.alert.reason}`}
+- Portfolio findings: \`${mapping.portfolio.alert.findings.length}\`
+
 ## Recovery check
 
 1. Read this canvas and the mapping store.
@@ -498,6 +622,7 @@ export function renderCanvas(
 3. Verify \`HEAD\`, \`git status\`, and the current Linear lifecycle state before editing.
 4. Reconcile lifecycle and \`needs-human\` truth before retrying a pending or failed delivery.
 5. Verify the latest heartbeat is healthy before writing; handoffs transfer the same pointers and owner.
+6. Re-run the read-only portfolio audit and resolve every finding before archive.
 
 ## Guardrails
 
@@ -506,6 +631,7 @@ export function renderCanvas(
 - Lifecycle projection may move In Progress to In Review only; native merge-to-Done remains primary.
 - Attention projection changes only the \`needs-human\` label and canvas, never lifecycle.
 - Archive only after Linear is Done and lifecycle/attention delivery state is clear.
+- Portfolio reconciliation emits structured evidence only; it never repairs or deletes.
 - Never remove the worktree or branch without clean-status and unique-commit checks.
 `;
 }
@@ -525,6 +651,18 @@ function isTaskMapping(value: unknown): value is TaskMapping {
     'lifecycle' in value &&
     isLifecycleState(value.lifecycle) &&
     'attention' in value &&
+    isAttentionState(value.attention) &&
+    'portfolio' in value &&
+    isPortfolioState(value.portfolio)
+  );
+}
+
+function isTaskMappingV3(value: unknown): value is TaskMappingV3 {
+  return (
+    isBaseTaskMapping(value, 3) &&
+    'lifecycle' in value &&
+    isLifecycleState(value.lifecycle) &&
+    'attention' in value &&
     isAttentionState(value.attention)
   );
 }
@@ -539,8 +677,8 @@ function isTaskMappingV1(value: unknown): value is TaskMappingV1 {
 
 function isBaseTaskMapping(
   value: unknown,
-  schemaVersion: 1 | 2 | 3,
-): value is TaskMapping | TaskMappingV1 | TaskMappingV2 {
+  schemaVersion: 1 | 2 | 3 | 4,
+): value is TaskMapping | TaskMappingV1 | TaskMappingV2 | TaskMappingV3 {
   if (!isRecord(value) || value.schemaVersion !== schemaVersion) {
     return false;
   }
@@ -583,6 +721,85 @@ function isBaseTaskMapping(
     typeof value.execution.updatedAt === 'string' &&
     (value.execution.archivedAt === null || typeof value.execution.archivedAt === 'string') &&
     (value.execution.lastError === null || typeof value.execution.lastError === 'string')
+  );
+}
+
+function isRepositoryRegistration(value: unknown): value is RepositoryRegistration {
+  return (
+    isRecord(value) &&
+    typeof value.id === 'string' &&
+    typeof value.provider === 'string' &&
+    REPOSITORY_PROVIDERS.includes(value.provider as RepositoryProvider) &&
+    typeof value.providerRepositoryId === 'string' &&
+    value.providerRepositoryId !== '' &&
+    typeof value.owner === 'string' &&
+    value.owner !== '' &&
+    typeof value.name === 'string' &&
+    value.name !== '' &&
+    typeof value.remoteUrl === 'string' &&
+    value.remoteUrl !== '' &&
+    typeof value.defaultBranch === 'string' &&
+    value.defaultBranch !== '' &&
+    typeof value.localCheckout === 'string' &&
+    value.localCheckout !== '' &&
+    typeof value.worktreeRoot === 'string' &&
+    value.worktreeRoot !== '' &&
+    typeof value.archivePolicy === 'string' &&
+    REPOSITORY_ARCHIVE_POLICIES.includes(value.archivePolicy as RepositoryArchivePolicy) &&
+    typeof value.updatedAt === 'string'
+  );
+}
+
+function isPortfolioState(value: unknown): value is PortfolioState {
+  return (
+    isRecord(value) &&
+    Array.isArray(value.repositories) &&
+    value.repositories.every(isPortfolioRepositoryLink) &&
+    new Set(value.repositories.map(x => x.repositoryId)).size === value.repositories.length &&
+    value.repositories.filter(x => x.role === 'primary').length <= 1 &&
+    Array.isArray(value.audits) &&
+    value.audits.every(isPortfolioAuditRecord) &&
+    isRecord(value.alert) &&
+    (value.alert.state === 'clear' || value.alert.state === 'attention') &&
+    (value.alert.reason === null || typeof value.alert.reason === 'string') &&
+    (value.alert.since === null || typeof value.alert.since === 'string') &&
+    (value.alert.eventId === null || typeof value.alert.eventId === 'string') &&
+    Array.isArray(value.alert.findings) &&
+    value.alert.findings.every(isPortfolioFinding)
+  );
+}
+
+function isPortfolioRepositoryLink(value: unknown): value is PortfolioRepositoryLink {
+  return (
+    isRecord(value) &&
+    typeof value.repositoryId === 'string' &&
+    typeof value.role === 'string' &&
+    REPOSITORY_LINK_ROLES.includes(value.role as RepositoryLinkRole) &&
+    (value.branch === null || typeof value.branch === 'string') &&
+    (value.worktree === null || typeof value.worktree === 'string') &&
+    (value.pullRequestUrl === null || typeof value.pullRequestUrl === 'string')
+  );
+}
+
+function isPortfolioAuditRecord(value: unknown): value is PortfolioAuditRecord {
+  return (
+    isRecord(value) &&
+    typeof value.eventId === 'string' &&
+    typeof value.observationHash === 'string' &&
+    typeof value.observedAt === 'string' &&
+    (value.outcome === 'clear' || value.outcome === 'attention') &&
+    Array.isArray(value.findings) &&
+    value.findings.every(isPortfolioFinding)
+  );
+}
+
+function isPortfolioFinding(value: unknown): value is PortfolioFinding {
+  return (
+    isRecord(value) &&
+    typeof value.code === 'string' &&
+    (value.repositoryId === null || typeof value.repositoryId === 'string') &&
+    (value.expected === null || typeof value.expected === 'string') &&
+    (value.observed === null || typeof value.observed === 'string')
   );
 }
 
