@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { mkdir, open, readFile, rename, unlink, writeFile } from 'node:fs/promises';
 import { dirname } from 'node:path';
-import { assertValidStore, emptyStore, type MappingStoreData } from './model.ts';
+import { assertValidStore, emptyStore, migrateStore, type MappingStoreData } from './model.ts';
 
 export class JsonMappingStore {
   readonly path: string;
@@ -23,8 +23,7 @@ export class JsonMappingStore {
       throw error;
     }
     const parsed: unknown = JSON.parse(content);
-    assertValidStore(parsed);
-    return parsed;
+    return migrateStore(parsed);
   }
 
   async write(data: MappingStoreData) {

@@ -3,7 +3,13 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import type { BuzzGateway, ChannelSummary } from './buzz.ts';
-import { emptyStore, renderCanvas, type DesiredMember, type ReconcileRequest } from './model.ts';
+import {
+  createMapping,
+  emptyStore,
+  renderCanvas,
+  type DesiredMember,
+  type ReconcileRequest,
+} from './model.ts';
 import { WorkflowReconciler } from './reconcile.ts';
 import { JsonMappingStore } from './store.ts';
 
@@ -149,6 +155,36 @@ describe('WorkflowReconciler', () => {
 });
 
 describe('JsonMappingStore', () => {
+  it('migrates schema-v1 mappings without losing archived execution state', async () => {
+    const directory = await temporaryDirectory();
+    const path = join(directory, 'mappings.json');
+    const mapping = createMapping(seed(), 'channel-id', '2026-08-14T03:00:00.000Z');
+    mapping.execution.desiredState = 'archived';
+    mapping.execution.observedState = 'archived';
+    mapping.execution.archivedAt = '2026-08-14T04:00:00.000Z';
+    const base = structuredClone(mapping) as unknown as Record<string, unknown>;
+    delete base.lifecycle;
+    await writeFile(
+      path,
+      JSON.stringify({
+        schemaVersion: 1,
+        mappings: { 'JAC-6': { ...base, schemaVersion: 1 } },
+      }),
+      'utf8',
+    );
+
+    const migrated = await new JsonMappingStore(path).read();
+
+    expect(migrated.schemaVersion).toBe(2);
+    expect(migrated.teamPolicies).toEqual({});
+    expect(migrated.mappings['JAC-6'].execution).toMatchObject({
+      desiredState: 'archived',
+      observedState: 'archived',
+      archivedAt: '2026-08-14T04:00:00.000Z',
+    });
+    expect(migrated.mappings['JAC-6'].lifecycle.deliveries).toEqual([]);
+  });
+
   it('rejects a duplicate Buzz channel invariant', async () => {
     const directory = await temporaryDirectory();
     const path = join(directory, 'mappings.json');
