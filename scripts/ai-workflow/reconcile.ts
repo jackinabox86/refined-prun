@@ -6,6 +6,7 @@ import {
   mergeDesiredMembers,
   normalizeIssueKey,
   renderCanvas,
+  type LinearLifecycleState,
   type ReconcileRequest,
   type TaskMapping,
 } from './model.ts';
@@ -60,7 +61,11 @@ export class WorkflowReconciler {
         mapping.execution.observedState = 'active';
         mapping.execution.lastError = null;
         mapping.execution.updatedAt = this.now().toISOString();
-        const desiredCanvas = renderCanvas(mapping, data.teamPolicies[mapping.linear.teamId]);
+        const desiredCanvas = renderCanvas(
+          mapping,
+          data.teamPolicies[mapping.linear.teamId],
+          data.attentionPolicies[mapping.linear.teamId]?.[mapping.git.repository],
+        );
         const currentCanvas = await this.buzz.getCanvas(mapping.buzz.channelId);
         if (currentCanvas === desiredCanvas) {
           actions.push('canvas-current');
@@ -90,7 +95,7 @@ export class WorkflowReconciler {
     return mapping;
   }
 
-  async archive(issueKey: string, confirmed: boolean) {
+  async archive(issueKey: string, confirmed: boolean, linearState?: LinearLifecycleState) {
     if (!confirmed) {
       throw new Error('Archive requires --confirm');
     }
@@ -104,19 +109,35 @@ export class WorkflowReconciler {
       if (mapping.execution.desiredState === 'archived') {
         return { mapping, actions: ['already-archived'] } satisfies ReconcileResult;
       }
+      assertArchiveReady(mapping, linearState);
 
       try {
-        await this.buzz.archiveChannel(mapping.buzz.channelId);
         const now = this.now().toISOString();
         mapping.execution.desiredState = 'archived';
         mapping.execution.observedState = 'archived';
         mapping.execution.archivedAt = now;
         mapping.execution.updatedAt = now;
         mapping.execution.lastError = null;
+        const actions: string[] = [];
+        const finalCanvas = renderCanvas(
+          mapping,
+          data.teamPolicies[mapping.linear.teamId],
+          data.attentionPolicies[mapping.linear.teamId]?.[mapping.git.repository],
+        );
+        if ((await this.buzz.getCanvas(mapping.buzz.channelId)) === finalCanvas) {
+          actions.push('final-canvas-current');
+        } else {
+          await this.buzz.setCanvas(mapping.buzz.channelId, finalCanvas);
+          actions.push('updated-final-canvas');
+        }
+        await this.buzz.archiveChannel(mapping.buzz.channelId);
+        actions.push('archived-channel');
         await this.store.write(data);
-        return { mapping, actions: ['archived-channel'] } satisfies ReconcileResult;
+        return { mapping, actions } satisfies ReconcileResult;
       } catch (error) {
+        mapping.execution.desiredState = 'active';
         mapping.execution.observedState = 'error';
+        mapping.execution.archivedAt = null;
         mapping.execution.lastError = errorMessage(error);
         mapping.execution.updatedAt = this.now().toISOString();
         await this.store.write(data);
@@ -166,6 +187,28 @@ export class WorkflowReconciler {
       await this.buzz.addMember(mapping.buzz.channelId, member);
       actions.push(`set-member:${member.pubkey}:${member.role}`);
     }
+  }
+}
+
+function assertArchiveReady(mapping: TaskMapping, linearState: LinearLifecycleState | undefined) {
+  if (linearState !== 'done') {
+    throw new Error('Archive requires current Linear state --linear-state done');
+  }
+  if (
+    mapping.lifecycle.alert.state === 'attention' ||
+    mapping.lifecycle.deliveries.some(x => x.outcome === 'pending' || x.outcome === 'failed')
+  ) {
+    throw new Error('Archive refused while lifecycle delivery state needs attention');
+  }
+  const label = mapping.attention.label;
+  if (
+    mapping.attention.status === 'attention' ||
+    label.desired ||
+    label.observed === true ||
+    label.outcome === 'pending' ||
+    label.outcome === 'failed'
+  ) {
+    throw new Error('Archive refused while structured attention is not clear');
   }
 }
 

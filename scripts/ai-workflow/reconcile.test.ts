@@ -139,14 +139,32 @@ describe('WorkflowReconciler', () => {
     expect(buzz.archiveCount).toBe(0);
   });
 
+  it('refuses archive until Linear is Done and structured attention is clear', async () => {
+    const { reconciler, store } = await harness();
+    await reconciler.reconcile(seed());
+
+    await expect(reconciler.archive('JAC-6', true, 'in-review')).rejects.toThrow(
+      'requires current Linear state',
+    );
+
+    const data = await store.read();
+    data.mappings['JAC-6'].attention.status = 'attention';
+    data.mappings['JAC-6'].attention.stallReason = 'heartbeat-stale';
+    await store.write(data);
+
+    await expect(reconciler.archive('JAC-6', true, 'done')).rejects.toThrow(
+      'structured attention is not clear',
+    );
+  });
+
   it('archives once and preserves the archived mapping on later reconcile', async () => {
     const { reconciler, buzz } = await harness();
     await reconciler.reconcile(seed());
-    const first = await reconciler.archive('JAC-6', true);
+    const first = await reconciler.archive('JAC-6', true, 'done');
     const second = await reconciler.archive('JAC-6', true);
     const recovered = await reconciler.reconcile({ key: 'JAC-6' });
 
-    expect(first.actions).toEqual(['archived-channel']);
+    expect(first.actions).toEqual(['updated-final-canvas', 'archived-channel']);
     expect(second.actions).toEqual(['already-archived']);
     expect(recovered.actions).toEqual(['preserved-archived-channel']);
     expect(buzz.archiveCount).toBe(1);
@@ -175,14 +193,48 @@ describe('JsonMappingStore', () => {
 
     const migrated = await new JsonMappingStore(path).read();
 
-    expect(migrated.schemaVersion).toBe(2);
+    expect(migrated.schemaVersion).toBe(3);
     expect(migrated.teamPolicies).toEqual({});
+    expect(migrated.attentionPolicies).toEqual({});
     expect(migrated.mappings['JAC-6'].execution).toMatchObject({
       desiredState: 'archived',
       observedState: 'archived',
       archivedAt: '2026-08-14T04:00:00.000Z',
     });
     expect(migrated.mappings['JAC-6'].lifecycle.deliveries).toEqual([]);
+    expect(migrated.mappings['JAC-6'].attention.status).toBe('idle');
+  });
+
+  it('migrates schema-v2 lifecycle state without losing archived mappings', async () => {
+    const directory = await temporaryDirectory();
+    const path = join(directory, 'mappings.json');
+    const mapping = createMapping(seed(), 'channel-id', '2026-08-14T03:00:00.000Z');
+    mapping.execution.desiredState = 'archived';
+    mapping.execution.observedState = 'archived';
+    mapping.execution.archivedAt = '2026-08-14T04:00:00.000Z';
+    const base = structuredClone(mapping) as unknown as Record<string, unknown>;
+    delete base.attention;
+    await writeFile(
+      path,
+      JSON.stringify({
+        schemaVersion: 2,
+        teamPolicies: {
+          'team-id': {
+            inReview: { enabled: true, staleAfterSeconds: 300, maxDeliveries: 100 },
+            updatedAt: '2026-08-14T03:30:00.000Z',
+          },
+        },
+        mappings: { 'JAC-6': { ...base, schemaVersion: 2 } },
+      }),
+      'utf8',
+    );
+
+    const migrated = await new JsonMappingStore(path).read();
+
+    expect(migrated.schemaVersion).toBe(3);
+    expect(migrated.teamPolicies['team-id'].inReview.enabled).toBe(true);
+    expect(migrated.mappings['JAC-6'].execution.observedState).toBe('archived');
+    expect(migrated.mappings['JAC-6'].attention.status).toBe('idle');
   });
 
   it('rejects a duplicate Buzz channel invariant', async () => {
