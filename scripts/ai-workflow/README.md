@@ -1,12 +1,12 @@
 # Linear-Buzz workflow reconciler, lifecycle, and attention projector
 
-Manual-trigger bridge for one Linear issue to one Buzz task channel. It stores structured pointers, creates or recovers one channel, keeps the channel canvas current, and archives only after verified completion. Its opt-in lifecycle projector handles only the measured In Progress to In Review gap. Its opt-in attention projector tracks heartbeat, stalls, recovery, and ownership handoff without storing chat. Native GitHub-to-Linear merge-to-Done remains primary.
+Manual-trigger bridge for one Linear issue to one Buzz task channel. It stores structured pointers, creates or recovers one channel, keeps the channel canvas current, and archives only after verified completion. Its opt-in lifecycle projector handles only the measured In Progress to In Review gap. Its opt-in attention projector tracks heartbeat, stalls, recovery, and ownership handoff without storing chat. Its portfolio reconciler links allowlisted repositories and records read-only drift evidence without repairing or deleting anything. Native GitHub-to-Linear merge-to-Done remains primary.
 
 The bridge does not call Linear directly. The initiating agent reads Linear through its authenticated connector and supplies the issue snapshot on the first reconcile. Later reconciles need only the issue key and mapping store. This keeps OAuth credentials out of the repository and mapping data.
 
 ## Runtime state
 
-Keep the mapping store outside the repository. Set `AI_WORKFLOW_MAPPING_STORE` or pass `--store` on every invocation. The store uses schema version 3, atomic replacement, and a local lock file. Existing schema-v1 and schema-v2 mappings migrate on the next write without losing lifecycle or archive state.
+Keep the mapping store outside the repository. Set `AI_WORKFLOW_MAPPING_STORE` or pass `--store` on every invocation. The store uses schema version 4, atomic replacement, and a local lock file. Existing schema-v1 through schema-v3 mappings migrate on the next write without losing lifecycle, attention, or archive state.
 
 ```powershell
 $env:AI_WORKFLOW_MAPPING_STORE = 'C:\Users\cyrus\.buzz\.state\ai-workflow\mappings.json'
@@ -113,6 +113,37 @@ pnpm workflow attention-ack JAC-8 --store $env:AI_WORKFLOW_MAPPING_STORE `
 
 Attention changes only Linear's `needs-human` label and the Buzz canvas. It never changes lifecycle status. The history is bounded, carries no credentials or chat, and records only stable signal identity, owner, time, handoff target, and concise reason.
 
+## Multi-repo portfolio reconciliation
+
+Register repositories with the provider's immutable repository ID. Metadata changes are refused unless an operator has reviewed the move or rename and supplies `--replace-metadata`. Paths are allowlisted data only; the tool never uses them to move or delete files.
+
+```powershell
+pnpm workflow repository-register JAC-9 --store $env:AI_WORKFLOW_MAPPING_STORE `
+  --provider github --provider-id '<github-node-id>' `
+  --repository-owner jackinabox86 --repository-name refined-prun `
+  --remote-url 'https://github.com/jackinabox86/refined-prun' `
+  --default-branch main `
+  --local-checkout 'C:\Users\cyrus\.buzz\REPOS\refined-prun' `
+  --worktree-root 'C:\Users\cyrus\.buzz\REPOS\worktrees' `
+  --archive-policy retain
+
+pnpm workflow portfolio-link JAC-9 --store $env:AI_WORKFLOW_MAPPING_STORE `
+  --repository-id 'github:<github-node-id>' --role primary `
+  --artifact-branch 'JAC-9-multi-repo-portfolio' `
+  --artifact-worktree 'C:\Users\cyrus\.buzz\REPOS\worktrees\JAC-9-multi-repo-portfolio'
+```
+
+A task has at most one primary repository pointer and may link any number of related read-only repositories. The primary link must exactly retain the mapping's branch and worktree. Related links may carry a branch, worktree, or pull-request pointer when the task actually owns one.
+
+The authenticated operator gathers current Linear, Buzz, GitHub, and local Git truth into an observation JSON file outside the repository, then runs:
+
+```powershell
+pnpm workflow portfolio-audit JAC-9 --store $env:AI_WORKFLOW_MAPPING_STORE `
+  --observation-file 'C:\Users\cyrus\.buzz\.scratch\JAC-9-observation.json'
+```
+
+The observation includes a replay-stable `eventId`, `observedAt`, current Linear and Buzz state, and one record per linked repository: immutable provider ID, owner/name, remote, default branch, local checkout presence, branches, worktrees, and pull-request URLs. Exact replay is a no-op. Missing or contradictory artifacts become one structured alert in the mapping and canvas. A later clean observation clears it. The audit ledger is bounded to 100 records and stores no credentials, chat, prompts, or code.
+
 ## Recovery and archive
 
 ```powershell
@@ -122,7 +153,7 @@ pnpm workflow archive JAC-6 --store $env:AI_WORKFLOW_MAPPING_STORE `
   --confirm --linear-state done
 ```
 
-Archive is idempotent and completion-gated. It refuses an active mapping unless Linear is Done, lifecycle deliveries are resolved, and structured attention plus `needs-human` delivery state are clear. It writes a final canvas before archiving. A later reconcile preserves the archived mapping and never creates a replacement channel. The tool has no delete operation.
+Archive is idempotent and completion-gated. It refuses an active mapping unless Linear is Done, lifecycle deliveries are resolved, structured attention plus `needs-human` delivery state are clear, and every linked repository has a current clean audit. It writes a final canvas before archiving. A later reconcile preserves the archived mapping and never creates a replacement channel. The tool has no repair or delete operation.
 
 ## Validation
 

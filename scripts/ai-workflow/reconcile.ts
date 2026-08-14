@@ -65,6 +65,7 @@ export class WorkflowReconciler {
           mapping,
           data.teamPolicies[mapping.linear.teamId],
           data.attentionPolicies[mapping.linear.teamId]?.[mapping.git.repository],
+          data.repositories,
         );
         const currentCanvas = await this.buzz.getCanvas(mapping.buzz.channelId);
         if (currentCanvas === desiredCanvas) {
@@ -123,6 +124,7 @@ export class WorkflowReconciler {
           mapping,
           data.teamPolicies[mapping.linear.teamId],
           data.attentionPolicies[mapping.linear.teamId]?.[mapping.git.repository],
+          data.repositories,
         );
         if ((await this.buzz.getCanvas(mapping.buzz.channelId)) === finalCanvas) {
           actions.push('final-canvas-current');
@@ -209,6 +211,15 @@ function assertArchiveReady(mapping: TaskMapping, linearState: LinearLifecycleSt
     label.outcome === 'failed'
   ) {
     throw new Error('Archive refused while structured attention is not clear');
+  }
+  if (mapping.portfolio.alert.state === 'attention') {
+    throw new Error('Archive refused while multi-repo portfolio state needs attention');
+  }
+  if (
+    mapping.portfolio.repositories.length > 0 &&
+    mapping.portfolio.audits.at(-1)?.outcome !== 'clear'
+  ) {
+    throw new Error('Archive refused until linked repositories have a current clean audit');
   }
 }
 

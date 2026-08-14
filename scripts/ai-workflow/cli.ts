@@ -5,6 +5,9 @@ import { LifecycleProjector } from './lifecycle.ts';
 import {
   LINEAR_LIFECYCLE_STATES,
   ATTENTION_SIGNAL_KINDS,
+  REPOSITORY_ARCHIVE_POLICIES,
+  REPOSITORY_LINK_ROLES,
+  REPOSITORY_PROVIDERS,
   REVIEW_EVENT_KINDS,
   parseMemberRole,
   normalizePubkey,
@@ -13,12 +16,25 @@ import {
   type LinearLifecycleState,
   type LinearStatusIds,
   type ReconcileRequest,
+  type RepositoryArchivePolicy,
+  type RepositoryLinkRole,
+  type RepositoryProvider,
   type ReviewEventKind,
+  type TaskMapping,
 } from './model.ts';
+import { PortfolioReconciler } from './portfolio.ts';
 import { WorkflowReconciler } from './reconcile.ts';
 import { JsonMappingStore } from './store.ts';
 
-const SWITCHES = new Set(['adopt-existing', 'confirm', 'disable', 'enable', 'help']);
+const SWITCHES = new Set([
+  'adopt-existing',
+  'confirm',
+  'disable',
+  'enable',
+  'help',
+  'replace-artifacts',
+  'replace-metadata',
+]);
 
 async function main() {
   const rawArguments = process.argv.slice(2);
@@ -48,6 +64,7 @@ async function main() {
   const reconciler = new WorkflowReconciler(store, buzz);
   const lifecycle = new LifecycleProjector(store);
   const attention = new AttentionProjector(store);
+  const portfolio = new PortfolioReconciler(store);
 
   if (parsed.command === 'inspect') {
     printJson(await reconciler.inspect(issueKey));
@@ -61,6 +78,41 @@ async function main() {
         optionalLinearState(option(parsed, 'linear-state')),
       ),
     );
+    return;
+  }
+  if (parsed.command === 'repository-register') {
+    const result = await portfolio.register({
+      issueKey,
+      provider: repositoryProvider(requiredOption(parsed, 'provider')),
+      providerRepositoryId: requiredOption(parsed, 'provider-id'),
+      owner: requiredOption(parsed, 'repository-owner'),
+      name: requiredOption(parsed, 'repository-name'),
+      remoteUrl: requiredOption(parsed, 'remote-url'),
+      defaultBranch: requiredOption(parsed, 'default-branch'),
+      localCheckout: requiredOption(parsed, 'local-checkout'),
+      worktreeRoot: requiredOption(parsed, 'worktree-root'),
+      archivePolicy: repositoryArchivePolicy(option(parsed, 'archive-policy') ?? 'retain'),
+      replaceMetadata: parsed.switches.has('replace-metadata'),
+    });
+    printJson(await withCanvas(result, reconciler, issueKey));
+    return;
+  }
+  if (parsed.command === 'portfolio-link') {
+    const result = await portfolio.link({
+      issueKey,
+      repositoryId: requiredOption(parsed, 'repository-id'),
+      role: repositoryLinkRole(requiredOption(parsed, 'role')),
+      branch: option(parsed, 'artifact-branch'),
+      worktree: option(parsed, 'artifact-worktree'),
+      pullRequestUrl: option(parsed, 'pull-request-url'),
+      replaceArtifacts: parsed.switches.has('replace-artifacts'),
+    });
+    printJson(await withCanvas(result, reconciler, issueKey));
+    return;
+  }
+  if (parsed.command === 'portfolio-audit') {
+    const result = await portfolio.auditFile(issueKey, requiredOption(parsed, 'observation-file'));
+    printJson(await withCanvas(result, reconciler, issueKey));
     return;
   }
   if (parsed.command === 'attention-configure') {
@@ -354,13 +406,34 @@ function printJson(value: unknown) {
   process.stdout.write(`${JSON.stringify(value, null, 2)}\n`);
 }
 
-async function withCanvas(
-  result: Awaited<ReturnType<AttentionProjector['observe']>>,
+async function withCanvas<T extends { mapping: TaskMapping }>(
+  result: T,
   reconciler: WorkflowReconciler,
   issueKey: string,
 ) {
   const canvas = await reconciler.reconcile({ key: issueKey });
   return { ...result, mapping: canvas.mapping, canvasActions: canvas.actions };
+}
+
+function repositoryProvider(value: string): RepositoryProvider {
+  if (!REPOSITORY_PROVIDERS.includes(value as RepositoryProvider)) {
+    throw new Error(`Invalid --provider: ${value}`);
+  }
+  return value as RepositoryProvider;
+}
+
+function repositoryLinkRole(value: string): RepositoryLinkRole {
+  if (!REPOSITORY_LINK_ROLES.includes(value as RepositoryLinkRole)) {
+    throw new Error(`Invalid --role: ${value}`);
+  }
+  return value as RepositoryLinkRole;
+}
+
+function repositoryArchivePolicy(value: string): RepositoryArchivePolicy {
+  if (!REPOSITORY_ARCHIVE_POLICIES.includes(value as RepositoryArchivePolicy)) {
+    throw new Error(`Invalid --archive-policy: ${value}`);
+  }
+  return value as RepositoryArchivePolicy;
 }
 
 function toKebabCase(value: string) {
@@ -378,6 +451,9 @@ Usage:
   pnpm workflow heartbeat ISSUE-ID --store PATH --event-id ID --kind KIND --owner OWNER
   pnpm workflow attention-ack ISSUE-ID --store PATH --delivery-id ID --result applied|failed
   pnpm workflow attention-reconcile ISSUE-ID --store PATH --linear-state STATE --linear-needs-human present|absent
+  pnpm workflow repository-register ISSUE-ID --store PATH --provider github --provider-id ID [metadata options]
+  pnpm workflow portfolio-link ISSUE-ID --store PATH --repository-id ID --role primary|related
+  pnpm workflow portfolio-audit ISSUE-ID --store PATH --observation-file ABSOLUTE_PATH
   pnpm workflow lifecycle-configure ISSUE-ID --store PATH --enable|--disable
   pnpm workflow lifecycle-observe ISSUE-ID --store PATH --event-id ID --event-kind KIND --source URL --linear-state STATE
   pnpm workflow lifecycle-ack ISSUE-ID --store PATH --event-id ID --result applied|failed [--error TEXT]
@@ -412,6 +488,15 @@ Attention options:
   --linear-needs-human present|absent
   --stale-after-seconds N (default 900)
   --max-signals N (default 100)
+
+Repository and portfolio options:
+  --provider github --provider-id IMMUTABLE_PROVIDER_ID
+  --repository-owner OWNER --repository-name NAME --remote-url URL
+  --default-branch NAME --local-checkout ABSOLUTE_PATH --worktree-root ABSOLUTE_PATH
+  --archive-policy retain [--replace-metadata]
+  --repository-id PROVIDER:ID --role primary|related
+  --artifact-branch NAME --artifact-worktree ABSOLUTE_PATH --pull-request-url URL
+  --replace-artifacts
 `;
 }
 
