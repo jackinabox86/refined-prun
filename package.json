@@ -20,7 +20,6 @@
     "lint": "pnpm exec eslint --concurrency auto",
     "prepare": "husky",
     "prettier": "prettier . --write --ignore-path .prettierignore",
-    "workflow": "node --experimental-strip-types scripts/ai-workflow/cli.ts",
     "open": "scripts\\open-local.bat",
     "test": "vitest run"
   },
