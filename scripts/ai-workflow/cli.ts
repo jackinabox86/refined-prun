@@ -1,12 +1,15 @@
 import { resolve } from 'node:path';
+import { AttentionProjector } from './attention.ts';
 import { BuzzCliGateway } from './buzz.ts';
 import { LifecycleProjector } from './lifecycle.ts';
 import {
   LINEAR_LIFECYCLE_STATES,
+  ATTENTION_SIGNAL_KINDS,
   REVIEW_EVENT_KINDS,
   parseMemberRole,
   normalizePubkey,
   type DesiredMember,
+  type AttentionSignalKind,
   type LinearLifecycleState,
   type LinearStatusIds,
   type ReconcileRequest,
@@ -44,13 +47,64 @@ async function main() {
   const buzz = new BuzzCliGateway(option(parsed, 'buzz-bin') ?? process.env.BUZZ_CLI ?? 'buzz');
   const reconciler = new WorkflowReconciler(store, buzz);
   const lifecycle = new LifecycleProjector(store);
+  const attention = new AttentionProjector(store);
 
   if (parsed.command === 'inspect') {
     printJson(await reconciler.inspect(issueKey));
     return;
   }
   if (parsed.command === 'archive') {
-    printJson(await reconciler.archive(issueKey, parsed.switches.has('confirm')));
+    printJson(
+      await reconciler.archive(
+        issueKey,
+        parsed.switches.has('confirm'),
+        optionalLinearState(option(parsed, 'linear-state')),
+      ),
+    );
+    return;
+  }
+  if (parsed.command === 'attention-configure') {
+    const enabled = exactlyOneSwitch(parsed, 'enable', 'disable') === 'enable';
+    const result = await attention.configure({
+      issueKey,
+      enabled,
+      staleAfterSeconds: integerOption(parsed, 'stale-after-seconds', 900),
+      maxSignals: integerOption(parsed, 'max-signals', 100),
+    });
+    printJson(await withCanvas(result, reconciler, issueKey));
+    return;
+  }
+  if (parsed.command === 'heartbeat') {
+    const result = await attention.observe({
+      issueKey,
+      eventId: requiredOption(parsed, 'event-id'),
+      kind: attentionSignalKind(requiredOption(parsed, 'kind')),
+      owner: requiredOption(parsed, 'owner'),
+      observedAt: option(parsed, 'observed-at'),
+      reason: option(parsed, 'reason'),
+      nextOwner: option(parsed, 'next-owner'),
+    });
+    printJson(await withCanvas(result, reconciler, issueKey));
+    return;
+  }
+  if (parsed.command === 'attention-ack') {
+    const result = await attention.acknowledge({
+      issueKey,
+      deliveryId: requiredOption(parsed, 'delivery-id'),
+      result: acknowledgmentResult(requiredOption(parsed, 'result')),
+      error: option(parsed, 'error'),
+    });
+    printJson(await withCanvas(result, reconciler, issueKey));
+    return;
+  }
+  if (parsed.command === 'attention-reconcile') {
+    const result = await attention.reconcile({
+      issueKey,
+      linearState: linearState(requiredOption(parsed, 'linear-state')),
+      linearNeedsHuman: linearNeedsHuman(requiredOption(parsed, 'linear-needs-human')),
+      now: option(parsed, 'now'),
+    });
+    printJson(await withCanvas(result, reconciler, issueKey));
     return;
   }
   if (parsed.command === 'lifecycle-configure') {
@@ -271,6 +325,24 @@ function linearState(value: string): LinearLifecycleState {
   return value as LinearLifecycleState;
 }
 
+function optionalLinearState(value: string | undefined) {
+  return value === undefined ? undefined : linearState(value);
+}
+
+function attentionSignalKind(value: string): AttentionSignalKind {
+  if (!ATTENTION_SIGNAL_KINDS.includes(value as AttentionSignalKind)) {
+    throw new Error(`Invalid --kind: ${value}`);
+  }
+  return value as AttentionSignalKind;
+}
+
+function linearNeedsHuman(value: string) {
+  if (value !== 'present' && value !== 'absent') {
+    throw new Error(`Invalid --linear-needs-human: ${value}`);
+  }
+  return value === 'present';
+}
+
 function acknowledgmentResult(value: string) {
   if (value !== 'applied' && value !== 'failed') {
     throw new Error(`Invalid --result: ${value}`);
@@ -280,6 +352,15 @@ function acknowledgmentResult(value: string) {
 
 function printJson(value: unknown) {
   process.stdout.write(`${JSON.stringify(value, null, 2)}\n`);
+}
+
+async function withCanvas(
+  result: Awaited<ReturnType<AttentionProjector['observe']>>,
+  reconciler: WorkflowReconciler,
+  issueKey: string,
+) {
+  const canvas = await reconciler.reconcile({ key: issueKey });
+  return { ...result, mapping: canvas.mapping, canvasActions: canvas.actions };
 }
 
 function toKebabCase(value: string) {
@@ -292,7 +373,11 @@ function helpText() {
 Usage:
   pnpm workflow reconcile ISSUE-ID --store PATH [metadata options]
   pnpm workflow inspect ISSUE-ID --store PATH
-  pnpm workflow archive ISSUE-ID --store PATH --confirm
+  pnpm workflow archive ISSUE-ID --store PATH --confirm --linear-state done
+  pnpm workflow attention-configure ISSUE-ID --store PATH --enable|--disable
+  pnpm workflow heartbeat ISSUE-ID --store PATH --event-id ID --kind KIND --owner OWNER
+  pnpm workflow attention-ack ISSUE-ID --store PATH --delivery-id ID --result applied|failed
+  pnpm workflow attention-reconcile ISSUE-ID --store PATH --linear-state STATE --linear-needs-human present|absent
   pnpm workflow lifecycle-configure ISSUE-ID --store PATH --enable|--disable
   pnpm workflow lifecycle-observe ISSUE-ID --store PATH --event-id ID --event-kind KIND --source URL --linear-state STATE
   pnpm workflow lifecycle-ack ISSUE-ID --store PATH --event-id ID --result applied|failed [--error TEXT]
@@ -318,6 +403,15 @@ Lifecycle options:
   --observed-at ISO
   --stale-after-seconds N (default 300)
   --max-deliveries N (default 100)
+
+Attention options:
+  --kind progress|stall|recovery|handoff
+  --observed-at ISO
+  --reason TEXT (required for stall; concise structured reason, not chat)
+  --next-owner OWNER (required for handoff)
+  --linear-needs-human present|absent
+  --stale-after-seconds N (default 900)
+  --max-signals N (default 100)
 `;
 }
 

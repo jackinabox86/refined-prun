@@ -1,4 +1,4 @@
-export const STORE_SCHEMA_VERSION = 2;
+export const STORE_SCHEMA_VERSION = 3;
 
 export const MEMBER_ROLES = ['owner', 'admin', 'member', 'guest', 'bot'] as const;
 export type MemberRole = (typeof MEMBER_ROLES)[number];
@@ -17,6 +17,15 @@ export type LinearLifecycleState = (typeof LINEAR_LIFECYCLE_STATES)[number];
 
 export const DELIVERY_OUTCOMES = ['pending', 'applied', 'ignored', 'failed'] as const;
 export type DeliveryOutcome = (typeof DELIVERY_OUTCOMES)[number];
+
+export const ATTENTION_SIGNAL_KINDS = ['progress', 'stall', 'recovery', 'handoff'] as const;
+export type AttentionSignalKind = (typeof ATTENTION_SIGNAL_KINDS)[number];
+
+export const ATTENTION_STATES = ['idle', 'healthy', 'attention', 'recovered'] as const;
+export type AttentionStateName = (typeof ATTENTION_STATES)[number];
+
+export const ATTENTION_DELIVERY_OUTCOMES = ['none', 'pending', 'applied', 'failed'] as const;
+export type AttentionDeliveryOutcome = (typeof ATTENTION_DELIVERY_OUTCOMES)[number];
 
 export interface DesiredMember {
   pubkey: string;
@@ -37,6 +46,40 @@ export interface TeamLifecyclePolicy {
     maxDeliveries: number;
   };
   updatedAt: string;
+}
+
+export interface AttentionPolicy {
+  enabled: boolean;
+  staleAfterSeconds: number;
+  maxSignals: number;
+  updatedAt: string;
+}
+
+export interface AttentionSignal {
+  id: string;
+  kind: AttentionSignalKind;
+  observedAt: string;
+  owner: string;
+  nextOwner: string | null;
+  reason: string | null;
+}
+
+export interface AttentionState {
+  status: AttentionStateName;
+  signals: AttentionSignal[];
+  lastProgressAt: string | null;
+  lastObservedAt: string | null;
+  stallReason: string | null;
+  label: {
+    desired: boolean;
+    observed: boolean | null;
+    deliveryId: string | null;
+    outcome: AttentionDeliveryOutcome;
+    reason: string | null;
+    updatedAt: string | null;
+    attempts: number;
+    lastError: string | null;
+  };
 }
 
 export interface LifecycleDelivery {
@@ -83,7 +126,7 @@ export interface ReconcileRequest {
 }
 
 export interface TaskMapping {
-  schemaVersion: 2;
+  schemaVersion: 3;
   linear: {
     key: string;
     title: string;
@@ -115,11 +158,13 @@ export interface TaskMapping {
     lastError: string | null;
   };
   lifecycle: LifecycleState;
+  attention: AttentionState;
 }
 
 export interface MappingStoreData {
-  schemaVersion: 2;
+  schemaVersion: 3;
   teamPolicies: Record<string, TeamLifecyclePolicy>;
+  attentionPolicies: Record<string, Record<string, AttentionPolicy>>;
   mappings: Record<string, TaskMapping>;
 }
 
@@ -139,7 +184,11 @@ type CreationRequest = ReconcileRequest &
     >
   >;
 
-interface TaskMappingV1 extends Omit<TaskMapping, 'schemaVersion' | 'lifecycle'> {
+interface TaskMappingV2 extends Omit<TaskMapping, 'schemaVersion' | 'attention'> {
+  schemaVersion: 2;
+}
+
+interface TaskMappingV1 extends Omit<TaskMappingV2, 'schemaVersion' | 'lifecycle'> {
   schemaVersion: 1;
 }
 
@@ -151,8 +200,33 @@ export function emptyLifecycleState(): LifecycleState {
   };
 }
 
+export function emptyAttentionState(): AttentionState {
+  return {
+    status: 'idle',
+    signals: [],
+    lastProgressAt: null,
+    lastObservedAt: null,
+    stallReason: null,
+    label: {
+      desired: false,
+      observed: null,
+      deliveryId: null,
+      outcome: 'none',
+      reason: null,
+      updatedAt: null,
+      attempts: 0,
+      lastError: null,
+    },
+  };
+}
+
 export function emptyStore(): MappingStoreData {
-  return { schemaVersion: STORE_SCHEMA_VERSION, teamPolicies: {}, mappings: {} };
+  return {
+    schemaVersion: STORE_SCHEMA_VERSION,
+    teamPolicies: {},
+    attentionPolicies: {},
+    mappings: {},
+  };
 }
 
 export function migrateStore(value: unknown) {
@@ -163,19 +237,36 @@ export function migrateStore(value: unknown) {
     assertValidStore(value);
     return value;
   }
-  if (value.schemaVersion !== 1 || !isRecord(value.mappings)) {
+  if ((value.schemaVersion !== 1 && value.schemaVersion !== 2) || !isRecord(value.mappings)) {
     throw new Error(`Unsupported mapping store schema; expected ${STORE_SCHEMA_VERSION}`);
   }
 
   const migrated = emptyStore();
+  if (value.schemaVersion === 2) {
+    if (!isRecord(value.teamPolicies)) {
+      throw new Error('Schema-v2 mapping store must contain teamPolicies');
+    }
+    for (const [teamId, policy] of Object.entries(value.teamPolicies)) {
+      if (teamId === '' || !isTeamLifecyclePolicy(policy)) {
+        throw new Error(`Invalid team lifecycle policy: ${teamId}`);
+      }
+      migrated.teamPolicies[teamId] = policy;
+    }
+  }
   for (const [key, candidate] of Object.entries(value.mappings)) {
-    if (!isTaskMappingV1(candidate) || candidate.linear.key !== key) {
+    const base =
+      value.schemaVersion === 1 && isTaskMappingV1(candidate)
+        ? { ...candidate, lifecycle: emptyLifecycleState() }
+        : value.schemaVersion === 2 && isTaskMappingV2(candidate)
+          ? candidate
+          : undefined;
+    if (base === undefined || base.linear.key !== key) {
       throw new Error(`Invalid mapping record: ${key}`);
     }
     migrated.mappings[key] = {
-      ...candidate,
+      ...base,
       schemaVersion: STORE_SCHEMA_VERSION,
-      lifecycle: emptyLifecycleState(),
+      attention: emptyAttentionState(),
     };
   }
   assertValidStore(migrated);
@@ -245,6 +336,7 @@ export function createMapping(
       lastError: null,
     },
     lifecycle: emptyLifecycleState(),
+    attention: emptyAttentionState(),
   } satisfies TaskMapping;
 }
 
@@ -318,9 +410,22 @@ export function assertValidStore(value: unknown): asserts value is MappingStoreD
   if (!isRecord(value.teamPolicies) || !isRecord(value.mappings)) {
     throw new Error('Mapping store must contain teamPolicies and mappings objects');
   }
+  if (!isRecord(value.attentionPolicies)) {
+    throw new Error('Mapping store must contain an attentionPolicies object');
+  }
   for (const [teamId, policy] of Object.entries(value.teamPolicies)) {
     if (teamId === '' || !isTeamLifecyclePolicy(policy)) {
       throw new Error(`Invalid team lifecycle policy: ${teamId}`);
+    }
+  }
+  for (const [teamId, repositoryPolicies] of Object.entries(value.attentionPolicies)) {
+    if (teamId === '' || !isRecord(repositoryPolicies)) {
+      throw new Error(`Invalid attention policy team: ${teamId}`);
+    }
+    for (const [repository, policy] of Object.entries(repositoryPolicies)) {
+      if (repository === '' || !isAttentionPolicy(policy)) {
+        throw new Error(`Invalid attention policy: ${teamId}/${repository}`);
+      }
     }
   }
 
@@ -343,9 +448,14 @@ export function assertValidStore(value: unknown): asserts value is MappingStoreD
   }
 }
 
-export function renderCanvas(mapping: TaskMapping, teamPolicy?: TeamLifecyclePolicy) {
+export function renderCanvas(
+  mapping: TaskMapping,
+  teamPolicy?: TeamLifecyclePolicy,
+  attentionPolicy?: AttentionPolicy,
+) {
   const statusIds = mapping.linear.statusIds;
   const lastDelivery = mapping.lifecycle.deliveries.at(-1);
+  const lastSignal = mapping.attention.signals.at(-1);
   return `# ${mapping.linear.key} - ${mapping.linear.title}
 
 ## Task truth
@@ -372,20 +482,30 @@ export function renderCanvas(mapping: TaskMapping, teamPolicy?: TeamLifecyclePol
 - Last delivery: ${lastDelivery === undefined ? 'none' : `\`${lastDelivery.id}\` (${lastDelivery.outcome}: ${lastDelivery.reason})`}
 - Alert: \`${mapping.lifecycle.alert.state}\`${mapping.lifecycle.alert.reason === null ? '' : ` - ${mapping.lifecycle.alert.reason}`}
 
+## Structured attention and heartbeat
+
+- Attention policy: \`${attentionPolicy?.enabled === true ? 'enabled' : 'disabled'}\`${attentionPolicy === undefined ? '' : `; stale after ${attentionPolicy.staleAfterSeconds}s`}
+- Heartbeat state: \`${mapping.attention.status}\`
+- Last progress: ${mapping.attention.lastProgressAt ?? 'none'}
+- Last signal: ${lastSignal === undefined ? 'none' : `\`${lastSignal.id}\` (${lastSignal.kind})`}
+- Stall reason: ${mapping.attention.stallReason ?? 'none'}
+- Linear \`needs-human\`: desired \`${mapping.attention.label.desired}\`; observed \`${mapping.attention.label.observed ?? 'unknown'}\`; delivery \`${mapping.attention.label.outcome}\`
+
 ## Recovery check
 
 1. Read this canvas and the mapping store.
 2. Verify \`git worktree list\` contains the recorded worktree and branch.
 3. Verify \`HEAD\`, \`git status\`, and the current Linear lifecycle state before editing.
-4. Reconcile lifecycle state from Linear truth before retrying a pending or failed delivery.
-5. Only the recorded owner writes in the worktree; handoffs transfer these same pointers.
+4. Reconcile lifecycle and \`needs-human\` truth before retrying a pending or failed delivery.
+5. Verify the latest heartbeat is healthy before writing; handoffs transfer the same pointers and owner.
 
 ## Guardrails
 
 - Never synchronize chat into Linear or GitHub.
 - Reconcile creates or updates structured pointers; it never deletes.
 - Lifecycle projection may move In Progress to In Review only; native merge-to-Done remains primary.
-- Archive the channel only after completion is verified.
+- Attention projection changes only the \`needs-human\` label and canvas, never lifecycle.
+- Archive only after Linear is Done and lifecycle/attention delivery state is clear.
 - Never remove the worktree or branch without clean-status and unique-commit checks.
 `;
 }
@@ -403,8 +523,14 @@ function isTaskMapping(value: unknown): value is TaskMapping {
   return (
     isBaseTaskMapping(value, STORE_SCHEMA_VERSION) &&
     'lifecycle' in value &&
-    isLifecycleState(value.lifecycle)
+    isLifecycleState(value.lifecycle) &&
+    'attention' in value &&
+    isAttentionState(value.attention)
   );
+}
+
+function isTaskMappingV2(value: unknown): value is TaskMappingV2 {
+  return isBaseTaskMapping(value, 2) && 'lifecycle' in value && isLifecycleState(value.lifecycle);
 }
 
 function isTaskMappingV1(value: unknown): value is TaskMappingV1 {
@@ -413,8 +539,8 @@ function isTaskMappingV1(value: unknown): value is TaskMappingV1 {
 
 function isBaseTaskMapping(
   value: unknown,
-  schemaVersion: 1 | 2,
-): value is TaskMapping | TaskMappingV1 {
+  schemaVersion: 1 | 2 | 3,
+): value is TaskMapping | TaskMappingV1 | TaskMappingV2 {
   if (!isRecord(value) || value.schemaVersion !== schemaVersion) {
     return false;
   }
@@ -502,6 +628,54 @@ function isTeamLifecyclePolicy(value: unknown): value is TeamLifecyclePolicy {
     isPositiveInteger(value.inReview.staleAfterSeconds) &&
     isPositiveInteger(value.inReview.maxDeliveries) &&
     typeof value.updatedAt === 'string'
+  );
+}
+
+function isAttentionPolicy(value: unknown): value is AttentionPolicy {
+  return (
+    isRecord(value) &&
+    typeof value.enabled === 'boolean' &&
+    isPositiveInteger(value.staleAfterSeconds) &&
+    isPositiveInteger(value.maxSignals) &&
+    typeof value.updatedAt === 'string'
+  );
+}
+
+function isAttentionState(value: unknown): value is AttentionState {
+  return (
+    isRecord(value) &&
+    typeof value.status === 'string' &&
+    ATTENTION_STATES.includes(value.status as AttentionStateName) &&
+    Array.isArray(value.signals) &&
+    value.signals.every(isAttentionSignal) &&
+    (value.lastProgressAt === null || typeof value.lastProgressAt === 'string') &&
+    (value.lastObservedAt === null || typeof value.lastObservedAt === 'string') &&
+    (value.stallReason === null || typeof value.stallReason === 'string') &&
+    isRecord(value.label) &&
+    typeof value.label.desired === 'boolean' &&
+    (value.label.observed === null || typeof value.label.observed === 'boolean') &&
+    (value.label.deliveryId === null || typeof value.label.deliveryId === 'string') &&
+    typeof value.label.outcome === 'string' &&
+    ATTENTION_DELIVERY_OUTCOMES.includes(value.label.outcome as AttentionDeliveryOutcome) &&
+    (value.label.reason === null || typeof value.label.reason === 'string') &&
+    (value.label.updatedAt === null || typeof value.label.updatedAt === 'string') &&
+    typeof value.label.attempts === 'number' &&
+    Number.isSafeInteger(value.label.attempts) &&
+    value.label.attempts >= 0 &&
+    (value.label.lastError === null || typeof value.label.lastError === 'string')
+  );
+}
+
+function isAttentionSignal(value: unknown): value is AttentionSignal {
+  return (
+    isRecord(value) &&
+    typeof value.id === 'string' &&
+    typeof value.kind === 'string' &&
+    ATTENTION_SIGNAL_KINDS.includes(value.kind as AttentionSignalKind) &&
+    typeof value.observedAt === 'string' &&
+    typeof value.owner === 'string' &&
+    (value.nextOwner === null || typeof value.nextOwner === 'string') &&
+    (value.reason === null || typeof value.reason === 'string')
   );
 }
 
