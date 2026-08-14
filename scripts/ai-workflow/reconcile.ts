@@ -60,7 +60,7 @@ export class WorkflowReconciler {
         mapping.execution.observedState = 'active';
         mapping.execution.lastError = null;
         mapping.execution.updatedAt = this.now().toISOString();
-        const desiredCanvas = renderCanvas(mapping);
+        const desiredCanvas = renderCanvas(mapping, data.teamPolicies[mapping.linear.teamId]);
         const currentCanvas = await this.buzz.getCanvas(mapping.buzz.channelId);
         if (currentCanvas === desiredCanvas) {
           actions.push('canvas-current');

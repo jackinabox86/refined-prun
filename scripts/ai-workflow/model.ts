@@ -1,7 +1,22 @@
-export const STORE_SCHEMA_VERSION = 1;
+export const STORE_SCHEMA_VERSION = 2;
 
 export const MEMBER_ROLES = ['owner', 'admin', 'member', 'guest', 'bot'] as const;
 export type MemberRole = (typeof MEMBER_ROLES)[number];
+
+export const REVIEW_EVENT_KINDS = ['ready-for-review', 'review-activity'] as const;
+export type ReviewEventKind = (typeof REVIEW_EVENT_KINDS)[number];
+
+export const LINEAR_LIFECYCLE_STATES = [
+  'todo',
+  'in-progress',
+  'in-review',
+  'done',
+  'other',
+] as const;
+export type LinearLifecycleState = (typeof LINEAR_LIFECYCLE_STATES)[number];
+
+export const DELIVERY_OUTCOMES = ['pending', 'applied', 'ignored', 'failed'] as const;
+export type DeliveryOutcome = (typeof DELIVERY_OUTCOMES)[number];
 
 export interface DesiredMember {
   pubkey: string;
@@ -13,6 +28,39 @@ export interface LinearStatusIds {
   inProgress: string;
   inReview: string;
   done: string;
+}
+
+export interface TeamLifecyclePolicy {
+  inReview: {
+    enabled: boolean;
+    staleAfterSeconds: number;
+    maxDeliveries: number;
+  };
+  updatedAt: string;
+}
+
+export interface LifecycleDelivery {
+  id: string;
+  kind: ReviewEventKind;
+  source: string;
+  observedAt: string;
+  updatedAt: string;
+  outcome: DeliveryOutcome;
+  reason: string;
+  targetStatusId: string | null;
+  attempts: number;
+  lastError: string | null;
+}
+
+export interface LifecycleState {
+  deliveries: LifecycleDelivery[];
+  lastObservedAt: string | null;
+  alert: {
+    state: 'clear' | 'attention';
+    reason: string | null;
+    since: string | null;
+    deliveryId: string | null;
+  };
 }
 
 export interface ReconcileRequest {
@@ -35,7 +83,7 @@ export interface ReconcileRequest {
 }
 
 export interface TaskMapping {
-  schemaVersion: 1;
+  schemaVersion: 2;
   linear: {
     key: string;
     title: string;
@@ -66,10 +114,12 @@ export interface TaskMapping {
     archivedAt: string | null;
     lastError: string | null;
   };
+  lifecycle: LifecycleState;
 }
 
 export interface MappingStoreData {
-  schemaVersion: 1;
+  schemaVersion: 2;
+  teamPolicies: Record<string, TeamLifecyclePolicy>;
   mappings: Record<string, TaskMapping>;
 }
 
@@ -89,8 +139,47 @@ type CreationRequest = ReconcileRequest &
     >
   >;
 
+interface TaskMappingV1 extends Omit<TaskMapping, 'schemaVersion' | 'lifecycle'> {
+  schemaVersion: 1;
+}
+
+export function emptyLifecycleState(): LifecycleState {
+  return {
+    deliveries: [],
+    lastObservedAt: null,
+    alert: { state: 'clear', reason: null, since: null, deliveryId: null },
+  };
+}
+
 export function emptyStore(): MappingStoreData {
-  return { schemaVersion: STORE_SCHEMA_VERSION, mappings: {} };
+  return { schemaVersion: STORE_SCHEMA_VERSION, teamPolicies: {}, mappings: {} };
+}
+
+export function migrateStore(value: unknown) {
+  if (!isRecord(value)) {
+    throw new Error(`Unsupported mapping store schema; expected ${STORE_SCHEMA_VERSION}`);
+  }
+  if (value.schemaVersion === STORE_SCHEMA_VERSION) {
+    assertValidStore(value);
+    return value;
+  }
+  if (value.schemaVersion !== 1 || !isRecord(value.mappings)) {
+    throw new Error(`Unsupported mapping store schema; expected ${STORE_SCHEMA_VERSION}`);
+  }
+
+  const migrated = emptyStore();
+  for (const [key, candidate] of Object.entries(value.mappings)) {
+    if (!isTaskMappingV1(candidate) || candidate.linear.key !== key) {
+      throw new Error(`Invalid mapping record: ${key}`);
+    }
+    migrated.mappings[key] = {
+      ...candidate,
+      schemaVersion: STORE_SCHEMA_VERSION,
+      lifecycle: emptyLifecycleState(),
+    };
+  }
+  assertValidStore(migrated);
+  return migrated;
 }
 
 export function normalizeIssueKey(value: string) {
@@ -116,7 +205,11 @@ export function parseMemberRole(value: string): MemberRole {
   return value as MemberRole;
 }
 
-export function createMapping(request: ReconcileRequest, channelId: string, now: string) {
+export function createMapping(
+  request: ReconcileRequest,
+  channelId: string,
+  now: string,
+): TaskMapping {
   assertCreationRequest(request);
   const key = normalizeIssueKey(request.key);
   return {
@@ -151,6 +244,7 @@ export function createMapping(request: ReconcileRequest, channelId: string, now:
       archivedAt: null,
       lastError: null,
     },
+    lifecycle: emptyLifecycleState(),
   } satisfies TaskMapping;
 }
 
@@ -221,8 +315,13 @@ export function assertValidStore(value: unknown): asserts value is MappingStoreD
   if (!isRecord(value) || value.schemaVersion !== STORE_SCHEMA_VERSION) {
     throw new Error(`Unsupported mapping store schema; expected ${STORE_SCHEMA_VERSION}`);
   }
-  if (!isRecord(value.mappings)) {
-    throw new Error('Mapping store must contain a mappings object');
+  if (!isRecord(value.teamPolicies) || !isRecord(value.mappings)) {
+    throw new Error('Mapping store must contain teamPolicies and mappings objects');
+  }
+  for (const [teamId, policy] of Object.entries(value.teamPolicies)) {
+    if (teamId === '' || !isTeamLifecyclePolicy(policy)) {
+      throw new Error(`Invalid team lifecycle policy: ${teamId}`);
+    }
   }
 
   const channelIds = new Set<string>();
@@ -244,8 +343,9 @@ export function assertValidStore(value: unknown): asserts value is MappingStoreD
   }
 }
 
-export function renderCanvas(mapping: TaskMapping) {
+export function renderCanvas(mapping: TaskMapping, teamPolicy?: TeamLifecyclePolicy) {
   const statusIds = mapping.linear.statusIds;
+  const lastDelivery = mapping.lifecycle.deliveries.at(-1);
   return `# ${mapping.linear.key} - ${mapping.linear.title}
 
 ## Task truth
@@ -265,17 +365,26 @@ export function renderCanvas(mapping: TaskMapping) {
 - Branch: \`${mapping.git.branch}\`
 - Worktree: \`${mapping.git.worktree}\`
 
+## Lifecycle projection
+
+- In Review projection: \`${teamPolicy?.inReview.enabled === true ? 'enabled' : 'disabled'}\`
+- Delivery ledger entries: \`${mapping.lifecycle.deliveries.length}\`
+- Last delivery: ${lastDelivery === undefined ? 'none' : `\`${lastDelivery.id}\` (${lastDelivery.outcome}: ${lastDelivery.reason})`}
+- Alert: \`${mapping.lifecycle.alert.state}\`${mapping.lifecycle.alert.reason === null ? '' : ` - ${mapping.lifecycle.alert.reason}`}
+
 ## Recovery check
 
 1. Read this canvas and the mapping store.
 2. Verify \`git worktree list\` contains the recorded worktree and branch.
 3. Verify \`HEAD\`, \`git status\`, and the current Linear lifecycle state before editing.
-4. Only the recorded owner writes in the worktree; handoffs transfer these same pointers.
+4. Reconcile lifecycle state from Linear truth before retrying a pending or failed delivery.
+5. Only the recorded owner writes in the worktree; handoffs transfer these same pointers.
 
 ## Guardrails
 
 - Never synchronize chat into Linear or GitHub.
 - Reconcile creates or updates structured pointers; it never deletes.
+- Lifecycle projection may move In Progress to In Review only; native merge-to-Done remains primary.
 - Archive the channel only after completion is verified.
 - Never remove the worktree or branch without clean-status and unique-commit checks.
 `;
@@ -291,7 +400,22 @@ function dedupeMembers(members: DesiredMember[]) {
 }
 
 function isTaskMapping(value: unknown): value is TaskMapping {
-  if (!isRecord(value) || value.schemaVersion !== STORE_SCHEMA_VERSION) {
+  return (
+    isBaseTaskMapping(value, STORE_SCHEMA_VERSION) &&
+    'lifecycle' in value &&
+    isLifecycleState(value.lifecycle)
+  );
+}
+
+function isTaskMappingV1(value: unknown): value is TaskMappingV1 {
+  return isBaseTaskMapping(value, 1);
+}
+
+function isBaseTaskMapping(
+  value: unknown,
+  schemaVersion: 1 | 2,
+): value is TaskMapping | TaskMappingV1 {
+  if (!isRecord(value) || value.schemaVersion !== schemaVersion) {
     return false;
   }
   if (
@@ -336,6 +460,51 @@ function isTaskMapping(value: unknown): value is TaskMapping {
   );
 }
 
+function isLifecycleState(value: unknown): value is LifecycleState {
+  return (
+    isRecord(value) &&
+    Array.isArray(value.deliveries) &&
+    value.deliveries.every(isLifecycleDelivery) &&
+    (value.lastObservedAt === null || typeof value.lastObservedAt === 'string') &&
+    isRecord(value.alert) &&
+    (value.alert.state === 'clear' || value.alert.state === 'attention') &&
+    (value.alert.reason === null || typeof value.alert.reason === 'string') &&
+    (value.alert.since === null || typeof value.alert.since === 'string') &&
+    (value.alert.deliveryId === null || typeof value.alert.deliveryId === 'string')
+  );
+}
+
+function isLifecycleDelivery(value: unknown): value is LifecycleDelivery {
+  return (
+    isRecord(value) &&
+    typeof value.id === 'string' &&
+    typeof value.kind === 'string' &&
+    REVIEW_EVENT_KINDS.includes(value.kind as ReviewEventKind) &&
+    typeof value.source === 'string' &&
+    typeof value.observedAt === 'string' &&
+    typeof value.updatedAt === 'string' &&
+    typeof value.outcome === 'string' &&
+    DELIVERY_OUTCOMES.includes(value.outcome as DeliveryOutcome) &&
+    typeof value.reason === 'string' &&
+    (value.targetStatusId === null || typeof value.targetStatusId === 'string') &&
+    typeof value.attempts === 'number' &&
+    Number.isSafeInteger(value.attempts) &&
+    value.attempts >= 0 &&
+    (value.lastError === null || typeof value.lastError === 'string')
+  );
+}
+
+function isTeamLifecyclePolicy(value: unknown): value is TeamLifecyclePolicy {
+  return (
+    isRecord(value) &&
+    isRecord(value.inReview) &&
+    typeof value.inReview.enabled === 'boolean' &&
+    isPositiveInteger(value.inReview.staleAfterSeconds) &&
+    isPositiveInteger(value.inReview.maxDeliveries) &&
+    typeof value.updatedAt === 'string'
+  );
+}
+
 function isDesiredMember(value: unknown): value is DesiredMember {
   return (
     isRecord(value) &&
@@ -344,6 +513,10 @@ function isDesiredMember(value: unknown): value is DesiredMember {
     typeof value.role === 'string' &&
     MEMBER_ROLES.includes(value.role as MemberRole)
   );
+}
+
+function isPositiveInteger(value: unknown): value is number {
+  return typeof value === 'number' && Number.isSafeInteger(value) && value > 0;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

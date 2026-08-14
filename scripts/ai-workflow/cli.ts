@@ -1,16 +1,21 @@
 import { resolve } from 'node:path';
 import { BuzzCliGateway } from './buzz.ts';
+import { LifecycleProjector } from './lifecycle.ts';
 import {
+  LINEAR_LIFECYCLE_STATES,
+  REVIEW_EVENT_KINDS,
   parseMemberRole,
   normalizePubkey,
   type DesiredMember,
+  type LinearLifecycleState,
   type LinearStatusIds,
   type ReconcileRequest,
+  type ReviewEventKind,
 } from './model.ts';
 import { WorkflowReconciler } from './reconcile.ts';
 import { JsonMappingStore } from './store.ts';
 
-const SWITCHES = new Set(['adopt-existing', 'confirm', 'help']);
+const SWITCHES = new Set(['adopt-existing', 'confirm', 'disable', 'enable', 'help']);
 
 async function main() {
   const rawArguments = process.argv.slice(2);
@@ -38,6 +43,7 @@ async function main() {
   const store = new JsonMappingStore(resolve(storePath));
   const buzz = new BuzzCliGateway(option(parsed, 'buzz-bin') ?? process.env.BUZZ_CLI ?? 'buzz');
   const reconciler = new WorkflowReconciler(store, buzz);
+  const lifecycle = new LifecycleProjector(store);
 
   if (parsed.command === 'inspect') {
     printJson(await reconciler.inspect(issueKey));
@@ -45,6 +51,52 @@ async function main() {
   }
   if (parsed.command === 'archive') {
     printJson(await reconciler.archive(issueKey, parsed.switches.has('confirm')));
+    return;
+  }
+  if (parsed.command === 'lifecycle-configure') {
+    const enabled = exactlyOneSwitch(parsed, 'enable', 'disable') === 'enable';
+    printJson(
+      await lifecycle.configure({
+        issueKey,
+        enabled,
+        staleAfterSeconds: integerOption(parsed, 'stale-after-seconds', 300),
+        maxDeliveries: integerOption(parsed, 'max-deliveries', 100),
+      }),
+    );
+    return;
+  }
+  if (parsed.command === 'lifecycle-observe') {
+    printJson(
+      await lifecycle.observe({
+        issueKey,
+        eventId: requiredOption(parsed, 'event-id'),
+        eventKind: eventKind(requiredOption(parsed, 'event-kind')),
+        source: requiredOption(parsed, 'source'),
+        linearState: linearState(requiredOption(parsed, 'linear-state')),
+        observedAt: option(parsed, 'observed-at'),
+      }),
+    );
+    return;
+  }
+  if (parsed.command === 'lifecycle-ack') {
+    printJson(
+      await lifecycle.acknowledge({
+        issueKey,
+        eventId: requiredOption(parsed, 'event-id'),
+        result: acknowledgmentResult(requiredOption(parsed, 'result')),
+        error: option(parsed, 'error'),
+      }),
+    );
+    return;
+  }
+  if (parsed.command === 'lifecycle-reconcile') {
+    printJson(
+      await lifecycle.reconcile({
+        issueKey,
+        linearState: linearState(requiredOption(parsed, 'linear-state')),
+        now: option(parsed, 'now'),
+      }),
+    );
     return;
   }
   if (parsed.command !== 'reconcile') {
@@ -177,6 +229,55 @@ function option(parsed: ParsedArguments, name: string) {
   return values[0];
 }
 
+function requiredOption(parsed: ParsedArguments, name: string) {
+  const value = option(parsed, name);
+  if (value === undefined || value === '') {
+    throw new Error(`--${name} is required`);
+  }
+  return value;
+}
+
+function integerOption(parsed: ParsedArguments, name: string, defaultValue: number) {
+  const value = option(parsed, name);
+  if (value === undefined) {
+    return defaultValue;
+  }
+  const parsedValue = Number(value);
+  if (!Number.isSafeInteger(parsedValue) || parsedValue <= 0) {
+    throw new Error(`--${name} must be a positive integer`);
+  }
+  return parsedValue;
+}
+
+function exactlyOneSwitch(parsed: ParsedArguments, first: string, second: string) {
+  const present = [first, second].filter(x => parsed.switches.has(x));
+  if (present.length !== 1) {
+    throw new Error(`Provide exactly one of --${first} or --${second}`);
+  }
+  return present[0];
+}
+
+function eventKind(value: string): ReviewEventKind {
+  if (!REVIEW_EVENT_KINDS.includes(value as ReviewEventKind)) {
+    throw new Error(`Invalid --event-kind: ${value}`);
+  }
+  return value as ReviewEventKind;
+}
+
+function linearState(value: string): LinearLifecycleState {
+  if (!LINEAR_LIFECYCLE_STATES.includes(value as LinearLifecycleState)) {
+    throw new Error(`Invalid --linear-state: ${value}`);
+  }
+  return value as LinearLifecycleState;
+}
+
+function acknowledgmentResult(value: string) {
+  if (value !== 'applied' && value !== 'failed') {
+    throw new Error(`Invalid --result: ${value}`);
+  }
+  return value;
+}
+
 function printJson(value: unknown) {
   process.stdout.write(`${JSON.stringify(value, null, 2)}\n`);
 }
@@ -192,6 +293,10 @@ Usage:
   pnpm workflow reconcile ISSUE-ID --store PATH [metadata options]
   pnpm workflow inspect ISSUE-ID --store PATH
   pnpm workflow archive ISSUE-ID --store PATH --confirm
+  pnpm workflow lifecycle-configure ISSUE-ID --store PATH --enable|--disable
+  pnpm workflow lifecycle-observe ISSUE-ID --store PATH --event-id ID --event-kind KIND --source URL --linear-state STATE
+  pnpm workflow lifecycle-ack ISSUE-ID --store PATH --event-id ID --result applied|failed [--error TEXT]
+  pnpm workflow lifecycle-reconcile ISSUE-ID --store PATH --linear-state STATE [--now ISO]
 
 First reconcile requires:
   --title --linear-url --team-id
@@ -206,6 +311,13 @@ Optional:
   --member PUBKEY:owner|admin|member|guest|bot (repeatable)
   --adopt-existing
   --buzz-bin PATH
+
+Lifecycle options:
+  --event-kind ready-for-review|review-activity
+  --linear-state todo|in-progress|in-review|done|other
+  --observed-at ISO
+  --stale-after-seconds N (default 300)
+  --max-deliveries N (default 100)
 `;
 }
 
