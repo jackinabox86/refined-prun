@@ -1,9 +1,5 @@
 # scripts/
 
-## `ai-workflow/`
-
-Manual-trigger Linear-to-Buzz task-channel reconciler and opt-in, replay-safe In Review projector. It keeps its mapping store outside the repository, provisions one channel/canvas per issue idempotently, preserves native merge-to-Done behavior, and archives only after an explicit confirmed command. See `scripts/ai-workflow/README.md`.
-
 ## `build-dist.sh`
 
 Builds the extension and packages it as `dist.zip` at the repo root.
