@@ -11,6 +11,7 @@ const STORE_TIME = '2026-08-14T13:00:00.000Z';
 const REFINED_ID = 'github:R_REFINED';
 const APXM_ID = 'github:R_APXM';
 const WORKTREE = 'C:\\nest\\REPOS\\worktrees\\JAC-9-multi-repo-portfolio';
+const POSIX_WORKTREE = '/nest/REPOS/worktrees/JAC-9-multi-repo-portfolio';
 
 afterEach(async () => {
   for (const directory of temporaryDirectories.splice(0)) {
@@ -105,6 +106,45 @@ describe('PortfolioReconciler', () => {
     });
     expect(replaced.repository.name).toBe('renamed');
   });
+
+  it('supports both path styles with their native case semantics', async () => {
+    const windows = await linkedHarness();
+    const windowsObservation = healthyObservation('portfolio:JAC-9:windows-case');
+    windowsObservation.repositories[0].localCheckout = 'c:\\NEST\\repos\\REFINED-PRUN';
+    windowsObservation.repositories[0].worktrees[0].path =
+      'c:\\NEST\\repos\\WORKTREES\\jac-9-MULTI-REPO-PORTFOLIO';
+    windowsObservation.repositories[1].localCheckout = 'c:\\NEST\\repos\\apxm';
+    const windowsResult = await windows.portfolio.audit('JAC-9', windowsObservation);
+    expect(windowsResult.mapping.portfolio.alert.findings).toEqual([]);
+
+    const posix = await harness(POSIX_WORKTREE);
+    await posix.portfolio.register({
+      ...refinedRegistration(),
+      localCheckout: '/nest/REPOS/refined-prun',
+      worktreeRoot: '/nest/REPOS/worktrees',
+    });
+    await posix.portfolio.register({
+      ...apxmRegistration(),
+      localCheckout: '/nest/REPOS/APXM',
+      worktreeRoot: '/nest/REPOS/worktrees',
+    });
+    await posix.portfolio.link({ ...primaryLink(), worktree: POSIX_WORKTREE });
+    await posix.portfolio.link(relatedLink());
+
+    const posixHealthy = posixObservation('portfolio:JAC-9:posix-healthy');
+    const posixCurrent = await posix.portfolio.audit('JAC-9', posixHealthy);
+    expect(posixCurrent.mapping.portfolio.alert.findings).toEqual([]);
+
+    const posixCaseDrift = posixObservation('portfolio:JAC-9:posix-case-drift');
+    posixCaseDrift.repositories[0].localCheckout = '/NEST/REPOS/refined-prun';
+    posixCaseDrift.repositories[0].worktrees[0].path =
+      '/NEST/REPOS/worktrees/JAC-9-multi-repo-portfolio';
+    const posixDrift = await posix.portfolio.audit('JAC-9', posixCaseDrift);
+    expect(posixDrift.mapping.portfolio.alert.findings.map(x => x.code)).toEqual([
+      'linked-worktree-missing',
+      'local-checkout-mismatch',
+    ]);
+  });
 });
 
 async function linkedHarness() {
@@ -116,12 +156,12 @@ async function linkedHarness() {
   return result;
 }
 
-async function harness() {
+async function harness(worktree = WORKTREE) {
   const directory = await mkdtemp(join(tmpdir(), 'ai-portfolio-'));
   temporaryDirectories.push(directory);
   const store = new JsonMappingStore(join(directory, 'mappings.json'));
   const data = emptyStore();
-  data.mappings['JAC-9'] = createMapping(seed(), 'channel-id', STORE_TIME);
+  data.mappings['JAC-9'] = createMapping(seed(worktree), 'channel-id', STORE_TIME);
   data.mappings['JAC-9'].execution.observedState = 'active';
   await store.write(data);
   return {
@@ -221,7 +261,15 @@ function healthyObservation(eventId: string): PortfolioObservation {
   };
 }
 
-function seed(): ReconcileRequest {
+function posixObservation(eventId: string): PortfolioObservation {
+  const observation = healthyObservation(eventId);
+  observation.repositories[0].localCheckout = '/nest/REPOS/refined-prun';
+  observation.repositories[0].worktrees[0].path = POSIX_WORKTREE;
+  observation.repositories[1].localCheckout = '/nest/REPOS/APXM';
+  return observation;
+}
+
+function seed(worktree = WORKTREE): ReconcileRequest {
   return {
     key: 'JAC-9',
     title: '[Phase 5] Multi-repo portfolio reconciliation',
@@ -231,7 +279,7 @@ function seed(): ReconcileRequest {
     channelName: 'JAC-9-multi-repo-portfolio',
     repository: 'https://github.com/jackinabox86/refined-prun',
     branch: 'JAC-9-multi-repo-portfolio',
-    worktree: WORKTREE,
+    worktree,
     owner: 'Codex Sol',
   };
 }

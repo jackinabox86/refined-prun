@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
-import { isAbsolute, normalize } from 'node:path';
+import { isAbsolute, posix, win32 } from 'node:path';
 import {
   LINEAR_LIFECYCLE_STATES,
   REPOSITORY_ARCHIVE_POLICIES,
@@ -633,10 +633,8 @@ function canonicalRemote(value: string) {
 }
 
 function canonicalPath(value: string) {
-  if (!isAbsolute(value)) {
-    throw new Error('Repository and worktree paths must be absolute');
-  }
-  return normalize(value);
+  const style = absolutePathStyle(value);
+  return style === 'windows' ? win32.normalize(value) : posix.normalize(value);
 }
 
 function sameRegistration(current: RepositoryRegistration, desired: RepositoryRegistration) {
@@ -671,7 +669,28 @@ function sameRemote(first: string, second: string) {
 }
 
 function samePath(first: string, second: string) {
-  return canonicalPath(first).toLowerCase() === canonicalPath(second).toLowerCase();
+  const firstStyle = absolutePathStyle(first);
+  const secondStyle = absolutePathStyle(second);
+  if (firstStyle !== secondStyle) {
+    return false;
+  }
+  const normalizedFirst = canonicalPath(first);
+  const normalizedSecond = canonicalPath(second);
+  return firstStyle === 'windows'
+    ? normalizedFirst.toLowerCase() === normalizedSecond.toLowerCase()
+    : normalizedFirst === normalizedSecond;
+}
+
+function absolutePathStyle(value: string): 'windows' | 'posix' {
+  const hasWindowsDrive = /^[a-z]:[\\/]/i.test(value);
+  const hasWindowsUncRoot = value.startsWith('\\\\');
+  if ((hasWindowsDrive || hasWindowsUncRoot) && win32.isAbsolute(value)) {
+    return 'windows';
+  }
+  if (posix.isAbsolute(value)) {
+    return 'posix';
+  }
+  throw new Error('Repository and worktree paths must be absolute');
 }
 
 function hashObservation(value: PortfolioObservation) {
