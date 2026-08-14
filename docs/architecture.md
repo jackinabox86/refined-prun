@@ -35,6 +35,13 @@ Verifying UI-visible behaviour against the live game: `docs/browser-testing.md`.
 
 ## Release Workflows
 
+> **Current Firefox version policy (JAC-11):** Firefox ships the UTC calendar version
+> `YYYY.M.D.<run_number>` (for example, `2026.8.14.19`), calculated by
+> `scripts/firefox-version.mjs`. It must not use Chrome's `VERSION`: `1.1.1.19` is lower than
+> legacy Firefox builds such as `2026.8.9.18`, so it cannot update them. The prior Firefox
+> versioning detail below is superseded by this policy; Chrome and Firefox have independent
+> installed-version streams, while `CHANGELOG.md` remains the cross-store release identity.
+
 All release workflows are `workflow_dispatch` only, and dispatch runs the definition from
 whatever ref you pick — a workflow change has to land on `main` before it affects a real
 release.

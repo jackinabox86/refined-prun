@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Fixed
+
+- `Firefox releases`: Restore the date-stamped version sequence so installed extensions receive automatic updates
+
 ## 1.1.1
 
 ### Added
