@@ -1,7 +1,29 @@
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
+import { chmodSync, mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { delimiter, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { createFirefoxVersion } from './firefox-version.mjs';
+
+const repositoryDirectory = fileURLToPath(new URL('..', import.meta.url));
+const bashAvailable = spawnSync('bash', ['--version'], { stdio: 'ignore' }).status === 0;
+
+function firefoxStampVersionScript(runNumber) {
+  const workflow = readFileSync(
+    join(repositoryDirectory, '.github/workflows/release-firefox.yml'),
+    'utf8',
+  );
+  const step = workflow.match(
+    /      - name: Stamp version\r?\n        run: \|\r?\n((?:          .*\r?\n?)*)/,
+  );
+
+  if (step === null) {
+    throw new Error('Could not find the Firefox Stamp version workflow step.');
+  }
+
+  return step[1].replace(/^ {10}/gm, '').replace('${{ github.run_number }}', String(runNumber));
+}
 
 function compareVersion(left, right) {
   const leftParts = left.split('.').map(Number);
@@ -43,5 +65,37 @@ describe('createFirefoxVersion', () => {
     );
 
     expect(version).toMatch(/^\d{4}\.\d{1,2}\.\d{1,2}\.19\n$/);
+  });
+
+  it.skipIf(!bashAvailable)('executes the shipped Firefox stamp workflow step under Bash', () => {
+    const temporaryDirectory = mkdtempSync(join(tmpdir(), 'firefox-version-test-'));
+    const binDirectory = join(temporaryDirectory, 'bin');
+    const scriptPath = join(temporaryDirectory, 'stamp-version.sh');
+    const stampedVersionPath = join(temporaryDirectory, 'stamped-version');
+
+    try {
+      mkdirSync(binDirectory);
+      writeFileSync(
+        join(binDirectory, 'npx'),
+        '#!/usr/bin/env bash\nprintf %s "$4" > "$STAMPED_VERSION"\n',
+      );
+      chmodSync(join(binDirectory, 'npx'), 0o755);
+      writeFileSync(scriptPath, firefoxStampVersionScript(19));
+
+      execFileSync('bash', ['-e', scriptPath], {
+        cwd: repositoryDirectory,
+        encoding: 'utf8',
+        env: {
+          ...process.env,
+          DIRECTORY: join(temporaryDirectory, 'dist'),
+          PATH: `${binDirectory}${delimiter}${process.env.PATH ?? ''}`,
+          STAMPED_VERSION: stampedVersionPath,
+        },
+      });
+
+      expect(readFileSync(stampedVersionPath, 'utf8')).toMatch(/^\d{4}\.\d{1,2}\.\d{1,2}\.19$/);
+    } finally {
+      rmSync(temporaryDirectory, { force: true, recursive: true });
+    }
   });
 });
