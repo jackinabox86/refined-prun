@@ -25,7 +25,7 @@ jobs:
         run: |
           # Firefox has a separate update stream from Chrome. Existing Firefox builds use this
           # UTC date/run-number format, which must keep increasing for updates.json to apply.
-          version="$(node scripts/firefox-version.mjs \"${{ github.run_number }}\")"
+          version="$(node scripts/firefox-version.mjs "${{ github.run_number }}")"
           npx dot-json@1 "$DIRECTORY/manifest.json" version "$version"
       - uses: actions/upload-artifact@v4
         with:
