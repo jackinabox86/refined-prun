@@ -20,6 +20,7 @@ interface StepMachineOptions {
 
 const AssertionError = new Error('Assertion failed');
 const ExecutionStopped = new Error('Execution stopped');
+const actionFeedbackTimeoutMs = 30_000;
 
 export class StepMachine {
   private next?: ActionStep;
@@ -206,12 +207,24 @@ async function waitActionFeedback(tile: PrunTile) {
   const outcome = await Promise.race([
     $(tile.frame, C.ActionFeedback.success),
     $(tile.frame, C.ActionFeedback.error),
+    waitActionFeedbackTimeout(),
   ]);
+  if (outcome === undefined) {
+    return 'Timed out waiting for action feedback';
+  }
   if (outcome.classList.contains(C.ActionFeedback.success)) {
     await clickElement(outcome);
     return;
   }
   const message = _$(outcome, C.ActionFeedback.message)?.textContent;
   const dismiss = _$(outcome, C.ActionFeedback.dismiss)?.textContent;
-  return dismiss ? message?.replace(dismiss, '') : message;
+  const error = (dismiss ? message?.replace(dismiss, '') : message)?.trim();
+  if (error === undefined || error.length === 0) {
+    return 'Action failed without an error message';
+  }
+  return error;
+}
+
+async function waitActionFeedbackTimeout() {
+  await sleep(actionFeedbackTimeoutMs);
 }
