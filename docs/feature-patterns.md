@@ -203,6 +203,9 @@ the machine, and throws an `ExecutionStopped` sentinel that the step machine's c
 swallows — an `execute()` body never runs past a failed game action. Code after the
 await (e.g. a `watchWhile` for a storage update that will now never come) can rely on
 this; don't wrap `waitActionFeedback` in a step-local try/catch or the hang comes back.
+The feedback overlay is inserted before its state class is guaranteed to be present, so
+wait for the terminal `ActionFeedback.success` / `ActionFeedback.error` selectors; never
+sample `progress` / `success` / `error` once and treat no match as a terminal result.
 
 **`ctx.skip()` and `ctx.fail()` do not unwind `execute()`** — unlike `waitActionFeedback`,
 they just advance/stop the machine and return, so the caller must `return` right after one.
