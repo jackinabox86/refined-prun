@@ -1,5 +1,12 @@
 # scripts/
 
+## `firefox-version.mjs`
+
+Generates Firefox's self-hosted update version as `YYYY.M.D.<GitHub-run-number>` using the UTC
+calendar day. Firefox compares this numeric version against `updates.json`, so it intentionally
+does not use Chrome's `VERSION` value: installed legacy Firefox builds are already in the
+date-stamped sequence.
+
 ## `build-dist.sh`
 
 Builds the extension and packages it as `dist.zip` at the repo root.

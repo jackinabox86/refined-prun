@@ -23,10 +23,9 @@ jobs:
       - run: pnpm build
       - name: Stamp version
         run: |
-          # Follows the same release identity as Chrome (VERSION file / CHANGELOG.md), with a
-          # run-number suffix so repeat Firefox-only dispatches against an unchanged VERSION
-          # still strictly increase - required for updates.json to trigger an update check.
-          version="$(cat VERSION).${{ github.run_number }}"
+          # Firefox has a separate update stream from Chrome. Existing Firefox builds use this
+          # UTC date/run-number format, which must keep increasing for updates.json to apply.
+          version="$(node scripts/firefox-version.mjs "${{ github.run_number }}")"
           npx dot-json@1 "$DIRECTORY/manifest.json" version "$version"
       - uses: actions/upload-artifact@v4
         with:

@@ -35,6 +35,13 @@ Verifying UI-visible behaviour against the live game: `docs/browser-testing.md`.
 
 ## Release Workflows
 
+> **Current Firefox version policy (JAC-11):** Firefox ships the UTC calendar version
+> `YYYY.M.D.<run_number>` (for example, `2026.8.14.19`), calculated by
+> `scripts/firefox-version.mjs`. It must not use Chrome's `VERSION`: `1.1.1.19` is lower than
+> legacy Firefox builds such as `2026.8.9.18`, so it cannot update them. Chrome and Firefox
+> have independent installed-version streams, while `CHANGELOG.md` remains the cross-store
+> release identity.
+
 All release workflows are `workflow_dispatch` only, and dispatch runs the definition from
 whatever ref you pick — a workflow change has to land on `main` before it affects a real
 release.
@@ -42,13 +49,13 @@ release.
 | Workflow | Publishes | Versioning |
 |----------|-----------|------------|
 | `release-chrome.yml` | Chrome Web Store, via the CWS API | semver read from `VERSION`, bumped by a `patch`/`minor`/`major` input, then committed and tagged |
-| `release-firefox.yml` | self-hosted unlisted XPI on GCS, signed by Mozilla, with a generated `updates.json` | reads `VERSION` (doesn't bump it — only Chrome's dispatch does) and appends `.<run_number>`, e.g. `1.2.0.47` |
+| `release-firefox.yml` | self-hosted unlisted XPI on GCS, signed by Mozilla, with a generated `updates.json` | stamps the manifest with the UTC `YYYY.M.D.<run_number>` version from `scripts/firefox-version.mjs`, e.g. `2026.8.14.47`; does not read or bump `VERSION` |
 
-Firefox never bumps `VERSION` itself, so its shipped version only advances when Chrome's
-workflow last bumped it; the `.<run_number>` suffix exists solely so a second Firefox-only
-dispatch against an unchanged `VERSION` still strictly increases — `updates.json`-driven
-auto-update only fires on a version increase. Run the two workflows in either order; Firefox
-just reads whatever `VERSION` currently says.
+Firefox's installed version follows the legacy date-stamped sequence, independently of
+Chrome's `VERSION`: a Chrome-style version such as `1.1.1.19` is lower than existing Firefox
+releases such as `2026.8.9.18`, so it cannot update them. The run-number suffix makes a second
+Firefox dispatch on the same UTC day strictly newer, as required by `updates.json` auto-updates.
+Run the two workflows in either order; Firefox does not read or modify `VERSION`.
 
 (A third workflow, `release.yml`, was inherited from upstream and deleted — it was never
 dispatched and would have failed, wanting `CLIENT_ID`/`CLIENT_SECRET`/`REFRESH_TOKEN`
@@ -64,10 +71,9 @@ Environment-scoped jobs still read repository-level secrets, so adding `environm
 job does not cut it off from existing secrets. It can, however, introduce an approval gate
 if that environment carries protection rules.
 
-Both stores now share the same base version (`VERSION`/`CHANGELOG.md`), but the *installed*
-manifest version still isn't directly comparable across them — Firefox's `.<run_number>`
-suffix and Chrome's plain `X.Y.Z` diverge, and neither is written until each store's own
-build step. Anything that needs a stable, cross-store "release identity" (e.g. `XIT
+Chrome and Firefox have independent installed-version streams: Chrome uses `VERSION` while
+Firefox uses its UTC date/run-number version. Anything that needs a stable, cross-store
+"release identity" (e.g. `XIT
 WHATSNEW`'s changelog view, `src/features/XIT/WHATSNEW/changelog-data.ts`) should still key
 off `CHANGELOG.md`'s own version headings, never `chrome.runtime.getManifest().version` /
 `config.version`.
