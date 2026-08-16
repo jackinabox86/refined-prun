@@ -826,6 +826,25 @@ own command-input `<form>`, so it covers what the player types and nothing else 
 that is already in its final form, and if a feature depends on a correction (planet name →
 natural id, `INV <planet>` → base store, ...) apply it explicitly before calling `showBuffer`.
 
+### Inventing New Typed Commands
+
+A transformer in that chain is not limited to fixing the arguments of a command the game
+knows — it can replace `parts` wholesale and synthesize a different command, which is how
+shorthand the game has never heard of becomes a real buffer. `exchange-order-commands.ts`
+turns `<exchange key> <ticker>` into `CXPO <TICKER>.<MIC>` (`a dw` → `CXPO DW.AI1`).
+
+This works because the game's command `<form>` fires `submit` for *any* typed text: an
+unrecognized first token reaches the submit listener exactly like a valid one, and the
+rewrite lands before the game ever parses it. (The react-autosuggest dropdown offers only
+the literal typed text when nothing matches, so it has no suggestion to swallow the
+Enter — see `docs/browser-testing.md` → "Opening and targeting windows".)
+
+Gate such a transformer on all of: an exact token count, a first token in an explicit
+shortcut table, and a second token that resolves against a store (`materialsStore
+.getByTicker`). Anything that fails a guard must leave `parts` untouched so it falls
+through to the game's own parser. Keep real command names out of the shortcut table
+(`arc` was dropped from the Arclight keys because `ARC` opens the representation center).
+
 ### Auto-Opening a Buffer Once at Startup
 
 For a panel that should open itself once, based on a condition, without the player typing
