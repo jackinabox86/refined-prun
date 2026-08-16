@@ -153,20 +153,20 @@ function clearShip() {
       <RadioItem v-model="config.resupply" />
     </td>
     <td :class="$style.statusCell">
-      <div :class="[$style.statusContent, burnBgClass]">
-        <span :class="$style.statusNum" @click="showBuffer(`XIT BURN ${naturalId}`)">{{
-          daysText
-        }}</span>
+      <div
+        :class="[$style.statusContent, burnBgClass]"
+        @click="showBuffer(`XIT BURN ${naturalId}`)">
+        <span :class="$style.statusNum">{{ daysText }}</span>
       </div>
     </td>
     <td :class="$style.toggleCell">
       <RadioItem v-model="config.repair" />
     </td>
     <td :class="$style.statusCell">
-      <div :class="[$style.statusContent, repairBgClass]">
-        <span :class="$style.statusNum" @click="showBuffer(`XIT REP ${naturalId}`)">{{
-          repairDaysText
-        }}</span>
+      <div
+        :class="[$style.statusContent, repairBgClass]"
+        @click="showBuffer(`XIT REP ${naturalId}`)">
+        <span :class="$style.statusNum">{{ repairDaysText }}</span>
       </div>
     </td>
     <td
@@ -243,6 +243,7 @@ function clearShip() {
   display: flex;
   align-items: center;
   justify-content: center;
+  cursor: pointer;
   height: 18px;
   box-sizing: border-box;
   padding: 2px 4px;
