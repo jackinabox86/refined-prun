@@ -830,7 +830,8 @@ natural id, `INV <planet>` → base store, ...) apply it explicitly before calli
 
 A transformer in that chain is not limited to fixing the arguments of a command the game
 knows — it can replace `parts` wholesale and synthesize a different command, which is how
-shorthand the game has never heard of becomes a real buffer. `exchange-order-commands.ts`
+shorthand the game has never heard of becomes a real buffer. A standalone feature
+registers into the chain via `addCommandTransformer`; `src/features/basic/shortcut-placeorder.ts`
 turns `<exchange key> <ticker>` into `CXPO <TICKER>.<MIC>` (`a dw` → `CXPO DW.AI1`).
 
 This works because the game's command `<form>` fires `submit` for *any* typed text: an

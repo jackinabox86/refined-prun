@@ -1,4 +1,5 @@
 import { materialsStore } from '@src/infrastructure/prun-api/data/materials';
+import { addCommandTransformer } from '@src/features/basic/correct-commands/correct-commands';
 
 const exchangeShortcuts = new Map<string, string>([
   ['a', 'AI1'],
@@ -21,7 +22,7 @@ const exchangeShortcuts = new Map<string, string>([
   ['moria', 'NC1'],
 ]);
 
-export function correctExchangeOrderCommand(parts: string[]) {
+function transform(parts: string[]) {
   if (parts.length !== 2) {
     return;
   }
@@ -38,3 +39,13 @@ export function correctExchangeOrderCommand(parts: string[]) {
 
   parts.splice(0, parts.length, 'CXPO', `${material.ticker}.${mic}`);
 }
+
+function init() {
+  addCommandTransformer(transform);
+}
+
+features.add(
+  import.meta.url,
+  init,
+  'CXPO: Opens the place order buffer by typing an exchange shortcut and a material ticker, like "a dw".',
+);
