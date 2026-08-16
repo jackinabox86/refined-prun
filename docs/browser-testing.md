@@ -203,6 +203,9 @@ Two consequences worth knowing before blaming the browser:
   opens a suggestion dropdown that captures Enter. Press `Escape` first, then Enter — but
   when no suggestion is showing, Escape can clear the field instead, so re-check the value.
   `open-buffer` handles both; see `game/ui-concepts.md` → "Opening a Buffer (Two Paths)".
+  Text the game doesn't recognize as a command is the case where a plain Enter does get
+  through — the dropdown then offers only the literal typed text, so there is no suggestion
+  to capture the key. That is what makes command-rewriting features testable by typing.
 - **Custom XIT panels are not commands.** The extension registers only `XIT` and parses
   the rest as a sub-command (`xit-commands.ts`). `open-buffer DEV` types a bare `DEV` into
   the game's own parser, which silently opens a dead "Illegal command" buffer. Always pass

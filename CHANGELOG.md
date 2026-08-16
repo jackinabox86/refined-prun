@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Added
+
+- `shortcut-placeorder`: Type an exchange shortcut and a material ticker (`a dw`) to open the CXPO place-order buffer for that material on that exchange
+
 ## 1.1.1
 
 ### Added
