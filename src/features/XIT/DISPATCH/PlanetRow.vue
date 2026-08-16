@@ -9,6 +9,7 @@ import { getPlanetBurn } from '@src/core/burn';
 import { burnDaysClass, countDays, formatBurnDays } from '@src/features/XIT/BURN/utils';
 import { getRepairOffset, getRepairThreshold } from '@src/core/buildings';
 import { getPlanetRepairAge } from '@src/features/XIT/REP/entries';
+import { showBuffer } from '@src/infrastructure/prun-ui/buffers';
 import { timestampEachMinute } from '@src/utils/dayjs';
 import { shipsStore } from '@src/infrastructure/prun-api/data/ships';
 import { fixed0 } from '@src/utils/format';
@@ -153,7 +154,9 @@ function clearShip() {
     </td>
     <td :class="$style.statusCell">
       <div :class="[$style.statusContent, burnBgClass]">
-        <span :class="$style.statusNum">{{ daysText }}</span>
+        <span :class="$style.statusNum" @click="showBuffer(`XIT BURN ${naturalId}`)">{{
+          daysText
+        }}</span>
       </div>
     </td>
     <td :class="$style.toggleCell">
@@ -161,7 +164,9 @@ function clearShip() {
     </td>
     <td :class="$style.statusCell">
       <div :class="[$style.statusContent, repairBgClass]">
-        <span :class="$style.statusNum">{{ repairDaysText }}</span>
+        <span :class="$style.statusNum" @click="showBuffer(`XIT REP ${naturalId}`)">{{
+          repairDaysText
+        }}</span>
       </div>
     </td>
     <td
