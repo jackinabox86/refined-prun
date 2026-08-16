@@ -1,4 +1,5 @@
 import { changeInputValue } from '@src/util';
+import { correctExchangeOrderCommand } from './exchange-order-commands';
 import { correctMaterialCommand } from './material-commands';
 import { correctPlanetCommand } from './planet-commands';
 import { correctShipCommand } from './ship-commands';
@@ -7,6 +8,7 @@ import { correctXitWeb } from './xit-web';
 import { correctXitArgs } from '@src/infrastructure/prun-ui/buffers';
 
 const transformers = [
+  correctExchangeOrderCommand,
   correctMaterialCommand,
   correctPlanetCommand,
   correctShipCommand,
