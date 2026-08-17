@@ -9,6 +9,7 @@ import { getPlanetBurn } from '@src/core/burn';
 import { burnDaysClass, countDays, formatBurnDays } from '@src/features/XIT/BURN/utils';
 import { getRepairOffset, getRepairThreshold } from '@src/core/buildings';
 import { getPlanetRepairAge } from '@src/features/XIT/REP/entries';
+import { showBuffer } from '@src/infrastructure/prun-ui/buffers';
 import { timestampEachMinute } from '@src/utils/dayjs';
 import { shipsStore } from '@src/infrastructure/prun-api/data/ships';
 import { fixed0 } from '@src/utils/format';
@@ -152,7 +153,9 @@ function clearShip() {
       <RadioItem v-model="config.resupply" />
     </td>
     <td :class="$style.statusCell">
-      <div :class="[$style.statusContent, burnBgClass]">
+      <div
+        :class="[$style.statusContent, burnBgClass]"
+        @click="showBuffer(`XIT BURN ${naturalId}`)">
         <span :class="$style.statusNum">{{ daysText }}</span>
       </div>
     </td>
@@ -160,7 +163,9 @@ function clearShip() {
       <RadioItem v-model="config.repair" />
     </td>
     <td :class="$style.statusCell">
-      <div :class="[$style.statusContent, repairBgClass]">
+      <div
+        :class="[$style.statusContent, repairBgClass]"
+        @click="showBuffer(`XIT REP ${naturalId}`)">
         <span :class="$style.statusNum">{{ repairDaysText }}</span>
       </div>
     </td>
@@ -238,6 +243,7 @@ function clearShip() {
   display: flex;
   align-items: center;
   justify-content: center;
+  cursor: pointer;
   height: 18px;
   box-sizing: border-box;
   padding: 2px 4px;
