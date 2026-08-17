@@ -20,6 +20,7 @@ interface StepMachineOptions {
 
 const AssertionError = new Error('Assertion failed');
 const ExecutionStopped = new Error('Execution stopped');
+const actionFeedbackTimeoutMs = 30_000;
 
 export class StepMachine {
   private next?: ActionStep;
@@ -196,39 +197,34 @@ export class StepMachine {
 
 async function waitActionFeedback(tile: PrunTile) {
   const overlay = await $(tile.frame, C.ActionFeedback.overlay);
-  await waitActionProgress(overlay);
   if (overlay.classList.contains(C.ActionConfirmationOverlay.container)) {
     const confirm = _$$(overlay, C.Button.btn)[1];
     if (confirm === undefined) {
       return 'Confirmation overlay is missing confirm button';
     }
     await clickElement(confirm);
-    await waitActionProgress(overlay);
   }
-  if (overlay.classList.contains(C.ActionFeedback.success)) {
-    await clickElement(overlay);
+  const outcome = await Promise.race([
+    $(tile.frame, C.ActionFeedback.success),
+    $(tile.frame, C.ActionFeedback.error),
+    waitActionFeedbackTimeout(),
+  ]);
+  if (outcome === undefined) {
+    return 'Timed out waiting for action feedback';
+  }
+  if (outcome.classList.contains(C.ActionFeedback.success)) {
+    await clickElement(outcome);
     return;
   }
-  if (overlay.classList.contains(C.ActionFeedback.error)) {
-    const message = _$(overlay, C.ActionFeedback.message)?.textContent;
-    const dismiss = _$(overlay, C.ActionFeedback.dismiss)?.textContent;
-    return dismiss ? message?.replace(dismiss, '') : message;
+  const message = _$(outcome, C.ActionFeedback.message)?.textContent;
+  const dismiss = _$(outcome, C.ActionFeedback.dismiss)?.textContent;
+  const error = (dismiss ? message?.replace(dismiss, '') : message)?.trim();
+  if (error === undefined || error.length === 0) {
+    return 'Action failed without an error message';
   }
-
-  return 'Unknown action feedback overlay';
+  return error;
 }
 
-async function waitActionProgress(overlay: HTMLElement) {
-  if (!overlay.classList.contains(C.ActionFeedback.progress)) {
-    return;
-  }
-  await new Promise<void>(resolve => {
-    const mutationObserver = new MutationObserver(() => {
-      if (!overlay.classList.contains(C.ActionFeedback.progress)) {
-        mutationObserver.disconnect();
-        resolve();
-      }
-    });
-    mutationObserver.observe(overlay, { attributes: true });
-  });
+async function waitActionFeedbackTimeout() {
+  await sleep(actionFeedbackTimeoutMs);
 }

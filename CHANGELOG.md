@@ -6,6 +6,10 @@
 
 - `shortcut-placeorder`: Type an exchange shortcut and a material ticker (`a dw`) to open the CXPO place-order buffer for that material on that exchange
 
+### Fixed
+
+- `XIT ACT`: Waits for a game action's final success or error state instead of intermittently aborting successful package steps
+
 ## 1.1.1
 
 ### Added
