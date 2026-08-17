@@ -19,7 +19,7 @@
 - `XIT GOVBURN`: Import a planet's POPI plan from JSON in the config pane, with a preview of what it overwrites
 - `bs-inv-base-store-link`: Makes the `INV` context link on `BS` open the base store directly
 - `XIT BS`: Shows a green 🚀 next to a base's inventory bar 24 hours before its produced goods fill the ship picked in `XIT PLANETS`, and hides it while a ship is already in flight there
-- - `XIT PLANETS`: New Pickup column allows users to specify a size of ship to receive an alert for when sufficient goods will be produced to fill it within 24 hours
+- `XIT PLANETS`: New Pickup column allows users to specify a size of ship to receive an alert for when sufficient goods will be produced to fill it within 24 hours
 - `production-companion-buffers`: Shift-click a production line button in PROD, PRODQ or PRODCO to open PRODCO and PRODQ side by side as a companion pair
 
 ### Changed
