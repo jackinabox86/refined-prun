@@ -4,7 +4,7 @@
 
 ### Added
 
-- `shortcut-placeorder`: Type an exchange shortcut and a material ticker (`a dw`) to open the CXPO place-order buffer for that material on that exchange
+- `shortcut-placeorder`: Type an exchange shortcut and a material ticker (`a dw`) to open the CXPO place-order buffer for that material on that exchange (a=ANT, b=BEN, i=HRT, h=HUB, l=ARC)
 - `XIT DISPATCH`: Clicking a planet's Burn or Repair value opens its detailed XIT BURN or XIT REP buffer
 
 ### Fixed
