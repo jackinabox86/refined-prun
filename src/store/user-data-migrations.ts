@@ -17,6 +17,12 @@ function isCheckpoint(entry: MigrationEntry): entry is Checkpoint {
 // The date is for reference only, and it does not affect migration order.
 const migrations: MigrationEntry[] = [
   [
+    '25.08.2026 Add flow price overrides',
+    userData => {
+      userData.settings.flow = { overrides: {} };
+    },
+  ],
+  [
     '09.08.2026 Add govburn slot picks',
     userData => {
       userData.govburn.config.slots = {};

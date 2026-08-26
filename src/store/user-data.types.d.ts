@@ -9,6 +9,11 @@ declare namespace UserData {
 
   export type Exchange = 'AI1' | 'CI1' | 'CI2' | 'IC1' | 'NC1' | 'NC2';
 
+  interface PriceOverride {
+    buy?: number;
+    sell?: number;
+  }
+
   interface StoreSortingData {
     modes: SortingMode[];
     active?: string;
