@@ -20,6 +20,11 @@ Request-wrapped stores expose a separate `peek()` path for the catalog. CX and F
 their passive entity-store view separately from their request-on-read `all` computed. Tests cover these
 boundaries.
 
+The game source catalog transitively imports `core/repair` → `core/buildings` → `infrastructure/fio/cx`,
+whose module initializer calls `dayjs.duration`. The application initializes the Day.js plugins first in
+`refined-prun.ts`; standalone tests or entry points that import the catalog must likewise import
+`@src/utils/dayjs` first.
+
 The only catalog operation allowed to request data is an explicit human click on **LOAD FROM PRUN** in
 `XIT DATA`. The selected descriptor must declare a loader. Production and workforce loaders also
 require a valid site ID already present in the sites store.
@@ -92,6 +97,8 @@ Rules:
 - Text search is a case-insensitive substring search over the serialized row.
 - Sorting keeps missing and null values last in both directions. Unlike types fall back to string
   comparison.
+- Burn rows use `Number.POSITIVE_INFINITY` for `daysLeft` when net production is non-negative. The JSON
+  clone and export path serializes that value to `null`, so it sorts as missing in both directions.
 - The default limit is 250. Limits above 5,000 are capped at 5,000; invalid non-positive or
   non-integer limits are rejected.
 

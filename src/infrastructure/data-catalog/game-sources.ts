@@ -89,6 +89,22 @@ function fetchedCompleteness(fetched: Ref<boolean>, partial = false) {
 const blueprintsState = blueprintsStore.peek();
 const shipyardProjectsState = shipyardProjectsStore.peek();
 
+function getBurnRows() {
+  return sitesStore.all.value?.map(getPlanetBurnPassive).filter(x => x !== undefined);
+}
+
+function getBurnCompleteness(): DataCompleteness {
+  const sites = sitesStore.all.value;
+  if (sites === undefined) {
+    return 'not-loaded';
+  }
+  const rowCount = getBurnRows()?.length ?? 0;
+  if (sites.length > 0 && rowCount === 0) {
+    return 'not-loaded';
+  }
+  return rowCount === sites.length ? 'complete' : 'partial';
+}
+
 export const gameDataSources: DataSourceDescriptor[] = [
   entitySource({
     id: 'alerts',
@@ -114,8 +130,8 @@ export const gameDataSources: DataSourceDescriptor[] = [
     label: 'Burn',
     description: 'Calculated burn data for the company\u2019s sites.',
     provenance: 'prun-live',
-    completeness: fetchedCompleteness(sitesStore.fetched),
-    snapshot: () => sitesStore.all.value?.map(getPlanetBurnPassive).filter(x => x !== undefined),
+    completeness: getBurnCompleteness,
+    snapshot: getBurnRows,
   }),
   createRecordSource({
     id: 'company',
