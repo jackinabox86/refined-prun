@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import '@src/utils/dayjs';
 import { DataCatalog } from '@src/core/data-query/catalog';
 import { gameDataSources } from '@src/infrastructure/data-catalog/game-sources';
 import { request } from '@src/infrastructure/prun-api/data/request-hooks';
@@ -7,6 +8,7 @@ const expectedSourceIds = [
   'alerts',
   'balances',
   'blueprints',
+  'burn',
   'company',
   'contract-drafts',
   'contracts',
@@ -24,7 +26,9 @@ const expectedSourceIds = [
   'material-categories',
   'materials',
   'planets',
+  'planet-settings',
   'production',
+  'repair',
   'sectors',
   'ships',
   'shipyard-projects',
