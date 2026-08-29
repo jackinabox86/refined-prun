@@ -1,7 +1,7 @@
 import { createCollectionSource, createRecordSource } from '@src/core/data-query/catalog';
 import { DataCompleteness, DataSourceDescriptor, DataProvenance } from '@src/core/data-query/types';
 import { getPlanetBurnPassive } from '@src/core/burn';
-import { calculateBuildingEntries, calculateShipEntries } from '@src/features/XIT/REP/entries';
+import { calculateBuildingEntries, calculateShipEntries } from '@src/core/repair';
 import { alertsStore } from '@src/infrastructure/prun-api/data/alerts';
 import { balancesStore } from '@src/infrastructure/prun-api/data/balances';
 import { blueprintsStore } from '@src/infrastructure/prun-api/data/blueprints';
