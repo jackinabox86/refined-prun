@@ -33,39 +33,54 @@ export interface PlanetBurn {
   burn: BurnValues;
 }
 
-const burnBySiteId = computed(() => {
-  if (!sitesStore.all.value) {
-    return undefined;
-  }
+const burnBySiteId = createBurnBySiteId(
+  id => workforcesStore.getById(id)?.workforces,
+  id => productionStore.getBySiteId(id),
+);
 
-  const bySiteId = new Map<string, Ref<PlanetBurn | undefined>>();
-  for (const site of sitesStore.all.value) {
-    bySiteId.set(
-      site.siteId,
-      computed(() => {
-        const id = site.siteId;
-        const workforce = workforcesStore.getById(id)?.workforces;
-        const production = productionStore.getBySiteId(id);
-        const storage = storagesStore.getByAddressableId(id);
-        if (!workforce || !production) {
-          return undefined;
-        }
+const passiveBurnBySiteId = createBurnBySiteId(
+  id => workforcesStore.passiveGetById(id)?.workforces,
+  id => productionStore.passiveGetBySiteId(id),
+);
 
-        const naturalId = getEntityNaturalIdFromAddress(site.address);
-        const inboundStores = getInboundShipStores(naturalId);
-        const combinedStorage = [...(storage ?? []), ...inboundStores];
+function createBurnBySiteId(
+  getWorkforces: (siteId: string) => PrunApi.Workforce[] | undefined,
+  getProduction: (siteId: string) => PrunApi.ProductionLine[] | undefined,
+) {
+  return computed(() => {
+    if (!sitesStore.all.value) {
+      return undefined;
+    }
 
-        return {
-          storeId: storage?.[0]?.id,
-          planetName: getEntityNameFromAddress(site.address),
-          naturalId,
-          burn: calculatePlanetBurn(production, workforce, combinedStorage),
-        } as PlanetBurn;
-      }),
-    );
-  }
-  return bySiteId;
-});
+    const bySiteId = new Map<string, Ref<PlanetBurn | undefined>>();
+    for (const site of sitesStore.all.value) {
+      bySiteId.set(
+        site.siteId,
+        computed(() => {
+          const id = site.siteId;
+          const workforce = getWorkforces(id);
+          const production = getProduction(id);
+          const storage = storagesStore.getByAddressableId(id);
+          if (!workforce || !production) {
+            return undefined;
+          }
+
+          const naturalId = getEntityNaturalIdFromAddress(site.address);
+          const inboundStores = getInboundShipStores(naturalId);
+          const combinedStorage = [...(storage ?? []), ...inboundStores];
+
+          return {
+            storeId: storage?.[0]?.id,
+            planetName: getEntityNameFromAddress(site.address),
+            naturalId,
+            burn: calculatePlanetBurn(production, workforce, combinedStorage),
+          } as PlanetBurn;
+        }),
+      );
+    }
+    return bySiteId;
+  });
+}
 
 // Ships currently in flight towards the planet. A landed ship has no flightId,
 // so this is exactly "dispatched but not arrived yet". Unlike
@@ -122,12 +137,23 @@ export function setInboundShipInventoryEnabled(value: boolean) {
 }
 
 export function getPlanetBurn(siteOrId?: PrunApi.Site | string | null) {
+  return getPlanetBurnFromMap(burnBySiteId, siteOrId);
+}
+
+export function getPlanetBurnPassive(siteOrId?: PrunApi.Site | string | null) {
+  return getPlanetBurnFromMap(passiveBurnBySiteId, siteOrId);
+}
+
+function getPlanetBurnFromMap(
+  bySiteId: Ref<Map<string, Ref<PlanetBurn | undefined>> | undefined>,
+  siteOrId?: PrunApi.Site | string | null,
+) {
   const site = typeof siteOrId === 'string' ? sitesStore.getById(siteOrId) : siteOrId;
   if (!site) {
     return undefined;
   }
 
-  return burnBySiteId.value?.get(site.siteId)?.value;
+  return bySiteId.value?.get(site.siteId)?.value;
 }
 
 export function calculatePlanetBurn(

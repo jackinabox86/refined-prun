@@ -1,6 +1,6 @@
 import { createCollectionSource, createRecordSource } from '@src/core/data-query/catalog';
 import { DataCompleteness, DataSourceDescriptor, DataProvenance } from '@src/core/data-query/types';
-import { getPlanetBurn } from '@src/core/burn';
+import { getPlanetBurnPassive } from '@src/core/burn';
 import { calculateBuildingEntries, calculateShipEntries } from '@src/features/XIT/REP/entries';
 import { alertsStore } from '@src/infrastructure/prun-api/data/alerts';
 import { balancesStore } from '@src/infrastructure/prun-api/data/balances';
@@ -115,7 +115,7 @@ export const gameDataSources: DataSourceDescriptor[] = [
     description: 'Calculated burn data for the company\u2019s sites.',
     provenance: 'prun-live',
     completeness: fetchedCompleteness(sitesStore.fetched),
-    snapshot: () => sitesStore.all.value?.map(getPlanetBurn).filter(x => x !== undefined),
+    snapshot: () => sitesStore.all.value?.map(getPlanetBurnPassive).filter(x => x !== undefined),
   }),
   createRecordSource({
     id: 'company',
@@ -224,14 +224,6 @@ export const gameDataSources: DataSourceDescriptor[] = [
     description: 'PrUn material definitions.',
     store: materialsStore,
   }),
-  entitySource({
-    id: 'planets',
-    label: 'Planets',
-    description: 'FIO fallback planet reference data patched with selected live PrUn fields.',
-    provenance: 'fio-reference-with-prun-overrides',
-    warning: fioWarning,
-    store: planetsStore,
-  }),
   createRecordSource({
     id: 'planet-settings',
     label: 'Planet Settings',
@@ -252,6 +244,14 @@ export const gameDataSources: DataSourceDescriptor[] = [
         planetOverrides: userData.settings.repair.planetOverrides,
       },
     }),
+  }),
+  entitySource({
+    id: 'planets',
+    label: 'Planets',
+    description: 'FIO fallback planet reference data patched with selected live PrUn fields.',
+    provenance: 'fio-reference-with-prun-overrides',
+    warning: fioWarning,
+    store: planetsStore,
   }),
   createCollectionSource({
     id: 'production',
@@ -283,10 +283,17 @@ export const gameDataSources: DataSourceDescriptor[] = [
       }
       return sitesFetched && shipsFetched ? 'complete' : 'partial';
     },
-    snapshot: () => [
-      ...(calculateBuildingEntries(sitesStore.all.value) ?? []),
-      ...(calculateShipEntries(shipsStore.all.value) ?? []),
-    ],
+    snapshot: () => {
+      const buildingEntries = calculateBuildingEntries(sitesStore.all.value);
+      const shipEntries = calculateShipEntries(shipsStore.all.value);
+      if (buildingEntries === undefined) {
+        return shipEntries;
+      }
+      if (shipEntries === undefined) {
+        return buildingEntries;
+      }
+      return [...buildingEntries, ...shipEntries];
+    },
   }),
   entitySource({
     id: 'sectors',

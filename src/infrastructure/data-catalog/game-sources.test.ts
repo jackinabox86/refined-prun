@@ -1,7 +1,8 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import '@src/utils/dayjs';
 import { DataCatalog } from '@src/core/data-query/catalog';
 import { gameDataSources } from '@src/infrastructure/data-catalog/game-sources';
+import { dispatch } from '@src/infrastructure/prun-api/data/api-messages';
 import { request } from '@src/infrastructure/prun-api/data/request-hooks';
 
 const expectedSourceIds = [
@@ -25,8 +26,8 @@ const expectedSourceIds = [
   'local-ads',
   'material-categories',
   'materials',
-  'planets',
   'planet-settings',
+  'planets',
   'production',
   'repair',
   'sectors',
@@ -41,6 +42,11 @@ const expectedSourceIds = [
   'warehouses',
   'workforces',
 ];
+
+afterEach(() => {
+  dispatch({ type: 'CLIENT_CONNECTION_OPENED' });
+  vi.restoreAllMocks();
+});
 
 describe('game data sources', () => {
   it('catalogs the explicit gameplay source set with declared provenance and loaders', () => {
@@ -72,6 +78,30 @@ describe('game data sources', () => {
       catalog.query({ sourceId });
       catalog.export({ sourceId });
     }
+    for (const spy of requestSpies) {
+      expect(spy).not.toHaveBeenCalled();
+    }
+  });
+
+  it('snapshots burn for loaded sites without requesting missing data', () => {
+    const requestSpies = Object.keys(request).map(key =>
+      vi.spyOn(request, key as keyof typeof request).mockImplementation(() => undefined),
+    );
+    const site: PrunApi.Site = {
+      siteId: 'site-1',
+      address: { lines: [] },
+      founded: { timestamp: 0 },
+      platforms: [],
+      buildOptions: { options: [] },
+      area: 0,
+      investedPermits: 0,
+      maximumPermits: 0,
+    };
+    dispatch({ type: 'SITE_SITES', data: { sites: [site] } });
+
+    const catalog = new DataCatalog(gameDataSources);
+
+    expect(catalog.snapshot('burn').rows).toEqual([]);
     for (const spy of requestSpies) {
       expect(spy).not.toHaveBeenCalled();
     }

@@ -20,9 +20,11 @@ onApiMessage({
   },
 });
 
-const getById = createRequestGetter(state.getById, x => request.workforce(x));
+const passiveGetById = state.getById;
+const getById = createRequestGetter(passiveGetById, x => request.workforce(x));
 
 export const workforcesStore = {
   ...state,
   getById,
+  passiveGetById,
 };
