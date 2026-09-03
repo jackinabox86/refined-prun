@@ -3,10 +3,13 @@ import { dispatch } from '@src/infrastructure/prun-api/data/api-messages';
 import {
   agentChannelStore,
   channelIdentifier,
+  fetchAgentChannel,
 } from '@src/infrastructure/prun-api/data/agent-channel';
 import { agentReadyPackages } from '@src/features/XIT/ACT/agent-sync';
 
-vi.mock('@src/infrastructure/prun-ui/buffers', () => ({ showBuffer: vi.fn() }));
+const mocks = vi.hoisted(() => ({ showBuffer: vi.fn() }));
+
+vi.mock('@src/infrastructure/prun-ui/buffers', () => ({ showBuffer: mocks.showBuffer }));
 
 function packageMessage(id: string, channelId: string): PrunApi.ChannelMessage {
   return {
@@ -48,31 +51,37 @@ function channelMembership(channelId: string) {
 }
 
 describe('agent channel ingestion', () => {
-  beforeEach(() => dispatch({ type: 'CLIENT_CONNECTION_OPENED' }));
+  beforeEach(() => {
+    mocks.showBuffer.mockReset();
+    dispatch({ type: 'CLIENT_CONNECTION_OPENED' });
+  });
 
-  it('ignores unrelated history before ingesting the refined-agent channel', () => {
+  it('ignores unrelated history before ingesting a requested refined-agent channel', async () => {
     dispatch(channelMessages('other-channel', [packageMessage('wrong', 'other-channel')]));
 
     expect(agentChannelStore.fetched.value).toBe(false);
     expect(agentReadyPackages.value).toEqual([]);
 
     const targetChannel = 'refined-agent-channel';
-    dispatch(channelMembership(targetChannel));
-    dispatch(
-      channelMessages(
-        targetChannel,
-        ['a2-1', 'a2-2', 'a2-3', 'a2-4'].map(x => packageMessage(x, targetChannel)),
-      ),
-    );
+    mocks.showBuffer.mockImplementation(async () => {
+      dispatch(
+        channelMessages(
+          targetChannel,
+          ['a2-1', 'a2-2', 'a2-3', 'a2-4'].map(x => packageMessage(x, targetChannel)),
+        ),
+      );
+      return { isConnected: false } as Element;
+    });
+    await fetchAgentChannel();
 
     expect(agentChannelStore.channelId.value).toBe(targetChannel);
     expect(agentReadyPackages.value.map(x => x.id)).toEqual(['a2-1', 'a2-2', 'a2-3', 'a2-4']);
   });
 
-  it('ingests refined-agent history that arrives before membership', () => {
+  it('uses refined-agent membership to identify later history', () => {
     const targetChannel = 'refined-agent-channel';
-    dispatch(channelMessages(targetChannel, [packageMessage('a2', targetChannel)]));
     dispatch(channelMembership(targetChannel));
+    dispatch(channelMessages(targetChannel, [packageMessage('a2', targetChannel)]));
 
     expect(agentChannelStore.channelId.value).toBe(targetChannel);
     expect(agentReadyPackages.value.map(x => x.id)).toEqual(['a2']);

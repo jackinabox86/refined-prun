@@ -20,10 +20,11 @@ const state = store.state;
 const channelId = ref<string>();
 const received = ref(false);
 const inaccessible = ref(false);
-const pendingMessageLists = new Map<string, PrunApi.ChannelMessageList>();
+let awaitingMessageList = false;
 
 function ingestMessageList(data: PrunApi.ChannelMessageList) {
-  pendingMessageLists.clear();
+  channelId.value = data.channelId;
+  awaitingMessageList = false;
   inaccessible.value = false;
   store.setAll(data.messages);
   store.setFetched();
@@ -35,18 +36,11 @@ onApiMessage({
     channelId.value = undefined;
     received.value = false;
     inaccessible.value = false;
-    pendingMessageLists.clear();
+    awaitingMessageList = false;
   },
   CHANNEL_MESSAGE_LIST(data: PrunApi.ChannelMessageList) {
-    if (channelId.value === data.channelId) {
+    if (channelId.value === data.channelId || awaitingMessageList) {
       ingestMessageList(data);
-      return;
-    }
-
-    // Membership identifies private group channels; until it arrives, retain lists
-    // without guessing that the first restored/open COM buffer is refined-agent.
-    if (channelId.value === undefined) {
-      pendingMessageLists.set(data.channelId, data);
     }
   },
   CHANNEL_CLIENT_MEMBERSHIP(data: PrunApi.ChannelClientMembership) {
@@ -55,7 +49,7 @@ onApiMessage({
     }
     if (!data.joined || data.channelId === null) {
       channelId.value = undefined;
-      pendingMessageLists.clear();
+      awaitingMessageList = false;
       inaccessible.value = true;
       received.value = true;
       return;
@@ -63,12 +57,6 @@ onApiMessage({
 
     channelId.value = data.channelId;
     inaccessible.value = false;
-    const pending = pendingMessageLists.get(data.channelId);
-    if (pending !== undefined) {
-      ingestMessageList(pending);
-    } else {
-      pendingMessageLists.clear();
-    }
   },
 });
 
@@ -108,11 +96,16 @@ export async function fetchAgentChannel() {
     return;
   }
   received.value = false;
-  const window = await showBuffer(channelCommand, {
-    force: true,
-    autoClose: true,
-    closeWhen: computed(() => received.value),
-  });
-  await watchUntil(received);
-  await new Promise<void>(resolve => onNodeDisconnected(window, resolve));
+  awaitingMessageList = true;
+  try {
+    const window = await showBuffer(channelCommand, {
+      force: true,
+      autoClose: true,
+      closeWhen: computed(() => received.value),
+    });
+    await watchUntil(received);
+    await new Promise<void>(resolve => onNodeDisconnected(window, resolve));
+  } finally {
+    awaitingMessageList = false;
+  }
 }
