@@ -135,4 +135,27 @@ describe('agent channel ingestion', () => {
     expect(agentChannelStore.channelId.value).toBe(targetChannel);
     expect(agentReadyPackages.value.map(x => x.id)).toEqual(['a2']);
   });
+
+  it('fails closed instead of hanging when target history precedes channel identity', async () => {
+    vi.useFakeTimers();
+    try {
+      const targetChannel = 'refined-agent-channel';
+      mocks.showBuffer.mockImplementation(async () => {
+        dispatch(channelMessages(targetChannel, [packageMessage('wrong-order', targetChannel)]));
+        dispatch(channelMembership(targetChannel));
+        return { isConnected: false } as Element;
+      });
+
+      const request = fetchAgentChannel();
+      await vi.advanceTimersByTimeAsync(5000);
+      await request;
+
+      expect(agentChannelStore.channelId.value).toBeUndefined();
+      expect(agentChannelStore.inaccessible.value).toBe(true);
+      expect(agentChannelStore.fetched.value).toBe(false);
+      expect(agentReadyPackages.value).toEqual([]);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });

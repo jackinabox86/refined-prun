@@ -1,7 +1,7 @@
 import { createEntityStore } from '@src/infrastructure/prun-api/data/create-entity-store';
 import { onApiMessage } from '@src/infrastructure/prun-api/data/api-messages';
 import { showBuffer } from '@src/infrastructure/prun-ui/buffers';
-import { watchUntil } from '@src/utils/watch';
+import { waitFor } from '@src/utils/wait-for';
 import { onNodeDisconnected } from '@src/utils/on-node-disconnected';
 
 // "refined-agent" is a private GROUP channel with no other members, repurposed as a
@@ -20,6 +20,7 @@ const state = store.state;
 const channelId = ref<string>();
 const received = ref(false);
 const inaccessible = ref(false);
+const historyTimeout = 5000;
 
 function ingestMessageList(data: PrunApi.ChannelMessageList) {
   channelId.value = data.channelId;
@@ -104,6 +105,10 @@ export async function fetchAgentChannel() {
     autoClose: true,
     closeWhen: computed(() => received.value),
   });
-  await watchUntil(received);
+  if (!(await waitFor(() => received.value, historyTimeout))) {
+    channelId.value = undefined;
+    inaccessible.value = true;
+    received.value = true;
+  }
   await new Promise<void>(resolve => onNodeDisconnected(window, resolve));
 }
