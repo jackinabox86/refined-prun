@@ -29,4 +29,8 @@ declare namespace PrunApi {
     readUntil: DateTime;
     lastActivity: DateTime | null;
   }
+
+  interface ChannelChannelList {
+    channels: ChannelClientMembership[];
+  }
 }

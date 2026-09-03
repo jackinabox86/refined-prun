@@ -20,15 +20,28 @@ const state = store.state;
 const channelId = ref<string>();
 const received = ref(false);
 const inaccessible = ref(false);
-let awaitingMessageList = false;
 
 function ingestMessageList(data: PrunApi.ChannelMessageList) {
   channelId.value = data.channelId;
-  awaitingMessageList = false;
   inaccessible.value = false;
   store.setAll(data.messages);
   store.setFetched();
   received.value = true;
+}
+
+function applyMembership(data: PrunApi.ChannelClientMembership) {
+  if (data.identifier !== channelIdentifier) {
+    return;
+  }
+  if (!data.joined || data.channelId === null) {
+    channelId.value = undefined;
+    inaccessible.value = true;
+    received.value = true;
+    return;
+  }
+
+  channelId.value = data.channelId;
+  inaccessible.value = false;
 }
 
 onApiMessage({
@@ -37,28 +50,17 @@ onApiMessage({
     inaccessible.value = false;
   },
   CHANNEL_MESSAGE_LIST(data: PrunApi.ChannelMessageList) {
-    if (
-      channelId.value === data.channelId ||
-      (channelId.value === undefined && awaitingMessageList)
-    ) {
+    if (channelId.value === data.channelId) {
       ingestMessageList(data);
     }
   },
-  CHANNEL_CLIENT_MEMBERSHIP(data: PrunApi.ChannelClientMembership) {
-    if (data.identifier !== channelIdentifier) {
-      return;
+  CHANNEL_CHANNEL_LIST(data: PrunApi.ChannelChannelList) {
+    const membership = data.channels.find(x => x.identifier === channelIdentifier);
+    if (membership) {
+      applyMembership(membership);
     }
-    if (!data.joined || data.channelId === null) {
-      channelId.value = undefined;
-      awaitingMessageList = false;
-      inaccessible.value = true;
-      received.value = true;
-      return;
-    }
-
-    channelId.value = data.channelId;
-    inaccessible.value = false;
   },
+  CHANNEL_CLIENT_MEMBERSHIP: applyMembership,
 });
 
 export const agentChannelStore = {
@@ -97,16 +99,11 @@ export async function fetchAgentChannel() {
     return;
   }
   received.value = false;
-  awaitingMessageList = true;
-  try {
-    const window = await showBuffer(channelCommand, {
-      force: true,
-      autoClose: true,
-      closeWhen: computed(() => received.value),
-    });
-    await watchUntil(received);
-    await new Promise<void>(resolve => onNodeDisconnected(window, resolve));
-  } finally {
-    awaitingMessageList = false;
-  }
+  const window = await showBuffer(channelCommand, {
+    force: true,
+    autoClose: true,
+    closeWhen: computed(() => received.value),
+  });
+  await watchUntil(received);
+  await new Promise<void>(resolve => onNodeDisconnected(window, resolve));
 }

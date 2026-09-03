@@ -35,18 +35,26 @@ function channelMessages(channelId: string, messages: PrunApi.ChannelMessage[]) 
   };
 }
 
-function channelMembership(channelId: string) {
+function membershipData(channelId: string): PrunApi.ChannelClientMembership {
   return {
-    type: 'CHANNEL_CLIENT_MEMBERSHIP',
-    data: {
-      type: 'GROUP',
-      identifier: channelIdentifier,
-      channelId,
-      joined: true,
-      muted: false,
-      readUntil: { timestamp: Date.now() },
-      lastActivity: { timestamp: Date.now() },
-    },
+    type: 'GROUP',
+    identifier: channelIdentifier,
+    channelId,
+    joined: true,
+    muted: false,
+    readUntil: { timestamp: Date.now() },
+    lastActivity: { timestamp: Date.now() },
+  };
+}
+
+function channelMembership(channelId: string) {
+  return { type: 'CHANNEL_CLIENT_MEMBERSHIP', data: membershipData(channelId) };
+}
+
+function channelList(channelId: string) {
+  return {
+    type: 'CHANNEL_CHANNEL_LIST',
+    data: { channels: [membershipData(channelId)] },
   };
 }
 
@@ -63,6 +71,7 @@ describe('agent channel ingestion', () => {
     expect(agentReadyPackages.value).toEqual([]);
 
     const targetChannel = 'refined-agent-channel';
+    dispatch(channelList(targetChannel));
     mocks.showBuffer.mockImplementation(async () => {
       dispatch(
         channelMessages(
@@ -87,16 +96,16 @@ describe('agent channel ingestion', () => {
     expect(agentReadyPackages.value.map(x => x.id)).toEqual(['a2']);
   });
 
-  it('keeps waiting when unrelated history follows refined-agent membership', async () => {
+  it('ignores unrelated history while a request has no channel identity yet', async () => {
     const targetChannel = 'refined-agent-channel';
     mocks.showBuffer.mockImplementation(async () => {
-      dispatch(channelMembership(targetChannel));
       dispatch(channelMessages('other-channel', [packageMessage('wrong', 'other-channel')]));
 
-      expect(agentChannelStore.channelId.value).toBe(targetChannel);
+      expect(agentChannelStore.channelId.value).toBeUndefined();
       expect(agentChannelStore.fetched.value).toBe(false);
       expect(agentReadyPackages.value).toEqual([]);
 
+      dispatch(channelMembership(targetChannel));
       dispatch(channelMessages(targetChannel, [packageMessage('a2', targetChannel)]));
       return { isConnected: false } as Element;
     });
@@ -106,10 +115,17 @@ describe('agent channel ingestion', () => {
     expect(agentReadyPackages.value.map(x => x.id)).toEqual(['a2']);
   });
 
-  it('keeps an in-flight history request armed across a reconnect', async () => {
+  it('routes an in-flight history request after a reconnect', async () => {
     const targetChannel = 'refined-agent-channel';
     mocks.showBuffer.mockImplementation(async () => {
       dispatch({ type: 'CLIENT_CONNECTION_OPENED' });
+      dispatch(channelList(targetChannel));
+      dispatch(channelMessages('other-channel', [packageMessage('wrong', 'other-channel')]));
+
+      expect(agentChannelStore.channelId.value).toBe(targetChannel);
+      expect(agentChannelStore.fetched.value).toBe(false);
+      expect(agentReadyPackages.value).toEqual([]);
+
       dispatch(channelMessages(targetChannel, [packageMessage('a2', targetChannel)]));
       return { isConnected: false } as Element;
     });
