@@ -86,4 +86,37 @@ describe('agent channel ingestion', () => {
     expect(agentChannelStore.channelId.value).toBe(targetChannel);
     expect(agentReadyPackages.value.map(x => x.id)).toEqual(['a2']);
   });
+
+  it('keeps waiting when unrelated history follows refined-agent membership', async () => {
+    const targetChannel = 'refined-agent-channel';
+    mocks.showBuffer.mockImplementation(async () => {
+      dispatch(channelMembership(targetChannel));
+      dispatch(channelMessages('other-channel', [packageMessage('wrong', 'other-channel')]));
+
+      expect(agentChannelStore.channelId.value).toBe(targetChannel);
+      expect(agentChannelStore.fetched.value).toBe(false);
+      expect(agentReadyPackages.value).toEqual([]);
+
+      dispatch(channelMessages(targetChannel, [packageMessage('a2', targetChannel)]));
+      return { isConnected: false } as Element;
+    });
+
+    await fetchAgentChannel();
+
+    expect(agentReadyPackages.value.map(x => x.id)).toEqual(['a2']);
+  });
+
+  it('keeps an in-flight history request armed across a reconnect', async () => {
+    const targetChannel = 'refined-agent-channel';
+    mocks.showBuffer.mockImplementation(async () => {
+      dispatch({ type: 'CLIENT_CONNECTION_OPENED' });
+      dispatch(channelMessages(targetChannel, [packageMessage('a2', targetChannel)]));
+      return { isConnected: false } as Element;
+    });
+
+    await fetchAgentChannel();
+
+    expect(agentChannelStore.channelId.value).toBe(targetChannel);
+    expect(agentReadyPackages.value.map(x => x.id)).toEqual(['a2']);
+  });
 });

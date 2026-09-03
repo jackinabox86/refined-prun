@@ -34,12 +34,13 @@ function ingestMessageList(data: PrunApi.ChannelMessageList) {
 onApiMessage({
   CLIENT_CONNECTION_OPENED() {
     channelId.value = undefined;
-    received.value = false;
     inaccessible.value = false;
-    awaitingMessageList = false;
   },
   CHANNEL_MESSAGE_LIST(data: PrunApi.ChannelMessageList) {
-    if (channelId.value === data.channelId || awaitingMessageList) {
+    if (
+      channelId.value === data.channelId ||
+      (channelId.value === undefined && awaitingMessageList)
+    ) {
       ingestMessageList(data);
     }
   },
