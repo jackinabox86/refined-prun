@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Fixed
+
+- `XIT AGENT`: Loads action packages from the refined-agent channel even when other comms buffers restore first.
+
 ## 1.1.2
 
 ### Added

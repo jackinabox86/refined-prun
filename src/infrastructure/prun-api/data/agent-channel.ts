@@ -20,31 +20,55 @@ const state = store.state;
 const channelId = ref<string>();
 const received = ref(false);
 const inaccessible = ref(false);
+const pendingMessageLists = new Map<string, PrunApi.ChannelMessageList>();
+
+function ingestMessageList(data: PrunApi.ChannelMessageList) {
+  pendingMessageLists.clear();
+  inaccessible.value = false;
+  store.setAll(data.messages);
+  store.setFetched();
+  received.value = true;
+}
 
 onApiMessage({
   CLIENT_CONNECTION_OPENED() {
     channelId.value = undefined;
+    received.value = false;
     inaccessible.value = false;
+    pendingMessageLists.clear();
   },
   CHANNEL_MESSAGE_LIST(data: PrunApi.ChannelMessageList) {
-    // Ignore CHANNEL_MESSAGE_LIST pushes from unrelated channels the user has open elsewhere.
-    if (channelId.value !== undefined && data.channelId !== channelId.value) {
+    if (channelId.value === data.channelId) {
+      ingestMessageList(data);
       return;
     }
+
+    // Membership identifies private group channels; until it arrives, retain lists
+    // without guessing that the first restored/open COM buffer is refined-agent.
+    if (channelId.value === undefined) {
+      pendingMessageLists.set(data.channelId, data);
+    }
+  },
+  CHANNEL_CLIENT_MEMBERSHIP(data: PrunApi.ChannelClientMembership) {
+    if (data.identifier !== channelIdentifier) {
+      return;
+    }
+    if (!data.joined || data.channelId === null) {
+      channelId.value = undefined;
+      pendingMessageLists.clear();
+      inaccessible.value = true;
+      received.value = true;
+      return;
+    }
+
     channelId.value = data.channelId;
     inaccessible.value = false;
-    store.setAll(data.messages);
-    store.setFetched();
-    received.value = true;
-  },
-  // Fires with channelId: null, joined: false when the channel doesn't exist yet or
-  // the current user isn't a member of it.
-  CHANNEL_CLIENT_MEMBERSHIP(data: PrunApi.ChannelClientMembership) {
-    if (data.identifier !== channelIdentifier || data.joined) {
-      return;
+    const pending = pendingMessageLists.get(data.channelId);
+    if (pending !== undefined) {
+      ingestMessageList(pending);
+    } else {
+      pendingMessageLists.clear();
     }
-    inaccessible.value = true;
-    received.value = true;
   },
 });
 
