@@ -69,8 +69,27 @@ export function getUnloadedCargo(before: CargoAmount[], after: CargoAmount[]) {
     .filter(x => x.amount > 0);
 }
 
-export function getClampedTransferAmount(amount: number, maxAmount: number) {
-  return maxAmount <= 0 ? 0 : Math.min(amount, maxAmount);
+export function getCompleteTransferAmount(amount: number, maxAmount: number) {
+  const clamped = maxAmount <= 0 ? 0 : Math.min(amount, maxAmount);
+  return amount > 0 && clamped === amount ? clamped : undefined;
+}
+
+export function getFleetRowIdentifiers(labels: (string | null | undefined)[]) {
+  return new Set(labels.map(x => x?.trim()).filter(x => x !== undefined && x.length > 0));
+}
+
+export async function resolveWithin<T>(value: Promise<T>, timeoutMs: number) {
+  let timeoutId: number | undefined;
+  const expired = new Promise<undefined>(resolve => {
+    timeoutId = setTimeout(resolve, timeoutMs);
+  });
+  try {
+    return await Promise.race([value, expired]);
+  } finally {
+    if (timeoutId !== undefined) {
+      clearTimeout(timeoutId);
+    }
+  }
 }
 
 export function storeContainsCargo(store: CargoStore | undefined, cargo: CargoAmount[]) {

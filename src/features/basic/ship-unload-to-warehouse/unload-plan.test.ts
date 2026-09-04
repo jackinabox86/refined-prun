@@ -1,11 +1,13 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import {
   CargoAmount,
   cargoFitsStore,
-  getClampedTransferAmount,
+  getCompleteTransferAmount,
   getCargoSnapshot,
+  getFleetRowIdentifiers,
   getUnloadedCargo,
   isUnloadTransferEligible,
+  resolveWithin,
   storeContainsCargo,
 } from './unload-plan';
 
@@ -73,10 +75,36 @@ describe('warehouse unload cargo planning', () => {
     expect(getUnloadedCargo(cargo, cargo)).toEqual([]);
   });
 
-  it('uses only a positive amount allowed by the MTRA slider', () => {
-    expect(getClampedTransferAmount(10, 20)).toBe(10);
-    expect(getClampedTransferAmount(10, 6)).toBe(6);
-    expect(getClampedTransferAmount(10, 0)).toBe(0);
+  it('requires the MTRA slider to allow the complete positive amount', () => {
+    expect(getCompleteTransferAmount(10, 20)).toBe(10);
+    expect(getCompleteTransferAmount(10, 6)).toBeUndefined();
+    expect(getCompleteTransferAmount(10, 0)).toBeUndefined();
+    expect(getCompleteTransferAmount(10, Number.NaN)).toBeUndefined();
+  });
+
+  it('ignores empty fleet-row ship identifiers', () => {
+    expect(getFleetRowIdentifiers([' AAA-001 ', '', '   ', null, undefined])).toEqual(
+      new Set(['AAA-001']),
+    );
+  });
+
+  it('bounds a selector promise that never settles', async () => {
+    vi.useFakeTimers();
+    try {
+      const result = resolveWithin(new Promise<boolean>(() => {}), 15_000);
+      let settled = false;
+      let outcome: boolean | undefined;
+      const observeResult = async () => {
+        outcome = await result;
+        settled = true;
+      };
+      void observeResult();
+      await vi.advanceTimersByTimeAsync(15_000);
+      expect(settled).toBe(true);
+      expect(outcome).toBeUndefined();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('requires the full unloaded cargo to remain in the base store', () => {

@@ -13,10 +13,12 @@ import { sleep } from '@src/utils/sleep';
 import {
   CargoAmount,
   cargoFitsStore,
-  getClampedTransferAmount,
+  getCompleteTransferAmount,
   getCargoSnapshot,
+  getFleetRowIdentifiers,
   getUnloadedCargo,
   isUnloadTransferEligible,
+  resolveWithin,
   storeContainsCargo,
 } from './unload-plan';
 
@@ -73,9 +75,10 @@ function onShipInventoryTileReady(tile: PrunTile) {
 }
 
 function findFleetRowShip(fleetRow: Element) {
-  const identifiers = new Set(_$$(fleetRow, C.Link.link).map(x => x.textContent?.trim()));
-  return shipsStore.all.value?.find(
-    x => identifiers.has(x.registration) || identifiers.has(x.name),
+  const identifiers = getFleetRowIdentifiers(_$$(fleetRow, C.Link.link).map(x => x.textContent));
+  const ships = shipsStore.all.value;
+  return (
+    ships?.find(x => identifiers.has(x.registration)) ?? ships?.find(x => identifiers.has(x.name))
   );
 }
 
@@ -194,13 +197,20 @@ async function transferMaterial(fromId: string, toId: string, cargo: CargoAmount
 
   try {
     const selector = await waitForValue(() => _$(windowEl, C.MaterialSelector.container), windowEl);
-    if (selector === undefined || !(await selectMaterial(selector, cargo.ticker))) {
+    if (selector === undefined) {
+      return false;
+    }
+    const materialSelected = await resolveWithin(
+      selectMaterial(selector, cargo.ticker),
+      actionTimeoutMs,
+    );
+    if (materialSelected !== true) {
       return false;
     }
 
     const sliderNumbers = _$$(windowEl, 'rc-slider-mark-text').map(x => Number(x.textContent ?? 0));
-    const transferAmount = getClampedTransferAmount(cargo.amount, Math.max(...sliderNumbers));
-    if (transferAmount !== cargo.amount) {
+    const transferAmount = getCompleteTransferAmount(cargo.amount, Math.max(...sliderNumbers));
+    if (transferAmount === undefined) {
       return false;
     }
 
