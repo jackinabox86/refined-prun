@@ -1,0 +1,7 @@
+.logo {
+  background-image: url('~/oog-logo.png') !important;
+}
+
+.logoLoading {
+  background-image: url('~/oog-logo-animated.gif') !important;
+}

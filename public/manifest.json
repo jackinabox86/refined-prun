@@ -51,6 +51,8 @@
         "*.js",
         "*.css",
         "*.svg",
+        "*.png",
+        "*.gif",
         "*.json",
         "*.woff2",
         "*.ttf"
