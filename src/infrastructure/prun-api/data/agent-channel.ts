@@ -1,7 +1,7 @@
 import { createEntityStore } from '@src/infrastructure/prun-api/data/create-entity-store';
 import { onApiMessage } from '@src/infrastructure/prun-api/data/api-messages';
 import { showBuffer } from '@src/infrastructure/prun-ui/buffers';
-import { watchUntil } from '@src/utils/watch';
+import { waitFor } from '@src/utils/wait-for';
 import { onNodeDisconnected } from '@src/utils/on-node-disconnected';
 
 // "refined-agent" is a private GROUP channel with no other members, repurposed as a
@@ -20,6 +20,30 @@ const state = store.state;
 const channelId = ref<string>();
 const received = ref(false);
 const inaccessible = ref(false);
+const historyTimeout = 5000;
+
+function ingestMessageList(data: PrunApi.ChannelMessageList) {
+  channelId.value = data.channelId;
+  inaccessible.value = false;
+  store.setAll(data.messages);
+  store.setFetched();
+  received.value = true;
+}
+
+function applyMembership(data: PrunApi.ChannelClientMembership) {
+  if (data.identifier !== channelIdentifier) {
+    return;
+  }
+  if (!data.joined || data.channelId === null) {
+    channelId.value = undefined;
+    inaccessible.value = true;
+    received.value = true;
+    return;
+  }
+
+  channelId.value = data.channelId;
+  inaccessible.value = false;
+}
 
 onApiMessage({
   CLIENT_CONNECTION_OPENED() {
@@ -27,25 +51,17 @@ onApiMessage({
     inaccessible.value = false;
   },
   CHANNEL_MESSAGE_LIST(data: PrunApi.ChannelMessageList) {
-    // Ignore CHANNEL_MESSAGE_LIST pushes from unrelated channels the user has open elsewhere.
-    if (channelId.value !== undefined && data.channelId !== channelId.value) {
-      return;
+    if (channelId.value === data.channelId) {
+      ingestMessageList(data);
     }
-    channelId.value = data.channelId;
-    inaccessible.value = false;
-    store.setAll(data.messages);
-    store.setFetched();
-    received.value = true;
   },
-  // Fires with channelId: null, joined: false when the channel doesn't exist yet or
-  // the current user isn't a member of it.
-  CHANNEL_CLIENT_MEMBERSHIP(data: PrunApi.ChannelClientMembership) {
-    if (data.identifier !== channelIdentifier || data.joined) {
-      return;
+  CHANNEL_CHANNEL_LIST(data: PrunApi.ChannelChannelList) {
+    const membership = data.channels.find(x => x.identifier === channelIdentifier);
+    if (membership) {
+      applyMembership(membership);
     }
-    inaccessible.value = true;
-    received.value = true;
   },
+  CHANNEL_CLIENT_MEMBERSHIP: applyMembership,
 });
 
 export const agentChannelStore = {
@@ -89,6 +105,10 @@ export async function fetchAgentChannel() {
     autoClose: true,
     closeWhen: computed(() => received.value),
   });
-  await watchUntil(received);
+  if (!(await waitFor(() => received.value, historyTimeout))) {
+    channelId.value = undefined;
+    inaccessible.value = true;
+    received.value = true;
+  }
   await new Promise<void>(resolve => onNodeDisconnected(window, resolve));
 }
