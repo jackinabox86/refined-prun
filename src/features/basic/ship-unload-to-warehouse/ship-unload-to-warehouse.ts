@@ -7,11 +7,13 @@ import { sitesStore } from '@src/infrastructure/prun-api/data/sites';
 import { storagesStore } from '@src/infrastructure/prun-api/data/storage';
 import { warehousesStore } from '@src/infrastructure/prun-api/data/warehouses';
 import { showBuffer } from '@src/infrastructure/prun-ui/buffers';
-import { changeInputValue, clickElement, focusElement } from '@src/util';
+import { selectMaterial } from '@src/features/XIT/ACT/action-steps/cont-utils';
+import { changeInputValue, clickElement } from '@src/util';
 import { sleep } from '@src/utils/sleep';
 import {
   CargoAmount,
   cargoFitsStore,
+  getClampedTransferAmount,
   getCargoSnapshot,
   getUnloadedCargo,
   isUnloadTransferEligible,
@@ -52,23 +54,29 @@ function onFleetTileReady(tile: PrunTile) {
   });
 }
 
-async function onShipInventoryTileReady(tile: PrunTile) {
-  const button = await $(tile.anchor, C.Button.primary);
-  button.addEventListener(
-    'click',
-    e => {
-      const ship = shipsStore.getByRegistration(tile.parameter);
-      if (ship !== undefined) {
-        planWarehouseUnload(ship, e.shiftKey);
-      }
-    },
-    true,
-  );
+function onShipInventoryTileReady(tile: PrunTile) {
+  subscribe($$(tile.anchor, C.Button.primary), button => {
+    button.addEventListener(
+      'click',
+      e => {
+        if (button.textContent?.trim().toLowerCase() !== 'unload') {
+          return;
+        }
+        const ship = shipsStore.getByRegistration(tile.parameter);
+        if (ship !== undefined) {
+          planWarehouseUnload(ship, e.shiftKey);
+        }
+      },
+      true,
+    );
+  });
 }
 
 function findFleetRowShip(fleetRow: Element) {
-  const registrations = new Set(_$$(fleetRow, C.Link.link).map(x => x.textContent?.trim()));
-  return shipsStore.all.value?.find(x => registrations.has(x.registration));
+  const identifiers = new Set(_$$(fleetRow, C.Link.link).map(x => x.textContent?.trim()));
+  return shipsStore.all.value?.find(
+    x => identifiers.has(x.registration) || identifiers.has(x.name),
+  );
 }
 
 function planWarehouseUnload(ship: PrunApi.Ship, shiftKey: boolean) {
@@ -190,11 +198,17 @@ async function transferMaterial(fromId: string, toId: string, cargo: CargoAmount
       return false;
     }
 
+    const sliderNumbers = _$$(windowEl, 'rc-slider-mark-text').map(x => Number(x.textContent ?? 0));
+    const transferAmount = getClampedTransferAmount(cargo.amount, Math.max(...sliderNumbers));
+    if (transferAmount !== cargo.amount) {
+      return false;
+    }
+
     const amountInput = _$$(windowEl, 'input')[1];
     if (amountInput === undefined) {
       return false;
     }
-    changeInputValue(amountInput, cargo.amount.toString());
+    changeInputValue(amountInput, transferAmount.toString());
 
     const transfer = await waitForValue(() => _$(windowEl, C.Button.btn), windowEl);
     if (!(transfer instanceof HTMLElement)) {
@@ -214,34 +228,6 @@ async function transferMaterial(fromId: string, toId: string, cargo: CargoAmount
   } finally {
     closed.value = true;
     await waitForWindowClose(windowEl);
-  }
-}
-
-async function selectMaterial(container: Element, ticker: string) {
-  const input = _$(container, 'input');
-  const suggestions = _$(container, C.MaterialSelector.suggestionsContainer);
-  if (input === undefined || suggestions === undefined) {
-    return false;
-  }
-
-  suggestions.style.display = 'none';
-  try {
-    focusElement(input);
-    changeInputValue(input, ticker);
-    const match = await waitForValue(
-      () =>
-        _$$(container, C.MaterialSelector.suggestionEntry).find(
-          x => _$(x, C.ColoredIcon.label)?.textContent === ticker,
-        ),
-      container,
-    );
-    if (!(match instanceof HTMLElement)) {
-      return false;
-    }
-    await clickElement(match);
-    return true;
-  } finally {
-    suggestions.style.display = '';
   }
 }
 

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   CargoAmount,
   cargoFitsStore,
+  getClampedTransferAmount,
   getCargoSnapshot,
   getUnloadedCargo,
   isUnloadTransferEligible,
@@ -70,6 +71,12 @@ describe('warehouse unload cargo planning', () => {
 
   it('does nothing when the native unload does not change cargo', () => {
     expect(getUnloadedCargo(cargo, cargo)).toEqual([]);
+  });
+
+  it('uses only a positive amount allowed by the MTRA slider', () => {
+    expect(getClampedTransferAmount(10, 20)).toBe(10);
+    expect(getClampedTransferAmount(10, 6)).toBe(6);
+    expect(getClampedTransferAmount(10, 0)).toBe(0);
   });
 
   it('requires the full unloaded cargo to remain in the base store', () => {

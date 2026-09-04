@@ -69,6 +69,10 @@ export function getUnloadedCargo(before: CargoAmount[], after: CargoAmount[]) {
     .filter(x => x.amount > 0);
 }
 
+export function getClampedTransferAmount(amount: number, maxAmount: number) {
+  return maxAmount <= 0 ? 0 : Math.min(amount, maxAmount);
+}
+
 export function storeContainsCargo(store: CargoStore | undefined, cargo: CargoAmount[]) {
   const available = new Map(getCargoSnapshot(store).map(x => [x.ticker, x.amount]));
   return cargo.every(x => (available.get(x.ticker) ?? 0) >= x.amount);
