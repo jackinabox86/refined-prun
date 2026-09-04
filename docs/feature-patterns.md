@@ -881,6 +881,26 @@ Neither of these solves data staleness by itself — see `docs/game/screens-comm
 a deeper case (channel data) where the server won't resend a full data set a second time
 no matter how the buffer is managed client-side.
 
+### Modifier Variants of a Native Server Action
+
+A modifier-click feature that keeps a native action but changes its destination must be
+an explicitly approved, one-purpose exception to the normal one-click-per-server-action
+rule. It is not a reusable automation surface. `ship-unload-to-warehouse` is the reference:
+
+- Listen in the capture phase to snapshot modifier state and source inventory before the
+  game's handler, but never prevent, stop, replace, or synthesize the native click.
+- Gate the follow-up synchronously on the complete source/destination context. A normal
+  click, an unsupported location, or a missing destination must leave no watcher or
+  hidden buffer behind.
+- Wait with a deadline for the API store delta that proves the native action succeeded;
+  calculate follow-up quantities from that delta so pre-existing inventory is untouched.
+- Validate that the complete delta still exists at the intermediate store and fits at the
+  destination before opening any follow-up UI.
+- Drive forced hidden buffers sequentially through the game's existing form and button,
+  wait for terminal action feedback plus the destination store update, and await window
+  removal before opening the next buffer. Handle every failure silently so the native
+  action remains the visible result.
+
 ### Submitting a Formless Input Programmatically
 
 Some game inputs (e.g. the chat channel compose box) have no `<form>` to call
