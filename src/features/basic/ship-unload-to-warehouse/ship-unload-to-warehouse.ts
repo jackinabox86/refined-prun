@@ -235,7 +235,7 @@ async function selectMaterial(container: Element, ticker: string) {
         ),
       container,
     );
-    if (match === undefined) {
+    if (!(match instanceof HTMLElement)) {
       return false;
     }
     await clickElement(match);
