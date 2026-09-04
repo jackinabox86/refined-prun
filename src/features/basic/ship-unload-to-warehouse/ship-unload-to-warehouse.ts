@@ -197,7 +197,7 @@ async function transferMaterial(fromId: string, toId: string, cargo: CargoAmount
     changeInputValue(amountInput, cargo.amount.toString());
 
     const transfer = await waitForValue(() => _$(windowEl, C.Button.btn), windowEl);
-    if (transfer === undefined) {
+    if (!(transfer instanceof HTMLElement)) {
       return false;
     }
 
