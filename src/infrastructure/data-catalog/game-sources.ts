@@ -1,5 +1,7 @@
 import { createCollectionSource, createRecordSource } from '@src/core/data-query/catalog';
 import { DataCompleteness, DataSourceDescriptor, DataProvenance } from '@src/core/data-query/types';
+import { getPlanetBurnPassive } from '@src/core/burn';
+import { calculateBuildingEntries, calculateShipEntries } from '@src/core/repair';
 import { alertsStore } from '@src/infrastructure/prun-api/data/alerts';
 import { balancesStore } from '@src/infrastructure/prun-api/data/balances';
 import { blueprintsStore } from '@src/infrastructure/prun-api/data/blueprints';
@@ -33,6 +35,7 @@ import { storagesStore } from '@src/infrastructure/prun-api/data/storage';
 import { usersStore } from '@src/infrastructure/prun-api/data/users';
 import { warehousesStore } from '@src/infrastructure/prun-api/data/warehouses';
 import { workforcesStore } from '@src/infrastructure/prun-api/data/workforces';
+import { userData } from '@src/store/user-data';
 
 const fioWarning =
   'Reference only: planet data originates from FIO fallback data and may be stale. Live PrUn messages only patch selected fields.';
@@ -86,6 +89,22 @@ function fetchedCompleteness(fetched: Ref<boolean>, partial = false) {
 const blueprintsState = blueprintsStore.peek();
 const shipyardProjectsState = shipyardProjectsStore.peek();
 
+function getBurnRows() {
+  return sitesStore.all.value?.map(getPlanetBurnPassive).filter(x => x !== undefined);
+}
+
+function getBurnCompleteness(): DataCompleteness {
+  const sites = sitesStore.all.value;
+  if (sites === undefined) {
+    return 'not-loaded';
+  }
+  const rowCount = getBurnRows()?.length ?? 0;
+  if (sites.length > 0 && rowCount === 0) {
+    return 'not-loaded';
+  }
+  return rowCount === sites.length ? 'complete' : 'partial';
+}
+
 export const gameDataSources: DataSourceDescriptor[] = [
   entitySource({
     id: 'alerts',
@@ -105,6 +124,14 @@ export const gameDataSources: DataSourceDescriptor[] = [
     description: 'Ship blueprints loaded from PrUn.',
     store: blueprintsState,
     load: { execute: () => request.blueprints() },
+  }),
+  createCollectionSource({
+    id: 'burn',
+    label: 'Burn',
+    description: 'Calculated burn data for the company\u2019s sites.',
+    provenance: 'prun-live',
+    completeness: getBurnCompleteness,
+    snapshot: getBurnRows,
   }),
   createRecordSource({
     id: 'company',
@@ -213,6 +240,27 @@ export const gameDataSources: DataSourceDescriptor[] = [
     description: 'PrUn material definitions.',
     store: materialsStore,
   }),
+  createRecordSource({
+    id: 'planet-settings',
+    label: 'Planet Settings',
+    description: 'Raw global and per-planet burn and repair settings.',
+    provenance: 'prun-live',
+    completeness: () => 'complete',
+    snapshotRecord: () => ({
+      burn: {
+        red: userData.settings.burn.red,
+        yellow: userData.settings.burn.yellow,
+        resupply: userData.settings.burn.resupply,
+        planetResupply: userData.settings.burn.planetResupply,
+        planetPickup: userData.settings.burn.planetPickup,
+      },
+      repair: {
+        threshold: userData.settings.repair.threshold,
+        offset: userData.settings.repair.offset,
+        planetOverrides: userData.settings.repair.planetOverrides,
+      },
+    }),
+  }),
   entitySource({
     id: 'planets',
     label: 'Planets',
@@ -236,6 +284,31 @@ export const gameDataSources: DataSourceDescriptor[] = [
     load: {
       parameter: 'siteId',
       execute: siteId => loadSiteData(siteId, request.production),
+    },
+  }),
+  createCollectionSource({
+    id: 'repair',
+    label: 'Repair',
+    description: 'Calculated building and ship repair entries.',
+    provenance: 'prun-live',
+    completeness: () => {
+      const sitesFetched = sitesStore.fetched.value;
+      const shipsFetched = shipsStore.fetched.value;
+      if (!sitesFetched && !shipsFetched) {
+        return 'not-loaded';
+      }
+      return sitesFetched && shipsFetched ? 'complete' : 'partial';
+    },
+    snapshot: () => {
+      const buildingEntries = calculateBuildingEntries(sitesStore.all.value);
+      const shipEntries = calculateShipEntries(shipsStore.all.value);
+      if (buildingEntries === undefined) {
+        return shipEntries;
+      }
+      if (shipEntries === undefined) {
+        return buildingEntries;
+      }
+      return [...buildingEntries, ...shipEntries];
     },
   }),
   entitySource({

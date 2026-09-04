@@ -1,12 +1,17 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+// Mirrors the app's Day.js setup required by core/repair → core/buildings → fio/cx.
+import '@src/utils/dayjs';
+import { getPlanetBurn, getPlanetBurnPassive } from '@src/core/burn';
 import { DataCatalog } from '@src/core/data-query/catalog';
 import { gameDataSources } from '@src/infrastructure/data-catalog/game-sources';
+import { dispatch } from '@src/infrastructure/prun-api/data/api-messages';
 import { request } from '@src/infrastructure/prun-api/data/request-hooks';
 
 const expectedSourceIds = [
   'alerts',
   'balances',
   'blueprints',
+  'burn',
   'company',
   'contract-drafts',
   'contracts',
@@ -23,8 +28,10 @@ const expectedSourceIds = [
   'local-ads',
   'material-categories',
   'materials',
+  'planet-settings',
   'planets',
   'production',
+  'repair',
   'sectors',
   'ships',
   'shipyard-projects',
@@ -37,6 +44,46 @@ const expectedSourceIds = [
   'warehouses',
   'workforces',
 ];
+
+function createSite(siteId: string, naturalId: string): PrunApi.Site {
+  return {
+    siteId,
+    address: {
+      lines: [
+        {
+          type: 'SYSTEM',
+          entity: { id: 'system-1', naturalId: 'OT', name: 'OT' },
+        },
+        {
+          type: 'PLANET',
+          entity: { id: `planet-${naturalId}`, naturalId, name: naturalId },
+        },
+      ],
+    },
+    founded: { timestamp: 0 },
+    platforms: [],
+    buildOptions: { options: [] },
+    area: 0,
+    investedPermits: 0,
+    maximumPermits: 0,
+  };
+}
+
+function dispatchBurnData(site: PrunApi.Site) {
+  dispatch({
+    type: 'WORKFORCE_WORKFORCES',
+    data: { address: site.address, siteId: site.siteId, workforces: [] },
+  });
+  dispatch({
+    type: 'PRODUCTION_SITE_PRODUCTION_LINES',
+    data: { siteId: site.siteId, productionLines: [] },
+  });
+}
+
+afterEach(() => {
+  dispatch({ type: 'CLIENT_CONNECTION_OPENED' });
+  vi.restoreAllMocks();
+});
 
 describe('game data sources', () => {
   it('catalogs the explicit gameplay source set with declared provenance and loaders', () => {
@@ -68,6 +115,59 @@ describe('game data sources', () => {
       catalog.query({ sourceId });
       catalog.export({ sourceId });
     }
+    for (const spy of requestSpies) {
+      expect(spy).not.toHaveBeenCalled();
+    }
+  });
+
+  it('snapshots burn for loaded sites without requesting missing data', () => {
+    const requestSpies = Object.keys(request).map(key =>
+      vi.spyOn(request, key as keyof typeof request).mockImplementation(() => undefined),
+    );
+    const site = createSite('site-1', 'OT-580b');
+    dispatch({ type: 'SITE_SITES', data: { sites: [site] } });
+
+    const catalog = new DataCatalog(gameDataSources);
+
+    expect(catalog.snapshot('burn')).toMatchObject({
+      source: { completeness: 'not-loaded' },
+      rows: [],
+    });
+    for (const spy of requestSpies) {
+      expect(spy).not.toHaveBeenCalled();
+    }
+  });
+
+  it('reports and snapshots passively loaded burn data', () => {
+    const requestSpies = Object.keys(request).map(key =>
+      vi.spyOn(request, key as keyof typeof request).mockImplementation(() => undefined),
+    );
+    const sites = [createSite('site-1', 'OT-580b'), createSite('site-2', 'OT-580c')];
+    const catalog = new DataCatalog(gameDataSources);
+
+    expect(catalog.snapshot('burn')).toMatchObject({
+      source: { completeness: 'not-loaded' },
+      rows: undefined,
+    });
+
+    dispatch({ type: 'SITE_SITES', data: { sites } });
+    dispatchBurnData(sites[0]);
+
+    const partial = catalog.snapshot('burn');
+    expect(partial.source.completeness).toBe('partial');
+    expect(partial.rows).toHaveLength(1);
+    const passiveBurn = getPlanetBurnPassive(sites[0]);
+    expect(passiveBurn).toBeDefined();
+    expect(passiveBurn).toEqual(getPlanetBurn(sites[0]));
+
+    dispatchBurnData(sites[1]);
+
+    const complete = catalog.snapshot('burn');
+    expect(complete.source.completeness).toBe('complete');
+    expect(complete.rows).toHaveLength(2);
+    expect(complete.rows).toEqual(
+      expect.arrayContaining([expect.objectContaining({ naturalId: 'OT-580b' })]),
+    );
     for (const spy of requestSpies) {
       expect(spy).not.toHaveBeenCalled();
     }
