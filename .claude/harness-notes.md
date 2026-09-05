@@ -1,9 +1,9 @@
 # Claude Code harness notes
 
 Everything here is about *this tool*, not about refined-prun. Project guidance lives in
-`AGENTS.md`; browser-harness mechanics live in `docs/browser-testing.md`. Keep it that
-way — nothing agent-neutral belongs in this file, and nothing Claude-Code-specific
-belongs in those.
+`AGENTS.md`; browser-harness mechanics live with the harness itself, which is personal
+tooling outside this repository. Keep it that way — nothing agent-neutral belongs in this
+file, and nothing Claude-Code-specific belongs in `AGENTS.md`.
 
 ## Sandbox and git
 
@@ -55,7 +55,7 @@ standalone `cd /some/path` returns `Shell cwd was reset to <session cwd>`. You c
 into the main checkout to run repo scripts by their relative path from a worktree session
 (and a compound `cd X && node scripts/...` breaks the `sandbox.excludedCommands` match,
 since only the FIRST segment is tested). Bridge the missing files into the worktree
-instead — see `docs/browser-testing.md` on symlinking `.local/`.
+instead, or run the tool from its own directory by relative path.
 
 Watch one non-obvious config write: `git branch -f <branch> origin/main`, used to reset a
 merged branch, *also* re-points that branch's upstream to `origin/main` via
@@ -70,8 +70,8 @@ from the `!` prefix either. Both land in a non-interactive shell with no TTY, so
 with `sudo: A terminal is required to authenticate` before doing anything. Suggesting `!` for
 a sudo command wastes the user's time twice: once when it fails, once when they retry it.
 
-When a task needs sudo (upgrading `gh` off the distro package, the `libnss3 libnspr4
-libasound2t64` install in `docs/browser-testing.md`), hand the user the command and say to run
+When a task needs sudo (upgrading `gh` off the distro package, installing a browser's
+OS-level shared libraries), hand the user the command and say to run
 it in a real WSL terminal — Windows Terminal, or `wsl` from PowerShell — where it can prompt
 for their password. Everything after the install is normally sudo-free and runs fine in-session.
 
@@ -98,10 +98,10 @@ literally. Things that quietly cost the user a manual approval:
   path.
 - **Chained commands.** `sandbox.excludedCommands` patterns match the whole command
   string, so a chain is only excluded when its FIRST segment is. `sleep 5 && node
-  scripts/pw-act.mjs ...` works; an env-var prefix, a heredoc, or a `for` loop first does
+  scripts/build-x.mjs ...` works; an env-var prefix, a heredoc, or a `for` loop first does
   not. Set variables in a prior call, and unroll loops so each iteration starts with the
   excluded command.
-- **Absolute paths.** `node /home/.../repo/scripts/pw-act.mjs` matches neither the
+- **Absolute paths.** `node /home/.../repo/scripts/build-x.mjs` matches neither the
   allowlist nor the exclusion. Always invoke repo scripts by their relative path.
 
 ## Web/cloud sessions
@@ -110,21 +110,8 @@ The container is a fresh clone with **no `node_modules`**, so the first
 `pnpm run compile` fails with `Cannot find type definition file for 'chrome'` and
 `File '@vue/tsconfig/tsconfig.dom.json' not found` — that is a missing install, not a
 broken tsconfig. Run `pnpm install --frozen-lockfile` first. `grok` is not installed
-either, so implement directly per `AGENTS.md`, and the browser harness below is
-unavailable — say so once, don't try to stand it up.
-
-## Browser harness specifics
-
-`docs/browser-testing.md` explains why the pw scripts must run in the host's network
-namespace. Under Claude Code that is handled by `sandbox.excludedCommands`, so call them
-as plain Bash commands and **never** set `dangerouslyDisableSandbox` — it forces a
-permission prompt that the exclusion exists to avoid, and every known need already has an
-exclusion. If a pw call returns `ECONNREFUSED` while the browser is up, restructure the
-chain pw-first and check the exclusion list is intact before suspecting the browser.
-
-Ad-hoc CDP scripts go in `.local/scratch/` (excluded and allowlisted, so prompt-free),
-never the session scratchpad — and create them with the Write tool, not a `cat > file`
-heredoc.
+either, so implement directly per `AGENTS.md`, and the browser harness is unavailable —
+say so once, don't try to stand it up.
 
 ## grok
 

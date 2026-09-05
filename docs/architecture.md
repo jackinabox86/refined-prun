@@ -31,7 +31,9 @@ reads like a real regression — the giveaway is a `dist/` path in the failing-s
 The same symptom appears from a `dist/` built before this exclusion existed; `pnpm run clean`
 clears it.
 
-Verifying UI-visible behaviour against the live game: `docs/browser-testing.md`.
+Verifying UI-visible behaviour against the live game requires loading `dist/` as an
+unpacked extension in a Chromium-based browser; see `AGENTS.md` → "DELEGATION". The
+harness itself is personal tooling and is not part of this repository.
 
 ## Release Workflows
 

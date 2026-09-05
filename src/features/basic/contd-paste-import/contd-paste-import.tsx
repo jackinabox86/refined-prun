@@ -358,7 +358,7 @@ function insertPasteBox(container: Element, anchor: Element) {
   // dragover that ends with dropEffect 'none' makes the browser cancel the
   // drop outright — dragend fires, drop never does. Synthetic DragEvent
   // dispatch skips this negotiation entirely, so only a real mouse drag
-  // (pw-act real-drag-stack) catches a regression here.
+  // catches a regression here.
   const acceptDrag = (e: DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
