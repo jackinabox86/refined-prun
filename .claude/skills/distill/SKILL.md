@@ -45,8 +45,8 @@ check, not something to skip because nothing else stood out:
   `python -c`, and similar) rather than plain data (a path, a selector, a flag)? That's
   not fixable by widening an allowlist — allowlisting arbitrary code execution is unsafe
   regardless of how repetitive it feels. The fix is a new fixed-logic action that takes
-  data-only arguments instead (see `docs/browser-testing.md` for a worked
-  example: `list-windows`/`styles` actions replacing bespoke `eval` snippets).
+  data-only arguments instead (worked example: `list-windows`/`styles` browser-harness
+  actions replacing bespoke `eval` snippets).
 - Did an existing allowlist entry fail to match because of a quote-style or
   absolute-vs-relative-path mismatch? Fix the invocation habit (record it as a
   `[GUIDELINE]`) rather than widening the pattern to match every variant.
@@ -58,8 +58,8 @@ check, not something to skip because nothing else stood out:
   in `permissions.allow`.
 
 Write findings from this audit using the same `[GUIDELINE]`/`[CORRECTION]` format as
-above, e.g. `[GUIDELINE] Prefer scripts/pw-act.mjs list-windows over an eval enumerating
-windows — data-only argument, already covered by the existing wildcard`. Their fixes
+above, e.g. `[GUIDELINE] Prefer a fixed data-only helper action over an eval enumerating
+windows — already covered by the existing wildcard`. Their fixes
 usually land as edits to `.claude/settings.json` (narrow, safe, data-only entries only)
 or to whatever script/tool generated the repeated calls — treat these as ordinary
 Phase 4 edits, not a separate category.

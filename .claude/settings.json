@@ -20,8 +20,6 @@
       "Bash(npx prettier *)",
       "Bash(pnpm exec eslint *)",
       "Bash(tasklist *)",
-      "Bash(node .local/scratch/*)",
-      "Bash(python3 .local/scratch/*)",
       "Bash(pgrep *)",
       "Bash(grok --no-auto-update --no-alt-screen --always-approve -p *)",
       "Bash(grok --help)",
@@ -55,16 +53,6 @@
     "network": {
       "allowedDomains": ["api.x.ai", "auth.x.ai"]
     },
-    "excludedCommands": [
-      "node scripts/local-browser-test.mjs",
-      "node scripts/pw-act.mjs *",
-      "node scripts/pw-close.mjs",
-      "node scripts/pw-kill.mjs",
-      "node scripts/pw-screenshot.mjs *",
-      "node .local/scratch/*",
-      "sleep *",
-      "pgrep *",
-      "curl *"
-    ]
+    "excludedCommands": ["sleep *", "pgrep *", "curl *"]
   }
 }

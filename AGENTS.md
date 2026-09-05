@@ -33,7 +33,7 @@ For feature work (new feature, fix feature, refactor, PR review), create the fol
 - Once the user accepts, create revised todo items
 - Execute — delegate per `## DELEGATION` below
 - Check your work: `pnpm run compile` (types + lint) always; verify UI-visible changes
-  against the real game per `docs/browser-testing.md`
+  against the real game in a browser harness (see `## DELEGATION`)
 
 For small tasks (one-line fixes, running tests, infra chores, questions): skip the plan-approval round trip. Still read the docs relevant to whatever you touch.
 
@@ -56,9 +56,13 @@ Implementation and verification are both delegated, not done in the orchestratin
   Auth is set up once per machine by the user — never run `grok login` on their behalf.
   If the `grok` CLI isn't available in the current environment, say so once and implement
   directly instead of working around it.
-- **Browser/UI verification:** drive the harness in `docs/browser-testing.md` from a
-  sub-agent where your tooling has one (Claude Code: the `game-tester` agent), so
-  screenshots and DOM dumps stay out of the orchestrating session's context.
+- **Browser/UI verification:** the extension must be loaded unpacked in a real
+  Chromium-based browser — visiting the game as a plain webpage tests nothing. The harness
+  that does this is personal tooling belonging to the maintainer's machine and is
+  deliberately not part of this repository; where it is available, drive it from a
+  sub-agent so screenshots and DOM dumps stay out of the orchestrating session's context.
+  Where it is not (a cloud agent, CI, a fresh clone), say so once and fall back to
+  `pnpm run compile` plus reasoning from the docs — do not try to stand a harness up.
 
 ## DISTILL
 
@@ -68,8 +72,8 @@ session, near the end — not after every task.
 - Before writing a PR: ALWAYS distill and commit its output first. No exceptions.
 - Otherwise, when the session is wrapping up, ask the user whether to distill. Never let a session end without at least asking.
 - Distilled findings go to the doc that owns the subject: game behaviour to `docs/game/`,
-  extension patterns to `docs/feature-patterns.md`, harness traps to
-  `docs/browser-testing.md`. Compress to the rule; keep the incident only when it is the
+  extension patterns to `docs/feature-patterns.md`. Traps belonging to a browser harness go
+  to that harness's own docs, outside this repository. Compress to the rule; keep the incident only when it is the
   evidence for the rule. Cross-reference by section title, never by list number — numbered
   references break silently the moment the list is reordered.
 

@@ -20,8 +20,18 @@ dist.zip
 vite.config.mts.timestamp-*.mjs
 .tmp
 
-# local browser testing (Playwright profile + isolated tool install)
+# Personal WSL browser-testing harness (JAC-19). The skill, its scripts and its manual
+# were relocated to the Buzz nest as the `run-wsl` skill; these paths stay ignored so a
+# local copy left behind or re-created on the owner's machine can never be staged into
+# this public repository.
 .local/
+.claude/skills/run/
+.claude/agents/game-tester.md
+scripts/pw-*.mjs
+scripts/local-browser-test.mjs
+docs/browser-testing.md
+docs-jack/wsl-migration-guide.md
+docs-jack/wsl-sandbox-option.md
 
 # Machine-local Claude Code settings (may contain local paths)
 .claude/settings.local.json
