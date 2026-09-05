@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Added
+
+- `XIT FINCH`: New Equity Growth chart plots how fast equity is compounding as a percentage per day, instead of its absolute value
+
 ## 1.1.2
 
 ### Added
