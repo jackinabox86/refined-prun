@@ -255,9 +255,7 @@ export function calculatePlanetBurn(
     if (mat.input > 0 && mat.dailyAmount <= 0) {
       mat.type = 'input';
     }
-    if (mat.dailyAmount > -0.01 && mat.dailyAmount < 0.01) {
-      mat.dailyAmount = 0;
-    }
+    mat.dailyAmount = clampNearZeroDailyAmount(mat.dailyAmount);
     const inv = mat.remainingAllocation + mat.inventory;
     mat.daysLeft = mat.dailyAmount >= 0 ? Number.POSITIVE_INFINITY : inv / -mat.dailyAmount;
   }
