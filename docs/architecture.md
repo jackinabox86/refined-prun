@@ -15,6 +15,14 @@ Stack: TypeScript, Vue 3, Vite (content scripts), CSS Modules. Package manager: 
 | `pnpm run dev` | watch-mode development build |
 | `pnpm run test` | `vitest run` |
 
+**`pnpm run compile` does not type-check `.vue` script blocks.** `tsc` cannot read SFCs and
+there is no `vue-tsc` in this repo, so a green `compile` covers `.ts` only. An identifier used
+in a `<script setup>` block but never imported passes both `tsc` and eslint and throws at
+runtime — an unimported `percent0` in `LineChart.vue` got that far during the FINCH
+growth-rate work. Move logic worth checking into a plain `.ts` module next to the component
+and unit-test it there, and verify what stays in the SFC against the live game
+(`docs/browser-testing.md`). Treat "compile is green" as saying nothing about a `.vue` change.
+
 A fresh clone has no `node_modules` — run `pnpm install --frozen-lockfile` before
 `pnpm run compile` / `pnpm run lint`, or `tsc` reports missing `chrome`/`node`/`vite/client`
 type libraries, which reads like a broken tsconfig rather than a missing install. Cloud
