@@ -5,6 +5,7 @@
 ### Fixed
 
 - `XIT AGENT`: Loads action packages from the refined-agent channel even when other comms buffers restore first.
+- `XIT BURN`: The Overall row no longer shows 0 days left for a material whose production and consumption cancel across planets.
 
 ## 1.1.2
 
