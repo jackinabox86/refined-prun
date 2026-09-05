@@ -130,6 +130,18 @@ export function getInboundShipStores(planetNaturalId: string | undefined) {
   return result;
 }
 
+// Production and consumption that cancel exactly still leave floating-point residue
+// (e.g. -5.5e-17). That reads as a net consumer, so a material in perfect balance with
+// no stock renders as "0 days left" and gets pulled into resupply. Any net rate below
+// this is indistinguishable from zero at the quantities the game ships in.
+const nearZeroDailyAmount = 0.01;
+
+// Snaps a net daily rate that is effectively zero to exactly zero, so daysLeft
+// resolves to infinity rather than to a residue-driven number.
+export function clampNearZeroDailyAmount(dailyAmount: number) {
+  return dailyAmount > -nearZeroDailyAmount && dailyAmount < nearZeroDailyAmount ? 0 : dailyAmount;
+}
+
 const inboundShipInventoryEnabled = ref(false);
 
 export function setInboundShipInventoryEnabled(value: boolean) {
@@ -243,9 +255,7 @@ export function calculatePlanetBurn(
     if (mat.input > 0 && mat.dailyAmount <= 0) {
       mat.type = 'input';
     }
-    if (mat.dailyAmount > -0.01 && mat.dailyAmount < 0.01) {
-      mat.dailyAmount = 0;
-    }
+    mat.dailyAmount = clampNearZeroDailyAmount(mat.dailyAmount);
     const inv = mat.remainingAllocation + mat.inventory;
     mat.daysLeft = mat.dailyAmount >= 0 ? Number.POSITIVE_INFINITY : inv / -mat.dailyAmount;
   }
