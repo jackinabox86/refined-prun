@@ -841,7 +841,7 @@ This works because the game's command `<form>` fires `submit` for *any* typed te
 unrecognized first token reaches the submit listener exactly like a valid one, and the
 rewrite lands before the game ever parses it. (The react-autosuggest dropdown offers only
 the literal typed text when nothing matches, so it has no suggestion to swallow the
-Enter — see `docs/browser-testing.md` → "Opening and targeting windows".)
+Enter — see `docs/game/ui-concepts.md` → "Opening a Buffer (Two Paths)".)
 
 Gate such a transformer on all of: an exact token count, a first token in an explicit
 shortcut table, and a second token that resolves against a store (`materialsStore
@@ -1230,9 +1230,9 @@ Both verified by measurement in headless Chromium, not by inspection:
   element's inline size compute without regard to its contents, so the grid box measures zero width
   and stops responding to its container; the tracks lay out and overflow it.
 
-When a layout question is contested, settle it with a static HTML repro driven by
-`.local/pw-tools`' Playwright in headless mode. It gives exact numbers in seconds and needs no game
-session — far cheaper than reasoning about the cascade or booting the full harness.
+When a layout question is contested, settle it with a static HTML repro driven by a headless
+browser. It gives exact numbers in seconds and needs no game session — far cheaper than
+reasoning about the cascade or booting the full harness.
 
 ### Truncating Text Inside a Button
 
