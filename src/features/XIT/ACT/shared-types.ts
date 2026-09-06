@@ -49,6 +49,10 @@ export interface ActionStepGenerateContext<TConfig>
 }
 
 export interface ActionStepExecuteContext<T> extends ActionRunnerContext<T> {
+  // False once an earlier step of the same type has started in this run. Only for pauses
+  // that space a step from the previous one of its kind — there is nothing to space the
+  // first one from.
+  isFirstOfType: boolean;
   setStatus: (status: string) => void;
   waitAct: (status?: string, opts?: { actDelayMs?: number }) => Promise<void>;
   waitActionFeedback: (tile: PrunTile) => Promise<void>;
@@ -57,7 +61,9 @@ export interface ActionStepExecuteContext<T> extends ActionRunnerContext<T> {
   skip: (opts?: { silent?: boolean }) => void;
   fail: (message?: string) => void;
   assert: AssertFn;
-  requestTile: (Command: string) => Promise<PrunTile | undefined>;
+  // Opening a buffer costs the player an ACT click (actGate defaults to true). Pass false
+  // when the step has already gated itself and the open must not cost a second one.
+  requestTile: (command: string, opts?: { actGate?: boolean }) => Promise<PrunTile | undefined>;
 }
 
 export const configurableValue = 'Configure on Execution';

@@ -25,6 +25,10 @@ const actionFeedbackTimeoutMs = 30_000;
 export class StepMachine {
   private next?: ActionStep;
   private nextAct?: () => void;
+  // Step types that have already started in this run. A pause that only spaces a step from
+  // the previous step of its kind (agent posts, SFC opens) reads this so the first of a
+  // kind doesn't gray ACT waiting on something that hasn't happened yet.
+  private startedStepTypes = new Set<string>();
 
   constructor(
     private steps: ActionStep[],
@@ -92,6 +96,8 @@ export class StepMachine {
     }
     const next = this.steps.shift()!;
     this.next = next;
+    const isFirstOfType = !this.startedStepTypes.has(next.type);
+    this.startedStepTypes.add(next.type);
     const info = act.getActionStepInfo(next.type);
     let description: string | undefined;
     const log = this.options.log;
@@ -99,6 +105,7 @@ export class StepMachine {
       await info.execute({
         data: next,
         log,
+        isFirstOfType,
         setStatus: status => this.options.onStatusChanged(status),
         waitAct: async (status, opts) => {
           status ??= description ?? info.description(next);
@@ -140,7 +147,7 @@ export class StepMachine {
             throw AssertionError;
           }
         },
-        requestTile: async command => await this.requestTile(command),
+        requestTile: async (command, opts) => await this.requestTile(command, opts),
       });
     } catch (e) {
       if (e === ExecutionStopped) {
@@ -153,12 +160,16 @@ export class StepMachine {
     }
   }
 
-  private async requestTile(command: string) {
+  private async requestTile(command: string, opts?: { actGate?: boolean }) {
     let tile = tiles.find(command, true)[0];
     if (tile !== undefined) {
       return tile;
     }
-    await this.waitAct(`Open ${command}`);
+    // Steps that already gated themselves pass actGate: false, so the open doesn't cost a
+    // second click.
+    if (opts?.actGate !== false) {
+      await this.waitAct(`Open ${command}`);
+    }
     this.options.onStatusChanged(`Opening ${command}...`);
     tile = await this.options.tileAllocator.requestTile(command);
     if (tile === undefined) {
