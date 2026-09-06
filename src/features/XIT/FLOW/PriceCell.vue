@@ -63,7 +63,7 @@ function cancel() {
   <td :class="$style.cell" @click="startEditing">
     <span
       :class="{ [$style.text]: editing }"
-      :data-tooltip="editing ? undefined : tooltip"
+      :data-tooltip="tooltip"
       :data-tooltip-position="tooltipPosition">
       {{ text }}
     </span>
@@ -92,7 +92,10 @@ function cancel() {
   white-space: nowrap;
 }
 
-/* The text keeps sizing the cell while the editor is open. */
+/* The text keeps sizing the cell while the editor is open. Hiding it rather than
+   removing it also keeps the game's [data-tooltip] padding, so the column does not
+   resize; visibility: hidden takes it out of hit testing, so no tooltip appears
+   over the editor. */
 .text {
   visibility: hidden;
 }
