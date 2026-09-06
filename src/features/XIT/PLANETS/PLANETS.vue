@@ -155,6 +155,7 @@ function setRepairField(
             <NumberInput
               :model-value="getResupplyOverride(row.naturalId)"
               optional
+              float
               @update:model-value="setResupplyOverride(row.naturalId, $event)" />
           </td>
           <td :class="$style.pickup">
@@ -169,12 +170,14 @@ function setRepairField(
             <NumberInput
               :model-value="getRepairOverride(row.naturalId)?.threshold"
               optional
+              float
               @update:model-value="setRepairField(row.naturalId, 'threshold', $event)" />
           </td>
           <td :class="$style.input">
             <NumberInput
               :model-value="getRepairOverride(row.naturalId)?.offset"
               optional
+              float
               @update:model-value="setRepairField(row.naturalId, 'offset', $event)" />
           </td>
         </tr>

@@ -214,18 +214,18 @@ function confirmResetAllData(ev: Event) {
     <Active
       label="Red"
       tooltip="Threshold for red consumable level in burn calculations (in days).">
-      <NumberInput v-model="userData.settings.burn.red" />
+      <NumberInput v-model="userData.settings.burn.red" float />
     </Active>
     <Active
       label="Yellow"
       tooltip="Threshold for yellow consumable level in burn calculations (in days).">
-      <NumberInput v-model="userData.settings.burn.yellow" />
+      <NumberInput v-model="userData.settings.burn.yellow" float />
     </Active>
     <Active
       label="Resupply"
       tooltip="Default target amount of supplied days for the 'Need' column in XIT BURN.
        Can be overridden per planet in XIT PLANETS.">
-      <NumberInput v-model="userData.settings.burn.resupply" />
+      <NumberInput v-model="userData.settings.burn.resupply" float />
     </Active>
   </form>
   <SectionHeader>
