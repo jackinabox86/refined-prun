@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+### Added
+
+- `XIT FLOW`: New buffer with one row per material across your bases, showing daily production, consumption, the net delta and what that delta is worth. Accepts `XIT BURN`'s planet parameters (`XIT FLOW <planet...>`, `XIT FLOW NOT <planet...>`), sorts by any column and copies as TSV
+- `XIT FLOW`: Click a Buy or Sell price to enter your own, e.g. for a partner deal. Overrides are marked with `*` and used only by `XIT FLOW`; `XIT FINPR`, `XIT FINBS` and `XIT MAT` keep market prices
+
 ## 1.1.2
 
 ### Added
