@@ -110,7 +110,11 @@ const chartData = computed<ChartData<'line', number[], number | string | Date>>(
       data: ydata,
       borderColor: '#f7a600',
       fill: false,
-      pointRadius: 0.25,
+      // A rate chart carries one meaningful observation per recorded period, and reading
+      // the pace means reading those values; hiding them leaves only the line drawn
+      // between them, which implies days that were never measured. A currency series is
+      // dense enough that the same dots would just be noise.
+      pointRadius: unit === 'percent' ? 2.5 : 0.25,
       pointBackgroundColor: '#f7a600',
       showLine: false,
     },
