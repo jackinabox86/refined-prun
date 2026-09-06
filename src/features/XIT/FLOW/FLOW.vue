@@ -132,8 +132,7 @@ function copyFlowTable() {
                 position="bottom"
                 tooltip="Surplus valued at the sell price, deficit at the buy price.
                  Click a Buy or Sell price to override it, e.g. for a partner deal."
-                :class="$style.tooltip"
-                @click.stop />
+                :class="$style.tooltip" />
             </InlineFlex>
           </SortHeader>
           <th>Producers</th>
