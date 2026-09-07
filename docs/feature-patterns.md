@@ -158,7 +158,7 @@ const pkg: UserData.ActionPackageData = {
 </template>
 ```
 
-The `pkg` is a plain hardcoded object, not persisted user data — `ExecuteActionPackage` runs it exactly like a saved package (CONFIGURE only appears if an action still needs runtime input; PREVIEW/EXECUTE always available). Trigger it from anywhere with `showBuffer('XIT REFUELACT')` (see `PlanetHeader.vue`'s `XIT BURNACT` button for a row-level example, or `FLT.vue`'s Fuel-column header button for another).
+The `pkg` is a plain hardcoded object, not persisted user data — `ExecuteActionPackage` runs it exactly like a saved package (CONFIGURE only appears if an action still needs runtime input; PREVIEW/EXECUTE always available). Trigger it from anywhere with `showBuffer('XIT REFUELACT')` (see `PlanetHeader.vue`'s `XIT BURNACT` button for a row-level example, or `FLT.vue`'s fuel-column header button — the header label itself, not a separate REFUEL control — for another).
 
 **Never embed `ExecuteActionPackage` inside a long-lived planner tile.** It splits its
 host buffer at **mount** (`ActionRunner` → `TileAllocator`), so a `v-if` reveal remounts

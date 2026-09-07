@@ -16,20 +16,16 @@ import FleetCargoBar from './FleetCargoBar.vue';
 import FleetRefuelHeader from './FleetRefuelHeader.vue';
 import { fixed0 } from '@src/utils/format';
 import coloredValue from '@src/infrastructure/prun-ui/css/colored-value.module.css';
-
-type SortKey =
-  | 'name'
-  | 'cargo'
-  | 'status'
-  | 'eta'
-  | 'fuel'
-  | 'none'
-  | 'repair'
-  | 'size'
-  | 'shipClass';
-type SortDirection = 'asc' | 'desc' | 'none';
-type FuelAlertThreshold = '75' | '50' | '35' | '25' | '10';
-type FuelAlertFilter = 'any' | FuelAlertThreshold;
+import {
+  DEFAULTS,
+  DEFAULT_SORT_DIRECTION_BY_KEY,
+  FLT_REFUEL_BUFFER_COMMAND,
+  type FuelAlertFilter,
+  type FuelAlertThreshold,
+  type LayoutMode,
+  type SortDirection,
+  type SortKey,
+} from './defaults';
 
 type FlightRow = {
   ship: PrunApi.Ship;
@@ -60,40 +56,6 @@ type MultiOptionFilterGroup = {
   onToggle: (option: string) => void;
 };
 
-const DEFAULT_SORT_DIRECTION_BY_KEY: Record<SortKey, SortDirection> = {
-  name: 'none',
-  cargo: 'none',
-  status: 'none',
-  eta: 'asc',
-  fuel: 'none',
-  none: 'none',
-  repair: 'none',
-  size: 'none',
-  shipClass: 'asc',
-};
-
-const DEFAULTS = {
-  primarySortKey: 'shipClass' as SortKey,
-  secondarySortKey: 'eta' as SortKey,
-  showStlShips: true,
-  showFtlShips: true,
-  showInFlightShips: true,
-  showNotInFlightShips: true,
-  hideReturningToCx: false,
-  fuelAlertFilter: 'any' as FuelAlertFilter,
-  layoutMode: 'compact' as LayoutMode,
-  showColName: false,
-  showColShipClass: true,
-  showColSize: false,
-  showColCargo: true,
-  showColCargoSize: false,
-  showColTime: true,
-  showColRepair: false,
-  showColFuel: false,
-  showColProblems: true,
-  problemFuelThreshold: '50' as FuelAlertFilter,
-};
-
 const primarySortKey = useTileState<SortKey>('primarySortKey', DEFAULTS.primarySortKey);
 const secondarySortKey = useTileState<SortKey>('secondarySortKey', DEFAULTS.secondarySortKey);
 const sortDirectionByKey = useTileState<Record<SortKey, SortDirection>>(
@@ -111,8 +73,6 @@ const shipClassFilters = useTileState<string[]>('shipClassFilters', []);
 const conditionFilters = useTileState<string[]>('conditionFilters', []);
 const cargoStateFilters = useTileState<string[]>('cargoStateFilters', []);
 const etaFilters = useTileState<string[]>('etaFilters', []);
-type LayoutMode = 'compact' | 'whitespace' | 'cargo' | 'legacy';
-
 const $style = useCssModule();
 
 const fuelAlertFilter = useTileState<FuelAlertFilter>('fuelAlertFilter', DEFAULTS.fuelAlertFilter);
@@ -376,14 +336,6 @@ const hasAnyProblems = computed(() => {
   return source.some(x => x.conditionClass === C.ColoredValue.negative || hasFuelProblem(x));
 });
 
-const hasDockedFuelProblem = computed(() => {
-  const source = rows.value;
-  if (!source) {
-    return false;
-  }
-  return source.some(x => !x.inFlight && hasFuelProblem(x));
-});
-
 const gridTemplateColumns = computed(() => {
   const cols: string[] = [];
   if (showColName.value) {
@@ -629,7 +581,7 @@ function onFuel(registration: string) {
 }
 
 function onRefuelAllExchanges() {
-  showBuffer('XIT REFUELACT');
+  showBuffer(FLT_REFUEL_BUFFER_COMMAND);
 }
 
 function toggleFilters() {
@@ -1122,7 +1074,6 @@ function getCargoState(cargoRatio: number) {
           :class="[$style.headerCell, $style.sortable, $style.colFuel]"
           @click="setSort('fuel')">
           <FleetRefuelHeader @refuel="onRefuelAllExchanges">
-            Fuel
             <span
               :class="{
                 [$style.sortPrimary]: isPrimarySort('fuel'),
@@ -1136,9 +1087,7 @@ function getCargoState(cargoRatio: number) {
           :is="headerCellTag"
           v-if="showColProblems && hasAnyProblems"
           :class="[$style.headerCell, $style.colProblems]">
-          <FleetRefuelHeader :show-button="hasDockedFuelProblem" @refuel="onRefuelAllExchanges">
-            Problems
-          </FleetRefuelHeader>
+          Problems
         </component>
       </component>
 

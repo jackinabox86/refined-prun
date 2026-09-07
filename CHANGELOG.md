@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Changed
+
+- `XIT FLT`: Unconfigured tiles default to columns name, cargo, ETA, and fuel, cargo layout, and status descending. The fuel header is the refuel action in every layout; the standalone REFUEL button is gone.
+
 ### Fixed
 
 - `XIT AGENT`: Loads action packages from the refined-agent channel even when other comms buffers restore first.
