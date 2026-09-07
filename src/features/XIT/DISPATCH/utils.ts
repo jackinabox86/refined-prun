@@ -8,6 +8,7 @@ import {
 } from '@src/infrastructure/prun-api/data/addresses';
 import { materialsStore } from '@src/infrastructure/prun-api/data/materials';
 import { computeResupplyBill } from '@src/features/XIT/ACT/material-groups/resupply/bill';
+import { maxFittingDays } from '@src/features/XIT/ACT/material-groups/resupply/fit-days';
 import { computeRepairBill } from '@src/features/XIT/ACT/material-groups/repair/bill';
 import type { MaterialFilter } from '@src/features/XIT/ACT/material-groups/resupply/config';
 
@@ -213,13 +214,9 @@ export function fitDaysForShip(
     }
   }
 
-  let lo = 0;
-  let hi = 999;
-  while (lo < hi) {
-    const mid = lo + Math.ceil((hi - lo) / 2);
+  return maxFittingDays(days => {
     let weight = 0;
     let volume = 0;
-    let fits = true;
     for (const base of sharing) {
       if (!base.config.resupply) {
         continue;
@@ -227,22 +224,16 @@ export function fitDaysForShip(
       const entries = computeResupplyBill(
         { type: 'Resupply', useBaseInv: true },
         base.naturalId,
-        mid,
+        days,
         base.config.materialFilter,
       )!;
       const totals = billTotals(entries);
       weight += totals.weight;
       volume += totals.volume;
       if (weight > freeWeight || volume > freeVolume) {
-        fits = false;
-        break;
+        return false;
       }
     }
-    if (fits) {
-      lo = mid;
-    } else {
-      hi = mid - 1;
-    }
-  }
-  return lo;
+    return true;
+  });
 }
