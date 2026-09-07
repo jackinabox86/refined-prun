@@ -4,7 +4,7 @@
 
 ### Added
 
-- `nots-shift-click-mark-read`: Shift-click a notification to mark it read without opening its target buffer.
+- `ship-unload-to-warehouse`: Shift-click a landed ship's Unload control to move its cargo into the local warehouse.
 
 ### Fixed
 
