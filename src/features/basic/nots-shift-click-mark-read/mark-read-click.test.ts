@@ -56,6 +56,7 @@ describe('window stacking', () => {
     const front = { style: { zIndex: '1001' } };
     // Live 2026-09-07: first in document order held the lower z-index.
     expect(topmostWindow([front, back])).toBe(back);
+    expect(topmostWindow([back, front])).toBe(back);
   });
 
   it('on a z-index tie, picks the last window in document order', () => {
