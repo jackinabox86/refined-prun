@@ -50,8 +50,6 @@ export const DEFAULTS = {
   problemFuelThreshold: '50' as FuelAlertFilter,
 };
 
-// Accepts layout so the column cannot be hidden per-mode by omitting it.
-export function showFuelColumn(showColFuel: boolean, layoutMode: LayoutMode) {
-  void layoutMode;
+export function showFuelColumn(showColFuel: boolean) {
   return showColFuel;
 }

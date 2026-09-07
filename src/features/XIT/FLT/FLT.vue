@@ -362,7 +362,7 @@ const gridTemplateColumns = computed(() => {
   if (showColRepair.value) {
     cols.push('auto');
   }
-  if (showFuelColumn(showColFuel.value, layoutMode.value)) {
+  if (showFuelColumn(showColFuel.value)) {
     cols.push('auto');
   }
   if (showColProblems.value && hasAnyProblems.value) {
@@ -1067,7 +1067,7 @@ function getCargoState(cargoRatio: number) {
         </component>
         <component
           :is="headerCellTag"
-          v-if="showFuelColumn(showColFuel, layoutMode)"
+          v-if="showFuelColumn(showColFuel)"
           :class="[$style.headerCell, $style.colFuel]">
           <FuelHeaderButton @refuel="openRefuelAllExchanges">
             <span
@@ -1142,7 +1142,7 @@ function getCargoState(cargoRatio: number) {
 
         <component
           :is="cellTag"
-          v-if="showFuelColumn(showColFuel, layoutMode)"
+          v-if="showFuelColumn(showColFuel)"
           :class="[$style.bodyCell, $style.colFuel]">
           <div
             :class="[C.ShipFuel.container, C.ShipFuel.pointer, $style.fuelBars]"
