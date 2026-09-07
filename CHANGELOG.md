@@ -2,9 +2,9 @@
 
 ## Unreleased
 
-### Changed
+### Added
 
-- `XIT FLT`: Unconfigured tiles default to columns name, cargo, ETA, and fuel, cargo layout, and status descending. The fuel header is the refuel action in every layout; the standalone REFUEL button is gone.
+- `ship-unload-to-warehouse`: Shift-click a landed ship's Unload control to move its cargo into the local warehouse.
 
 ### Fixed
 
