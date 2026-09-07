@@ -416,6 +416,14 @@ GOVBURN's `planetDays(planet, config, now)` hit exactly this and had to become
 `planetDays(planet, planetConfig, now)` before `utils.ts` could be tested. `config` is the
 sharp edge, but the rule covers every name in the table above.
 
+The same class of trap reaches unit tests through ordinary imports, not just auto-imports:
+`@src/infrastructure/fio/cx` calls `dayjs.duration(...)` at module scope, and the `duration`
+plugin is registered by the app entry point, so any test that transitively imports it dies
+with `default.duration is not a function`. `@src/core/flow` imports `cx` only for
+`getMarketPrices`, which the pure `calculateMaterialFlow` never calls — `vi.mock` the `cx`
+module in the test rather than adding a vitest setup file that pulls the whole plugin
+registration into every run.
+
 ---
 
 ## `C` Object

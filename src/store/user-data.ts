@@ -31,6 +31,9 @@ export const initialUserData = deepFreeze({
       // Planet natural id -> ship-size label from core/ship-sizes.
       planetPickup: {} as Record<string, string>,
     },
+    flow: {
+      overrides: {} as Record<string, UserData.PriceOverride>,
+    },
     repair: {
       threshold: 60,
       offset: 10,
