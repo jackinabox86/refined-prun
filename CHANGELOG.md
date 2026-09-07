@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Added
+
+- `nots-shift-click-mark-read`: Shift-click a notification to mark it read without opening its target buffer.
+
 ### Fixed
 
 - `XIT AGENT`: Loads action packages from the refined-agent channel even when other comms buffers restore first.

@@ -1030,6 +1030,14 @@ subscribe($$(tile.frame, C.ContextControls.item), item => {
 
 See `src/features/basic/bs-inv-base-store-link.ts`.
 
+### NOTS: shift-click to mark read without opening
+
+`alertsStore` is receive-only (`ALERTS_ALERTS` / `ALERTS_ALERT` / `ALERTS_ALERTS_DELETED`). There is no mark-as-read client write in `prun-api`. The persist-like-a-normal-open behavior is a side effect of the game's own notification-row click, so a feature that wants that write must **not** `preventDefault` / `stopPropagation` on the gesture.
+
+Suppress display from *capture* by hiding and then closing only newly created `C.Window.window` nodes — never a window that already existed. The game re-focuses an already-open target instead of opening a second copy; restore the previously topmost window in that case. Do not use `showBuffer({ autoClose })` here: opening a guessed command is not what marks the alert read, and `docs/contributing.md` forbids extending the invisible-fetch pattern without discussion.
+
+`nots-ship-arrival-inventory` must ignore shift-clicks so it cannot `showBuffer('SHPI …')` on the same gesture.
+
 ---
 
 ## CSS
