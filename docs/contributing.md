@@ -171,31 +171,6 @@ The extension does make some background server requests (e.g., `XIT BURN` opens 
 
 ## Workflow
 
-### Changelog
-
-If a PR has a user-facing change (a feature, a behavior change, a bug fix a player would notice),
-add a bullet under the `## Unreleased` → `### Added`/`### Changed`/`### Fixed`/`### Removed`
-heading in `CHANGELOG.md` (create the subheading if it's not there yet). Follow the existing
-entry style: `` `feature-id-or-XIT-CMD`: Sentence describing the change. `` Skip it for
-non-user-facing changes (refactors, docs, CI, tests).
-
-Release automation renames `## Unreleased` to the shipped version number and opens a fresh
-`## Unreleased` section — don't rename it yourself, and don't touch anything above the current
-`## Unreleased` heading. `XIT WHATSNEW` (`src/features/XIT/WHATSNEW/`) reads `CHANGELOG.md` at
-build time to show players what changed since they last looked.
-
-This reintroduces the merge-conflict surface the old "maintainer edits it once before
-merging" policy existed to avoid: two branches both adding a bullet under `## Unreleased`
-can conflict where they land near each other. Resolution is normally trivial (keep both
-bullets) — accept it as the tradeoff for PRs writing their own entries.
-
-One resolution is not trivial: if a release shipped between when the bullet was written and
-when the branch is rebased or cherry-picked onto `main`, the conflict hunk sits under the
-*new version's* `### Added` heading, because the old `## Unreleased` was renamed underneath
-it. Keeping "both sides" there silently backdates the entry into a version that already
-shipped. Move the bullet up under the fresh empty `## Unreleased` instead, and re-create the
-`### Added` subheading there.
-
 ### Editing a PR with `gh`
 
 If `gh pr edit` fails with a Projects (classic) deprecation notice naming

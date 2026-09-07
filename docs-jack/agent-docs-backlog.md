@@ -26,7 +26,7 @@ the repo owner should make. Delete an entry once it is done or rejected.
   `game-concepts.md` repeats CoGC facts owned by `planetary-governance.md`. Cut to
   cross-references.
 - **`docs/contributing.md`** mixes agent-actionable code rules with human process
-  (changelog, editor import sorting, the Discord ≥75% approval poll). The human process
+  (editor import sorting and the Discord ≥75% approval poll). The human process
   could live in a human-facing contributing guide instead.
 
 ## `.claude/` surface

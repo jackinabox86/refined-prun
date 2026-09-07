@@ -121,7 +121,7 @@ Check these categories. For each, the source of truth is the doc file, not this 
 - **Feature Design** — one-responsibility, dependencies, settings philosophy from contributing.md
 - **UI/UX** — element justification, PrUn palette, tooltips, server comm rules from contributing.md
 - **Game Knowledge** — no undocumented game mechanic assumptions; commands match `docs/game/commands.csv`
-- **Workflow** — changelog, import sorting, component reuse from contributing.md
+- **Workflow** — import sorting and component reuse from contributing.md
 - **PR Quality** — descriptive title, body explains "why", focused scope
 - **Code Quality** — no over-engineering, no security issues, resources cleaned up
 

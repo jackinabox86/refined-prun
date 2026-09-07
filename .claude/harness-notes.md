@@ -39,7 +39,7 @@ dozen more as untracked, and `git add -A` then aborted with
 `error: .bash_profile: can only add regular files, symbolic links or git-directories`,
 staging nothing. They are not real files (`git status` unsandboxed shows only your actual
 changes) and `git fetch` warning `unable to access '.gitmodules': Permission denied` is the
-same illusion. Stage explicit paths (`git add src/ CHANGELOG.md`) and the problem
+same illusion. Stage explicit paths (`git add src/ docs/`) and the problem
 disappears — no bypass needed.
 
 A sandboxed command can also fail spuriously with
