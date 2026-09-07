@@ -47,13 +47,13 @@ if (data.advanceDays === configurableValue && config.advanceDays === undefined) 
       v-if="data.days === configurableValue"
       label="Day Threshold"
       tooltip="All buildings older than this threshold will be repaired.">
-      <NumberInput v-model="config.days" />
+      <NumberInput v-model="config.days" float />
     </Active>
     <Active
       v-if="data.advanceDays === configurableValue"
       label="Time Offset"
       tooltip="The number of days in the future this repair will be conducted.">
-      <NumberInput v-model="config.advanceDays" />
+      <NumberInput v-model="config.advanceDays" float />
     </Active>
   </form>
 </template>

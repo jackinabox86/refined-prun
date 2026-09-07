@@ -71,7 +71,7 @@ defineExpose({ validate, save });
     label="Days"
     tooltip="The number of days of supplies to refill the planet with."
     :error="daysError">
-    <NumberInput v-if="!configureDaysOnExecution" v-model="days" />
+    <NumberInput v-if="!configureDaysOnExecution" v-model="days" float />
     <RadioItem v-model="configureDaysOnExecution">configure on execution</RadioItem>
   </Active>
   <Active

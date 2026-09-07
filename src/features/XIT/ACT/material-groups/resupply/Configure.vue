@@ -146,7 +146,7 @@ const shipName = computed(() => {
       v-if="data.days === configurableValue"
       label="Days"
       tooltip="The number of days of supplies to refill the planet with.">
-      <NumberInput v-model="config.days" />
+      <NumberInput v-model="config.days" float />
     </Active>
   </form>
   <Active label="Materials" tooltip="Which materials to include in the resupply group.">

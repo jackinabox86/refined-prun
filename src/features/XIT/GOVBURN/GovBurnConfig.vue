@@ -98,10 +98,10 @@ function onInputKeydown(ev: KeyboardEvent) {
     <SectionHeader>Thresholds</SectionHeader>
     <form @submit.prevent>
       <Active label="Red (days)">
-        <NumberInput v-model="userData.govburn.config.red" />
+        <NumberInput v-model="userData.govburn.config.red" float />
       </Active>
       <Active label="Yellow (days)">
-        <NumberInput v-model="userData.govburn.config.yellow" />
+        <NumberInput v-model="userData.govburn.config.yellow" float />
       </Active>
     </form>
 

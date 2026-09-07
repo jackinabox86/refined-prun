@@ -186,13 +186,13 @@ function clearShip() {
       <PrunButton dark inline :disabled="!canFit" @click="emit('fit')">FIT</PrunButton>
     </td>
     <td :class="$style.inputCell">
-      <NumberInput v-model="config.days" :class="$style.faintInput" />
+      <NumberInput v-model="config.days" :class="$style.faintInput" float />
     </td>
     <td :class="$style.inputCell">
-      <NumberInput v-model="config.repThreshold" :class="$style.faintInput" />
+      <NumberInput v-model="config.repThreshold" :class="$style.faintInput" float />
     </td>
     <td :class="$style.inputCell">
-      <NumberInput v-model="config.repAdvance" :class="$style.faintInput" />
+      <NumberInput v-model="config.repAdvance" :class="$style.faintInput" float />
     </td>
     <td :class="$style.advToggleCell">
       <RadioItem v-model="config.cxBuy" horizontal>BUY</RadioItem>
