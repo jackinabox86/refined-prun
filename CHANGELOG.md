@@ -2,9 +2,12 @@
 
 ## Unreleased
 
+### Added
+
+- `ship-unload-to-warehouse`: Shift-click a landed ship's Unload control to move its cargo into the local warehouse.
+
 ### Fixed
 
-- `XIT REP`, `XIT PLANETS`, `XIT DISPATCH`, `XIT GOVBURN`, `XIT SET`, `XIT TODO`, `XIT ACT`: Day, threshold and price fields keep fractional values instead of silently truncating them to whole numbers.
 - `XIT AGENT`: Loads action packages from the refined-agent channel even when other comms buffers restore first.
 - `XIT BURN`: A material whose production and consumption cancel out no longer shows 0 days left, in both the per-planet rows and the Overall row.
 
