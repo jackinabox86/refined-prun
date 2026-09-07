@@ -13,8 +13,6 @@ export type LayoutMode = 'compact' | 'whitespace' | 'cargo' | 'legacy';
 export type FuelAlertThreshold = '75' | '50' | '35' | '25' | '10';
 export type FuelAlertFilter = 'any' | FuelAlertThreshold;
 
-export const FLT_LAYOUT_MODES: LayoutMode[] = ['compact', 'whitespace', 'cargo', 'legacy'];
-
 export const FLT_FUEL_HEADER_LABEL = 'fuel';
 export const FLT_REFUEL_BUFFER_COMMAND = 'XIT REFUELACT';
 
@@ -52,26 +50,8 @@ export const DEFAULTS = {
   problemFuelThreshold: '50' as FuelAlertFilter,
 };
 
-const OPTIONAL_COLUMN_FLAGS = [
-  ['name', 'showColName'],
-  ['shipClass', 'showColShipClass'],
-  ['size', 'showColSize'],
-  ['cargo', 'showColCargo'],
-  ['cargoSize', 'showColCargoSize'],
-  ['eta', 'showColTime'],
-  ['repair', 'showColRepair'],
-  ['fuel', 'showColFuel'],
-  ['problems', 'showColProblems'],
-] as const;
-
-export function unconfiguredOptionalColumns(defaults: typeof DEFAULTS = DEFAULTS): string[] {
-  return OPTIONAL_COLUMN_FLAGS.filter(([, flag]) => defaults[flag]).map(([name]) => name);
-}
-
-export function fuelHeaderAction() {
-  return {
-    label: FLT_FUEL_HEADER_LABEL,
-    command: FLT_REFUEL_BUFFER_COMMAND,
-    showStandaloneRefuel: false,
-  };
+// Accepts layout so the column cannot be hidden per-mode by omitting it.
+export function showFuelColumn(showColFuel: boolean, layoutMode: LayoutMode) {
+  void layoutMode;
+  return showColFuel;
 }

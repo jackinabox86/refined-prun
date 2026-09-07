@@ -13,19 +13,20 @@ import RadioItem from '@src/components/forms/RadioItem.vue';
 import StatusCell from './StatusCell.vue';
 import TimeCell from './TimeCell.vue';
 import FleetCargoBar from './FleetCargoBar.vue';
-import FleetRefuelHeader from './FleetRefuelHeader.vue';
+import FuelHeaderButton from './FuelHeaderButton.vue';
 import { fixed0 } from '@src/utils/format';
 import coloredValue from '@src/infrastructure/prun-ui/css/colored-value.module.css';
 import {
   DEFAULTS,
   DEFAULT_SORT_DIRECTION_BY_KEY,
-  FLT_REFUEL_BUFFER_COMMAND,
+  showFuelColumn,
   type FuelAlertFilter,
   type FuelAlertThreshold,
   type LayoutMode,
   type SortDirection,
   type SortKey,
 } from './defaults';
+import { openRefuelAllExchanges } from './refuel';
 
 type FlightRow = {
   ship: PrunApi.Ship;
@@ -361,7 +362,7 @@ const gridTemplateColumns = computed(() => {
   if (showColRepair.value) {
     cols.push('auto');
   }
-  if (showColFuel.value) {
+  if (showFuelColumn(showColFuel.value, layoutMode.value)) {
     cols.push('auto');
   }
   if (showColProblems.value && hasAnyProblems.value) {
@@ -578,10 +579,6 @@ function getFuelRatio(store: PrunApi.Store | undefined) {
 
 function onFuel(registration: string) {
   showBuffer(`SHPF ${registration}`);
-}
-
-function onRefuelAllExchanges() {
-  showBuffer(FLT_REFUEL_BUFFER_COMMAND);
 }
 
 function toggleFilters() {
@@ -1070,10 +1067,9 @@ function getCargoState(cargoRatio: number) {
         </component>
         <component
           :is="headerCellTag"
-          v-if="showColFuel"
-          :class="[$style.headerCell, $style.sortable, $style.colFuel]"
-          @click="setSort('fuel')">
-          <FleetRefuelHeader @refuel="onRefuelAllExchanges">
+          v-if="showFuelColumn(showColFuel, layoutMode)"
+          :class="[$style.headerCell, $style.colFuel]">
+          <FuelHeaderButton @refuel="openRefuelAllExchanges">
             <span
               :class="{
                 [$style.sortPrimary]: isPrimarySort('fuel'),
@@ -1081,7 +1077,7 @@ function getCargoState(cargoRatio: number) {
               }">
               {{ getSortIndicator('fuel') }}
             </span>
-          </FleetRefuelHeader>
+          </FuelHeaderButton>
         </component>
         <component
           :is="headerCellTag"
@@ -1144,7 +1140,10 @@ function getCargoState(cargoRatio: number) {
           <span :class="x.conditionClass">{{ x.conditionText }}</span>
         </component>
 
-        <component :is="cellTag" v-if="showColFuel" :class="[$style.bodyCell, $style.colFuel]">
+        <component
+          :is="cellTag"
+          v-if="showFuelColumn(showColFuel, layoutMode)"
+          :class="[$style.bodyCell, $style.colFuel]">
           <div
             :class="[C.ShipFuel.container, C.ShipFuel.pointer, $style.fuelBars]"
             @click="onFuel(x.ship.registration)">
