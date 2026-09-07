@@ -12,6 +12,7 @@ import {
   shouldRestorePriorWindow,
   snapshotWindows,
   topmostWindow,
+  windowContainingClick,
 } from './mark-read-click';
 
 const SETTLE_MS = 400;
@@ -28,8 +29,12 @@ function onNotificationClick(event: MouseEvent) {
   }
 
   const windows = document.getElementsByClassName(C.Window.window);
+  const windowList = Array.from(windows);
   const before = snapshotWindows(windows);
-  const prior = topmostWindow(Array.from(windows));
+  // Prefer the window that received the click. Mousedown focus from
+  // focus-buffers-on-click can land before or after this capture handler
+  // samples z-index.
+  const prior = windowContainingClick(event.target, windowList) ?? topmostWindow(windowList);
   let settled = false;
   let stopWatching = () => {};
 

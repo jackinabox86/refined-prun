@@ -24,12 +24,32 @@ export function windowStackIndex(windowEl: unknown) {
   return Number.isNaN(z) ? 0 : z;
 }
 
+export function windowContainingClick<T>(target: unknown, windows: ArrayLike<T>) {
+  if (target == null) {
+    return undefined;
+  }
+  for (let i = 0; i < windows.length; i++) {
+    const windowEl = windows[i];
+    if (
+      typeof windowEl === 'object' &&
+      windowEl !== null &&
+      'contains' in windowEl &&
+      typeof windowEl.contains === 'function' &&
+      (windowEl.contains as (node: unknown) => boolean)(target)
+    ) {
+      return windowEl;
+    }
+  }
+  return undefined;
+}
+
 export function topmostWindow<T>(windows: ArrayLike<T>) {
   let top: T | undefined;
   let topZ = Number.NEGATIVE_INFINITY;
   for (let i = 0; i < windows.length; i++) {
     const candidate = windows[i];
     const z = windowStackIndex(candidate);
+    // Last in document order wins a z-index tie.
     if (top === undefined || z >= topZ) {
       top = candidate;
       topZ = z;

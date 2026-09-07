@@ -6,6 +6,7 @@ import {
   shouldRestorePriorWindow,
   snapshotWindows,
   topmostWindow,
+  windowContainingClick,
   windowStackIndex,
 } from './mark-read-click';
 
@@ -53,7 +54,29 @@ describe('window stacking', () => {
   it('picks the highest z-index window, not document order', () => {
     const back = { style: { zIndex: '1002' } };
     const front = { style: { zIndex: '1001' } };
-    expect(topmostWindow([back, front])).toBe(back);
+    // Live 2026-09-07: first in document order held the lower z-index.
+    expect(topmostWindow([front, back])).toBe(back);
+  });
+
+  it('on a z-index tie, picks the last window in document order', () => {
+    const first = { style: { zIndex: '1001' } };
+    const last = { style: { zIndex: '1001' } };
+    expect(topmostWindow([first, last])).toBe(last);
+  });
+});
+
+describe('windowContainingClick', () => {
+  it('returns the window that contains the click target', () => {
+    const target = { id: 'row' };
+    const other = { contains: () => false };
+    const clicked = { contains: (node: unknown) => node === target };
+    expect(windowContainingClick(target, [other, clicked])).toBe(clicked);
+  });
+
+  it('returns undefined when no window contains the target', () => {
+    const target = { id: 'row' };
+    expect(windowContainingClick(target, [{ contains: () => false }])).toBeUndefined();
+    expect(windowContainingClick(null, [{ contains: () => true }])).toBeUndefined();
   });
 });
 
