@@ -7,6 +7,7 @@ import {
   DEFAULT_SORT_DIRECTION_BY_KEY,
   FLT_FUEL_HEADER_LABEL,
   FLT_REFUEL_BUFFER_COMMAND,
+  showFuelColumn,
 } from './defaults';
 
 vi.mock('@src/infrastructure/prun-ui/buffers', () => ({
@@ -51,6 +52,9 @@ describe('XIT FLT fuel header', () => {
   });
 
   it('keeps the fuel column gated in the template, grid, and body', () => {
+    expect(showFuelColumn(true)).toBe(true);
+    expect(showFuelColumn(false)).toBe(false);
+
     const flt = productSource('FLT.vue');
     const header = productSource('FuelHeaderButton.vue');
 
@@ -62,6 +66,7 @@ describe('XIT FLT fuel header', () => {
     expect(flt).toMatch(/colProblems[\s\S]*?>\s*Problems\s*</);
 
     expect(FLT_FUEL_HEADER_LABEL).toBe('fuel');
+    expect(header).toContain('{{ FLT_FUEL_HEADER_LABEL }}');
     expect(header).toMatch(/<PrunButton[^>]*@click\.stop="emit\('refuel'\)"/);
     expect(header).not.toMatch(/>\s*REFUEL\s*</);
   });
