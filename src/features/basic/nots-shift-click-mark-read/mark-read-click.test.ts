@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  closeOrUnhide,
   isNotificationMarkReadClick,
   newlyOpenedWindows,
   shouldRestorePriorWindow,
@@ -42,15 +43,45 @@ describe('newlyOpenedWindows', () => {
 });
 
 describe('window stacking', () => {
-  it('reads an explicit z-index and treats a missing one as 0', () => {
-    expect(windowStackIndex({ style: { zIndex: '12' } })).toBe(12);
+  // Live C.Window.window nodes set inline z-index (2026-09-07): unfocused 1000/1001, focused 1002.
+  it('reads the inline z-index PrUn sets on floating windows', () => {
+    expect(windowStackIndex({ style: { zIndex: '1000' } })).toBe(1000);
+    expect(windowStackIndex({ style: { zIndex: '1002' } })).toBe(1002);
     expect(windowStackIndex({})).toBe(0);
   });
 
-  it('picks the highest z-index window', () => {
-    const back = { style: { zIndex: '1' } };
-    const front = { style: { zIndex: '4' } };
-    expect(topmostWindow([back, front])).toBe(front);
+  it('picks the highest z-index window, not document order', () => {
+    const back = { style: { zIndex: '1002' } };
+    const front = { style: { zIndex: '1001' } };
+    expect(topmostWindow([back, front])).toBe(back);
+  });
+});
+
+describe('closeOrUnhide', () => {
+  it('unhides when close throws', () => {
+    const log: string[] = [];
+    closeOrUnhide(
+      () => {
+        throw new Error('missing close control');
+      },
+      () => {
+        log.push('unhide');
+      },
+    );
+    expect(log).toEqual(['unhide']);
+  });
+
+  it('does not unhide when close succeeds', () => {
+    const log: string[] = [];
+    closeOrUnhide(
+      () => {
+        log.push('close');
+      },
+      () => {
+        log.push('unhide');
+      },
+    );
+    expect(log).toEqual(['close']);
   });
 });
 

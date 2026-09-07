@@ -6,6 +6,7 @@ import { onNodeTreeMutation } from '@src/utils/on-node-tree-mutation';
 import { clickElement } from '@src/util';
 import css from '@src/utils/css-utils.module.css';
 import {
+  closeOrUnhide,
   isNotificationMarkReadClick,
   newlyOpenedWindows,
   shouldRestorePriorWindow,
@@ -30,72 +31,79 @@ function onNotificationClick(event: MouseEvent) {
   const before = snapshotWindows(windows);
   const prior = topmostWindow(Array.from(windows));
   let settled = false;
+  let stopWatching = () => {};
 
-  const restorePriorIfNeeded = () => {
-    if (settled) {
-      return;
-    }
-    if (newlyOpenedWindows(before, windows).length > 0) {
-      return;
-    }
-    const current = topmostWindow(Array.from(windows));
-    if (shouldRestorePriorWindow(0, prior, current) && prior) {
-      restoreWindow(prior);
-    }
-  };
-
-  const finish = () => {
+  const finish = (opened: Element[]) => {
     if (settled) {
       return;
     }
     settled = true;
-    const after = Array.from(windows);
-    const opened = newlyOpenedWindows(before, after);
+    stopWatching();
     for (const windowEl of opened) {
-      hideNotificationTarget(windowEl);
-      closePrunWindow(windowEl);
+      suppressOpenedWindow(windowEl);
     }
-    const current = topmostWindow(after);
+    const current = topmostWindow(Array.from(windows));
     if (shouldRestorePriorWindow(opened.length, prior, current) && prior) {
       restoreWindow(prior);
     }
   };
 
-  onNodeTreeMutation(document, () => {
+  stopWatching = onNodeTreeMutation(document, () => {
     if (settled) {
       return true;
     }
     const opened = newlyOpenedWindows(before, windows);
+    if (opened.length === 0) {
+      return false;
+    }
     for (const windowEl of opened) {
       hideNotificationTarget(windowEl);
     }
-    if (opened.length > 0) {
-      setTimeout(finish, 0);
-      return true;
-    }
-    restorePriorIfNeeded();
-    return false;
+    setTimeout(() => finish(opened), 0);
+    return true;
   });
 
-  setTimeout(restorePriorIfNeeded, 0);
-  setTimeout(finish, SETTLE_MS);
+  setTimeout(() => finish(newlyOpenedWindows(before, windows)), SETTLE_MS);
 }
 
-function hideNotificationTarget(windowEl: Element) {
+function notificationTargetChrome(windowEl: Element) {
   if (!(windowEl instanceof HTMLElement)) {
     return;
   }
-  windowEl.classList.add(css.hidden);
-  const tile = _$(windowEl, C.Tile.tile) as HTMLElement | undefined;
+  const tile = _$(windowEl, C.Tile.tile);
   const id = tile ? getPrunId(tile) : null;
   const dockLabel = id?.padStart(2, '0');
-  if (!dockLabel) {
+  const dockTab =
+    dockLabel === undefined
+      ? undefined
+      : _$$(document, C.Dock.buffer).find(x => _$(x, C.Dock.title)?.textContent === dockLabel);
+  return { windowEl, dockTab };
+}
+
+function hideNotificationTarget(windowEl: Element) {
+  const chrome = notificationTargetChrome(windowEl);
+  if (chrome === undefined) {
     return;
   }
-  const dockTab = _$$(document, C.Dock.buffer).find(
-    x => _$(x, C.Dock.title)?.textContent === dockLabel,
+  chrome.windowEl.classList.add(css.hidden);
+  chrome.dockTab?.classList.add(css.hidden);
+}
+
+function unhideNotificationTarget(windowEl: Element) {
+  const chrome = notificationTargetChrome(windowEl);
+  if (chrome === undefined) {
+    return;
+  }
+  chrome.windowEl.classList.remove(css.hidden);
+  chrome.dockTab?.classList.remove(css.hidden);
+}
+
+function suppressOpenedWindow(windowEl: Element) {
+  hideNotificationTarget(windowEl);
+  closeOrUnhide(
+    () => closePrunWindow(windowEl),
+    () => unhideNotificationTarget(windowEl),
   );
-  dockTab?.classList.add(css.hidden);
 }
 
 function restoreWindow(windowEl: Element) {

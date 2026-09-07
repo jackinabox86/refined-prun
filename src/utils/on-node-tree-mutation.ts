@@ -3,6 +3,7 @@ import { oneMicrotask } from '@src/utils/one-microtask';
 type MutationCallback = (mutations: MutationRecord[]) => boolean | void;
 
 const callbackMap = new WeakMap<Node, MutationCallback[]>();
+const observerMap = new WeakMap<Node, MutationObserver>();
 const removed = new Set<MutationCallback>();
 
 const pendingProcessors = new Set<() => void>();
@@ -20,7 +21,7 @@ export function onNodeTreeMutation(
   callback: MutationCallback,
   observeClass: boolean = false,
 ) {
-  let callbacks = callbackMap.get(node) ?? [];
+  const callbacks = callbackMap.get(node) ?? [];
   if (callbacks.length === 0) {
     callbackMap.set(node, callbacks);
     let pending: MutationRecord[] = [];
@@ -45,13 +46,15 @@ export function onNodeTreeMutation(
         }
       }
       if (removed.size > 0) {
-        const next = callbacks.filter(x => !removed.has(x));
-        if (next.length === 0) {
+        for (let i = callbacks.length - 1; i >= 0; i--) {
+          if (removed.has(callbacks[i])) {
+            callbacks.splice(i, 1);
+          }
+        }
+        if (callbacks.length === 0) {
           callbackMap.delete(node);
           observer.disconnect();
-        } else {
-          callbacks = next;
-          callbackMap.set(node, callbacks);
+          observerMap.delete(node);
         }
       }
       removed.clear();
@@ -63,7 +66,24 @@ export function onNodeTreeMutation(
     if (observeClass) {
       options.attributeFilter = ['class'];
     }
+    observerMap.set(node, observer);
     observer.observe(node, options);
   }
   callbacks.push(callback);
+  return () => {
+    const current = callbackMap.get(node);
+    if (current === undefined) {
+      return;
+    }
+    const index = current.indexOf(callback);
+    if (index === -1) {
+      return;
+    }
+    current.splice(index, 1);
+    if (current.length === 0) {
+      callbackMap.delete(node);
+      observerMap.get(node)?.disconnect();
+      observerMap.delete(node);
+    }
+  };
 }

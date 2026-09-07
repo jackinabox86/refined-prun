@@ -45,3 +45,11 @@ export function shouldRestorePriorWindow(
 ) {
   return openedCount === 0 && prior != null && current != null && prior !== current;
 }
+
+export function closeOrUnhide(close: () => void, unhide: () => void) {
+  try {
+    close();
+  } catch {
+    unhide();
+  }
+}
