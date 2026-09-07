@@ -66,7 +66,7 @@ describe('XIT FLT fuel header', () => {
     expect(flt).not.toMatch(/>\s*REFUEL\s*</);
     expect(flt).toMatch(/colProblems[\s\S]*?>\s*Problems\s*</);
 
-    expect(header).toContain("@click.stop=\"emit('refuel')\"");
+    expect(header).toContain('@click.stop="emit(\'refuel\')"');
     expect(header).toContain('FLT_FUEL_HEADER_LABEL');
     expect(header).not.toMatch(/>\s*REFUEL\s*</);
   });
