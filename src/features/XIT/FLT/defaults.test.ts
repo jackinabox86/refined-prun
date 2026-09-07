@@ -28,8 +28,8 @@ describe('XIT FLT unconfigured defaults', () => {
 describe('XIT FLT fuel header', () => {
   it.each(FLT_LAYOUT_MODES)(
     'is the refuel action in %s and does not keep a standalone REFUEL button',
-    layout => {
-      const header = fuelHeaderAction(layout);
+    () => {
+      const header = fuelHeaderAction();
       expect(header.label).toBe('fuel');
       expect(header.command).toBe(FLT_REFUEL_BUFFER_COMMAND);
       expect(header.showStandaloneRefuel).toBe(false);

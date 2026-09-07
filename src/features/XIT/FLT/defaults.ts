@@ -68,7 +68,7 @@ export function unconfiguredOptionalColumns(defaults: typeof DEFAULTS = DEFAULTS
   return OPTIONAL_COLUMN_FLAGS.filter(([, flag]) => defaults[flag]).map(([name]) => name);
 }
 
-export function fuelHeaderAction(_layout: LayoutMode) {
+export function fuelHeaderAction() {
   return {
     label: FLT_FUEL_HEADER_LABEL,
     command: FLT_REFUEL_BUFFER_COMMAND,
