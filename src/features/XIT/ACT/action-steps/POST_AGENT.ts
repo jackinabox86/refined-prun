@@ -9,20 +9,25 @@ interface Data {
 }
 
 const maxPostAttempts = 3;
+// Chained runs post several packages to the same chat channel back-to-back, which can trip
+// the game's flood protection. The gap belongs *between* posts, so it grays ACT ahead of
+// every post except the run's first — that one has nothing to be spaced from, and pausing
+// before it just makes the player wait. Nothing pauses after the last post either. Retries
+// always keep the gap; they are what actually recovers, since the throttle window isn't
+// something a fixed delay can outwait.
+const postGapMs = 2000;
 
 export const POST_AGENT = act.addActionStep<Data>({
   type: 'POST_AGENT',
   description: data => `Post [${data.pkg.global.name}] package to the agent channel`,
   execute: async ctx => {
-    const { data, waitAct, complete, skip, log } = ctx;
+    const { data, isFirstOfType, waitAct, complete, skip, log } = ctx;
     const { id, text } = await buildAgentPackageMessage(data.pkg, data.id);
     const name = data.pkg.global.name ?? 'package';
-    // Chained runs post several packages to the same chat channel back-to-back, which can
-    // trip the game's flood protection. The gap helps; ACT-driven retries are what actually
-    // recovers, since the throttle window isn't something a fixed delay can outwait.
     for (let attempt = 1; attempt <= maxPostAttempts; attempt++) {
+      const isRunFirstPost = isFirstOfType && attempt === 1;
       await waitAct(attempt === 1 ? undefined : `Retry posting [${name}] as [${id}]`, {
-        actDelayMs: 2000,
+        actDelayMs: isRunFirstPost ? 0 : postGapMs,
       });
       try {
         await postAgentMessage(text);

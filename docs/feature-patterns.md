@@ -216,19 +216,33 @@ SKIP, or a self-skip from a reactive watcher) never resumes, and everything afte
 ### Reminder Pauses in ACT Steps
 
 When a step needs the player to do something manually in a companion buffer before the
-run continues (repair buildings in BRA, submit the flight in SFC, adjust a transfer
-amount in MTRA), call `waitAct(status, { actDelayMs: 2000 })`. The step machine grays
-the ACT button for the delay while SKIP/CANCEL stay live, then re-arms ACT — see
-`OPEN_BRA.ts` / `OPEN_SFC.ts` / `MTRA_TRANSFER.ts`'s `playerReview` mode (which reads
-the player-adjusted input value after the pause instead of rewriting it).
+run continues (repair buildings in BRA, adjust a transfer amount in MTRA), call
+`waitAct(status, { actDelayMs: 2000 })`. The step machine grays the ACT button for the
+delay while SKIP/CANCEL stay live, then re-arms ACT — see `OPEN_BRA.ts` /
+`MTRA_TRANSFER.ts`'s `playerReview` mode (which reads the player-adjusted input value
+after the pause instead of rewriting it).
 Don't add a bare `sleep()` for this; the delay belongs in `waitAct` so skipping/canceling
 during the pause is handled.
+
+**Put a pause that spaces two steps in front of the second one, not behind the first.**
+A pause that exists only to separate a step from the previous step of its kind — the gap
+between agent-channel posts (`POST_AGENT`, flood protection), the window to submit one
+ship's flight before the next ship's SFC opens (`OPEN_SFC`) — is a pre-ACT delay on the
+step that follows. Trailing it off the earlier step instead makes the player wait after
+the *last* one for nothing. Guard it with `ctx.isFirstOfType`, which the step machine sets
+false once an earlier step of the same type has started in this run: the first post/SFC
+has nothing to be spaced from, so it arms ACT immediately. `isFirstOfType` is per run and
+per step type, so it survives extra steps appended after generation (`extraSteps`) and
+in-step retry loops — `POST_AGENT` re-arms the gap on retries by `&&`-ing in `attempt === 1`.
 
 ### ACT Step Behaviors Worth Knowing
 
 - **Per-open click gate lives in `requestTile`.** A step that opens a buffer via
   `ctx.requestTile(cmd)` already makes the player click ACT for that open — don't add
-  another `waitAct` around it.
+  another `waitAct` around it. The one exception is a step that must gate itself (to carry
+  a spacing delay, or to keep a post-open server lookup behind the click even when the tile
+  is already open): call `waitAct` first, then `requestTile(cmd, { actGate: false })` so the
+  open doesn't cost a second click. `OPEN_SFC` does exactly this.
 - **Steps can self-skip without a click.** Calling `ctx.skip()` and returning before any
   `waitAct` consumes the step silently (logs a SKIP line). Used by `OPEN_POPID` to walk a
   fixed 14-building step list while only present buildings cost a click — a static step
@@ -713,6 +727,10 @@ in one call, scoped to a raw `document.documentElement` lookup that could grab t
 tile's input if more than one `AddressSelector` was open. Scope to the tile instead
 (`await $(tile.anchor, C.AddressSelector.container)`) and call `selectAddress` directly — no
 pause needed, since filling the field isn't a server-mutating action worth a reminder click.
+It does still have to sit behind a click, though, because typing fires the address lookup:
+`OPEN_SFC` gates the whole step up front and passes `{ actGate: false }` to `requestTile`,
+so opening the buffer and filling the destination are one click even when the SFC tile for
+that ship was already open.
 
 ---
 
