@@ -18,6 +18,10 @@ async function processNotification(container: HTMLElement) {
     return;
   }
   container.addEventListener('click', e => {
+    // Shift-click must reach the game so the alert is marked read.
+    if (e.shiftKey) {
+      return;
+    }
     showBuffer(`SHPI ${registration}`);
     e.preventDefault();
     e.stopPropagation();

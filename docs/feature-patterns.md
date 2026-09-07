@@ -1076,6 +1076,16 @@ subscribe($$(tile.frame, C.ContextControls.item), item => {
 
 See `src/features/basic/bs-inv-base-store-link.ts`.
 
+### NOTS: shift-click to mark read without opening
+
+`alertsStore` is receive-only (`ALERTS_ALERTS` / `ALERTS_ALERT` / `ALERTS_ALERTS_DELETED`). There is no mark-as-read client write in `prun-api`. The persist-like-a-normal-open behavior is a side effect of the game's own notification-row click, so a feature that wants that write must **not** `preventDefault` / `stopPropagation` on the gesture.
+
+The capture listener only classifies the click. Display is suppressed afterwards: an `onNodeTreeMutation` watcher hides and then closes only `C.Window.window` nodes that appeared after the click — never a window that already existed. Do not use `showBuffer({ autoClose })` here: opening a guessed command is not what marks the alert read, and `docs/contributing.md` forbids extending the invisible-fetch pattern without discussion.
+
+PrUn stacks floating windows with an inline `z-index` (live `C.Window.window` nodes, 2026-09-07: unfocused `1000`/`1001`, focused `1002`; document order did not change on header-focus). If the click creates no new window, restore the floating window that contained the click, falling back to the previously topmost window when the click is not inside a `C.Window.window` (docked NOTS). `focus-buffers-on-click` focuses the NOTS tile on mousedown, so a z-index sample on the later capture `click` can see either NOTS or a third window depending on whether that focus has landed; the containing window does not. General buffer reuse ("same command + params re-focuses") is documented in `docs/game/ui-concepts.md`; that is not itself a notification-click observation.
+
+`nots-ship-arrival-inventory` must ignore shift-clicks so it cannot `showBuffer('SHPI …')` on the same gesture.
+
 ---
 
 ## CSS
