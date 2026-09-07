@@ -60,7 +60,6 @@ For **every** code review, verify compliance with:
 
 ### 5. Documentation & Workflow
 - Always check relevant docs first (`docs/README.md` lists them).
-- User-facing changes add a bullet under `## Unreleased` in `CHANGELOG.md`; don't touch anything above it (that's release automation's job).
 - Follow exact patterns from `docs/feature-patterns.md` for registration, XIT commands, Vue mounting, reactive DOM, etc.
 
 ---
