@@ -5,6 +5,7 @@ import NumberInput from '@src/components/forms/NumberInput.vue';
 import PrunButton from '@src/components/PrunButton.vue';
 import { Config, MaterialFilter } from '@src/features/XIT/ACT/material-groups/resupply/config';
 import { computeResupplyBill } from '@src/features/XIT/ACT/material-groups/resupply/bill';
+import { maxFittingDays } from '@src/features/XIT/ACT/material-groups/resupply/fit-days';
 import { sitesStore } from '@src/infrastructure/prun-api/data/sites';
 import {
   getEntityNameFromAddress,
@@ -91,7 +92,7 @@ const totals = computed(() => {
   return billTotals(entries);
 });
 
-// Binary search for the maximum whole-day count whose bill fits the ship.
+// Binary search for the maximum duration whose bill fits the ship.
 function fitToShip(maxWeight: number, maxVolume: number) {
   const planet = effectivePlanet.value;
   if (!planet) {
@@ -101,19 +102,11 @@ function fitToShip(maxWeight: number, maxVolume: number) {
   if (!computeResupplyBill(data, planet, 1, materialFilter.value)) {
     return;
   }
-  let lo = 0;
-  let hi = 999;
-  while (lo < hi) {
-    const mid = lo + Math.ceil((hi - lo) / 2);
-    const entries = computeResupplyBill(data, planet, mid, materialFilter.value)!;
+  config.days = maxFittingDays(days => {
+    const entries = computeResupplyBill(data, planet, days, materialFilter.value)!;
     const t = billTotals(entries);
-    if (t.weight <= maxWeight && t.volume <= maxVolume) {
-      lo = mid;
-    } else {
-      hi = mid - 1;
-    }
-  }
-  config.days = lo;
+    return t.weight <= maxWeight && t.volume <= maxVolume;
+  });
 }
 
 const canFit = computed(() => bill.value !== undefined);
