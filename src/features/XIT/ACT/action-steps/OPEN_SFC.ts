@@ -4,6 +4,8 @@ import { AssertFn } from '@src/features/XIT/ACT/shared-types';
 import { getPlanetName } from '@src/core/planet-name';
 import { convertToPlanetNaturalId } from '@src/core/planet-natural-id';
 import { selectAddress } from '@src/infrastructure/prun-ui/utils/select-address';
+import { resizeSplitWindow, splitOwnerId } from '@src/infrastructure/prun-ui/companion-buffer';
+import { sfcStageWindowSize } from '@src/features/XIT/ACT/action-steps/sfc-stage-layout';
 
 interface Data {
   shipId: string;
@@ -57,6 +59,23 @@ export const OPEN_SFC = act.addActionStep<Data>({
       }
     }
 
+    if (isFirstOfType) {
+      applySfcStageLayout(tile);
+    }
+
     complete();
   },
 });
+
+function applySfcStageLayout(tile: PrunTile) {
+  const ownerId = splitOwnerId(tile.id);
+  if (ownerId === undefined) {
+    return;
+  }
+  const windowEl = tile.frame.closest(`.${C.Window.window}`) as HTMLElement | null;
+  const bodyEl = windowEl === null ? null : (_$(windowEl, C.Window.body) as HTMLElement | null);
+  const currentWidth = parseInt(bodyEl?.style.width ?? '', 10);
+  const currentHeight = parseInt(bodyEl?.style.height ?? '', 10);
+  const layout = sfcStageWindowSize(currentWidth, currentHeight);
+  resizeSplitWindow(ownerId, layout.actWidth, layout.sfcWidth, layout.height);
+}

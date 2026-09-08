@@ -8,6 +8,7 @@ import {
   UI_TILES_CHANGE_SIZE,
 } from '@src/infrastructure/prun-api/client-messages';
 import { dispatchClientPrunMessage } from '@src/infrastructure/prun-api/prun-api-listener';
+import { tilesStore } from '@src/infrastructure/prun-api/data/tiles';
 import { clamp } from '@src/utils/clamp';
 
 // Size of a companion whose command has no registered default buffer size.
@@ -118,6 +119,33 @@ async function setChildCommand(child: Element, command: string) {
   const input = (await $(child, C.PanelSelector.input)) as HTMLInputElement;
   changeInputValue(input, command);
   input.form!.requestSubmit();
+}
+
+// The tile that owns a split container — the one that was split, not either child.
+export function splitOwnerId(childId: string): string | undefined {
+  const child = tilesStore.getById(childId);
+  const parentId = child?.parentId;
+  if (parentId === null || parentId === undefined) {
+    return undefined;
+  }
+  const parent = tilesStore.getById(parentId);
+  if (parent?.container === null || parent?.container === undefined) {
+    return undefined;
+  }
+  return parent.id;
+}
+
+// Sizes an already-split floating window and moves the divider. Uses the game
+// messages so a later drag-resize commits from this size instead of snapping
+// back to a stale stored size.
+export function resizeSplitWindow(
+  ownerId: string,
+  leftWidth: number,
+  rightWidth: number,
+  height: number,
+) {
+  setBufferSize(ownerId, leftWidth + rightWidth, height);
+  setDividerPosition(ownerId, leftWidth, rightWidth);
 }
 
 // Sets the split ratio so each pane gets the width it was sized for. No DOM

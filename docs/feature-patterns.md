@@ -732,10 +732,13 @@ It does still have to sit behind a click, though, because typing fires the addre
 so opening the buffer and filling the destination are one click even when the SFC tile for
 that ship was already open.
 
-`OPEN_SFC` must not resize the host window. A hardcoded `Window.body` write (975×750) ran
-on every SFC stage and snapped `XIT DISPATCHACT` (and any other ACT host) off a player's
-manual drag-resize. The one-shot `TileAllocator` split (`width + 450`) is the only size
-change; later stage transitions leave the current size alone.
+`OPEN_SFC` may resize the host window on the **first** SFC of a run, but only through
+game messages (`setBufferSize` + `UI_TILES_CHANGE_SIZE` on the split *owner* id — the
+tile that was split, not either child). A direct `Window.body` style write (the old
+975×750 hardcode) updates the DOM without the game's stored size, so the next user
+drag-release snaps back to the stale size. Later SFC ships must not touch size.
+Give the ACT pane less width than SFC (`sfc-stage-layout.ts`); grow-only, never shrink
+a larger player-sized window. See Companion Buffers above for the unequal-split idiom.
 
 ---
 
