@@ -732,6 +732,11 @@ It does still have to sit behind a click, though, because typing fires the addre
 so opening the buffer and filling the destination are one click even when the SFC tile for
 that ship was already open.
 
+`OPEN_SFC` must not resize the host window. A hardcoded `Window.body` write (975×750) ran
+on every SFC stage and snapped `XIT DISPATCHACT` (and any other ACT host) off a player's
+manual drag-resize. The one-shot `TileAllocator` split (`width + 450`) is the only size
+change; later stage transitions leave the current size alone.
+
 ---
 
 ## Data & Reactivity Rules

@@ -57,15 +57,6 @@ export const OPEN_SFC = act.addActionStep<Data>({
       }
     }
 
-    // Resize the companion window by directly setting Window.body dimensions.
-    // UI_WINDOWS_UPDATE_SIZE doesn't work for docked tiles; direct style
-    // manipulation on Window.body is the reliable approach for split windows.
-    const windowEl = tile.frame.closest(`.${C.Window.window}`) as HTMLElement | null;
-    const bodyEl = windowEl ? (_$(windowEl, C.Window.body) as HTMLElement | null) : null;
-    if (bodyEl) {
-      bodyEl.style.width = '975px';
-      bodyEl.style.height = '750px';
-    }
     complete();
   },
 });

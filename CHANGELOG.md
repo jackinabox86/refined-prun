@@ -12,6 +12,7 @@
 
 ### Fixed
 
+- `XIT DISPATCHACT`: The SFC stage no longer snaps the host buffer to 975×750 after a manual resize.
 - `XIT AGENT`: Loads action packages from the refined-agent channel even when other comms buffers restore first.
 - `XIT BURN`: A material whose production and consumption cancel out no longer shows 0 days left, in both the per-planet rows and the Overall row.
 
