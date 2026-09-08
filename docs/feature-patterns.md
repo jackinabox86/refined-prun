@@ -1086,6 +1086,8 @@ PrUn stacks floating windows with an inline `z-index` (live `C.Window.window` no
 
 `nots-ship-arrival-inventory` must ignore shift-clicks so it cannot `showBuffer('SHPI …')` on the same gesture.
 
+The browser's own shift-click default is separate from the game's handler: shift-**mousedown** extends the document text selection from the last caret position to the row, so the gesture painted most of the page blue. A capture `mousedown` listener on the same containers calls `preventDefault()` for the same shift+left-button classification and nothing else. That cancels only the selection default — `click` still fires, so the alert is still marked read, and `preventDefault` does not stop propagation, so `focus-buffers-on-click`'s window `mousedown` listener still runs. Do not `stopPropagation` here for the same reason the click handler must not.
+
 ---
 
 ## CSS

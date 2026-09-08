@@ -19,8 +19,21 @@ const SETTLE_MS = 400;
 
 function onTileReady(tile: PrunTile) {
   subscribe($$(tile.anchor, C.AlertListItem.container), container => {
+    container.addEventListener('mousedown', onNotificationMouseDown, true);
     container.addEventListener('click', onNotificationClick, true);
   });
+}
+
+// Shift-mousedown extends the document text selection from wherever the caret
+// last sat to the notification row, painting most of the page blue on every
+// mark-read gesture. Suppressing the mousedown default cancels only that
+// selection: the click still reaches the game, so the alert is still marked
+// read, and listeners such as focus-buffers-on-click still run.
+function onNotificationMouseDown(event: MouseEvent) {
+  if (!isNotificationMarkReadClick(event)) {
+    return;
+  }
+  event.preventDefault();
 }
 
 function onNotificationClick(event: MouseEvent) {
