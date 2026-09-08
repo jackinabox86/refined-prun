@@ -7,11 +7,7 @@ const emit = defineEmits<{ refuel: [] }>();
 
 <template>
   <span :class="$style.container">
-    <PrunButton
-      dark
-      inline
-      :class="[$style.button, C.fonts.fontRegular, C.type.typeRegular]"
-      @click.stop="emit('refuel')">
+    <PrunButton :class="$style.button" @click.stop="emit('refuel')">
       {{ FLT_FUEL_HEADER_LABEL }}
     </PrunButton>
     <slot />
@@ -27,7 +23,26 @@ const emit = defineEmits<{ refuel: [] }>();
   gap: 6px;
 }
 
-.button {
-  font-size: 12px;
+/* Beat Button__btn so the label inherits Name / Cargo / Repair header text. */
+.container .button,
+.container .button:hover,
+.container .button:focus,
+.container .button:active {
+  appearance: none;
+  background: none;
+  border: none;
+  box-shadow: none;
+  padding: 0;
+  margin: 0;
+  min-height: 0;
+  min-width: 0;
+  font: inherit;
+  font-size: inherit;
+  font-weight: inherit;
+  color: inherit;
+  line-height: inherit;
+  letter-spacing: inherit;
+  text-transform: none;
+  cursor: pointer;
 }
 </style>
