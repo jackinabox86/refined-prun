@@ -7,7 +7,13 @@ const emit = defineEmits<{ refuel: [] }>();
 
 <template>
   <span :class="$style.container">
-    <PrunButton dark inline @click.stop="emit('refuel')">{{ FLT_FUEL_HEADER_LABEL }}</PrunButton>
+    <PrunButton
+      dark
+      inline
+      :class="[$style.button, C.fonts.fontRegular, C.type.typeRegular]"
+      @click.stop="emit('refuel')">
+      {{ FLT_FUEL_HEADER_LABEL }}
+    </PrunButton>
     <slot />
   </span>
 </template>
@@ -19,5 +25,9 @@ const emit = defineEmits<{ refuel: [] }>();
   width: 100%;
   white-space: nowrap;
   gap: 6px;
+}
+
+.button {
+  font-size: 12px;
 }
 </style>
