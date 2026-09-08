@@ -6,6 +6,10 @@
 
 - `ship-unload-to-warehouse`: Shift-click a landed ship's Unload control to move its cargo into the local warehouse.
 
+### Changed
+
+- `XIT BS`: Clicking a base's burn days expands that base's burn rows inline; shift-click opens `XIT BURN` in a new buffer.
+
 ### Fixed
 
 - `XIT AGENT`: Loads action packages from the refined-agent channel even when other comms buffers restore first.

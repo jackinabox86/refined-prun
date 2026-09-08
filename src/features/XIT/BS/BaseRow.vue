@@ -2,9 +2,12 @@
 import PrunLink from '@src/components/PrunLink.vue';
 import PrunButton from '@src/components/PrunButton.vue';
 import InvBar from '@src/features/XIT/BS/InvBar.vue';
+import MaterialList from '@src/features/XIT/BURN/MaterialList.vue';
+import { burnCellBufferCommand, toggleExpandedBurn } from '@src/features/XIT/BS/burn-cell-click';
 import { showBuffer } from '@src/infrastructure/prun-ui/buffers';
 import { getPlanetBurn } from '@src/core/burn';
 import { countDays } from '@src/features/XIT/BURN/utils';
+import { useTileState } from '@src/store/user-data-tiles';
 import { getPickupAlarm, getStorageAlarmLevel } from '@src/core/storage-analysis';
 import { fixed1 } from '@src/utils/format';
 import { getPlanetProduction } from '@src/core/production';
@@ -42,6 +45,28 @@ const {
 
 const burn = computed(() => getPlanetBurn(siteId));
 const days = computed(() => (burn.value ? countDays(burn.value.burn) : undefined));
+const expandedBurns = useTileState('expandedBurns', [] as string[]);
+const isBurnExpanded = computed(() => expandedBurns.value.includes(naturalId));
+const columnCount = computed(
+  () =>
+    1 +
+    Number(showCmds) +
+    Number(showBurn) +
+    Number(showProd) +
+    Number(showRepair) +
+    Number(showInv) +
+    Number(showWar),
+);
+
+function onBurnDaysClick(e: MouseEvent) {
+  const command = burnCellBufferCommand(e, naturalId);
+  if (command !== undefined) {
+    e.preventDefault();
+    showBuffer(command);
+    return;
+  }
+  expandedBurns.value = toggleExpandedBurn(expandedBurns.value, naturalId);
+}
 
 const burnBgClass = computed(() => {
   if (days.value === undefined) {
@@ -161,9 +186,7 @@ const warehouseStore = computed(() =>
     </td>
     <td v-if="showBurn" :class="$style.statusCell">
       <div :class="[$style.statusContent, burnBgClass]">
-        <span :class="$style.statusNum" @click="showBuffer(`XIT BURN ${naturalId}`)">{{
-          daysText ?? '-'
-        }}</span>
+        <span :class="$style.statusNum" @click="onBurnDaysClick">{{ daysText ?? '-' }}</span>
         <PrunButton dark inline @click="showBuffer(`XIT BURNACT ${naturalId}`)">RES</PrunButton>
       </div>
     </td>
@@ -212,6 +235,25 @@ const warehouseStore = computed(() =>
         v-if="warehouseStore"
         :store-id="warehouseStore.id"
         :on-click-cmd="`INV ${warehouseStore.id.substring(0, 8)}`" />
+    </td>
+  </tr>
+  <tr v-if="showBurn && isBurnExpanded && burn">
+    <td :colspan="columnCount" :class="$style.burnExpandCell">
+      <table :class="$style.burnExpandTable">
+        <thead>
+          <tr>
+            <th />
+            <th>Inv</th>
+            <th>Burn</th>
+            <th>Need</th>
+            <th>Days</th>
+            <th>CMD</th>
+          </tr>
+        </thead>
+        <tbody>
+          <MaterialList :burn="burn" />
+        </tbody>
+      </table>
     </td>
   </tr>
 </template>
@@ -319,5 +361,13 @@ const warehouseStore = computed(() =>
   margin: 0;
   font-size: 10px;
   line-height: 1;
+}
+
+.burnExpandCell {
+  padding: 0 4px 4px 24px;
+}
+
+.burnExpandTable {
+  border-collapse: collapse;
 }
 </style>
