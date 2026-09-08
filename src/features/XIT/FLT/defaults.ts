@@ -13,7 +13,7 @@ export type LayoutMode = 'compact' | 'whitespace' | 'cargo' | 'legacy';
 export type FuelAlertThreshold = '75' | '50' | '35' | '25' | '10';
 export type FuelAlertFilter = 'any' | FuelAlertThreshold;
 
-export const FLT_FUEL_HEADER_LABEL = 'fuel';
+export const FLT_FUEL_HEADER_LABEL = 'Fuel';
 export const FLT_REFUEL_BUFFER_COMMAND = 'XIT REFUELACT';
 
 export const DEFAULT_SORT_DIRECTION_BY_KEY: Record<SortKey, SortDirection> = {
