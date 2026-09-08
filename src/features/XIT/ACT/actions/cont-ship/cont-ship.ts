@@ -3,34 +3,12 @@ import Edit from '@src/features/XIT/ACT/actions/cont-ship/Edit.vue';
 import Configure from '@src/features/XIT/ACT/actions/cont-ship/Configure.vue';
 import { CONT_SEND } from '@src/features/XIT/ACT/action-steps/CONT_SEND';
 import { Config } from '@src/features/XIT/ACT/actions/cont-ship/config';
-import { AssertFn, configurableValue, groupTargetPrefix } from '@src/features/XIT/ACT/shared-types';
+import { AssertFn, configurableValue } from '@src/features/XIT/ACT/shared-types';
 import { materialsStore } from '@src/infrastructure/prun-api/data/materials';
-
-function resolveLocation(
-  value: string | undefined,
-  config: Config | undefined,
-  field: 'origin' | 'destination',
-  getMaterialGroupPlanet: (name: string | undefined) => string | undefined,
-): string | undefined {
-  if (!value) {
-    return undefined;
-  }
-  if (value === configurableValue) {
-    return config?.[field];
-  }
-  if (value.startsWith(groupTargetPrefix)) {
-    const groupName = value.slice(groupTargetPrefix.length);
-    return getMaterialGroupPlanet(groupName);
-  }
-  return value;
-}
-
-function displayLocation(value: string) {
-  if (value.startsWith(groupTargetPrefix)) {
-    return `[${value.slice(groupTargetPrefix.length)}] target`;
-  }
-  return value;
-}
+import {
+  displayLocationValue,
+  resolveLocation,
+} from '@src/features/XIT/ACT/actions/cont-locations';
 
 act.addAction<Config>({
   type: 'CONT Ship',
@@ -43,11 +21,11 @@ act.addAction<Config>({
     const origin =
       action.contOrigin === configurableValue
         ? (config?.origin ?? 'configured location')
-        : displayLocation(action.contOrigin);
+        : displayLocationValue(action.contOrigin);
     const dest =
       action.contDest === configurableValue
         ? (config?.destination ?? 'configured location')
-        : displayLocation(action.contDest);
+        : displayLocationValue(action.contDest);
 
     const payment = action.paymentPerTon ?? 0;
     const paymentStr = payment > 0 ? ` @ ${payment}/t` : '';
@@ -56,7 +34,11 @@ act.addAction<Config>({
   },
   editComponent: Edit,
   configureComponent: Configure,
-  needsConfigure: () => true,
+  // Only ask for a configure dialog when something in it is actually settable.
+  needsConfigure: data =>
+    data.contOrigin === configurableValue ||
+    data.contDest === configurableValue ||
+    data.autoProvision === true,
   isValidConfig: (data, config) => {
     return (
       (data.contOrigin !== configurableValue || config.origin !== undefined) &&
@@ -71,10 +53,10 @@ act.addAction<Config>({
     const materials = await getMaterialGroup(data.group);
     assert(materials, 'Invalid material group');
 
-    const contOrigin = resolveLocation(data.contOrigin, config, 'origin', getMaterialGroupPlanet);
+    const contOrigin = resolveLocation(data.contOrigin, config?.origin, getMaterialGroupPlanet);
     assert(contOrigin, 'Invalid origin');
 
-    const contDest = resolveLocation(data.contDest, config, 'destination', getMaterialGroupPlanet);
+    const contDest = resolveLocation(data.contDest, config?.destination, getMaterialGroupPlanet);
     assert(contDest, 'Invalid destination');
 
     const paymentPerTon = Number(data.paymentPerTon ?? 0);

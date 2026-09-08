@@ -3,32 +3,16 @@ import Edit from '@src/features/XIT/ACT/actions/cont-trade/Edit.vue';
 import Configure from '@src/features/XIT/ACT/actions/cont-trade/Configure.vue';
 import { CONT_TRADE } from '@src/features/XIT/ACT/action-steps/CONT_TRADE';
 import { Config } from '@src/features/XIT/ACT/actions/cont-trade/config';
-import { AssertFn, configurableValue, groupTargetPrefix } from '@src/features/XIT/ACT/shared-types';
-
-function resolveLocation(
-  value: string | undefined,
-  config: Config | undefined,
-  getMaterialGroupPlanet: (name: string | undefined) => string | undefined,
-): string | undefined {
-  if (!value) {
-    return undefined;
-  }
-  if (value === configurableValue) {
-    return config?.location;
-  }
-  if (value.startsWith(groupTargetPrefix)) {
-    const groupName = value.slice(groupTargetPrefix.length);
-    return getMaterialGroupPlanet(groupName);
-  }
-  return value;
-}
-
-function displayLocation(value: string) {
-  if (value.startsWith(groupTargetPrefix)) {
-    return `[${value.slice(groupTargetPrefix.length)}] target`;
-  }
-  return value;
-}
+import { AssertFn, configurableValue } from '@src/features/XIT/ACT/shared-types';
+import {
+  displayLocationValue,
+  resolveLocation,
+} from '@src/features/XIT/ACT/actions/cont-locations';
+import {
+  isValidContractPrice,
+  maxContractPrice,
+  minContractPrice,
+} from '@src/features/XIT/ACT/actions/cont-limits';
 
 act.addAction<Config>({
   type: 'CONT Trade',
@@ -42,7 +26,7 @@ act.addAction<Config>({
     const location =
       action.contLocation === configurableValue
         ? (config?.location ?? 'configured location')
-        : displayLocation(action.contLocation);
+        : displayLocationValue(action.contLocation);
 
     return `${tradeLabel} contract for [${action.group}] at ${location}`;
   },
@@ -69,13 +53,19 @@ act.addAction<Config>({
     const materials = await getMaterialGroup(data.group);
     assert(materials, 'Invalid material group');
 
-    const prices = getMaterialGroupPrices(data.group);
+    const traded = Object.keys(materials).filter(x => materials[x] > 0);
+    assert(traded.length > 0, 'Material group has no materials to trade');
+
+    // Every traded material needs its own price: a blank one on the template
+    // would go out as a free trade. Checked here so the package fails before
+    // the run touches a draft.
+    const prices = getMaterialGroupPrices(data.group) ?? {};
     assert(
-      prices,
-      `Material group [${data.group}] has no prices. Use a Paste group with 3 columns (ticker, amount, price).`,
+      traded.every(x => isValidContractPrice(prices[x])),
+      `Each material in [${data.group}] needs a price from ${minContractPrice} to ${maxContractPrice}. Use a Paste group with 3 columns (ticker, amount, price).`,
     );
 
-    const location = resolveLocation(data.contLocation, config, getMaterialGroupPlanet);
+    const location = resolveLocation(data.contLocation, config?.location, getMaterialGroupPlanet);
     assert(location, 'Invalid location');
 
     const tradeType = data.contTradeType ?? 'BUYING';

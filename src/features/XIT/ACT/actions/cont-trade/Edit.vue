@@ -2,12 +2,10 @@
 import Active from '@src/components/forms/Active.vue';
 import SelectInput from '@src/components/forms/SelectInput.vue';
 import NumericInput from '@src/components/forms/NumericInput.vue';
-import { storagesStore } from '@src/infrastructure/prun-api/data/storage';
-import { sitesStore } from '@src/infrastructure/prun-api/data/sites';
-import { warehousesStore } from '@src/infrastructure/prun-api/data/warehouses';
-import { getEntityNameFromAddress } from '@src/infrastructure/prun-api/data/addresses';
-import { comparePlanets } from '@src/util';
 import { configurableValue, groupTargetPrefix } from '@src/features/XIT/ACT/shared-types';
+import { useContLocations } from '@src/features/XIT/ACT/actions/cont-locations';
+import { balancesStore } from '@src/infrastructure/prun-api/data/balances';
+import { maxContractDays, minContractDays } from '@src/features/XIT/ACT/actions/cont-limits';
 
 const { action, pkg } = defineProps<{
   action: UserData.ActionData;
@@ -29,30 +27,12 @@ const valueToTradeType: Record<string, string> = {
 
 const tradeType = ref(valueToTradeType[action.contTradeType ?? 'BUYING'] ?? 'Buy');
 
-const staticLocations = computed(() => {
-  const seen = new Set<string>();
-  const result: string[] = [];
-  for (const store of storagesStore.nonFuelStores.value ?? []) {
-    let address: PrunApi.Address | undefined;
-    if (store.type === 'STORE') {
-      address = sitesStore.getById(store.addressableId)?.address;
-    } else if (store.type === 'WAREHOUSE_STORE') {
-      address = warehousesStore.getById(store.addressableId)?.address;
-    } else {
-      continue;
-    }
-    const name = getEntityNameFromAddress(address);
-    if (name && !seen.has(name)) {
-      seen.add(name);
-      result.push(name);
-    }
-  }
-  return result.sort(comparePlanets);
-});
+const staticLocations = useContLocations();
 
+// A group with no planet resolves to nothing at run time, so it is not offered.
 const groupTargetOptions = computed(() =>
   pkg.groups
-    .filter(x => x.name)
+    .filter(x => x.name && x.planet)
     .map(x => ({
       label: `[${x.name}] target`,
       value: `${groupTargetPrefix}${x.name}`,
@@ -65,17 +45,24 @@ const locationOptions = computed(() => [
   ...staticLocations.value,
 ]);
 
-const currencies = ['NCC', 'CIS', 'AIC', 'ICA'];
+// The currencies the player actually holds a balance in.
+const currencies = computed(() => balancesStore.currencies.value ?? []);
 
 const contLocation = ref(action.contLocation ?? staticLocations.value[0] ?? '');
-const currency = ref(action.currency ?? 'NCC');
+const currency = ref(action.currency ?? currencies.value[0] ?? 'NCC');
 const daysToFulfill = ref(action.daysToFulfill ?? 3);
 
 function validate() {
   if (!materialGroup.value) {
     return false;
   }
-  if (daysToFulfill.value < 1) {
+  // A location saved before the player sold that base is no longer selectable.
+  const locations = locationOptions.value.map(x => (typeof x === 'string' ? x : x.value));
+  if (!locations.includes(contLocation.value)) {
+    return false;
+  }
+  const days = Number(daysToFulfill.value);
+  if (!Number.isInteger(days) || days < minContractDays || days > maxContractDays) {
     return false;
   }
   return true;
@@ -86,7 +73,7 @@ function save() {
   action.contTradeType = tradeTypeToValue[tradeType.value];
   action.contLocation = contLocation.value;
   action.currency = currency.value;
-  action.daysToFulfill = daysToFulfill.value;
+  action.daysToFulfill = Number(daysToFulfill.value);
 }
 
 defineExpose({ validate, save });
@@ -110,6 +97,6 @@ defineExpose({ validate, save });
   </Active>
 
   <Active label="Days to Fulfill">
-    <NumericInput v-model="daysToFulfill" :min="1" :max="30" :step="1" />
+    <NumericInput v-model="daysToFulfill" :min="minContractDays" :max="maxContractDays" :step="1" />
   </Active>
 </template>
