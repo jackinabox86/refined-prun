@@ -3,12 +3,10 @@ import Active from '@src/components/forms/Active.vue';
 import SelectInput from '@src/components/forms/SelectInput.vue';
 import NumericInput from '@src/components/forms/NumericInput.vue';
 import RadioItem from '@src/components/forms/RadioItem.vue';
-import { storagesStore } from '@src/infrastructure/prun-api/data/storage';
-import { sitesStore } from '@src/infrastructure/prun-api/data/sites';
-import { warehousesStore } from '@src/infrastructure/prun-api/data/warehouses';
-import { getEntityNameFromAddress } from '@src/infrastructure/prun-api/data/addresses';
-import { comparePlanets } from '@src/util';
 import { configurableValue, groupTargetPrefix } from '@src/features/XIT/ACT/shared-types';
+import { useContLocations } from '@src/features/XIT/ACT/actions/cont-locations';
+import { balancesStore } from '@src/infrastructure/prun-api/data/balances';
+import { maxContractDays, minContractDays } from '@src/features/XIT/ACT/actions/cont-limits';
 
 const { action, pkg } = defineProps<{
   action: UserData.ActionData;
@@ -18,30 +16,12 @@ const { action, pkg } = defineProps<{
 const materialGroups = computed(() => pkg.groups.map(x => x.name!).filter(x => x));
 const materialGroup = ref(action.group ?? materialGroups.value[0]);
 
-const staticLocations = computed(() => {
-  const seen = new Set<string>();
-  const result: string[] = [];
-  for (const store of storagesStore.nonFuelStores.value ?? []) {
-    let address: PrunApi.Address | undefined;
-    if (store.type === 'STORE') {
-      address = sitesStore.getById(store.addressableId)?.address;
-    } else if (store.type === 'WAREHOUSE_STORE') {
-      address = warehousesStore.getById(store.addressableId)?.address;
-    } else {
-      continue;
-    }
-    const name = getEntityNameFromAddress(address);
-    if (name && !seen.has(name)) {
-      seen.add(name);
-      result.push(name);
-    }
-  }
-  return result.sort(comparePlanets);
-});
+const staticLocations = useContLocations();
 
+// A group with no planet resolves to nothing at run time, so it is not offered.
 const groupTargetOptions = computed(() =>
   pkg.groups
-    .filter(x => x.name)
+    .filter(x => x.name && x.planet)
     .map(x => ({
       label: `[${x.name}] target`,
       value: `${groupTargetPrefix}${x.name}`,
@@ -54,11 +34,12 @@ const locationOptions = computed(() => [
   ...staticLocations.value,
 ]);
 
-const currencies = ['NCC', 'CIS', 'AIC', 'ICA'];
+// The currencies the player actually holds a balance in.
+const currencies = computed(() => balancesStore.currencies.value ?? []);
 
 const contOrigin = ref(action.contOrigin ?? staticLocations.value[0] ?? '');
 const contDest = ref(action.contDest ?? staticLocations.value[0] ?? '');
-const currency = ref(action.currency ?? 'NCC');
+const currency = ref(action.currency ?? currencies.value[0] ?? 'NCC');
 const paymentPerTon = ref(action.paymentPerTon ?? 0);
 const daysToFulfill = ref(action.daysToFulfill ?? 3);
 const autoProvision = ref(action.autoProvision ?? false);
@@ -67,10 +48,17 @@ function validate() {
   if (!materialGroup.value) {
     return false;
   }
-  if (daysToFulfill.value < 1) {
+  // A location saved before the player sold that base is no longer selectable.
+  const locations = locationOptions.value.map(x => (typeof x === 'string' ? x : x.value));
+  if (!locations.includes(contOrigin.value) || !locations.includes(contDest.value)) {
     return false;
   }
-  if (paymentPerTon.value < 0) {
+  const days = Number(daysToFulfill.value);
+  if (!Number.isInteger(days) || days < minContractDays || days > maxContractDays) {
+    return false;
+  }
+  const payment = Number(paymentPerTon.value);
+  if (String(paymentPerTon.value).trim() === '' || !Number.isFinite(payment) || payment < 0) {
     return false;
   }
   return true;
@@ -81,8 +69,8 @@ function save() {
   action.contOrigin = contOrigin.value;
   action.contDest = contDest.value;
   action.currency = currency.value;
-  action.paymentPerTon = paymentPerTon.value;
-  action.daysToFulfill = daysToFulfill.value;
+  action.paymentPerTon = Number(paymentPerTon.value);
+  action.daysToFulfill = Number(daysToFulfill.value);
   action.autoProvision = autoProvision.value;
   delete action.contractNote;
 }
@@ -112,7 +100,7 @@ defineExpose({ validate, save });
   </Active>
 
   <Active label="Days to Fulfill">
-    <NumericInput v-model="daysToFulfill" :min="1" :max="30" :step="1" />
+    <NumericInput v-model="daysToFulfill" :min="minContractDays" :max="maxContractDays" :step="1" />
   </Active>
 
   <Active label="Auto-provision">

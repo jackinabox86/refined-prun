@@ -1,7 +1,9 @@
 import { act } from '@src/features/XIT/ACT/act-registry';
 import { fixed0 } from '@src/utils/format';
-import { changeInputValue, focusElement } from '@src/util';
+import { selectAndChangeInputValue } from '@src/util';
 import { selectAddress } from '@src/infrastructure/prun-ui/utils/select-address';
+import { AssertFn } from '@src/features/XIT/ACT/shared-types';
+import { isValidContractPrice } from '@src/features/XIT/ACT/actions/cont-limits';
 import {
   createNewDraft,
   setDraftNameAndPreamble,
@@ -13,7 +15,6 @@ import {
   setDeadline,
   applyTemplate,
   saveConditions,
-  ContDraftContext,
 } from '@src/features/XIT/ACT/action-steps/cont-utils';
 
 interface Data {
@@ -36,31 +37,27 @@ export const CONT_TRADE = act.addActionStep<Data>({
     return `Create ${typeLabel} contract draft (${materialCount} materials)`;
   },
   execute: async ctx => {
-    const { data, log, setStatus, requestTile, waitAct, complete, fail } = ctx;
+    const { data, log, setStatus, requestTile, waitAct, complete } = ctx;
+    const assert: AssertFn = ctx.assert;
 
     const typeLabel = data.tradeType === 'BUYING' ? 'Buy' : 'Sell';
 
-    // Step 1: Create new draft
+    // Step 1: Create new draft. The open is gated by this step's own ACT click,
+    // so it must not cost a second one.
     await waitAct('Create new draft?');
-    const listTile = await requestTile('CONTD');
+    const listTile = await requestTile('CONTD', { actGate: false });
     if (!listTile) {
       return;
     }
 
-    const draftCtx: ContDraftContext = { draftTile: listTile, log, setStatus, fail };
-
-    const newDraft = await createNewDraft(draftCtx);
-    if (!newDraft) {
-      return;
-    }
+    const newDraft = await createNewDraft(ctx);
 
     setStatus(`Loading draft ${newDraft.naturalId}...`);
     const draftTile = await requestTile(`CONTD ${newDraft.naturalId}`);
     if (!draftTile) {
       return;
     }
-
-    const ctx2: ContDraftContext = { draftTile, log, setStatus, fail };
+    const anchor = draftTile.anchor;
 
     // Set contract name.
     const now = new Date();
@@ -71,77 +68,64 @@ export const CONT_TRADE = act.addActionStep<Data>({
     const materialsList = Object.entries(data.materials)
       .map(([ticker, amount]) => {
         const price = data.prices[ticker];
-        return price !== undefined && price > 0
-          ? `${ticker} x${amount} @ ${fixed0(price)}/u`
-          : `${ticker} x${amount}`;
+        return price !== undefined
+          ? `${ticker} x${fixed0(amount)} @ ${price}/u`
+          : `${ticker} x${fixed0(amount)}`;
       })
       .join(', ');
     const preambleText =
       `${typeLabel} contract.\n` +
       `Materials: ${materialsList}\n` +
-      (data.daysToFulfill > 0 ? `Fulfill within ${data.daysToFulfill} days` : '');
+      (data.daysToFulfill > 0 ? `Fulfill within ${fixed0(data.daysToFulfill)} days` : '');
 
-    await setDraftNameAndPreamble(ctx2, contractName, preambleText);
+    await setDraftNameAndPreamble(ctx, anchor, contractName, preambleText);
 
     // Step 2: Save draft details (name/preamble)
     await waitAct('Save draft details?');
-    await saveDraftDetails(ctx2);
+    await saveDraftDetails(ctx, anchor, newDraft.naturalId);
 
-    const templateSelect = await openTemplate(ctx2);
-    if (!templateSelect) {
-      return;
-    }
-
-    selectTemplateType(ctx2, templateSelect, data.tradeType);
-    await setCurrency(ctx2, data.currency);
+    const templateSelect = await openTemplate(ctx, anchor);
+    selectTemplateType(ctx, templateSelect, data.tradeType);
+    await setCurrency(ctx, anchor, data.currency);
 
     // Add materials with per-material prices.
     const materialEntries = Object.entries(data.materials)
       .filter(([, amount]) => amount > 0)
       .map(([ticker, amount]) => ({ ticker, amount }));
 
-    await addMaterials(ctx2, materialEntries, {
+    await addMaterials(ctx, anchor, materialEntries, {
       setPrice: (group, ticker) => {
+        // A row left without a price would go out as a free trade, so this is a
+        // hard failure rather than a skipped field.
         const price = data.prices[ticker];
-        if (price !== undefined && price > 0) {
-          const priceInput = group.querySelector(
-            'input[inputmode="decimal"]',
-          ) as HTMLInputElement | null;
-          if (priceInput) {
-            focusElement(priceInput);
-            priceInput.select();
-            changeInputValue(priceInput, String(price));
-            log.info(`Price for ${ticker}: ${price} ${data.currency}`);
-          } else {
-            log.warning(`Could not find price input for ${ticker}`);
-          }
-        }
+        assert(isValidContractPrice(price), `Invalid price for ${ticker}`);
+        const priceInput = group.querySelector<HTMLInputElement>('input[inputmode="decimal"]');
+        assert(priceInput, `Could not find price input for ${ticker}`);
+        selectAndChangeInputValue(priceInput, String(price));
+        log.info(`Price for ${ticker}: ${price} ${data.currency}`);
       },
     });
 
     // Step 3: Set location address
-    const addressContainers = _$$(draftTile.anchor, C.AddressSelector.container) as HTMLElement[];
-    if (addressContainers.length >= 1 && data.location) {
-      await waitAct(`Set location to ${data.location}?`);
-      const ok = await selectAddress(addressContainers[0], data.location);
-      if (ok) {
-        log.info(`Location set: ${data.location}`);
-      } else {
-        log.warning(`Could not select location: ${data.location}`);
-      }
-    }
+    const addressContainers = _$$(anchor, C.AddressSelector.container) as HTMLElement[];
+    assert(
+      addressContainers.length >= 1 && data.location.length > 0,
+      'Could not find trade location control',
+    );
+    await waitAct(`Set location to ${data.location}?`);
+    const locationSet = await selectAddress(addressContainers[0], data.location);
+    assert(locationSet, `Could not select location: ${data.location}`);
+    log.info(`Location set: ${data.location}`);
 
-    setDeadline(ctx2, data.daysToFulfill);
+    setDeadline(ctx, anchor, data.daysToFulfill);
 
     // Step 4: Apply template
     await waitAct('Apply template?');
-    const applied = await applyTemplate(ctx2);
-    if (!applied) {
-      return;
-    }
+    await applyTemplate(ctx, anchor, newDraft.naturalId);
 
-    // Step 5: Save conditions
-    await saveConditions(ctx2, waitAct);
+    // Step 5: Save conditions, after the player has reviewed them.
+    await waitAct('Save conditions?');
+    await saveConditions(ctx, anchor, newDraft.naturalId);
 
     log.success(`Contract draft ${newDraft.naturalId} ready to send`);
     complete();

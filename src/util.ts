@@ -29,6 +29,14 @@ export function changeInputValue(input: HTMLInputElement, value: string) {
   input.dispatchEvent(changeEvent);
 }
 
+// Replaces an input's whole value: focusing and selecting first means a field
+// that already holds text is overwritten rather than appended to.
+export function selectAndChangeInputValue(input: HTMLInputElement, value: string) {
+  focusElement(input);
+  input.select();
+  changeInputValue(input, value);
+}
+
 export function changeTextAreaValue(textarea: HTMLTextAreaElement, value: string) {
   // React overrides the native property, so we can't use it directly.
   const setter = Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, 'value');
