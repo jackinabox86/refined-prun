@@ -76,6 +76,17 @@ async function applySfcStageLayout(tile: PrunTile) {
   const bodyEl = _$(windowEl!, C.Window.body) as HTMLElement | null;
   const currentWidth = parseInt(bodyEl?.style.width ?? '', 10);
   const currentHeight = parseInt(bodyEl?.style.height ?? '', 10);
-  const layout = sfcStageWindowSize(currentWidth, currentHeight);
+  const layout = sfcStageWindowSize(actPaneWidth(tile), currentWidth, currentHeight);
   await resizeSplitWindow(ownerId, layout.actWidth, layout.sfcWidth, layout.height);
+}
+
+// Measured width of the pane ACT itself sits in — the SFC tile's sibling. The panes
+// carry their split as an inline percentage, so read laid-out pixels instead.
+function actPaneWidth(sfcTile: PrunTile) {
+  const node = sfcTile.container.parentElement;
+  if (node === null) {
+    return NaN;
+  }
+  const sibling = _$$(node, C.Node.child).find(x => x !== sfcTile.container);
+  return sibling === undefined ? NaN : sibling.getBoundingClientRect().width;
 }

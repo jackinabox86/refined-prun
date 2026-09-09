@@ -737,8 +737,12 @@ game messages (`setBufferSize` + `UI_TILES_CHANGE_SIZE` on the split *owner* id 
 tile that was split, not either child). A direct `Window.body` style write (the old
 975×750 hardcode) updates the DOM without the game's stored size, so the next user
 drag-release snaps back to the stale size. Later SFC ships must not touch size.
-Give the ACT pane less width than SFC (`sfc-stage-layout.ts`); grow-only, never shrink
-a larger player-sized window. See Companion Buffers above for the unequal-split idiom.
+`sfc-stage-layout.ts` holds the sizing: the ACT pane keeps its **measured** width and the
+window grows by whatever SFC still needs, so swapping SFC in on the right never squeezes
+the left pane. Grow-only, never shrink a larger player-sized window. Measure the pane with
+`getBoundingClientRect()`, not its inline `style.width` — the split renders as a
+percentage on both `Node__child` elements, so the inline value is not pixels. See
+Companion Buffers above for the unequal-split idiom.
 
 **A floating buffer's tile id is not a `tilesStore` key.** `tilesStore` is keyed by the
 server's UUIDs for docked screen tiles; a floating buffer's `data-prun-id` is a small
