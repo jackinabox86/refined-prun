@@ -68,12 +68,12 @@ export const OPEN_SFC = act.addActionStep<Data>({
 });
 
 async function applySfcStageLayout(tile: PrunTile) {
-  const ownerId = splitOwnerId(tile.id);
+  const windowEl = tile.frame.closest(`.${C.Window.window}`) as HTMLElement | null;
+  const ownerId = splitOwnerId(windowEl);
   if (ownerId === undefined) {
     return;
   }
-  const windowEl = tile.frame.closest(`.${C.Window.window}`) as HTMLElement | null;
-  const bodyEl = windowEl === null ? null : (_$(windowEl, C.Window.body) as HTMLElement | null);
+  const bodyEl = _$(windowEl!, C.Window.body) as HTMLElement | null;
   const currentWidth = parseInt(bodyEl?.style.width ?? '', 10);
   const currentHeight = parseInt(bodyEl?.style.height ?? '', 10);
   const layout = sfcStageWindowSize(currentWidth, currentHeight);

@@ -8,7 +8,6 @@ import {
   UI_TILES_CHANGE_SIZE,
 } from '@src/infrastructure/prun-api/client-messages';
 import { dispatchClientPrunMessage } from '@src/infrastructure/prun-api/prun-api-listener';
-import { tilesStore } from '@src/infrastructure/prun-api/data/tiles';
 import { clamp } from '@src/utils/clamp';
 import { sleep } from '@src/utils/sleep';
 
@@ -122,38 +121,36 @@ async function setChildCommand(child: Element, command: string) {
   input.form!.requestSubmit();
 }
 
-// The tile that owns a split container — the one that was split, not either child.
-export function splitOwnerId(childId: string): string | undefined {
-  const child = tilesStore.getById(childId);
-  const parentId = child?.parentId;
-  if (parentId === null || parentId === undefined) {
-    return undefined;
-  }
-  const parent = tilesStore.getById(parentId);
-  if (parent?.container === null || parent?.container === undefined) {
-    return undefined;
-  }
-  return parent.id;
+// Split panes are addressed by the id of the tile that was split, and that tile's
+// element is gone once the split renders. `tilesStore` is no help: it is keyed by the
+// server's UUIDs for docked screen tiles, while a floating buffer's `data-prun-id` is a
+// small integer, so a lookup by tile id there never matches. Record the id at split time
+// against the window element, which survives the split.
+const splitOwners = new WeakMap<Element, string>();
+
+export function rememberSplitOwner(windowEl: Element, ownerId: string) {
+  splitOwners.set(windowEl, ownerId);
+}
+
+export function splitOwnerId(windowEl: Element | null | undefined): string | undefined {
+  return windowEl === null || windowEl === undefined ? undefined : splitOwners.get(windowEl);
 }
 
 // Sizes an already-split floating window and moves the divider. Uses the game
 // messages so a later drag-resize commits from this size instead of snapping
 // back to a stale stored size.
 //
-// The divider goes first. A window resize re-renders the split from the stored
-// divider position, so a fraction dispatched into that resize is painted over and
-// the panes stay 50/50. openCompanionBuffer never hits this because it finishes
-// resizing before it splits. The fraction is width-independent, so setting it
-// against the old width and then growing the window lands both panes correctly.
+// Same order as openCompanionBuffer — size, then divider — with a yield in between,
+// because there the split's awaits put real time between the two messages.
 export async function resizeSplitWindow(
   ownerId: string,
   leftWidth: number,
   rightWidth: number,
   height: number,
 ) {
-  setDividerPosition(ownerId, leftWidth, rightWidth);
-  await sleep(0);
   setBufferSize(ownerId, leftWidth + rightWidth, height);
+  await sleep(0);
+  setDividerPosition(ownerId, leftWidth, rightWidth);
 }
 
 // Sets the split ratio so each pane gets the width it was sized for. No DOM

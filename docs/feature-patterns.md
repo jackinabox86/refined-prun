@@ -740,13 +740,15 @@ drag-release snaps back to the stale size. Later SFC ships must not touch size.
 Give the ACT pane less width than SFC (`sfc-stage-layout.ts`); grow-only, never shrink
 a larger player-sized window. See Companion Buffers above for the unequal-split idiom.
 
-**Order matters when you resize a window that is already split.** Sizing the window
-re-renders the split from the stored divider position, so a `UI_TILES_CHANGE_SIZE`
-dispatched into that resize is painted over and both panes stay at 50/50. Set the
-divider first, yield, then size the window — `resizeSplitWindow` does this.
-`openCompanionBuffer` never trips over it because it finishes resizing before it
-splits. The fraction is width-independent, so applying it before the window grows is
-safe.
+**A floating buffer's tile id is not a `tilesStore` key.** `tilesStore` is keyed by the
+server's UUIDs for docked screen tiles; a floating buffer's `data-prun-id` is a small
+integer (`3`). So `tilesStore.getById(tile.id)` for a buffer tile always misses, and any
+parent/child walk through the store silently returns nothing — a resize built on one
+looks correct, compiles, passes tests, and never dispatches a single message. Buffer and
+split messages take the DOM id: the id of the tile that *was split*, which is what
+`openCompanionBuffer` passes. That element is destroyed by the split, so `TileAllocator`
+records the id against the window element (`rememberSplitOwner`) while it is still
+readable, and later stages read it back with `splitOwnerId(windowEl)`.
 
 ---
 
