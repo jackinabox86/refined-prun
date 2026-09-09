@@ -740,6 +740,14 @@ drag-release snaps back to the stale size. Later SFC ships must not touch size.
 Give the ACT pane less width than SFC (`sfc-stage-layout.ts`); grow-only, never shrink
 a larger player-sized window. See Companion Buffers above for the unequal-split idiom.
 
+**Order matters when you resize a window that is already split.** Sizing the window
+re-renders the split from the stored divider position, so a `UI_TILES_CHANGE_SIZE`
+dispatched into that resize is painted over and both panes stay at 50/50. Set the
+divider first, yield, then size the window — `resizeSplitWindow` does this.
+`openCompanionBuffer` never trips over it because it finishes resizing before it
+splits. The fraction is width-independent, so applying it before the window grows is
+safe.
+
 ---
 
 ## Data & Reactivity Rules

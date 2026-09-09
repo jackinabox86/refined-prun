@@ -12,7 +12,7 @@
 
 ### Fixed
 
-- `XIT DISPATCHACT`: The first SFC stage sizes the host through game messages (narrower ACT pane, wider SFC) instead of a 975×750 style write, so a later drag-resize sticks.
+- `XIT DISPATCHACT`: The first SFC stage sizes the host through game messages instead of a 975×750 style write, so a later drag-resize sticks. The ACT pane is now narrower than the SFC pane, and the stage grows the window to at least 600px tall.
 - `XIT AGENT`: Loads action packages from the refined-agent channel even when other comms buffers restore first.
 - `XIT BURN`: A material whose production and consumption cancel out no longer shows 0 days left, in both the per-planet rows and the Overall row.
 

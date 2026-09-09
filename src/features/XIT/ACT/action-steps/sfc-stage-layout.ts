@@ -2,7 +2,7 @@
 // Grow-only so a larger player-sized window is not shrunk.
 export const ACT_SFC_PANE_WIDTH = 320;
 export const SFC_PANE_MIN_WIDTH = 520;
-export const SFC_STAGE_MIN_HEIGHT = 480;
+export const SFC_STAGE_MIN_HEIGHT = 600;
 
 export function sfcStageWindowSize(currentWidth: number, currentHeight: number) {
   const width = Math.max(finiteOrZero(currentWidth), ACT_SFC_PANE_WIDTH + SFC_PANE_MIN_WIDTH);

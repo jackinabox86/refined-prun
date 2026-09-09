@@ -60,14 +60,14 @@ export const OPEN_SFC = act.addActionStep<Data>({
     }
 
     if (isFirstOfType) {
-      applySfcStageLayout(tile);
+      await applySfcStageLayout(tile);
     }
 
     complete();
   },
 });
 
-function applySfcStageLayout(tile: PrunTile) {
+async function applySfcStageLayout(tile: PrunTile) {
   const ownerId = splitOwnerId(tile.id);
   if (ownerId === undefined) {
     return;
@@ -77,5 +77,5 @@ function applySfcStageLayout(tile: PrunTile) {
   const currentWidth = parseInt(bodyEl?.style.width ?? '', 10);
   const currentHeight = parseInt(bodyEl?.style.height ?? '', 10);
   const layout = sfcStageWindowSize(currentWidth, currentHeight);
-  resizeSplitWindow(ownerId, layout.actWidth, layout.sfcWidth, layout.height);
+  await resizeSplitWindow(ownerId, layout.actWidth, layout.sfcWidth, layout.height);
 }

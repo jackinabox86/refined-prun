@@ -7,6 +7,11 @@ import {
 } from './sfc-stage-layout';
 
 describe('sfcStageWindowSize', () => {
+  // Height requested by the owner after testing the 480 minimum in the live game.
+  it('uses the 600px SFC-stage height minimum', () => {
+    expect(SFC_STAGE_MIN_HEIGHT).toBe(600);
+  });
+
   it('grows a small window to the SFC-stage minimums and keeps ACT narrower than SFC', () => {
     const layout = sfcStageWindowSize(450, 300);
     expect(layout.width).toBe(ACT_SFC_PANE_WIDTH + SFC_PANE_MIN_WIDTH);
