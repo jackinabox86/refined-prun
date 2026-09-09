@@ -732,6 +732,28 @@ It does still have to sit behind a click, though, because typing fires the addre
 so opening the buffer and filling the destination are one click even when the SFC tile for
 that ship was already open.
 
+`OPEN_SFC` may resize the host window on the **first** SFC of a run, but only through
+game messages (`setBufferSize` + `UI_TILES_CHANGE_SIZE` on the split *owner* id — the
+tile that was split, not either child). A direct `Window.body` style write (the old
+975×750 hardcode) updates the DOM without the game's stored size, so the next user
+drag-release snaps back to the stale size. Later SFC ships must not touch size.
+`sfc-stage-layout.ts` holds the sizing: the ACT pane keeps its **measured** width and the
+window grows by whatever SFC still needs, so swapping SFC in on the right never squeezes
+the left pane. Grow-only, never shrink a larger player-sized window. Measure the pane with
+`getBoundingClientRect()`, not its inline `style.width` — the split renders as a
+percentage on both `Node__child` elements, so the inline value is not pixels. See
+Companion Buffers above for the unequal-split idiom.
+
+**A floating buffer's tile id is not a `tilesStore` key.** `tilesStore` is keyed by the
+server's UUIDs for docked screen tiles; a floating buffer's `data-prun-id` is a small
+integer (`3`). So `tilesStore.getById(tile.id)` for a buffer tile always misses, and any
+parent/child walk through the store silently returns nothing — a resize built on one
+looks correct, compiles, passes tests, and never dispatches a single message. Buffer and
+split messages take the DOM id: the id of the tile that *was split*, which is what
+`openCompanionBuffer` passes. That element is destroyed by the split, so `TileAllocator`
+records the id against the window element (`rememberSplitOwner`) while it is still
+readable, and later stages read it back with `splitOwnerId(windowEl)`.
+
 ---
 
 ## Data & Reactivity Rules

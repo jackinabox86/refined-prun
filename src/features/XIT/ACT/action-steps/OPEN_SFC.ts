@@ -4,6 +4,8 @@ import { AssertFn } from '@src/features/XIT/ACT/shared-types';
 import { getPlanetName } from '@src/core/planet-name';
 import { convertToPlanetNaturalId } from '@src/core/planet-natural-id';
 import { selectAddress } from '@src/infrastructure/prun-ui/utils/select-address';
+import { resizeSplitWindow, splitOwnerId } from '@src/infrastructure/prun-ui/companion-buffer';
+import { sfcStageWindowSize } from '@src/features/XIT/ACT/action-steps/sfc-stage-layout';
 
 interface Data {
   shipId: string;
@@ -57,15 +59,34 @@ export const OPEN_SFC = act.addActionStep<Data>({
       }
     }
 
-    // Resize the companion window by directly setting Window.body dimensions.
-    // UI_WINDOWS_UPDATE_SIZE doesn't work for docked tiles; direct style
-    // manipulation on Window.body is the reliable approach for split windows.
-    const windowEl = tile.frame.closest(`.${C.Window.window}`) as HTMLElement | null;
-    const bodyEl = windowEl ? (_$(windowEl, C.Window.body) as HTMLElement | null) : null;
-    if (bodyEl) {
-      bodyEl.style.width = '975px';
-      bodyEl.style.height = '750px';
+    if (isFirstOfType) {
+      await applySfcStageLayout(tile);
     }
+
     complete();
   },
 });
+
+async function applySfcStageLayout(tile: PrunTile) {
+  const windowEl = tile.frame.closest(`.${C.Window.window}`) as HTMLElement | null;
+  const ownerId = splitOwnerId(windowEl);
+  if (ownerId === undefined) {
+    return;
+  }
+  const bodyEl = _$(windowEl!, C.Window.body) as HTMLElement | null;
+  const currentWidth = parseInt(bodyEl?.style.width ?? '', 10);
+  const currentHeight = parseInt(bodyEl?.style.height ?? '', 10);
+  const layout = sfcStageWindowSize(actPaneWidth(tile), currentWidth, currentHeight);
+  await resizeSplitWindow(ownerId, layout.actWidth, layout.sfcWidth, layout.height);
+}
+
+// Measured width of the pane ACT itself sits in — the SFC tile's sibling. The panes
+// carry their split as an inline percentage, so read laid-out pixels instead.
+function actPaneWidth(sfcTile: PrunTile) {
+  const node = sfcTile.container.parentElement;
+  if (node === null) {
+    return NaN;
+  }
+  const sibling = _$$(node, C.Node.child).find(x => x !== sfcTile.container);
+  return sibling === undefined ? NaN : sibling.getBoundingClientRect().width;
+}

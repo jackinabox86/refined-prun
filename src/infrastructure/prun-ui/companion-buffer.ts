@@ -9,6 +9,7 @@ import {
 } from '@src/infrastructure/prun-api/client-messages';
 import { dispatchClientPrunMessage } from '@src/infrastructure/prun-api/prun-api-listener';
 import { clamp } from '@src/utils/clamp';
+import { sleep } from '@src/utils/sleep';
 
 // Size of a companion whose command has no registered default buffer size.
 const fallbackSize: [number, number] = [450, 300];
@@ -118,6 +119,38 @@ async function setChildCommand(child: Element, command: string) {
   const input = (await $(child, C.PanelSelector.input)) as HTMLInputElement;
   changeInputValue(input, command);
   input.form!.requestSubmit();
+}
+
+// Split panes are addressed by the id of the tile that was split, and that tile's
+// element is gone once the split renders. `tilesStore` is no help: it is keyed by the
+// server's UUIDs for docked screen tiles, while a floating buffer's `data-prun-id` is a
+// small integer, so a lookup by tile id there never matches. Record the id at split time
+// against the window element, which survives the split.
+const splitOwners = new WeakMap<Element, string>();
+
+export function rememberSplitOwner(windowEl: Element, ownerId: string) {
+  splitOwners.set(windowEl, ownerId);
+}
+
+export function splitOwnerId(windowEl: Element | null | undefined): string | undefined {
+  return windowEl === null || windowEl === undefined ? undefined : splitOwners.get(windowEl);
+}
+
+// Sizes an already-split floating window and moves the divider. Uses the game
+// messages so a later drag-resize commits from this size instead of snapping
+// back to a stale stored size.
+//
+// Same order as openCompanionBuffer — size, then divider — with a yield in between,
+// because there the split's awaits put real time between the two messages.
+export async function resizeSplitWindow(
+  ownerId: string,
+  leftWidth: number,
+  rightWidth: number,
+  height: number,
+) {
+  setBufferSize(ownerId, leftWidth + rightWidth, height);
+  await sleep(0);
+  setDividerPosition(ownerId, leftWidth, rightWidth);
 }
 
 // Sets the split ratio so each pane gets the width it was sized for. No DOM
