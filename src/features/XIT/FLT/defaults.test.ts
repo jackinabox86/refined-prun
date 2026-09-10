@@ -67,10 +67,12 @@ describe('XIT FLT fuel header', () => {
 
     expect(FLT_FUEL_HEADER_LABEL).toBe('Fuel');
     expect(header).toContain('{{ FLT_FUEL_HEADER_LABEL }}');
+    expect(header).toMatch(/<PrunButton[^>]*dark[^>]*inline/);
     expect(header).toContain('font: inherit');
     expect(header).toContain('font-size: inherit');
     expect(header).toContain('color: inherit');
     expect(header).toContain('text-transform: none');
+    expect(header).not.toContain('background: none');
     expect(header).not.toContain('C.type.typeRegular');
     expect(header).not.toContain('font-size: 12px');
     expect(header).toMatch(/<PrunButton[^>]*@click\.stop="emit\('refuel'\)"/);
