@@ -23,13 +23,12 @@ const emit = defineEmits<{ refuel: [] }>();
   gap: 6px;
 }
 
-/* Keep header size/weight; leave Button__dark color (#666) and fill (#333). */
+/* Keep header size; leave Button bold/color (#666) and fill (#333). */
 .container .button,
 .container .button:hover,
 .container .button:focus,
 .container .button:active {
   font-size: inherit;
-  font-weight: inherit;
   line-height: inherit;
   letter-spacing: inherit;
   text-transform: none;
