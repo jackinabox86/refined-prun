@@ -14,9 +14,12 @@ import {
 import { showBuffer } from '@src/infrastructure/prun-ui/buffers';
 import { comparePlanets } from '@src/util';
 import { useTileState } from '@src/store/user-data-tiles';
+import { userData } from '@src/store/user-data';
 import { getPlanetBurn } from '@src/core/burn';
+import { getRepairThreshold } from '@src/core/buildings';
 import { countDays } from '@src/features/XIT/BURN/utils';
 import { getPlanetRepairAge } from '@src/features/XIT/REP/entries';
+import { compareBases, type SortDirection, type SortKey } from '@src/features/XIT/BS/base-sort';
 import { timestampEachMinute } from '@src/utils/dayjs';
 import { useXitParameters } from '@src/hooks/use-xit-parameters';
 import { findWithQuery } from '@src/utils/find-with-query';
@@ -28,9 +31,6 @@ function findSite(term: string, parts: string[]) {
   const naturalId = convertToPlanetNaturalId(term, parts);
   return sitesStore.getByPlanetNaturalId(naturalId);
 }
-
-type SortKey = 'name' | 'burn' | 'repair';
-type SortDirection = 'asc' | 'desc';
 
 const sortKey = useTileState<SortKey>('sortKey', 'burn');
 const sortDirection = useTileState<SortDirection>('sortDirection', 'asc');
@@ -69,6 +69,8 @@ interface BaseEntry {
   storeId: string;
   days: number | undefined;
   repairDays: number | undefined;
+  burnThreshold: number;
+  repairThreshold: number;
 }
 
 const bases = computed<BaseEntry[] | undefined>(() => {
@@ -81,36 +83,21 @@ const bases = computed<BaseEntry[] | undefined>(() => {
   const entries = sites
     .map(site => {
       const burn = getPlanetBurn(site.siteId);
+      const naturalId = getEntityNaturalIdFromAddress(site.address) ?? '';
       return {
         siteId: site.siteId,
-        naturalId: getEntityNaturalIdFromAddress(site.address) ?? '',
+        naturalId,
         planetName: getEntityNameFromAddress(site.address) ?? '',
         storeId: storagesStore.getByAddressableId(site.siteId)?.[0]?.id ?? '',
         days: burn ? countDays(burn.burn) : undefined,
         repairDays: getPlanetRepairAge(site.siteId, now),
+        burnThreshold: userData.settings.burn.red,
+        repairThreshold: getRepairThreshold(naturalId),
       };
     })
     .filter(x => x.naturalId);
 
-  const dir = sortDirection.value === 'asc' ? 1 : -1;
-
-  entries.sort((a, b) => {
-    if (sortKey.value === 'burn') {
-      const daysA = a.days ?? Infinity;
-      const daysB = b.days ?? Infinity;
-      if (daysA !== daysB) {
-        return (daysA - daysB) * dir;
-      }
-    }
-    if (sortKey.value === 'repair') {
-      const repA = a.repairDays ?? -Infinity;
-      const repB = b.repairDays ?? -Infinity;
-      if (repA !== repB) {
-        return (repB - repA) * dir;
-      }
-    }
-    return comparePlanets(a.naturalId, b.naturalId) * dir;
-  });
+  entries.sort((a, b) => compareBases(a, b, sortKey.value, sortDirection.value, comparePlanets));
 
   return entries;
 });
@@ -167,6 +154,15 @@ const filteredBases = computed(() => {
       <RadioItem v-model="showRepair" horizontal>REPAIR</RadioItem>
       <RadioItem v-model="showInv" horizontal>INV</RadioItem>
       <RadioItem v-model="showWar" horizontal>WAR</RadioItem>
+      <div
+        :class="$style.sortable"
+        data-tooltip="Sort by the closer of burn and repair to their thresholds"
+        @click="setSort('proximity')">
+        NEED
+        <span :class="isSorted('proximity') ? $style.sortActive : $style.sortInactive">{{
+          getSortIndicator('proximity')
+        }}</span>
+      </div>
       <div :class="$style.spacer" />
       <PrunButton primary @click="showBuffer('XIT AGENT')">AGENT</PrunButton>
       <PrunButton primary @click="showBuffer('XIT DISPATCH')">DISPATCH</PrunButton>
