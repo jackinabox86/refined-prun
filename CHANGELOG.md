@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 1.1.3
+
 ### Added
 
 - `XIT FLOW (from Erendrake)`: One row per material across your bases — daily production, consumption (including workforce), net delta, and what that delta is worth. Click a Buy or Sell price to set a FLOW-only override; `XIT FLOW <planet…>` / `XIT FLOW NOT <planet…>` use BURN's parameter grammar.
