@@ -4,6 +4,7 @@
 
 ### Added
 
+- `XIT BS`: Adds a NEED sort that ranks bases by the closer of burn days and repair age to their red thresholds, while Planet / Burn / Rep keep their raw-value sorts.
 - `ship-unload-to-warehouse`: Shift-click a landed ship's Unload control to move its cargo into the local warehouse.
 
 ### Changed

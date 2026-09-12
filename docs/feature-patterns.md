@@ -860,6 +860,13 @@ case 'cargo':
 Decide deliberately whether the final fallback is multiplied by the primary direction. Leaving
 it unmultiplied (XIT FLT) means full ties always read A→Z, even under a descending primary.
 
+### Combining Heterogeneous Sort Factors
+
+When two columns measure different units (XIT BS burn days remaining vs repair age), do not
+rank by either raw value. Convert each to days-until-its-red-threshold, then rank by the
+most urgent of the two (`Math.min`). Keep the raw-value sorts as separate keys so a click
+on Burn or Rep still means that column.
+
 ---
 
 ## Opening Panels Programmatically
