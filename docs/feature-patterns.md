@@ -254,6 +254,14 @@ in-step retry loops — `POST_AGENT` re-arms the gap on retries by `&&`-ing in `
 - **`CX Buy` with `useCXInv: true` nets out warehouse stock**, so a PREVIEW showing
   `Buy 900` against `Transfer 1,000` of the same ticker is correct (100 already in the
   warehouse), not a quantity bug.
+- **CX buy price-threshold warnings gate Act/Skip from the ACT tile.** `CXPO_BUY` compares
+  the live fill (or unfilled bid) price to `getPrice(ticker)` using the yellow/red percents
+  from `XIT NOBUY` (`settings.noBuyThresholds`, default 10/20). Past either threshold it
+  shows a dismissible overlay on `ctx.actTile` *before* `waitAct`, then uses
+  `waitAct(..., { actDelayMs: 2000 })`. At or below threshold the existing `waitAct()` path
+  is unchanged — no overlay, no delay. Missing or non-positive refined-PrUn values skip the
+  warning (no denominator). Don't add a bare `sleep()` for the delay; keep it on `waitAct`
+  so skip/cancel during the pause still work.
 - **A short CX order book only warns, never aborts the package.** Both the generation-time
   check (`cx-buy.ts`) and the live one in `CXPO_BUY` log a warning and buy what
   `fillAmount()` says is available; a ticker with nothing available is skipped. `buyPartial`

@@ -40,6 +40,10 @@ export const initialUserData = deepFreeze({
       planetOverrides: {} as Record<string, { threshold?: number; offset?: number }>,
     },
     noBuy: [] as string[],
+    noBuyThresholds: {
+      yellow: 10,
+      red: 20,
+    },
     sidebar: [
       ['BS', 'BS'],
       ['CONT', 'XIT CONTS'],

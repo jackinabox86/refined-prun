@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Added
+
+- `XIT NOBUY`: Yellow/red percent thresholds (default 10%/20%) warn in `XIT ACT` before a CX buy whose price exceeds the refined-PrUn value.
+
 ## 1.1.3
 
 ### Added

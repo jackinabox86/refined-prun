@@ -5,6 +5,7 @@ import SectionHeader from '@src/components/SectionHeader.vue';
 import Active from '@src/components/forms/Active.vue';
 import Passive from '@src/components/forms/Passive.vue';
 import TextInput from '@src/components/forms/TextInput.vue';
+import NumberInput from '@src/components/forms/NumberInput.vue';
 import Commands from '@src/components/forms/Commands.vue';
 import PrunButton from '@src/components/PrunButton.vue';
 
@@ -46,6 +47,19 @@ function onInputKeydown(ev: KeyboardEvent) {
 </script>
 
 <template>
+  <SectionHeader>Price Warning Thresholds</SectionHeader>
+  <form>
+    <Active
+      label="Yellow (%)"
+      tooltip="In XIT ACT, warn before a CX buy when its price exceeds the refined-PrUn value by more than this percent.">
+      <NumberInput v-model="userData.settings.noBuyThresholds.yellow" float />
+    </Active>
+    <Active
+      label="Red (%)"
+      tooltip="In XIT ACT, warn before a CX buy when its price exceeds the refined-PrUn value by more than this percent.">
+      <NumberInput v-model="userData.settings.noBuyThresholds.red" float />
+    </Active>
+  </form>
   <SectionHeader>No-Buy List</SectionHeader>
   <Passive v-if="userData.settings.noBuy.length === 0" label="Materials"> None </Passive>
   <Passive v-for="ticker in userData.settings.noBuy" :key="ticker" :label="ticker">

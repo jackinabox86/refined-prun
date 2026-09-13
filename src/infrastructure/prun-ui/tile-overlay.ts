@@ -5,13 +5,16 @@ export function showTileOverlay<T extends Component>(
   baseElementOrEvent: Element | Event,
   component: T,
   rootProps?: ExtractComponentProps<T>,
+  onClosed?: () => void,
 ) {
   const container = findMountContainer(baseElementOrEvent);
   if (!container) {
+    onClosed?.();
     return;
   }
   const scrollView = _$(container, C.ScrollView.view);
   if (!scrollView) {
+    onClosed?.();
     return;
   }
   const content = scrollView.lastChild as HTMLElement | null;
@@ -27,6 +30,7 @@ export function showTileOverlay<T extends Component>(
         scrollView.appendChild(content);
         content.style.display = '';
       }
+      onClosed?.();
     },
   });
   fragmentApp.appendTo(scrollView);

@@ -64,6 +64,8 @@ export interface ActionStepExecuteContext<T> extends ActionRunnerContext<T> {
   // Opening a buffer costs the player an ACT click (actGate defaults to true). Pass false
   // when the step has already gated itself and the open must not cost a second one.
   requestTile: (command: string, opts?: { actGate?: boolean }) => Promise<PrunTile | undefined>;
+  // The XIT ACT tile running this package — overlays that must be dismissed before Act/Skip.
+  actTile: PrunTile;
 }
 
 export const configurableValue = 'Configure on Execution';
