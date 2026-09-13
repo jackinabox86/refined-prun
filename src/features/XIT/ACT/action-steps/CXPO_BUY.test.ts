@@ -5,6 +5,9 @@ import { describe, expect, it } from 'vitest';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const source = readFileSync(join(here, 'CXPO_BUY.ts'), 'utf8');
+// Ordering assertions read the execute body only; against the whole file the import
+// block would satisfy them no matter where the call sites ended up.
+const executeBody = source.slice(source.indexOf('execute: async ctx'));
 
 describe('CXPO_BUY price-threshold gate', () => {
   it('compares the live buy price to the refined-PrUn value before waitAct', () => {
@@ -13,7 +16,17 @@ describe('CXPO_BUY price-threshold gate', () => {
     expect(source).toContain('priceExcessLevel');
     expect(source).toContain('showTileOverlay');
     expect(source).toContain('PriceThresholdWarning');
-    expect(source.indexOf('priceExcessLevel')).toBeLessThan(source.indexOf('await waitAct'));
+    expect(executeBody).toContain('priceExcessLevel(');
+    expect(executeBody).toContain('showTileOverlay(');
+    expect(executeBody).toContain('await waitAct(');
+    // The overlay must be dismissed before ACT/SKIP come back, so both the threshold
+    // check and the overlay have to run ahead of waitAct.
+    expect(executeBody.indexOf('priceExcessLevel(')).toBeLessThan(
+      executeBody.indexOf('await waitAct('),
+    );
+    expect(executeBody.indexOf('showTileOverlay(')).toBeLessThan(
+      executeBody.indexOf('await waitAct('),
+    );
   });
 
   it('does not force a pause unless the level is past a threshold', () => {
