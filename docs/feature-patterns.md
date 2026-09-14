@@ -266,8 +266,15 @@ in-step retry loops — `POST_AGENT` re-arms the gap on retries by `&&`-ing in `
   acts or skips as soon as they have read it. The overlay names no colour; the overage
   percent itself is shaded with `C.Workforces.daysMissing` / `daysWarning`, matching how
   `BS` / `BURN` / `GOVBURN` render their red/yellow thresholds.
+  The shaded span covers the whole overage phrase (`42.0% over`), not just the number.
   At or below threshold the existing `waitAct()` path is unchanged — no overlay, no delay.
   Missing or non-positive refined-PrUn values skip the warning (no denominator).
+- **The no-buy list has an all-materials switch.** `settings.noBuyAll` (XIT NOBUY) stands in
+  for enumerating every ticker: when it is on, `cx-buy.ts` logs one warning and emits no
+  `CXPO_BUY` steps at all. It is checked *after* the `useCXInv` pass so warehouse allocation
+  in `state.WAR` is identical either way, and the individual `settings.noBuy` array is left
+  untouched so it applies again once the switch is off. Like `settings.noBuy`, it scopes to
+  `CX Buy` only — `refuel.ts` emits its own `CXPO_BUY` steps and neither one filters them.
 - **A short CX order book only warns, never aborts the package.** Both the generation-time
   check (`cx-buy.ts`) and the live one in `CXPO_BUY` log a warning and buy what
   `fillAmount()` says is available; a ticker with nothing available is skipped. `buyPartial`

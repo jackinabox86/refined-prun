@@ -5,6 +5,7 @@
 ### Added
 
 - `XIT NOBUY`: Yellow/red percent thresholds (default 10%/20%) warn in `XIT ACT` before a CX buy whose price exceeds the refined-PrUn value. The warning must be dismissed on the warning itself; clicking elsewhere in the tile does not close it.
+- `XIT NOBUY`: An **All Materials** switch excludes every material from `CX Buy` bills without listing each ticker. The individual no-buy list is kept and applies again once the switch is off.
 
 ## 1.1.3
 

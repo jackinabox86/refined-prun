@@ -32,7 +32,7 @@ const toneClass = computed(() =>
     <Passive :label="ticker">
       CX {{ fixed02(price) }} vs refined-PrUn {{ fixed02(refinedValue)
       }}<template v-if="excessRatio !== undefined">
-        (<span :class="toneClass">{{ percent1(excessRatio) }}</span> over)</template
+        (<span :class="toneClass">{{ percent1(excessRatio) }} over</span>)</template
       >
     </Passive>
     <Commands>
