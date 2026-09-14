@@ -70,11 +70,11 @@ function onInputKeydown(ev: KeyboardEvent) {
       <RadioItem v-model="userData.settings.noBuyAll">all materials</RadioItem>
     </Active>
   </form>
-  <Passive v-if="userData.settings.noBuy.length === 0" label="Materials"> None </Passive>
+  <Passive v-if="userData.settings.noBuy.length === 0" label="Specified Materials"> None </Passive>
   <Passive v-for="ticker in userData.settings.noBuy" :key="ticker" :label="ticker">
     <PrunButton danger @click="remove(ticker)">x</PrunButton>
   </Passive>
-  <SectionHeader>Add Materials</SectionHeader>
+  <SectionHeader>Add Specified Materials</SectionHeader>
   <form>
     <Active
       label="Tickers"
