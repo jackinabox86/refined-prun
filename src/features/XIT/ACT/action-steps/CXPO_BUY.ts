@@ -4,7 +4,6 @@ import { changeInputValue, clickElement } from '@src/util';
 import { fillAmount } from '@src/features/XIT/ACT/actions/cx-buy/utils';
 import {
   priceExcessLevel,
-  priceWarningActDelayMs,
   resolveCxBuyPrice,
 } from '@src/features/XIT/ACT/actions/cx-buy/price-threshold';
 import PriceThresholdWarning from '@src/features/XIT/ACT/actions/cx-buy/PriceThresholdWarning.vue';
@@ -198,8 +197,7 @@ export const CXPO_BUY = act.addActionStep<Data>({
         );
       });
     }
-    const actDelayMs = priceWarningActDelayMs(level);
-    await waitAct(undefined, actDelayMs > 0 ? { actDelayMs } : undefined);
+    await waitAct();
     quantityInput.removeEventListener('input', onManualInput);
     priceInput.removeEventListener('input', onManualInput);
     unwatch();

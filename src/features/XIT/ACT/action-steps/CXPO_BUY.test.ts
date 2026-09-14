@@ -38,9 +38,10 @@ describe('CXPO_BUY price-threshold gate', () => {
     );
   });
 
-  it('does not force a pause unless the level is past a threshold', () => {
-    expect(source).toContain('priceWarningActDelayMs(level)');
-    expect(source).toContain('actDelayMs > 0 ? { actDelayMs } : undefined');
-    expect(source).not.toMatch(/await waitAct\(\s*undefined,\s*\{\s*actDelayMs:\s*2000/);
+  it('does not force a pause after the warning is dismissed', () => {
+    // DISMISS is the whole gate: once the player has read the overage they choose
+    // ACT or SKIP immediately, so this step must not pass waitAct a delay.
+    expect(executeBody).toContain('await waitAct();');
+    expect(executeBody).not.toContain('actDelayMs');
   });
 });

@@ -20,6 +20,7 @@ const excessRatio = computed(() => {
   return excess === undefined ? undefined : excess / 100;
 });
 
+// The overage itself carries the level: red past the red threshold, yellow past yellow.
 const toneClass = computed(() =>
   level === 'red' ? C.Workforces.daysMissing : C.Workforces.daysWarning,
 );
@@ -27,12 +28,12 @@ const toneClass = computed(() =>
 
 <template>
   <div :class="C.DraftConditionEditor.form">
-    <SectionHeader>
-      <span :class="toneClass">{{ level === 'red' ? 'Red' : 'Yellow' }} price warning</span>
-    </SectionHeader>
+    <SectionHeader>Price Warning</SectionHeader>
     <Passive :label="ticker">
       CX {{ fixed02(price) }} vs refined-PrUn {{ fixed02(refinedValue)
-      }}<template v-if="excessRatio !== undefined"> ({{ percent1(excessRatio) }} over)</template>
+      }}<template v-if="excessRatio !== undefined">
+        (<span :class="toneClass">{{ percent1(excessRatio) }}</span> over)</template
+      >
     </Passive>
     <Commands>
       <PrunButton primary @click="emit('close')">DISMISS</PrunButton>

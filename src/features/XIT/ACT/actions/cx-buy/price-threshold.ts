@@ -48,7 +48,3 @@ export function resolveCxBuyPrice(opts: {
   }
   return filled.priceLimit;
 }
-
-export function priceWarningActDelayMs(level: PriceThresholdLevel): number {
-  return level === 'none' ? 0 : 2000;
-}

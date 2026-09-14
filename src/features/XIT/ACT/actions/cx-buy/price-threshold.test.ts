@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest';
 import {
   priceExcessLevel,
   priceExcessPercent,
-  priceWarningActDelayMs,
   resolveCxBuyPrice,
 } from '@src/features/XIT/ACT/actions/cx-buy/price-threshold';
 
@@ -41,17 +40,6 @@ describe('priceExcessLevel', () => {
     expect(priceExcessLevel(undefined, 100, 10, 20)).toBe('none');
     expect(priceExcessLevel(110, undefined, 10, 20)).toBe('none');
     expect(priceExcessLevel(110, 0, 10, 20)).toBe('none');
-  });
-});
-
-describe('priceWarningActDelayMs', () => {
-  it('does not pause at or below threshold', () => {
-    expect(priceWarningActDelayMs('none')).toBe(0);
-  });
-
-  it('forces a 2s pause past either threshold', () => {
-    expect(priceWarningActDelayMs('yellow')).toBe(2000);
-    expect(priceWarningActDelayMs('red')).toBe(2000);
   });
 });
 
