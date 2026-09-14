@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Added
+
+- `nots-cogc-repeat-vote`: Clicking a COGC program-changed notification opens `COGCPD p-{planet} pn-{program}` so you can vote to repeat that program.
+
 ## 1.1.3
 
 ### Added
