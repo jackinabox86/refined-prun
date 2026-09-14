@@ -191,7 +191,10 @@ export const CXPO_BUY = act.addActionStep<Data>({
             refinedValue,
             level,
           },
-          resolve,
+          // The overlay covers the ACT button. A backdrop click would let a player
+          // spam-clicking ACT dismiss the warning without ever reading it, so the
+          // only way out is DISMISS on the warning itself.
+          { onClosed: resolve, dismissOnBackdrop: false },
         );
       });
     }

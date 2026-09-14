@@ -5,8 +5,14 @@ export function showTileOverlay<T extends Component>(
   baseElementOrEvent: Element | Event,
   component: T,
   rootProps?: ExtractComponentProps<T>,
-  onClosed?: () => void,
+  options?: {
+    onClosed?: () => void;
+    // Default true. Pass false for an overlay the player must acknowledge on the
+    // overlay itself; otherwise a stray click on the backdrop dismisses it.
+    dismissOnBackdrop?: boolean;
+  },
 ) {
+  const onClosed = options?.onClosed;
   const container = findMountContainer(baseElementOrEvent);
   if (!container) {
     onClosed?.();
@@ -24,6 +30,7 @@ export function showTileOverlay<T extends Component>(
   const fragmentApp = createFragmentApp(Overlay, {
     child: component,
     props: rootProps,
+    dismissOnBackdrop: options?.dismissOnBackdrop ?? true,
     onClose: () => {
       fragmentApp.unmount();
       if (content) {

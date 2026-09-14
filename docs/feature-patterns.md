@@ -257,9 +257,13 @@ in-step retry loops — `POST_AGENT` re-arms the gap on retries by `&&`-ing in `
 - **CX buy price-threshold warnings gate Act/Skip from the ACT tile.** `CXPO_BUY` compares
   the live fill (or unfilled bid) price to `getPrice(ticker)` using the yellow/red percents
   from `XIT NOBUY` (`settings.noBuyThresholds`, default 10/20). Past either threshold it
-  shows a dismissible overlay on `ctx.actTile` *before* `waitAct`, then uses
-  `waitAct(..., { actDelayMs: 2000 })`. At or below threshold the existing `waitAct()` path
-  is unchanged — no overlay, no delay. Missing or non-positive refined-PrUn values skip the
+  shows an overlay on `ctx.actTile` *before* `waitAct`, then uses
+  `waitAct(..., { actDelayMs: 2000 })`. That overlay passes
+  `{ dismissOnBackdrop: false }` to `showTileOverlay`: it covers the ACT button, and
+  `Overlay.vue`'s backdrop closes on click by default, so a player spam-clicking ACT
+  dismissed the warning without ever seeing it. Any overlay the player must *read*
+  needs the same flag; editors opened by a deliberate click keep the default.
+  At or below threshold the existing `waitAct()` path is unchanged — no overlay, no delay. Missing or non-positive refined-PrUn values skip the
   warning (no denominator). Don't add a bare `sleep()` for the delay; keep it on `waitAct`
   so skip/cancel during the pause still work.
 - **A short CX order book only warns, never aborts the package.** Both the generation-time

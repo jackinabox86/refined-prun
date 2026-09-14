@@ -29,6 +29,15 @@ describe('CXPO_BUY price-threshold gate', () => {
     );
   });
 
+  it('makes the overlay dismissable only from the warning itself', () => {
+    // A backdrop click lands wherever the player was already clicking - i.e. on ACT -
+    // so the warning would be gone before it was read.
+    const overlayCall = executeBody.slice(executeBody.indexOf('showTileOverlay('));
+    expect(overlayCall.slice(0, overlayCall.indexOf('await waitAct('))).toContain(
+      'dismissOnBackdrop: false',
+    );
+  });
+
   it('does not force a pause unless the level is past a threshold', () => {
     expect(source).toContain('priceWarningActDelayMs(level)');
     expect(source).toContain('actDelayMs > 0 ? { actDelayMs } : undefined');
