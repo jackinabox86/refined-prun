@@ -5,13 +5,22 @@ export function showTileOverlay<T extends Component>(
   baseElementOrEvent: Element | Event,
   component: T,
   rootProps?: ExtractComponentProps<T>,
+  options?: {
+    onClosed?: () => void;
+    // Default true. Pass false for an overlay the player must acknowledge on the
+    // overlay itself; otherwise a stray click on the backdrop dismisses it.
+    dismissOnBackdrop?: boolean;
+  },
 ) {
+  const onClosed = options?.onClosed;
   const container = findMountContainer(baseElementOrEvent);
   if (!container) {
+    onClosed?.();
     return;
   }
   const scrollView = _$(container, C.ScrollView.view);
   if (!scrollView) {
+    onClosed?.();
     return;
   }
   const content = scrollView.lastChild as HTMLElement | null;
@@ -21,12 +30,14 @@ export function showTileOverlay<T extends Component>(
   const fragmentApp = createFragmentApp(Overlay, {
     child: component,
     props: rootProps,
+    dismissOnBackdrop: options?.dismissOnBackdrop ?? true,
     onClose: () => {
       fragmentApp.unmount();
       if (content) {
         scrollView.appendChild(content);
         content.style.display = '';
       }
+      onClosed?.();
     },
   });
   fragmentApp.appendTo(scrollView);
