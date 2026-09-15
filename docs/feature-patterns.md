@@ -295,9 +295,13 @@ in-step retry loops — `POST_AGENT` re-arms the gap on retries by `&&`-ing in `
 - **CX prices preview is a separate preflight step, not a per-buy overlay.** When
   `userData.settings.cxPricesPreview` is on, `CX Buy` emits `CX_PRICES_PREVIEW` ahead of
   its `CXPO_BUY` steps. That step opens `CX {exchange}` in the right companion buffer
-  (unexpanded listing, `actGate: false`), changes the category `<select>` for categories
-  still missing from `cxobStore`, logs a ranked cost preview, then `waitAct` with
-  `actDelayMs: 2000`. Skip during that pause advances to the first buy. Toggle lives on
+  (unexpanded listing, `actGate: false`), then walks the category `<select>` for the
+  categories still missing from `cxobStore` — **one player ACT click per category page**,
+  never an automatic sweep. Each page is a bare `waitAct(status)` with no `actDelayMs`, so
+  the clicks are as fast as the player wants; `changeSelectIndex` runs only after the
+  click resolves. The ranked cost preview then renders **in that same companion pane**
+  (`showTileOverlay(tile.anchor, PricesPreview, …)`), not in the ACT log, followed by
+  `waitAct` with `actDelayMs: 2000`. Skip during that pause advances to the first buy. Toggle lives on
   DISPATCH (next to REFUEL) and in the CX Buy configure form — one persisted setting,
   default off. Shading uses `settings.noBuyThresholds` and `resolveCxBuyPrice` from
   `price-threshold.ts`, the same comparison `CXPO_BUY`'s overlay makes, so a red preview
@@ -307,6 +311,20 @@ in-step retry loops — `POST_AGENT` re-arms the gap on retries by `&&`-ing in `
   `cxobStore` book at all is a *failed price load*, not an empty market: it logs
   `no CX price data` and a load warning, never `unavailable`. Conflating the two states
   the market said something it never said.
+- **`PricesPreview.vue` keeps the total outside the scrolling list.** The panel opens
+  unscrolled, and the lines are ranked worst-overage first, so the total and the tickers
+  the player has to decide about are on screen without paging. The list is the only thing
+  that scrolls (`flex: 1 1 auto; min-height: 0; overflow-y: auto`, plus a `max-height`
+  cap for the case where the overlay hands it an unbounded height) — let the whole panel
+  scroll instead and the total pages off the top, which is the thing this layout exists
+  to prevent.
+- **`showTileOverlay` returns a close handle** (`undefined` when it could not mount, e.g.
+  a tile frame with no `C.ScrollView.view`). Closing is idempotent, so a backdrop
+  dismissal and the caller's own close are safe together. A step that keeps a panel up
+  until ACT needs it — but remember `ctx.skip()` never resumes the step, so the close
+  after `await waitAct()` is dropped on SKIP and the panel goes away only when the next
+  step retargets the pane. Steps that must render something regardless need the
+  `undefined` fallback path, as `CX_PRICES_PREVIEW` does by logging.
 - **Step `Data` is per-run, not persisted.** `action-steps/*` interfaces are rebuilt by
   every generation pass, so fields can be added or dropped freely. `UserData.ActionData`
   fields are the opposite: they persist in saved packages and are mirrored in

@@ -266,3 +266,23 @@ describe('preview log formatting', () => {
     ]);
   });
 });
+
+describe('PricesPreview panel layout', () => {
+  const panel = readFileSync(join(here, 'PricesPreview.vue'), 'utf8');
+  const template = panel.slice(panel.indexOf('<template>'), panel.indexOf('</template>'));
+  const listRule = panel.slice(panel.indexOf('.list {'), panel.indexOf('.yellow {'));
+
+  it('keeps the total out of the scrolling list so it is visible unscrolled', () => {
+    expect(template.indexOf('$style.total')).toBeLessThan(template.indexOf('$style.list'));
+    expect(listRule).not.toContain('$style.total');
+    expect(template).toContain('v-for="(line, index) in lines"');
+  });
+
+  it('scrolls the ranked lines rather than the whole pane', () => {
+    expect(listRule).toContain('overflow-y: auto');
+    expect(listRule).toContain('max-height');
+    // A flex child will not shrink below its content height without this, so the list
+    // would take the whole pane instead of scrolling inside it.
+    expect(listRule).toContain('min-height: 0');
+  });
+});
