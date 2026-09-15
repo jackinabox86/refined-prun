@@ -299,8 +299,11 @@ in-step retry loops — `POST_AGENT` re-arms the gap on retries by `&&`-ing in `
   still missing from `cxobStore`, logs a ranked cost preview, then `waitAct` with
   `actDelayMs: 2000`. Skip during that pause advances to the first buy. Toggle lives on
   DISPATCH (next to REFUEL) and in the CX Buy configure form — one persisted setting,
-  default off. Ranking uses 10%/20% yellow/red cutoffs for log shading only; it does not
-  add the XIT ACT per-buy overlay (that's a different, unmerged task).
+  default off. Shading uses `settings.noBuyThresholds` and `resolveCxBuyPrice` from
+  `price-threshold.ts`, the same comparison `CXPO_BUY`'s overlay makes, so a red preview
+  line is a red overlay on that buy. Cost is order-book fills only (plus an
+  `allowUnfilled` remainder at the player's own price limit); unfillable quantity is
+  logged as unavailable depth, not priced at the refined-PrUn value.
 - **Step `Data` is per-run, not persisted.** `action-steps/*` interfaces are rebuilt by
   every generation pass, so fields can be added or dropped freely. `UserData.ActionData`
   fields are the opposite: they persist in saved packages and are mirrored in

@@ -1,11 +1,12 @@
 import { LogPart } from '@src/features/XIT/ACT/runner/logger';
 import { fillAmount } from '@src/features/XIT/ACT/actions/cx-buy/utils';
+import {
+  priceExcessLevel,
+  priceExcessPercent,
+  resolveCxBuyPrice,
+  type PriceThresholdLevel,
+} from '@src/features/XIT/ACT/actions/cx-buy/price-threshold';
 import { fixed0, fixed02 } from '@src/utils/format';
-
-export const DEFAULT_YELLOW_PERCENT = 10;
-export const DEFAULT_RED_PERCENT = 20;
-
-export type PriceTone = 'none' | 'yellow' | 'red';
 
 export interface PreviewBuy {
   ticker: string;
@@ -21,36 +22,12 @@ export interface PreviewPurchase {
   projectedCost: number;
   unitPrice: number;
   excessPercent?: number;
-  tone: PriceTone;
-  projected: boolean;
+  tone: PriceThresholdLevel;
+  shortfall: number;
 }
 
 export function shouldEmitPricesPreview(enabled: boolean, buyCount: number) {
   return enabled && buyCount > 0;
-}
-
-export function priceExcessPercent(price: number, refinedValue: number): number | undefined {
-  if (!isFinite(price) || !isFinite(refinedValue) || refinedValue <= 0 || price <= 0) {
-    return undefined;
-  }
-  return ((price - refinedValue) / refinedValue) * 100;
-}
-
-export function priceExcessTone(
-  excess: number | undefined,
-  yellow = DEFAULT_YELLOW_PERCENT,
-  red = DEFAULT_RED_PERCENT,
-): PriceTone {
-  if (excess === undefined) {
-    return 'none';
-  }
-  if (excess > red) {
-    return 'red';
-  }
-  if (excess > yellow) {
-    return 'yellow';
-  }
-  return 'none';
 }
 
 export function missingPriceTickers(
@@ -65,25 +42,32 @@ export function buildPreviewPurchase(
   buy: PreviewBuy,
   exchange: string,
   refinedValue: number | undefined,
-  yellow = DEFAULT_YELLOW_PERCENT,
-  red = DEFAULT_RED_PERCENT,
+  yellow: number,
+  red: number,
 ): PreviewPurchase {
   const filled = fillAmount(`${buy.ticker}.${exchange}`, buy.amount, buy.priceLimit);
   const filledAmount = filled?.amount ?? 0;
   const filledCost = filled?.cost ?? 0;
   const remaining = Math.max(0, buy.amount - filledAmount);
   let projectedCost = 0;
-  if (remaining > 0) {
-    if (buy.allowUnfilled && isFinite(buy.priceLimit)) {
-      projectedCost = remaining * buy.priceLimit;
-    } else if (refinedValue !== undefined && refinedValue > 0) {
-      projectedCost = remaining * refinedValue;
-    }
+  let shortfall = remaining;
+  if (remaining > 0 && buy.allowUnfilled && isFinite(buy.priceLimit)) {
+    // Standing bid at the player's own limit — not a market price the book lacks.
+    projectedCost = remaining * buy.priceLimit;
+    shortfall = 0;
   }
-  const amount = filledAmount + remaining;
+  const amount = filledAmount + (projectedCost > 0 ? remaining : 0);
   const cost = filledCost + projectedCost;
   const unitPrice = amount > 0 ? cost / amount : 0;
-  const excessPercent = priceExcessPercent(unitPrice, refinedValue ?? 0);
+  const comparePrice = resolveCxBuyPrice({
+    allowUnfilled: buy.allowUnfilled,
+    priceLimit: buy.priceLimit,
+    filled,
+  });
+  const excessPercent =
+    comparePrice === undefined || refinedValue === undefined
+      ? undefined
+      : priceExcessPercent(comparePrice, refinedValue);
   return {
     ticker: buy.ticker,
     amount,
@@ -91,8 +75,8 @@ export function buildPreviewPurchase(
     projectedCost,
     unitPrice,
     excessPercent,
-    tone: priceExcessTone(excessPercent, yellow, red),
-    projected: remaining > 0,
+    tone: priceExcessLevel(comparePrice, refinedValue, yellow, red),
+    shortfall,
   };
 }
 
@@ -104,16 +88,25 @@ export function rankPreviewPurchases(purchases: PreviewPurchase[]) {
 
 export function formatPreviewTotal(purchases: PreviewPurchase[]): LogPart[] {
   let total = 0;
-  let projectedTotal = 0;
+  let atLimit = 0;
+  let shortfall = 0;
   for (const purchase of purchases) {
     total += purchase.cost;
-    projectedTotal += purchase.projectedCost;
+    atLimit += purchase.projectedCost;
+    shortfall += purchase.shortfall;
   }
   const parts: LogPart[] = [{ text: 'Total cost ' }, { text: fixed0(total), yellow: true }];
-  if (projectedTotal > 0) {
+  if (atLimit > 0) {
     parts.push(
       { text: ' (' },
-      { text: `${fixed0(projectedTotal)} projected`, yellow: true },
+      { text: `${fixed0(atLimit)} at limit`, yellow: true },
+      { text: ')' },
+    );
+  }
+  if (shortfall > 0) {
+    parts.push(
+      { text: ' (' },
+      { text: `${fixed0(shortfall)} unavailable`, yellow: true },
       { text: ')' },
     );
   }
@@ -121,15 +114,22 @@ export function formatPreviewTotal(purchases: PreviewPurchase[]): LogPart[] {
 }
 
 export function formatPreviewPurchase(purchase: PreviewPurchase): LogPart[] {
-  const parts: LogPart[] = [
-    {
+  const parts: LogPart[] = [];
+  if (purchase.amount > 0) {
+    parts.push({
       text: `${purchase.ticker} ${fixed0(purchase.amount)} @ ${fixed02(purchase.unitPrice)}`,
-    },
-  ];
-  if (purchase.projected) {
-    parts.push({ text: ' projected' });
+    });
+    if (purchase.projectedCost > 0) {
+      parts.push({ text: ' at limit' });
+    }
+    parts.push({ text: ` (${fixed0(purchase.cost)})` });
+  } else {
+    parts.push({ text: `${purchase.ticker} ${fixed0(purchase.shortfall)} unavailable` });
+    return parts;
   }
-  parts.push({ text: ` (${fixed0(purchase.cost)})` });
+  if (purchase.shortfall > 0) {
+    parts.push({ text: ` (${fixed0(purchase.shortfall)} unavailable)` });
+  }
   if (purchase.excessPercent === undefined) {
     return parts;
   }

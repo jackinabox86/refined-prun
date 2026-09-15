@@ -6,6 +6,7 @@ import { cxobStore } from '@src/infrastructure/prun-api/data/cxob';
 import { materialsStore } from '@src/infrastructure/prun-api/data/materials';
 import { getCategoryById } from '@src/infrastructure/prun-api/data/material-categories';
 import { getPrice } from '@src/infrastructure/fio/cx';
+import { userData } from '@src/store/user-data';
 import {
   buildPreviewPurchase,
   formatPreviewPurchase,
@@ -50,8 +51,17 @@ export const CX_PRICES_PREVIEW = act.addActionStep<Data>({
       await loadMissingCategoryPrices(tile, missing, exchange, log);
     }
 
+    const thresholds = userData.settings.noBuyThresholds;
     const purchases = rankPreviewPurchases(
-      buys.map(buy => buildPreviewPurchase(buy, exchange, getPrice(buy.ticker))),
+      buys.map(buy =>
+        buildPreviewPurchase(
+          buy,
+          exchange,
+          getPrice(buy.ticker),
+          thresholds?.yellow ?? 10,
+          thresholds?.red ?? 20,
+        ),
+      ),
     );
     log.info(formatPreviewTotal(purchases));
     for (const purchase of purchases) {

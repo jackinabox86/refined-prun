@@ -31,4 +31,11 @@ describe('CX_PRICES_PREVIEW', () => {
     expect(source).not.toContain('clickElement');
     expect(executeBody).not.toContain('C.Button.success');
   });
+
+  it('shades with the NOBUY thresholds, not local defaults', () => {
+    expect(executeBody).toContain('userData.settings.noBuyThresholds');
+    expect(executeBody).toContain('thresholds?.yellow ?? 10');
+    expect(executeBody).toContain('thresholds?.red ?? 20');
+    expect(source).not.toContain('DEFAULT_YELLOW_PERCENT');
+  });
 });
