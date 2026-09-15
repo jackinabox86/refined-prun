@@ -1,6 +1,6 @@
 export type LogTag = null | 'INFO' | 'ACTION' | 'SUCCESS' | 'ERROR' | 'SKIP' | 'WARNING' | 'CANCEL';
 
-export type LogPart = { text: string; yellow?: boolean };
+export type LogPart = { text: string; yellow?: boolean; red?: boolean };
 export type LogContent = string | LogPart[];
 
 export class Logger {

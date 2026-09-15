@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Added
+
+- `XIT ACT` / `XIT DISPATCH`: Opt-in CX prices preview. Before CX buys, the runner loads missing ticker prices from the unexpanded `CX {exchange}` category listing and shows a ranked cost preview on the log (total cost, projected where depth is unknown, purchases shaded yellow/red by percent over the refined-PrUn price). Act pauses 2s; Skip continues to the purchases.
+
 ## 1.1.3
 
 ### Added

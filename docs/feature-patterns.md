@@ -271,6 +271,15 @@ in-step retry loops — `POST_AGENT` re-arms the gap on retries by `&&`-ing in `
 - **`CXPO_BUY`'s quantity `watchEffect` reruns on every order-book tick** while the buffer
   sits open waiting for ACT. Anything with a side effect inside it (logging above all) must
   dedupe, or one slow CX fills the log with the same warning.
+- **CX prices preview is a separate preflight step, not a per-buy overlay.** When
+  `userData.settings.cxPricesPreview` is on, `CX Buy` emits `CX_PRICES_PREVIEW` ahead of
+  its `CXPO_BUY` steps. That step opens `CX {exchange}` in the right companion buffer
+  (unexpanded listing, `actGate: false`), changes the category `<select>` for categories
+  still missing from `cxobStore`, logs a ranked cost preview, then `waitAct` with
+  `actDelayMs: 2000`. Skip during that pause advances to the first buy. Toggle lives on
+  DISPATCH (next to REFUEL) and in the CX Buy configure form — one persisted setting,
+  default off. Ranking uses 10%/20% yellow/red cutoffs for log shading only; it does not
+  add the XIT ACT per-buy overlay (that's a different, unmerged task).
 - **Step `Data` is per-run, not persisted.** `action-steps/*` interfaces are rebuilt by
   every generation pass, so fields can be added or dropped freely. `UserData.ActionData`
   fields are the opposite: they persist in saved packages and are mirrored in
