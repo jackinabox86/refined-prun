@@ -69,7 +69,12 @@ async function loadMissingCategoryPrices(
   exchange: string,
   log: { warning: (msg: string) => void },
 ) {
-  const select = (await $(tile.anchor, 'select')) as HTMLSelectElement | undefined;
+  // $() resolves only once the element exists. Race it: setStatus() above grayed ACT,
+  // SKIP and CANCEL, so a CX tile that never renders its category selector would wedge
+  // the run with no control left to the player.
+  const select = (await Promise.race([$(tile.anchor, 'select'), sleep(categoryLoadTimeoutMs)])) as
+    | HTMLSelectElement
+    | undefined;
   if (select === undefined) {
     log.warning('CX category selector not found; using whatever prices are already loaded');
     return;
