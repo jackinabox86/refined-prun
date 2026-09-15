@@ -116,7 +116,15 @@ async function loadMissingCategoryPrices(
       changeSelectIndex(select, index);
     }
     await sleep(0);
-    await waitForTickers(categoryTickers, exchange, categoryLoadTimeoutMs);
+    const loaded = await waitForTickers(categoryTickers, exchange, categoryLoadTimeoutMs);
+    if (!loaded) {
+      // Say the load failed. Without this the preview's "no CX price data" line is the
+      // only hint, and a silent timeout reads like an empty market.
+      const stillMissing = categoryTickers.filter(
+        ticker => cxobStore.getByTicker(`${ticker}.${exchange}`) === undefined,
+      );
+      log.warning(`CX prices for ${stillMissing.join(', ')} did not load on ${exchange}`);
+    }
   }
 }
 
@@ -135,10 +143,8 @@ function indexOfCategory(select: HTMLSelectElement, categoryId: string) {
 }
 
 async function waitForTickers(tickers: string[], exchange: string, timeoutMs: number) {
-  await Promise.race([
-    watchUntil(() =>
-      tickers.every(ticker => cxobStore.getByTicker(`${ticker}.${exchange}`) !== undefined),
-    ),
-    sleep(timeoutMs),
-  ]);
+  const hasAll = () =>
+    tickers.every(ticker => cxobStore.getByTicker(`${ticker}.${exchange}`) !== undefined);
+  await Promise.race([watchUntil(hasAll), sleep(timeoutMs)]);
+  return hasAll();
 }

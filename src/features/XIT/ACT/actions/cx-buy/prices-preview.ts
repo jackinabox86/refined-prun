@@ -24,6 +24,8 @@ export interface PreviewPurchase {
   excessPercent?: number;
   tone: PriceThresholdLevel;
   shortfall: number;
+  /** No CX order book for this ticker at all, so the shortfall is unknown, not zero supply. */
+  noData?: boolean;
 }
 
 export function shouldEmitPricesPreview(enabled: boolean, buyCount: number) {
@@ -70,6 +72,7 @@ export function buildPreviewPurchase(
       : priceExcessPercent(comparePrice, refinedValue);
   return {
     ticker: buy.ticker,
+    noData: filled === undefined,
     amount,
     cost,
     projectedCost,
@@ -90,10 +93,17 @@ export function formatPreviewTotal(purchases: PreviewPurchase[]): LogPart[] {
   let total = 0;
   let atLimit = 0;
   let shortfall = 0;
+  let unpriced = 0;
   for (const purchase of purchases) {
     total += purchase.cost;
     atLimit += purchase.projectedCost;
-    shortfall += purchase.shortfall;
+    // A missing book is a failed price load, not a market with nothing on offer.
+    // Counting it as unavailable depth would state something the CX never told us.
+    if (purchase.noData) {
+      unpriced += purchase.shortfall;
+    } else {
+      shortfall += purchase.shortfall;
+    }
   }
   const parts: LogPart[] = [{ text: 'Total cost ' }, { text: fixed0(total), yellow: true }];
   if (atLimit > 0) {
@@ -107,6 +117,13 @@ export function formatPreviewTotal(purchases: PreviewPurchase[]): LogPart[] {
     parts.push(
       { text: ' (' },
       { text: `${fixed0(shortfall)} unavailable`, yellow: true },
+      { text: ')' },
+    );
+  }
+  if (unpriced > 0) {
+    parts.push(
+      { text: ' (' },
+      { text: `${fixed0(unpriced)} no CX price data`, yellow: true },
       { text: ')' },
     );
   }
@@ -124,7 +141,11 @@ export function formatPreviewPurchase(purchase: PreviewPurchase): LogPart[] {
     }
     parts.push({ text: ` (${fixed0(purchase.cost)})` });
   } else {
-    parts.push({ text: `${purchase.ticker} ${fixed0(purchase.shortfall)} unavailable` });
+    parts.push({
+      text: `${purchase.ticker} ${fixed0(purchase.shortfall)} ${
+        purchase.noData ? 'no CX price data' : 'unavailable'
+      }`,
+    });
     return parts;
   }
   if (purchase.shortfall > 0) {

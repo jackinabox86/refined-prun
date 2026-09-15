@@ -303,7 +303,10 @@ in-step retry loops — `POST_AGENT` re-arms the gap on retries by `&&`-ing in `
   `price-threshold.ts`, the same comparison `CXPO_BUY`'s overlay makes, so a red preview
   line is a red overlay on that buy. Cost is order-book fills only (plus an
   `allowUnfilled` remainder at the player's own price limit); unfillable quantity is
-  logged as unavailable depth, not priced at the refined-PrUn value.
+  logged as unavailable depth, not priced at the refined-PrUn value. A ticker with no
+  `cxobStore` book at all is a *failed price load*, not an empty market: it logs
+  `no CX price data` and a load warning, never `unavailable`. Conflating the two states
+  the market said something it never said.
 - **Step `Data` is per-run, not persisted.** `action-steps/*` interfaces are rebuilt by
   every generation pass, so fields can be added or dropped freely. `UserData.ActionData`
   fields are the opposite: they persist in saved packages and are mirrored in

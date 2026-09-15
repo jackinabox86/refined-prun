@@ -107,6 +107,7 @@ describe('buildPreviewPurchase', () => {
     expect(purchase.projectedCost).toBe(0);
     expect(purchase.shortfall).toBe(6);
     expect(purchase.amount).toBe(4);
+    expect(purchase.noData).toBe(false);
   });
 
   it('does not cost the whole amount when no book is loaded', () => {
@@ -123,6 +124,8 @@ describe('buildPreviewPurchase', () => {
     expect(purchase.shortfall).toBe(5);
     expect(purchase.excessPercent).toBeUndefined();
     expect(purchase.tone).toBe('none');
+    // A missing book means the price never loaded, not that the market is empty.
+    expect(purchase.noData).toBe(true);
   });
 
   it('costs an allowUnfilled remainder at the player price limit', () => {
@@ -227,5 +230,39 @@ describe('preview log formatting', () => {
     const yellowLine = formatPreviewPurchase(purchases[1]);
     expect(yellowLine.some(part => part.yellow && part.text.includes('% over'))).toBe(true);
     expect(yellowLine.some(part => part.red)).toBe(false);
+  });
+
+  it('does not report a failed price load as unavailable depth', () => {
+    const shortBook = {
+      ticker: 'DW',
+      amount: 0,
+      cost: 0,
+      projectedCost: 0,
+      unitPrice: 0,
+      tone: 'none' as const,
+      shortfall: 6,
+    };
+    const noBook = {
+      ticker: 'H2O',
+      amount: 0,
+      cost: 0,
+      projectedCost: 0,
+      unitPrice: 0,
+      tone: 'none' as const,
+      shortfall: 5,
+      noData: true,
+    };
+    expect(formatPreviewPurchase(shortBook)[0].text).toBe('DW 6 unavailable');
+    expect(formatPreviewPurchase(noBook)[0].text).toBe('H2O 5 no CX price data');
+    expect(formatPreviewTotal([shortBook, noBook])).toEqual([
+      { text: 'Total cost ' },
+      { text: '0', yellow: true },
+      { text: ' (' },
+      { text: '6 unavailable', yellow: true },
+      { text: ')' },
+      { text: ' (' },
+      { text: '5 no CX price data', yellow: true },
+      { text: ')' },
+    ]);
   });
 });
