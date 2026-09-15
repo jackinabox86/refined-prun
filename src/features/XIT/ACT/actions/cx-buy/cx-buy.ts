@@ -71,6 +71,13 @@ act.addAction<Config>({
       }
     }
 
+    // The all-materials switch stands in for listing every ticker individually.
+    // It runs after the CX-inventory pass so allocation stays identical either way.
+    if (userData.settings.noBuyAll && Object.keys(materials).length > 0) {
+      log.warning('No CX buys generated (XIT NOBUY is set to all materials)');
+      return;
+    }
+
     const noBuy = new Set(userData.settings.noBuy);
     const buys = [] as {
       ticker: string;

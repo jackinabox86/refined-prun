@@ -23,6 +23,18 @@ const migrations: MigrationEntry[] = [
     },
   ],
   [
+    '14.09.2026 Add noBuy all-materials switch',
+    userData => {
+      userData.settings.noBuyAll = false;
+    },
+  ],
+  [
+    '13.09.2026 Add noBuy price-excess thresholds',
+    userData => {
+      userData.settings.noBuyThresholds = { yellow: 10, red: 20 };
+    },
+  ],
+  [
     '25.08.2026 Add flow price overrides',
     userData => {
       userData.settings.flow = { overrides: {} };

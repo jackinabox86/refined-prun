@@ -4,7 +4,9 @@
 
 ### Added
 
-- `XIT ACT` / `XIT DISPATCH`: Opt-in CX prices preview. Before CX buys, the runner loads missing ticker prices from the unexpanded `CX {exchange}` category listing and shows a ranked cost preview on the log (total cost, projected where depth is unknown, purchases shaded yellow/red by percent over the refined-PrUn price). Act pauses 2s; Skip continues to the purchases.
+- `XIT ACT` / `XIT DISPATCH`: Opt-in CX prices preview. Before CX buys, the runner loads missing ticker prices from the unexpanded `CX {exchange}` category listing and shows a ranked cost preview on the log (order-book fills only; unfillable quantity is unavailable depth, not cost). Purchases are shaded yellow/red from the XIT NOBUY thresholds. Act pauses 2s; Skip continues to the purchases.
+- `XIT NOBUY`: Yellow/red percent thresholds (default 10%/20%) warn in `XIT ACT` before a CX buy whose price exceeds the refined-PrUn value. The warning must be dismissed on the warning itself; clicking elsewhere in the tile does not close it.
+- `XIT NOBUY`: An **All Materials** switch excludes every material from `CX Buy` bills without listing each ticker. The individual no-buy list is kept and applies again once the switch is off.
 
 ## 1.1.3
 

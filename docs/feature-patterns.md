@@ -254,6 +254,27 @@ in-step retry loops — `POST_AGENT` re-arms the gap on retries by `&&`-ing in `
 - **`CX Buy` with `useCXInv: true` nets out warehouse stock**, so a PREVIEW showing
   `Buy 900` against `Transfer 1,000` of the same ticker is correct (100 already in the
   warehouse), not a quantity bug.
+- **CX buy price-threshold warnings gate Act/Skip from the ACT tile.** `CXPO_BUY` compares
+  the live fill (or unfilled bid) price to `getPrice(ticker)` using the yellow/red percents
+  from `XIT NOBUY` (`settings.noBuyThresholds`, default 10/20). Past either threshold it
+  shows an overlay on `ctx.actTile` *before* `waitAct`. That overlay passes
+  `{ dismissOnBackdrop: false }` to `showTileOverlay`: it covers the ACT button, and
+  `Overlay.vue`'s backdrop closes on click by default, so a player spam-clicking ACT
+  dismissed the warning without ever seeing it. Any overlay the player must *read*
+  needs the same flag; editors opened by a deliberate click keep the default.
+  The forced dismiss is the whole gate — `waitAct()` takes no `actDelayMs`, so the player
+  acts or skips as soon as they have read it. The overlay names no colour; the overage
+  percent itself is shaded with `C.Workforces.daysMissing` / `daysWarning`, matching how
+  `BS` / `BURN` / `GOVBURN` render their red/yellow thresholds.
+  The shaded span covers the whole overage phrase (`42.0% over`), not just the number.
+  At or below threshold the existing `waitAct()` path is unchanged — no overlay, no delay.
+  Missing or non-positive refined-PrUn values skip the warning (no denominator).
+- **The no-buy list has an all-materials switch.** `settings.noBuyAll` (XIT NOBUY) stands in
+  for enumerating every ticker: when it is on, `cx-buy.ts` logs one warning and emits no
+  `CXPO_BUY` steps at all. It is checked *after* the `useCXInv` pass so warehouse allocation
+  in `state.WAR` is identical either way, and the individual `settings.noBuy` array is left
+  untouched so it applies again once the switch is off. Like `settings.noBuy`, it scopes to
+  `CX Buy` only — `refuel.ts` emits its own `CXPO_BUY` steps and neither one filters them.
 - **A short CX order book only warns, never aborts the package.** Both the generation-time
   check (`cx-buy.ts`) and the live one in `CXPO_BUY` log a warning and buy what
   `fillAmount()` says is available; a ticker with nothing available is skipped. `buyPartial`
