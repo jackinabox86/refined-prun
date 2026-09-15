@@ -11,36 +11,52 @@ export function showTileOverlay<T extends Component>(
     // overlay itself; otherwise a stray click on the backdrop dismisses it.
     dismissOnBackdrop?: boolean;
   },
-) {
+  // Returns a close function, or undefined when the overlay could not be mounted.
+  // Callers that outlive the player's own dismissal (a step that keeps a panel up
+  // until Act) need a handle; everyone else ignores it.
+): (() => void) | undefined {
   const onClosed = options?.onClosed;
   const container = findMountContainer(baseElementOrEvent);
   if (!container) {
     onClosed?.();
-    return;
+    return undefined;
   }
   const scrollView = _$(container, C.ScrollView.view);
   if (!scrollView) {
     onClosed?.();
-    return;
+    return undefined;
   }
   const content = scrollView.lastChild as HTMLElement | null;
   if (content) {
     content.style.display = 'none';
   }
+  // The player can dismiss through the backdrop while the caller still holds the
+  // handle, so closing has to be idempotent.
+  let closed = false;
+  const close = () => {
+    if (closed) {
+      return;
+    }
+    closed = true;
+    fragmentApp.unmount();
+    if (content) {
+      scrollView.appendChild(content);
+      content.style.display = '';
+    }
+    onClosed?.();
+  };
   const fragmentApp = createFragmentApp(Overlay, {
     child: component,
     props: rootProps,
     dismissOnBackdrop: options?.dismissOnBackdrop ?? true,
-    onClose: () => {
-      fragmentApp.unmount();
-      if (content) {
-        scrollView.appendChild(content);
-        content.style.display = '';
-      }
-      onClosed?.();
-    },
+    onClose: close,
   });
   fragmentApp.appendTo(scrollView);
+  // The overlay is appended into the tile's own scroll view, which keeps whatever
+  // scroll position the hidden content left behind. Without this reset an overlay
+  // mounted over a scrolled tile opens part-way down its own content.
+  scrollView.scrollTop = 0;
+  return close;
 }
 
 export function showConfirmationOverlay(
