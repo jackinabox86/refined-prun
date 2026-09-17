@@ -45,6 +45,7 @@ export const initialUserData = deepFreeze({
       yellow: 10,
       red: 20,
     },
+    cxPricesPreview: false,
     sidebar: [
       ['BS', 'BS'],
       ['CONT', 'XIT CONTS'],
