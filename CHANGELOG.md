@@ -4,13 +4,12 @@
 
 ### Added
 
-- `XIT BS`: Adds a NEED sort that ranks bases by the closer of burn days and repair age to their red thresholds, while Planet / Burn / Rep keep their raw-value sorts.
+- `XIT BS`: Adds a DYNAMIC toggle beside the WAR column filter that ranks bases by the closer of burn days and repair age to their red thresholds, while Planet / Burn / Rep keep their raw-value sorts.
 - `ship-unload-to-warehouse`: Shift-click a landed ship's Unload control to move its cargo into the local warehouse.
 
 ### Changed
 
 - `XIT BS`: Clicking a base's burn days expands that base's burn rows inline; shift-click opens `XIT BURN` in a new buffer.
-
 ### Fixed
 
 - `XIT DISPATCHACT`: The first SFC stage sizes the host through game messages instead of a 975×750 style write, so a later drag-resize sticks. The ACT pane keeps its width when SFC opens beside it — the window grows instead — and the stage grows the window to at least 670px tall.

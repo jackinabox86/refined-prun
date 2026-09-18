@@ -62,6 +62,12 @@ function isSorted(key: SortKey) {
   return sortKey.value === key;
 }
 
+// Toggling DYNAMIC off falls back to the tile's default Burn sort.
+const dynamicSort = computed({
+  get: () => sortKey.value === 'proximity',
+  set: value => setSort(value ? 'proximity' : 'burn'),
+});
+
 interface BaseEntry {
   siteId: string;
   naturalId: string;
@@ -154,15 +160,13 @@ const filteredBases = computed(() => {
       <RadioItem v-model="showRepair" horizontal>REPAIR</RadioItem>
       <RadioItem v-model="showInv" horizontal>INV</RadioItem>
       <RadioItem v-model="showWar" horizontal>WAR</RadioItem>
-      <div
-        :class="$style.sortable"
-        data-tooltip="Sort by the closer of burn and repair to their thresholds"
-        @click="setSort('proximity')">
-        NEED
-        <span :class="isSorted('proximity') ? $style.sortActive : $style.sortInactive">{{
-          getSortIndicator('proximity')
-        }}</span>
-      </div>
+      <div :class="$style.separator" />
+      <RadioItem
+        v-model="dynamicSort"
+        horizontal
+        data-tooltip="Sort by the closer of burn and repair to their thresholds">
+        DYNAMIC
+      </RadioItem>
       <div :class="$style.spacer" />
       <PrunButton primary @click="showBuffer('XIT AGENT')">AGENT</PrunButton>
       <PrunButton primary @click="showBuffer('XIT DISPATCH')">DISPATCH</PrunButton>
@@ -253,6 +257,13 @@ const filteredBases = computed(() => {
 
 .sortInactive {
   color: rgb(63, 162, 222);
+}
+
+.separator {
+  width: 1px;
+  align-self: stretch;
+  background-color: #2b485a;
+  margin: 0 0.25rem;
 }
 
 .spacer {
