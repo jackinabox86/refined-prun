@@ -35,8 +35,14 @@ function onSummaryRowReady(
   // Header labels can carry extra content (Damage has an info icon on fee-bearing flights),
   // so match by prefix instead of full text.
   const headerCells = Array.from(headerRow.children);
-  const damageIndex = headerCells.findIndex(x => x.textContent?.trim().startsWith('Damage'));
-  const feeIndex = headerCells.findIndex(x => x.textContent?.trim().startsWith('Fee'));
+  const damagePrefix = L.MissionPlan.damage();
+  const feePrefix = L.MissionPlan.costs();
+  const damageIndex = headerCells.findIndex(
+    x => damagePrefix !== undefined && x.textContent?.trim().startsWith(damagePrefix),
+  );
+  const feeIndex = headerCells.findIndex(
+    x => feePrefix !== undefined && x.textContent?.trim().startsWith(feePrefix),
+  );
   if (damageIndex === -1) {
     return;
   }

@@ -40,19 +40,18 @@ function onLMPTileReady(tile: PrunTile) {
 }
 
 function onFormReady(form: HTMLElement) {
+  const shippingType = L.LocalMarket.adType.shipping();
   const type = _$$(form, C.StaticInput.static);
-  if (!type.find(x => x.textContent === 'SHIPPING')) {
+  if (shippingType === undefined || !type.find(x => x.textContent === shippingType)) {
     return;
   }
 
-  function selectInput(query: string) {
-    return document.evaluate(query, form, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null)
-      .singleNodeValue as HTMLInputElement;
+  const commodityInput = labeledInput(form, L.LocalMarketPost.form.commodity());
+  const amountInput = labeledInput(form, L.LocalMarketPost.form.amount());
+  const totalPriceInput = labeledInput(form, L.LocalMarketPost.form.price());
+  if (commodityInput === undefined || amountInput === undefined || totalPriceInput === undefined) {
+    return;
   }
-
-  const commodityInput = selectInput("div[label/span[text()='Commodity']]//input");
-  const amountInput = selectInput("div[label/span[text()='Amount']]//input");
-  const totalPriceInput = selectInput("div[label/span[text()='Total price']]//input");
 
   createFragmentApp(
     PpuLabel,
@@ -62,6 +61,22 @@ function onFormReady(form: HTMLElement) {
       totalPriceInput: refValue(totalPriceInput),
     }),
   ).before(totalPriceInput.parentElement!);
+}
+
+function labeledInput(form: HTMLElement, label: string | undefined) {
+  if (label === undefined) {
+    return undefined;
+  }
+  for (const field of Array.from(form.querySelectorAll('div'))) {
+    const span = field.querySelector(':scope > label > span');
+    if (span?.textContent === label) {
+      const input = field.querySelector('input');
+      if (input instanceof HTMLInputElement) {
+        return input;
+      }
+    }
+  }
+  return undefined;
 }
 
 function init() {
