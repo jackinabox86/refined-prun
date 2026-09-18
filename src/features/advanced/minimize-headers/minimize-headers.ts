@@ -2,7 +2,6 @@ import MinimizeRow from './MinimizeRow.vue';
 import { observeHtmlCollection } from '@src/utils/observe-html-collection';
 import { computedTileState } from '@src/store/user-data-tiles';
 import { getTileState } from './tile-state';
-import { PrunI18N } from '@src/infrastructure/prun-ui/i18n';
 import { contractsStore, isFactionContract } from '@src/infrastructure/prun-api/data/contracts';
 
 function onTileReady(tile: PrunTile) {
@@ -41,13 +40,13 @@ function setHeaders(tile: PrunTile, isMinimized: boolean) {
     if (label?.textContent === 'Minimize') {
       continue;
     }
-    if (matchesLocalization(label, 'Contract.termination', 'Termination request')) {
+    if (label?.textContent === (L.Contract.termination() ?? 'Termination request')) {
       const value = _$(header, C.FormComponent.input);
       if (value?.textContent !== '--') {
         continue;
       }
     }
-    if (matchesLocalization(label, 'Contract.preamble', 'Preamble')) {
+    if (label?.textContent === (L.Contract.preamble() ?? 'Preamble')) {
       const contract = contractsStore.getByLocalId(tile.parameter);
       const value = _$(header, C.FormComponent.input);
       if (value?.textContent !== '--' && contract && !isFactionContract(contract)) {
@@ -55,16 +54,11 @@ function setHeaders(tile: PrunTile, isMinimized: boolean) {
         continue;
       }
     }
-    if (matchesLocalization(label, 'Contribution.stores', 'Inventory')) {
+    if (label?.textContent === (L.Contribution.stores() ?? 'Inventory')) {
       continue;
     }
     header.style.display = isMinimized ? 'none' : 'flex';
   }
-}
-
-function matchesLocalization(element: Element | undefined, key: string, defaultValue: string) {
-  const text = PrunI18N[key]?.[0]?.value ?? defaultValue;
-  return element?.textContent === text;
 }
 
 function init() {

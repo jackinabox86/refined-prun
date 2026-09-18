@@ -1,5 +1,5 @@
 import { openCompanionBuffer } from '@src/infrastructure/prun-ui/companion-buffer';
-import { PrunI18N } from '@src/infrastructure/prun-ui/i18n';
+import { lookupLocalization } from '@src/infrastructure/prun-ui/i18n';
 
 const infraGlobalNames: Record<string, string> = {
   planetaryProjectSafetySmall: 'SST',
@@ -21,7 +21,7 @@ const infraGlobalNames: Record<string, string> = {
 function buildNameToTicker(): Map<string, string> {
   const map = new Map<string, string>();
   for (const [globalName, ticker] of Object.entries(infraGlobalNames)) {
-    const name = PrunI18N[`Reactor.${globalName}_name`]?.[0]?.value;
+    const name = lookupLocalization(L.Reactor, `${globalName}_name`)();
     if (name) {
       map.set(name, ticker);
     }
@@ -39,6 +39,9 @@ function getRowName(row: Element): string | undefined {
 
 function onTileReady(tile: PrunTile) {
   const nameToTicker = buildNameToTicker();
+  // The button label comes from the game localization, so a hardcoded 'details' only
+  // matches an English client.
+  const detailsLabel = L.PopulationInfrastructure.buttons.details() ?? 'details';
 
   subscribe($$(tile.anchor, C.Population.table), table => {
     subscribe($$(table, 'tr'), row => {
@@ -46,7 +49,7 @@ function onTileReady(tile: PrunTile) {
         return;
       }
 
-      const detailsBtn = _$$(row, C.Button.btn).find(x => x.textContent === 'details');
+      const detailsBtn = _$$(row, C.Button.btn).find(x => x.textContent === detailsLabel);
       if (!detailsBtn) {
         return;
       }

@@ -6,6 +6,10 @@
 
 - `nots-cogc-repeat-vote`: Clicking a COGC program-changed notification opens `COGCPD p-{planet} pn-{program}` so you can vote to repeat that program.
 
+### Changed
+
+- Port upstream's typed `L` localization API. UI string matching uses locale keys (with English fallback) instead of the old `PrunI18N` dictionary.
+
 ## 1.1.3
 
 ### Added
