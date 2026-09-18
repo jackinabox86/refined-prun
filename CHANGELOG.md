@@ -10,6 +10,7 @@
 ### Changed
 
 - `XIT BS`: Clicking a base's burn days expands that base's burn rows inline; shift-click opens `XIT BURN` in a new buffer.
+- `XIT FLT`: The collapsed filter row reads `Filters`, and goes back to reading `Minimize` once it is expanded.
 ### Fixed
 
 - `XIT DISPATCHACT`: The first SFC stage sizes the host through game messages instead of a 975×750 style write, so a later drag-resize sticks. The ACT pane keeps its width when SFC opens beside it — the window grows instead — and the stage grows the window to at least 670px tall.
