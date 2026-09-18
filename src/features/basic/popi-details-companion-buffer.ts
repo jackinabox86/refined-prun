@@ -39,6 +39,9 @@ function getRowName(row: Element): string | undefined {
 
 function onTileReady(tile: PrunTile) {
   const nameToTicker = buildNameToTicker();
+  // The button label comes from the game localization, so a hardcoded 'details' only
+  // matches an English client.
+  const detailsLabel = L.PopulationInfrastructure.buttons.details() ?? 'details';
 
   subscribe($$(tile.anchor, C.Population.table), table => {
     subscribe($$(table, 'tr'), row => {
@@ -46,7 +49,7 @@ function onTileReady(tile: PrunTile) {
         return;
       }
 
-      const detailsBtn = _$$(row, C.Button.btn).find(x => x.textContent === 'details');
+      const detailsBtn = _$$(row, C.Button.btn).find(x => x.textContent === detailsLabel);
       if (!detailsBtn) {
         return;
       }
