@@ -2,7 +2,7 @@ import { shipsStore } from '@src/infrastructure/prun-api/data/ships';
 import { flightsStore } from '@src/infrastructure/prun-api/data/flights';
 import { flightPlansStore } from '@src/infrastructure/prun-api/data/flight-plans';
 import { getPrice } from '@src/infrastructure/fio/cx';
-import { formatCurrency } from '@src/utils/format';
+import { formatCurrency, locale } from '@src/utils/format';
 import { createReactiveDiv } from '@src/utils/reactive-element';
 import { keepLast } from '@src/utils/keep-last';
 import { refPrunId } from '@src/infrastructure/prun-ui/attributes';
@@ -116,11 +116,22 @@ function parseFee(text: string | null) {
     return 0;
   }
 
+  const parts = new Intl.NumberFormat(locale.value).formatToParts(12345.6);
+  const group = parts.find(x => x.type === 'group')?.value;
+  const decimal = parts.find(x => x.type === 'decimal')?.value ?? '.';
+
   // Amounts can be concatenated without spacing ("12,000 AIC4,000 CIS"), so a \b after
   // the currency code would fail — use a lookahead for "not another letter" instead.
   let fee = 0;
   for (const match of text.matchAll(/([\d.,]+)\s*[A-Z]{3}(?![A-Z])/g)) {
-    const value = Number(match[1].replaceAll(',', ''));
+    let raw = match[1];
+    if (group) {
+      raw = raw.replaceAll(group, '');
+    }
+    if (decimal !== '.') {
+      raw = raw.replaceAll(decimal, '.');
+    }
+    const value = Number(raw);
     if (!isFinite(value)) {
       continue;
     }

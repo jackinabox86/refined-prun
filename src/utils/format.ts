@@ -15,7 +15,7 @@ const hour12 = computed(() => {
   }
 });
 
-const locale = computed(() => {
+export const locale = computed(() => {
   let preferredLocale = userDataStore.preferredLocale;
   if (!preferredLocale) {
     return undefined;
