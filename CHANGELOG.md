@@ -4,16 +4,33 @@
 
 ### Added
 
+- `nots-cogc-repeat-vote`: Clicking a COGC program-changed notification opens `COGCPD p-{planet} pn-{program}` so you can vote to repeat that program.
 - `XIT BS`: Adds a DYNAMIC toggle beside the WAR column filter that ranks bases by the closer of burn days and repair age to their red thresholds, while Planet / Burn / Rep keep their raw-value sorts.
-- `ship-unload-to-warehouse`: Shift-click a landed ship's Unload control to move its cargo into the local warehouse.
 
 ### Changed
 
-- `XIT BS`: Clicking a base's burn days expands that base's burn rows inline; shift-click opens `XIT BURN` in a new buffer.
+- Port upstream's typed `L` localization API. UI string matching uses locale keys (with English fallback) instead of the old `PrunI18N` dictionary.
 - `XIT FLT`: The collapsed filter row reads `Filters`, and goes back to reading `Minimize` once it is expanded.
+
+## 1.1.3
+
+### Added
+
+- `XIT FLOW (from Erendrake)`: One row per material across your bases — daily production, consumption (including workforce), net delta, and what that delta is worth. Click a Buy or Sell price to set a FLOW-only override; `XIT FLOW <planet…>` / `XIT FLOW NOT <planet…>` use BURN's parameter grammar.
+- `XIT FINCH`: New Equity Growth chart (also `XIT FINCH EQUITY GROWTH`) plots percent-per-day equity change across data points.
+- `nots-shift-click-mark-read`: Shift-click a NOTS row to mark that notification read without opening it, and without selecting the page text.
+- `ship-unload-to-warehouse`: Shift-click a landed ship's Unload control to move its cargo into the local warehouse instead of base inventory.
+- `XIT DATA`: Adds passive `burn`, `repair`, and `planet-settings` sources to the in-memory data catalog.
+
+### Changed
+
+- `XIT BS`: Clicking a base's burn days expands that base's burn rows inline; shift-click opens `XIT BURN {planet}` in a new buffer.
+- `XIT FLT`: The Fuel column header is now a gray refuel button — same label size as the other headers — and opens `XIT REFUELACT`; the standalone REFUEL button is gone.
+- `XIT BURNACT` / `XIT DISPATCH`: Fit-to-ship now resolves to 0.01-day steps instead of whole days.
+
 ### Fixed
 
-- `XIT DISPATCHACT`: The first SFC stage sizes the host through game messages instead of a 975×750 style write, so a later drag-resize sticks. The ACT pane keeps its width when SFC opens beside it — the window grows instead — and the stage grows the window to at least 670px tall.
+- `XIT DISPATCHACT`: The first SFC stage sizes the host through game messages instead of a 975×750 style write, so a later drag-resize sticks.
 - `XIT AGENT`: Loads action packages from the refined-agent channel even when other comms buffers restore first.
 - `XIT BURN`: A material whose production and consumption cancel out no longer shows 0 days left, in both the per-planet rows and the Overall row.
 

@@ -409,6 +409,7 @@ feature; put durable state in `userData` instead.
 | Vue composables (`ref`, `computed`, `reactive`, `watch`, …) | `vue` |
 | `$`, `$$`, `_$`, `_$$` | `@src/utils/select-dom` |
 | `C` | `@src/infrastructure/prun-ui/prun-css` |
+| `L`, `applyLocalizationPatch` | `@src/infrastructure/prun-ui/i18n` |
 | `subscribe` | `@src/utils/observable` |
 | `tiles` | `@src/infrastructure/prun-ui/tiles` |
 | `features` | `@src/features/feature-registry` |
@@ -451,6 +452,45 @@ applyCssRule('.Frame__logo___qu6xPzo', $style.logo);
 // Good: robust
 applyCssRule(`.${C.Frame.logo}`, $style.logo);
 ```
+
+---
+
+## `L` Object
+
+`L` maps PrUn's localization dictionary into a typed tree with autocomplete down to each key.
+
+Access a key by its dotted name as nested properties, then call them as functions to get the localized string. Always prefer `L` over hardcoded English text — localized strings differ per user locale and change between game updates.
+
+Keys with no ICU placeholders take no argument; keys with placeholders require an `options` object. The generated types enforce the exact argument shape per key.
+
+```ts
+// Localization key "CompanyPanel.data.bases"
+
+// Bad: breaks for non-English users
+if (label.textContent === 'Bases') { }
+
+// Good
+if (label.textContent === L.CompanyPanel.data.bases()) { }
+
+// With placeholders (types enforce the argument shape)
+L.MaterialInformation.volume({ volume: 3 });
+```
+
+Each localization leaf also provides `.getFormat()`, which returns `IntlMessageFormat` for AST work. The auto-imported `applyLocalizationPatch` rewrites a leaf's AST:
+
+```ts
+applyLocalizationPatch(L.SiteWorkforces.table.currentWorkforce, value =>
+  value.replace('Current Workforce', 'Current'),
+);
+```
+
+For a runtime key under a known parent, use `lookupLocalization` instead of `node[key as keyof typeof node]`. The proxy resolves a missing key to `undefined` at the terminal call, so the result stays safe to invoke:
+
+```ts
+lookupLocalization(L.StoreTypeLabel, type)() ?? type;
+```
+
+Accessing a leaf that is not present in the localization tree doesn't throw, and resolves in `undefined` at a terminal op — `()`, `getFormat()`, `toString()` or `valueOf()`. Account for possible `undefined` when working with `L`.
 
 ---
 
@@ -774,9 +814,9 @@ const naturalId = getEntityNaturalIdFromAddress(site?.address);
 
 ### Localized Text
 
-Avoid matching on localized text (like "Weight", "Volume"). Use element index or `PrunI18N` lookup instead.
+Avoid matching on localized text (like "Weight", "Volume"). Use element index or the `L` localization API instead (see the `L` Object section).
 
-**Exception — fixed structural UI labels:** Matching `textContent` is acceptable for identifying fixed structural UI rows (e.g. project-type rows in `C.PlanetaryProjectsList.row`) because PrUn is English-only and these labels are static game UI strings, not user-generated game entity names. Do not extend this exception to anything that could change with a game update or user action.
+**Exception — fixed structural UI labels:** Matching `textContent` against `L.…()` is acceptable for identifying fixed structural UI rows (e.g. project-type rows in `C.PlanetaryProjectsList.row`). Do not match raw English, and do not extend this to user-generated game entity names.
 
 ### Reactivity
 
@@ -1113,7 +1153,7 @@ The capture listener only classifies the click. Display is suppressed afterwards
 
 PrUn stacks floating windows with an inline `z-index` (live `C.Window.window` nodes, 2026-09-07: unfocused `1000`/`1001`, focused `1002`; document order did not change on header-focus). If the click creates no new window, restore the floating window that contained the click, falling back to the previously topmost window when the click is not inside a `C.Window.window` (docked NOTS). `focus-buffers-on-click` focuses the NOTS tile on mousedown, so a z-index sample on the later capture `click` can see either NOTS or a third window depending on whether that focus has landed; the containing window does not. General buffer reuse ("same command + params re-focuses") is documented in `docs/game/ui-concepts.md`; that is not itself a notification-click observation.
 
-`nots-ship-arrival-inventory` must ignore shift-clicks so it cannot `showBuffer('SHPI …')` on the same gesture.
+`nots-ship-arrival-inventory` must ignore shift-clicks so it cannot `showBuffer('SHPI …')` on the same gesture. `nots-cogc-repeat-vote` must ignore them the same way so it cannot `showBuffer('COGCPD p-… pn-…')` on the same gesture. A `COGC_PROGRAM_CHANGED` click opens that typed-parameter command for the alert's planet + program; if either is missing, the feature does not intercept and the game default runs.
 
 The browser's own shift-click default is separate from the game's handler: shift-**mousedown** extends the document text selection from the last caret position to the row, so the gesture painted most of the page blue. A capture `mousedown` listener on the same containers calls `preventDefault()` for the same shift+left-button classification and nothing else. That cancels only the selection default — `click` still fires, so the alert is still marked read, and `preventDefault` does not stop propagation, so `focus-buffers-on-click`'s window `mousedown` listener still runs. Do not `stopPropagation` here for the same reason the click handler must not.
 

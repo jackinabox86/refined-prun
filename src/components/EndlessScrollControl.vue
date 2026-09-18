@@ -1,10 +1,8 @@
 <script setup lang="ts">
-import { PrunI18N } from '@src/infrastructure/prun-ui/i18n';
-
 const { hasMore } = defineProps<{ hasMore: boolean }>();
 const emit = defineEmits<{ (e: 'loadMore'): void }>();
 
-const loadMoreLabel = computed(() => PrunI18N['EndlessScrollControl.label.loadmore']?.[0]?.value);
+const loadMoreLabel = computed(() => L.EndlessScrollControl.label.loadmore());
 
 const sentinel = useTemplateRef<HTMLButtonElement>('sentinel');
 let observer: IntersectionObserver | undefined;

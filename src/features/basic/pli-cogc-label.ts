@@ -1,8 +1,13 @@
 import { planetsStore } from '@src/infrastructure/prun-api/data/planets';
+import { lookupLocalization } from '@src/infrastructure/prun-ui/i18n';
 
 function formatCogcLabel(programType?: string | null) {
   if (!programType) {
     return 'COGC (Inactive)';
+  }
+  const localized = lookupLocalization(L.CoGCProgram, `${programType}_SHORT`)();
+  if (localized) {
+    return `COGC (${localized})`;
   }
   let program = programType;
   for (const prefix of ['ADVERTISING_', 'WORKFORCE_']) {
@@ -19,9 +24,10 @@ function formatCogcLabel(programType?: string | null) {
 }
 
 function onTileReady(tile: PrunTile) {
+  const localizedLabel = L.PlanetaryProjects.COGC();
   subscribe($$(tile.anchor, C.PlanetaryProjectsList.row), row => {
     const link = _$(row, C.Link.link);
-    if (!link || link.textContent !== 'Chamber of Global Commerce') {
+    if (!link || link.textContent !== localizedLabel) {
       return;
     }
     const programType = planetsStore.find(tile.parameter)?.cogcProgramType;
