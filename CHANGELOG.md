@@ -4,6 +4,7 @@
 
 ### Added
 
+- `XIT FLT`: Optional name modifier (`XIT FLT ANT`, `XIT FLT ZV-307a`) filters the table to ships in that system or at that planet. CX tickers resolve like `FLTS` (ANT → Antares I). In-flight ships match their destination, same as the Status column.
 - `nots-cogc-repeat-vote`: Clicking a COGC program-changed notification opens `COGCPD p-{planet} pn-{program}` so you can vote to repeat that program.
 
 ### Changed

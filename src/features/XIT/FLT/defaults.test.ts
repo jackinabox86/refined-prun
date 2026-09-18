@@ -85,3 +85,22 @@ describe('XIT FLT undocked buffer size', () => {
     expect(productSource('FLEET.ts')).toContain('bufferSize: [500, 300]');
   });
 });
+
+describe('XIT FLT name modifiers', () => {
+  it('registers an optional system or planet identifier and a dynamic title', () => {
+    const fleet = productSource('FLEET.ts');
+    expect(fleet).toContain("optionalParameters: 'System or Planet Identifier'");
+    expect(fleet).toContain('resolveFltLocationFilter(parameters)');
+    expect(fleet).toContain('formatFltLocationFilter(filter)');
+  });
+
+  it('filters FLT.vue rows through the location helper and XIT parameters', () => {
+    const flt = productSource('FLT.vue');
+    expect(flt).toContain('useXitParameters');
+    expect(flt).toContain('resolveFltLocationFilter(parameters)');
+    expect(flt).toContain(
+      'shipMatchesLocationFilter(getShipLocationAddress(x.ship, flight), filter)',
+    );
+    expect(flt).toContain('locationFilterUnresolved');
+  });
+});
