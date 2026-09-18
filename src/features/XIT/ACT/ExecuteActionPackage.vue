@@ -6,7 +6,7 @@ import { ActionRunner } from '@src/features/XIT/ACT/runner/action-runner';
 import { shouldAutoCloseActBuffer } from '@src/features/XIT/ACT/auto-close';
 import { useTile } from '@src/hooks/use-tile';
 import { useXitCommand } from '@src/hooks/use-xit-command';
-import { closeTileWindow } from '@src/infrastructure/prun-ui/utils/close-prun-window';
+import { closePrunWindow } from '@src/infrastructure/prun-ui/utils/close-prun-window';
 import { Logger, LogTag, LogContent } from '@src/features/XIT/ACT/runner/logger';
 import LogWindow from '@src/features/XIT/ACT/LogWindow.vue';
 import ConfigWindow from '@src/features/XIT/ACT/ConfigureWindow.vue';
@@ -108,7 +108,7 @@ const runner = new ActionRunner({
   },
   onComplete: () => {
     if (shouldAutoCloseActBuffer(command, true)) {
-      closeTileWindow(tile);
+      closePrunWindow(tile.window);
     }
   },
   onStatusChanged: (title, keepReady) => {

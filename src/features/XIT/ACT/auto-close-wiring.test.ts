@@ -30,7 +30,8 @@ describe('ACT auto-close wiring', () => {
   it('closes from ExecuteActionPackage only through shouldAutoCloseActBuffer', () => {
     const source = productSource('ExecuteActionPackage.vue');
     expect(source).toContain('shouldAutoCloseActBuffer(command, true)');
-    expect(source).toContain('closeTileWindow(tile)');
+    expect(source).toContain('closePrunWindow(tile.window)');
+    expect(source).not.toContain('closeTileWindow');
     expect(source).toContain('onComplete:');
   });
 });
