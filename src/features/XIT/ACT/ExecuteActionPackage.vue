@@ -3,7 +3,10 @@ import ActionBar from '@src/components/ActionBar.vue';
 import PrunButton from '@src/components/PrunButton.vue';
 import Header from '@src/components/Header.vue';
 import { ActionRunner } from '@src/features/XIT/ACT/runner/action-runner';
+import { shouldAutoCloseActBuffer } from '@src/features/XIT/ACT/auto-close';
 import { useTile } from '@src/hooks/use-tile';
+import { useXitCommand } from '@src/hooks/use-xit-command';
+import { closeTileWindow } from '@src/infrastructure/prun-ui/utils/close-prun-window';
 import { Logger, LogTag, LogContent } from '@src/features/XIT/ACT/runner/logger';
 import LogWindow from '@src/features/XIT/ACT/LogWindow.vue';
 import ConfigWindow from '@src/features/XIT/ACT/ConfigureWindow.vue';
@@ -20,6 +23,7 @@ const { pkg, afterExecute, extraSteps } = defineProps<{
 }>();
 
 const tile = useTile();
+const command = useXitCommand();
 let goingToSplit = ref(false);
 
 const config = ref({
@@ -101,6 +105,11 @@ const runner = new ActionRunner({
     isRunning.value = false;
     status.value = undefined;
     afterExecute?.(config.value, logMessage);
+  },
+  onComplete: () => {
+    if (shouldAutoCloseActBuffer(command, true)) {
+      closeTileWindow(tile);
+    }
   },
   onStatusChanged: (title, keepReady) => {
     status.value = title;

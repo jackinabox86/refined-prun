@@ -4,6 +4,7 @@
 
 ### Added
 
+- `act-dispatch-auto-close`: Auto-closes XIT ACT and XIT DISPATCHACT when action-package execution completes. Off by default; enable in XIT SET → Features.
 - `nots-cogc-repeat-vote`: Clicking a COGC program-changed notification opens `COGCPD p-{planet} pn-{program}` so you can vote to repeat that program.
 
 ### Changed
