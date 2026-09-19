@@ -102,6 +102,21 @@ function addToRecord(target: Record<string, number>, ticker: string, amount: num
   target[ticker] = (target[ticker] ?? 0) + amount;
 }
 
+function outputByStop(stops: MilkRunStop[]) {
+  const map = new Map<string, Record<string, number>>();
+  for (const stop of stops) {
+    const output: Record<string, number> = {};
+    for (const ticker of Object.keys(stop.storeQty)) {
+      const takeable = takeableAmount(stop, ticker);
+      if (takeable > 0) {
+        output[ticker] = takeable;
+      }
+    }
+    map.set(stop.id, output);
+  }
+  return map;
+}
+
 function totalsOf(
   bill: Record<string, number>,
   sizeOf: (ticker: string) => MaterialSize | undefined,
@@ -206,12 +221,14 @@ export function planMilkRun(input: MilkRunInput): MilkRunResult {
     overflows.push(departure);
   }
 
+  const outputs = outputByStop(input.stops);
   for (const stop of input.stops) {
     const unloaded = totalsOf(stop.bill, input.sizeOf);
     weightLoad -= unloaded.weight;
     volumeLoad -= unloaded.volume;
-    const pickup = pickupsByStop.get(stop.id) ?? {};
-    const loaded = totalsOf(pickup, input.sizeOf);
+    // Full takeable surplus, not only sourcing transfers — output nothing
+    // downstream bills for still occupies the hold for the rest of the route.
+    const loaded = totalsOf(outputs.get(stop.id) ?? {}, input.sizeOf);
     weightLoad += loaded.weight;
     volumeLoad += loaded.volume;
     const peak = checkLoad(input.cargo, weightLoad, volumeLoad, stop.id);

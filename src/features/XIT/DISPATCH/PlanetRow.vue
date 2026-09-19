@@ -16,7 +16,7 @@ import { fixed0 } from '@src/utils/format';
 import type { MaterialFilter } from '@src/features/XIT/ACT/material-groups/resupply/config';
 import { DispatchBaseConfig, billTotals } from '@src/features/XIT/DISPATCH/utils';
 
-const { siteId, naturalId, planetName, config, overloaded, peakOverflow, bill, pickup } =
+const { siteId, naturalId, planetName, config, overloaded, peakOverflow, overflowTooltip, bill } =
   defineProps<{
     siteId: string;
     naturalId: string;
@@ -24,8 +24,8 @@ const { siteId, naturalId, planetName, config, overloaded, peakOverflow, bill, p
     config: DispatchBaseConfig;
     overloaded: boolean;
     peakOverflow: boolean;
+    overflowTooltip?: string;
     bill?: Record<string, number>;
-    pickup?: Record<string, number>;
   }>();
 
 const emit = defineEmits<{
@@ -69,22 +69,12 @@ const repairDaysText = computed(() => {
 });
 
 const loadText = computed(() => {
-  if (!config.resupply && !config.repair) {
-    return '--';
+  let text = '--';
+  if ((config.resupply || config.repair) && bill) {
+    const totals = billTotals(bill);
+    text = `${fixed0(totals.weight)}t - ${fixed0(totals.volume)}m³`;
   }
-  if (!bill) {
-    return '--';
-  }
-  const totals = billTotals(bill);
-  return `${fixed0(totals.weight)}t - ${fixed0(totals.volume)}m³`;
-});
-
-const pickupText = computed(() => {
-  if (!pickup || Object.keys(pickup).length === 0) {
-    return '--';
-  }
-  const totals = billTotals(pickup);
-  return `${fixed0(totals.weight)}t - ${fixed0(totals.volume)}m³`;
+  return peakOverflow ? `${text} *` : text;
 });
 
 const assignedShip = computed(() => (config.ship ? shipsStore.getById(config.ship) : undefined));
@@ -184,17 +174,9 @@ function clearShip() {
       :class="[
         C.type.typeSmall,
         $style.loadCell,
-        overloaded && [C.Workforces.daysMissing, $style.loadOverloaded],
+        (overloaded || peakOverflow) && [C.Workforces.daysMissing, $style.loadOverloaded],
       ]">
-      {{ loadText }}
-    </td>
-    <td
-      :class="[
-        C.type.typeSmall,
-        $style.loadCell,
-        peakOverflow && [C.Workforces.daysMissing, $style.loadOverloaded],
-      ]">
-      {{ pickupText }}
+      <span :data-tooltip="overflowTooltip" data-tooltip-position="top">{{ loadText }}</span>
     </td>
     <td :class="$style.selectCell">
       <div :class="[C.forms.input, $style.selectWrap]">

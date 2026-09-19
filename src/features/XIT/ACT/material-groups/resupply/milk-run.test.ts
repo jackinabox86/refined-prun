@@ -14,6 +14,7 @@ const sizes: Record<string, { weight: number; volume: number }> = {
   DW: { weight: 1, volume: 1 },
   A: { weight: 1, volume: 1 },
   B: { weight: 1, volume: 1 },
+  FE: { weight: 1, volume: 1 },
 };
 
 const sizeOf = (ticker: string) => sizes[ticker];
@@ -191,7 +192,7 @@ describe('planMilkRun', () => {
         bill: { RAT: Math.max(0, Math.ceil(days * 2 + 1)) },
         dailyAmount: { RAT: -2 },
       });
-      return plan([source, consumer], cargo(30)).fits;
+      return plan([source, consumer], cargo(40)).fits;
     }
 
     const fitted = maxFittingDays(fits);
@@ -214,5 +215,34 @@ describe('planMilkRun', () => {
     }
     expect(seenFalse).toBe(true);
     expect(flippedTrue).toBe(false);
+  });
+
+  it('counts a stop output that no later stop bills for against peak load', () => {
+    const source = stop({
+      id: 'A',
+      days: 10,
+      bill: { DW: 5 },
+      storeQty: { FE: 50 },
+      dailyAmount: { FE: 4 },
+    });
+    const consumer = stop({
+      id: 'B',
+      days: 10,
+      bill: { RAT: 10 },
+    });
+    expect(takeableAmount(source, 'FE')).toBe(49);
+    expect(plan([source, consumer]).sourced).toEqual({});
+
+    // Old walk loaded only sourcing transfers (none here): after A = 15-5+0 = 10, fits at 40.
+    // New walk loads takeable FE 49: after A = 59, 19 over.
+    const overflow = plan([source, consumer], cargo(40));
+    expect(overflow.fits).toBe(false);
+    expect(overflow.firstOverflow?.stopId).toBe('A');
+    expect(overflow.firstOverflow?.weightOver).toBe(19);
+    expect(overflow.firstOverflow?.volumeOver).toBe(19);
+
+    const stillFits = plan([source, consumer], cargo(80));
+    expect(stillFits.fits).toBe(true);
+    expect(stillFits.overflows).toEqual([]);
   });
 });

@@ -351,26 +351,20 @@ const overloadedShips = computed(() => {
   return result;
 });
 
-const pickupsByStop = computed(() => {
-  const map = new Map<string, Record<string, number>>();
-  for (const plan of milkRunByShip.value.values()) {
-    for (const [id, pickup] of plan.pickupsByStop) {
-      if (Object.keys(pickup).length > 0) {
-        map.set(id, pickup);
+const overflowByStop = computed(() => {
+  const map = new Map<string, string>();
+  for (const [shipId, plan] of milkRunByShip.value) {
+    const entry = cxShipById.value.get(shipId);
+    const shipLabel = entry?.ship.name ?? entry?.ship.registration ?? 'Ship';
+    for (const overflow of plan.overflows) {
+      if (!overflow.stopId) {
+        continue;
       }
+      const stopLabel = rowById.value.get(overflow.stopId)?.base.planetName ?? overflow.stopId;
+      map.set(overflow.stopId, formatMilkRunOverflow(overflow, shipLabel, stopLabel));
     }
   }
   return map;
-});
-
-const overflowStopIds = computed(() => {
-  const result = new Set<string>();
-  for (const plan of milkRunByShip.value.values()) {
-    if (plan.firstOverflow?.stopId) {
-      result.add(plan.firstOverflow.stopId);
-    }
-  }
-  return result;
 });
 
 const hasAssignedShip = computed(() => {
@@ -713,7 +707,6 @@ function reset() {
               <th :class="[$style.narrowCol, $style.centered]" colspan="2">Burn</th>
               <th :class="[$style.narrowCol, $style.centered]" colspan="2">Rep</th>
               <th :class="[$style.narrowCol, $style.centered]">Load</th>
-              <th :class="[$style.narrowCol, $style.centered]">Pickup</th>
               <th :class="[$style.narrowCol, $style.centered]">Materials</th>
               <th :class="[$style.narrowCol, $style.centered]">Fit</th>
               <th :class="[$style.narrowCol, $style.centered]">Days</th>
@@ -733,11 +726,11 @@ function reset() {
               :planet-name="rowById.get(id)!.base.planetName"
               :config="rowById.get(id)!.config"
               :bill="billByBase.get(id)"
-              :pickup="pickupsByStop.get(id)"
               :overloaded="
                 !!rowById.get(id)!.config.ship && overloadedShips.has(rowById.get(id)!.config.ship!)
               "
-              :peak-overflow="overflowStopIds.has(id)"
+              :peak-overflow="overflowByStop.has(id)"
+              :overflow-tooltip="overflowByStop.get(id)"
               @fit="fitBase(rowById.get(id)!.base.naturalId)" />
           </tbody>
         </table>
