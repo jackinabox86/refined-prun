@@ -5,9 +5,9 @@ import { sleep } from '@src/utils/sleep';
 type LineCommand = 'PRODCO' | 'PRODQ';
 
 // Label of the in-tile button that opens each command.
-const commandLabels: Record<LineCommand, string> = {
-  PRODCO: 'new order',
-  PRODQ: 'details',
+const commandLabels: Record<LineCommand, () => string | undefined> = {
+  PRODCO: () => L.ProductionQueue.createOrder(),
+  PRODQ: () => L.SiteProductionLines.view(),
 };
 
 // How long to wait for the game to open the buffer of a clicked PROD button.
@@ -78,7 +78,12 @@ function isPartnerTrigger(target: HTMLElement, partner: LineCommand) {
   }
 
   const button = target.closest(`.${C.Button.btn}`);
-  return button !== null && button.textContent?.trim().toLowerCase() === commandLabels[partner];
+  const expected = commandLabels[partner]()?.trim().toLowerCase();
+  return (
+    button !== null &&
+    expected !== undefined &&
+    button.textContent?.trim().toLowerCase() === expected
+  );
 }
 
 function pairCommands(lineId: string) {

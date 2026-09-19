@@ -38,10 +38,11 @@ export async function pollUntil<T>(
   }
 }
 
-const hasText = (text: string) => (x: Element) => x.textContent?.trim().toLowerCase() === text;
+const isText = (text: string | undefined) => (x: Element) =>
+  text !== undefined && x.textContent?.trim().toLowerCase() === text.trim().toLowerCase();
 
-function findButton(anchor: Element, text: string) {
-  return _$$(anchor, C.Button.btn).find(hasText(text));
+function findButton(anchor: Element, text: string | undefined) {
+  return _$$(anchor, C.Button.btn).find(isText(text));
 }
 
 function truncate(text: string, limit: number) {
@@ -103,7 +104,7 @@ export async function createNewDraft(ctx: ActionStepExecuteContext<unknown>) {
 
   const findCreateButton = () => {
     for (const tile of tiles.find('CONTD', true)) {
-      const button = findButton(tile.anchor, 'create new');
+      const button = findButton(tile.anchor, L.ContractDrafts.actions.create());
       if (button) {
         return button;
       }
@@ -174,7 +175,7 @@ export async function saveDraftDetails(
   // field the game reformatted still compares equal.
   const name = _$(anchor, 'input')?.value;
   const preamble = _$(anchor, 'textarea')?.value;
-  const saveBtn = findButton(anchor, 'save');
+  const saveBtn = findButton(anchor, L.ContractDraft.action.save());
   assert(
     saveBtn !== undefined && !saveBtn.classList.contains(C.Button.disabled),
     'Draft details save button is missing or disabled',
@@ -200,7 +201,10 @@ export async function openTemplate(ctx: ActionStepExecuteContext<unknown>, ancho
 
   setStatus('Opening template selection...');
 
-  const templateBtn = await pollUntil(() => findButton(anchor, 'select template'), 5000);
+  const templateBtn = await pollUntil(
+    () => findButton(anchor, L.ContractDraft.action.template()),
+    5000,
+  );
   assert(templateBtn, 'Could not find "Select Template" button');
   await clickElement(templateBtn);
 
@@ -284,7 +288,11 @@ export async function addMaterials(
   setStatus('Adding materials to template...');
 
   const findAddButton = () =>
-    _$$(anchor, 'button').find(x => hasText('add shipment')(x) || hasText('add commodity')(x));
+    _$$(anchor, 'button').find(
+      x =>
+        isText(L.TemplateSelection.action.addShipment())(x) ||
+        isText(L.TemplateSelection.action.addCommodity())(x),
+    );
 
   for (let i = 0; i < materials.length; i++) {
     const material = materials[i];
@@ -347,7 +355,10 @@ export async function applyTemplate(
 
   setStatus('Applying template...');
 
-  const applyBtn = await pollUntil(() => findButton(anchor, 'apply template'), 5000);
+  const applyBtn = await pollUntil(
+    () => findButton(anchor, L.TemplateSelection.action.template()),
+    5000,
+  );
   assert(applyBtn, 'Could not find "Apply Template" button');
   assert(!applyBtn.classList.contains(C.Button.disabled), 'Template form is invalid');
 
@@ -376,7 +387,7 @@ export async function saveConditions(
   setStatus('Saving conditions...');
 
   const before = contractDraftsStore.getByNaturalId(draftId);
-  const condSaveBtn = _$$(anchor, C.Button.btn).findLast(hasText('save'));
+  const condSaveBtn = _$$(anchor, C.Button.btn).findLast(isText(L.ContractDraftSend.action.save()));
   assert(
     condSaveBtn !== undefined && !condSaveBtn.classList.contains(C.Button.disabled),
     'Conditions save button is missing or disabled',

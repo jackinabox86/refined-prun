@@ -39,10 +39,12 @@ function onFleetTileReady(tile: PrunTile) {
           return;
         }
         const button = target.closest('button');
+        const unloadLabel = L.ships.action.unload()?.trim().toLowerCase();
         if (
           button === null ||
           !buttons.contains(button) ||
-          button.textContent?.trim().toLowerCase() !== 'unload'
+          unloadLabel === undefined ||
+          button.textContent?.trim().toLowerCase() !== unloadLabel
         ) {
           return;
         }
@@ -61,7 +63,8 @@ function onShipInventoryTileReady(tile: PrunTile) {
     button.addEventListener(
       'click',
       e => {
-        if (button.textContent?.trim().toLowerCase() !== 'unload') {
+        const unloadLabel = L.Ships.action.unload()?.trim().toLowerCase();
+        if (unloadLabel === undefined || button.textContent?.trim().toLowerCase() !== unloadLabel) {
           return;
         }
         const ship = shipsStore.getByRegistration(tile.parameter);
