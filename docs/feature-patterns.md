@@ -908,6 +908,14 @@ whatever exchange is current, linking to that CX warehouse when the player has o
 (`linkedMtraOrigin` in `actions/mtra/cx-buy-origin.ts`); otherwise the usual
 first-storage autofill stands.
 
+`XIT BURNACT`, `XIT REPAIRACT`, and `XIT GOVBURNEXEC` share one per-base auto-SFC
+flag in `settings.planetAutoSfc[planetNaturalId]`. They did not already share a
+per-base settings record (burn / repair / govburn each have their own maps), so
+this is a new shared field, not a key on `settings.burn`. Missing means on —
+current auto-SFC behavior. An explicit `false` is sticky for that base only and
+stops `OPEN_SFC`. The toggle sits below MTRA's "To" row and does not appear in
+`DISPATCHACT` or generic `XIT ACT`.
+
 ### Comparators in a Primary/Secondary Sort Chain
 
 A comparator that a chain calls for the primary key must return `0` on a tie. Folding a
