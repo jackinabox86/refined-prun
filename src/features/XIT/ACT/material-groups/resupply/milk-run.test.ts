@@ -192,7 +192,7 @@ describe('planMilkRun', () => {
         bill: { RAT: Math.max(0, Math.ceil(days * 2 + 1)) },
         dailyAmount: { RAT: -2 },
       });
-      return plan([source, consumer], cargo(40)).fits;
+      return plan([source, consumer], cargo(30)).fits;
     }
 
     const fitted = maxFittingDays(fits);
@@ -233,16 +233,18 @@ describe('planMilkRun', () => {
     expect(takeableAmount(source, 'FE')).toBe(49);
     expect(plan([source, consumer]).sourced).toEqual({});
 
-    // Old walk loaded only sourcing transfers (none here): after A = 15-5+0 = 10, fits at 40.
-    // New walk loads takeable FE 49: after A = 59, 19 over.
-    const overflow = plan([source, consumer], cargo(40));
-    expect(overflow.fits).toBe(false);
-    expect(overflow.firstOverflow?.stopId).toBe('A');
-    expect(overflow.firstOverflow?.weightOver).toBe(19);
-    expect(overflow.firstOverflow?.volumeOver).toBe(19);
+    // Planned walk loads only sourcing transfers (none here): after A = 10, fits.
+    // Surplus walk loads takeable FE 49: after A = 59, 19 over — warn, do not block.
+    const warned = plan([source, consumer], cargo(40));
+    expect(warned.fits).toBe(true);
+    expect(warned.overflows).toEqual([]);
+    expect(warned.surplusOverflows[0]?.stopId).toBe('A');
+    expect(warned.surplusOverflows[0]?.weightOver).toBe(19);
+    expect(warned.surplusOverflows[0]?.volumeOver).toBe(19);
 
     const stillFits = plan([source, consumer], cargo(80));
     expect(stillFits.fits).toBe(true);
     expect(stillFits.overflows).toEqual([]);
+    expect(stillFits.surplusOverflows).toEqual([]);
   });
 });

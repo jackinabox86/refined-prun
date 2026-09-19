@@ -51,6 +51,8 @@ export interface MilkRunResult {
   pickupsByStop: Map<string, Record<string, number>>;
   firstOverflow?: PeakOverflow;
   overflows: PeakOverflow[];
+  // Advisory only — leftover takeable surplus that the ACT plan never loads.
+  surplusOverflows: PeakOverflow[];
   fits: boolean;
 }
 
@@ -212,11 +214,15 @@ export function planMilkRun(input: MilkRunInput): MilkRunResult {
   }
   cxBill = subtractMaterials(cxBill, sourced);
 
-  let weightLoad = input.cargo.weightLoad + totalsOf(cxBill, input.sizeOf).weight;
-  let volumeLoad = input.cargo.volumeLoad + totalsOf(cxBill, input.sizeOf).volume;
+  const departureTotals = totalsOf(cxBill, input.sizeOf);
+  let plannedWeight = input.cargo.weightLoad + departureTotals.weight;
+  let plannedVolume = input.cargo.volumeLoad + departureTotals.volume;
+  let surplusWeight = plannedWeight;
+  let surplusVolume = plannedVolume;
 
   const overflows: PeakOverflow[] = [];
-  const departure = checkLoad(input.cargo, weightLoad, volumeLoad, undefined);
+  const surplusOverflows: PeakOverflow[] = [];
+  const departure = checkLoad(input.cargo, plannedWeight, plannedVolume, undefined);
   if (departure) {
     overflows.push(departure);
   }
@@ -224,16 +230,25 @@ export function planMilkRun(input: MilkRunInput): MilkRunResult {
   const outputs = outputByStop(input.stops);
   for (const stop of input.stops) {
     const unloaded = totalsOf(stop.bill, input.sizeOf);
-    weightLoad -= unloaded.weight;
-    volumeLoad -= unloaded.volume;
-    // Full takeable surplus, not only sourcing transfers — output nothing
-    // downstream bills for still occupies the hold for the rest of the route.
-    const loaded = totalsOf(outputs.get(stop.id) ?? {}, input.sizeOf);
-    weightLoad += loaded.weight;
-    volumeLoad += loaded.volume;
-    const peak = checkLoad(input.cargo, weightLoad, volumeLoad, stop.id);
-    if (peak) {
-      overflows.push(peak);
+    plannedWeight -= unloaded.weight;
+    plannedVolume -= unloaded.volume;
+    surplusWeight -= unloaded.weight;
+    surplusVolume -= unloaded.volume;
+
+    const plannedLoad = totalsOf(pickupsByStop.get(stop.id) ?? {}, input.sizeOf);
+    plannedWeight += plannedLoad.weight;
+    plannedVolume += plannedLoad.volume;
+    const plannedPeak = checkLoad(input.cargo, plannedWeight, plannedVolume, stop.id);
+    if (plannedPeak) {
+      overflows.push(plannedPeak);
+    }
+
+    const surplusLoad = totalsOf(outputs.get(stop.id) ?? {}, input.sizeOf);
+    surplusWeight += surplusLoad.weight;
+    surplusVolume += surplusLoad.volume;
+    const surplusPeak = checkLoad(input.cargo, surplusWeight, surplusVolume, stop.id);
+    if (surplusPeak) {
+      surplusOverflows.push(surplusPeak);
     }
   }
 
@@ -244,6 +259,7 @@ export function planMilkRun(input: MilkRunInput): MilkRunResult {
     pickupsByStop,
     firstOverflow: overflows[0],
     overflows,
+    surplusOverflows,
     fits: overflows.length === 0,
   };
 }

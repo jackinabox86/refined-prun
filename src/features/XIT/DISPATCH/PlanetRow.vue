@@ -16,17 +16,29 @@ import { fixed0 } from '@src/utils/format';
 import type { MaterialFilter } from '@src/features/XIT/ACT/material-groups/resupply/config';
 import { DispatchBaseConfig, billTotals } from '@src/features/XIT/DISPATCH/utils';
 
-const { siteId, naturalId, planetName, config, overloaded, peakOverflow, overflowTooltip, bill } =
-  defineProps<{
-    siteId: string;
-    naturalId: string;
-    planetName: string;
-    config: DispatchBaseConfig;
-    overloaded: boolean;
-    peakOverflow: boolean;
-    overflowTooltip?: string;
-    bill?: Record<string, number>;
-  }>();
+const {
+  siteId,
+  naturalId,
+  planetName,
+  config,
+  overloaded,
+  peakOverflow,
+  overflowTooltip,
+  overflowWeight,
+  overflowVolume,
+  bill,
+} = defineProps<{
+  siteId: string;
+  naturalId: string;
+  planetName: string;
+  config: DispatchBaseConfig;
+  overloaded: boolean;
+  peakOverflow: boolean;
+  overflowTooltip?: string;
+  overflowWeight?: number;
+  overflowVolume?: number;
+  bill?: Record<string, number>;
+}>();
 
 const emit = defineEmits<{
   fit: [];
@@ -74,7 +86,11 @@ const loadText = computed(() => {
     const totals = billTotals(bill);
     text = `${fixed0(totals.weight)}t - ${fixed0(totals.volume)}m³`;
   }
-  return peakOverflow ? `${text} *` : text;
+  if (!peakOverflow) {
+    return text;
+  }
+  const overage = `+${fixed0(overflowWeight ?? 0)}t - ${fixed0(overflowVolume ?? 0)}m³`;
+  return `${text} ${overage} *`;
 });
 
 const assignedShip = computed(() => (config.ship ? shipsStore.getById(config.ship) : undefined));

@@ -351,17 +351,29 @@ const overloadedShips = computed(() => {
   return result;
 });
 
+interface StopOverflow {
+  tooltip: string;
+  weightOver: number;
+  volumeOver: number;
+}
+
 const overflowByStop = computed(() => {
-  const map = new Map<string, string>();
+  const map = new Map<string, StopOverflow>();
   for (const [shipId, plan] of milkRunByShip.value) {
     const entry = cxShipById.value.get(shipId);
     const shipLabel = entry?.ship.name ?? entry?.ship.registration ?? 'Ship';
-    for (const overflow of plan.overflows) {
+    // Surplus last so an advisory overage overwrites a planned one at the same
+    // stop — surplus load is always >= planned, so the cell shows the larger figure.
+    for (const overflow of [...plan.overflows, ...plan.surplusOverflows]) {
       if (!overflow.stopId) {
         continue;
       }
       const stopLabel = rowById.value.get(overflow.stopId)?.base.planetName ?? overflow.stopId;
-      map.set(overflow.stopId, formatMilkRunOverflow(overflow, shipLabel, stopLabel));
+      map.set(overflow.stopId, {
+        tooltip: formatMilkRunOverflow(overflow, shipLabel, stopLabel),
+        weightOver: overflow.weightOver,
+        volumeOver: overflow.volumeOver,
+      });
     }
   }
   return map;
@@ -730,7 +742,9 @@ function reset() {
                 !!rowById.get(id)!.config.ship && overloadedShips.has(rowById.get(id)!.config.ship!)
               "
               :peak-overflow="overflowByStop.has(id)"
-              :overflow-tooltip="overflowByStop.get(id)"
+              :overflow-tooltip="overflowByStop.get(id)?.tooltip"
+              :overflow-weight="overflowByStop.get(id)?.weightOver"
+              :overflow-volume="overflowByStop.get(id)?.volumeOver"
               @fit="fitBase(rowById.get(id)!.base.naturalId)" />
           </tbody>
         </table>
