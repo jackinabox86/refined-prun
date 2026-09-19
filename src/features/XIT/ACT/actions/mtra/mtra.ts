@@ -9,6 +9,7 @@ import { OPEN_SFC } from '@src/features/XIT/ACT/action-steps/OPEN_SFC';
 import { OPEN_BRA } from '@src/features/XIT/ACT/action-steps/OPEN_BRA';
 import { atSameLocation, deserializeStorage } from '@src/features/XIT/ACT/actions/utils';
 import { Config, CX_BUY_ONLY_DEST } from '@src/features/XIT/ACT/actions/mtra/config';
+import { shouldEmitAutoSfc } from '@src/features/XIT/ACT/actions/mtra/auto-sfc';
 import { AssertFn, configurableValue } from '@src/features/XIT/ACT/shared-types';
 import { generateAgentIds } from '@src/features/XIT/ACT/agent-sync';
 import { getPlanetName } from '@src/core/planet-name';
@@ -49,13 +50,6 @@ act.addAction<Config>({
     const { data, config, packageName, log, getMaterialGroup, getMaterialGroupPlanet, emitStep } =
       ctx;
     const assert: AssertFn = ctx.assert;
-
-    const PRUNPLANNER_PACKAGES = [
-      'PRUNplanner Supply Cart',
-      'PRUNplanner Construct',
-      'PRUNplanner Transfer',
-      'PRUNplanner Burn Supply',
-    ];
 
     // Assert-narrowed locals (rebound so nested helpers keep the non-undefined type).
     const materialsMaybe = await getMaterialGroup(data.group);
@@ -150,7 +144,7 @@ act.addAction<Config>({
 
       if (dest.type === 'SHIP_STORE') {
         const needsPrint = !!data.printOffloadJson;
-        const needsSfc = !data.noSfc && !PRUNPLANNER_PACKAGES.includes(packageName);
+        const needsSfc = shouldEmitAutoSfc(data, config, packageName);
 
         const buildOffloadPkg = (
           groupMaterials: Record<string, number>,
