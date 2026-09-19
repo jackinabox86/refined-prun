@@ -40,6 +40,10 @@ const originOptions = computed(() => {
   return getOptions(originStorages.value);
 });
 
+if (data.origin === configurableValue && !config.origin && originStorages.value.length > 0) {
+  config.origin = serializeStorage(originStorages.value[0]);
+}
+
 function applyLinkedOrigin(exchange: string | undefined) {
   if (data.origin !== configurableValue) {
     return false;
