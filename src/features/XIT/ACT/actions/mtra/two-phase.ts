@@ -12,12 +12,30 @@ export interface TwoPhaseMtraOptions {
   offloadGroups: string[];
   agentGroups: string[];
   repairGroups: string[];
+  pickupGroups: string[];
 }
 
 export function buildTwoPhaseMtraActions(opts: TwoPhaseMtraOptions): {
   load: UserData.ActionData;
   finish: UserData.ActionData;
 } {
+  const finish: UserData.ActionData = {
+    type: 'MTRA',
+    name: opts.finishName,
+    group: opts.group,
+    origin: opts.origin,
+    dest: opts.dest,
+    finishOnly: true,
+    sfcDestination: opts.sfcDestination,
+    ...(opts.offloadGroups.length > 0 ? { offloadGroups: opts.offloadGroups } : {}),
+    ...(opts.agentGroups.length > 0 ? { agentGroups: opts.agentGroups } : {}),
+    ...(opts.repairGroups.length > 0 ? { repairGroups: opts.repairGroups } : {}),
+  };
+  // Extra field, not on ActionData: avoided a persisted-contract edit.
+  // generateSteps reads it to hang pickups on the matching offload package.
+  if (opts.pickupGroups.length > 0) {
+    Object.assign(finish, { pickupGroups: opts.pickupGroups });
+  }
   return {
     load: {
       type: 'MTRA',
@@ -27,17 +45,6 @@ export function buildTwoPhaseMtraActions(opts: TwoPhaseMtraOptions): {
       dest: opts.dest,
       noSfc: true,
     },
-    finish: {
-      type: 'MTRA',
-      name: opts.finishName,
-      group: opts.group,
-      origin: opts.origin,
-      dest: opts.dest,
-      finishOnly: true,
-      sfcDestination: opts.sfcDestination,
-      ...(opts.offloadGroups.length > 0 ? { offloadGroups: opts.offloadGroups } : {}),
-      ...(opts.agentGroups.length > 0 ? { agentGroups: opts.agentGroups } : {}),
-      ...(opts.repairGroups.length > 0 ? { repairGroups: opts.repairGroups } : {}),
-    },
+    finish,
   };
 }

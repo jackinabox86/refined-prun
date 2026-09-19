@@ -16,14 +16,17 @@ import { fixed0 } from '@src/utils/format';
 import type { MaterialFilter } from '@src/features/XIT/ACT/material-groups/resupply/config';
 import { DispatchBaseConfig, billTotals } from '@src/features/XIT/DISPATCH/utils';
 
-const { siteId, naturalId, planetName, config, overloaded, bill } = defineProps<{
-  siteId: string;
-  naturalId: string;
-  planetName: string;
-  config: DispatchBaseConfig;
-  overloaded: boolean;
-  bill?: Record<string, number>;
-}>();
+const { siteId, naturalId, planetName, config, overloaded, peakOverflow, bill, pickup } =
+  defineProps<{
+    siteId: string;
+    naturalId: string;
+    planetName: string;
+    config: DispatchBaseConfig;
+    overloaded: boolean;
+    peakOverflow: boolean;
+    bill?: Record<string, number>;
+    pickup?: Record<string, number>;
+  }>();
 
 const emit = defineEmits<{
   fit: [];
@@ -73,6 +76,14 @@ const loadText = computed(() => {
     return '--';
   }
   const totals = billTotals(bill);
+  return `${fixed0(totals.weight)}t - ${fixed0(totals.volume)}m³`;
+});
+
+const pickupText = computed(() => {
+  if (!pickup || Object.keys(pickup).length === 0) {
+    return '--';
+  }
+  const totals = billTotals(pickup);
   return `${fixed0(totals.weight)}t - ${fixed0(totals.volume)}m³`;
 });
 
@@ -176,6 +187,14 @@ function clearShip() {
         overloaded && [C.Workforces.daysMissing, $style.loadOverloaded],
       ]">
       {{ loadText }}
+    </td>
+    <td
+      :class="[
+        C.type.typeSmall,
+        $style.loadCell,
+        peakOverflow && [C.Workforces.daysMissing, $style.loadOverloaded],
+      ]">
+      {{ pickupText }}
     </td>
     <td :class="$style.selectCell">
       <div :class="[C.forms.input, $style.selectWrap]">

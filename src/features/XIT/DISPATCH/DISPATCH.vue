@@ -25,14 +25,20 @@ import { useTile } from '@src/hooks/use-tile';
 import {
   DispatchBaseConfig,
   DispatchShip,
-  billTotals,
   combinedBaseBill,
   fitDaysForShip,
+  formatMilkRunOverflow,
   getShipsAtCX,
   mergeBills,
+  planBasesMilkRun,
   regroupByShip,
 } from '@src/features/XIT/DISPATCH/utils';
 import { buildTwoPhaseMtraActions } from '@src/features/XIT/ACT/actions/mtra/two-phase';
+import {
+  MilkRunResult,
+  pickupGroupName,
+  subtractMaterials,
+} from '@src/features/XIT/ACT/material-groups/resupply/milk-run';
 
 interface BaseEntry {
   siteId: string;
@@ -289,35 +295,79 @@ const cxShipById = computed(() => {
   return map;
 });
 
-// Ships whose assigned bases' combined bills exceed free cargo capacity.
-const overloadedShips = computed(() => {
-  const totals = new Map<string, { weight: number; volume: number }>();
-  for (const { base, config } of rows.value) {
+// Per-ship milk-run plan (sourcing + route peak). Shared by the row display,
+// the overload warning, and execute().
+const milkRunByShip = computed(() => {
+  const byShip = new Map<
+    string,
+    { naturalId: string; site: PrunApi.Site; days: number; bill: Record<string, number> }[]
+  >();
+  for (const id of orderedIds.value) {
+    const row = rowById.value.get(id);
+    if (!row) {
+      continue;
+    }
+    const { base, config } = row;
     if (!config.ship || (!config.resupply && !config.repair)) {
       continue;
     }
     const bill = billByBase.value.get(base.naturalId);
-    if (!bill) {
+    if (!bill || Object.keys(bill).length === 0) {
       continue;
     }
-    const billT = billTotals(bill);
-    const acc = totals.get(config.ship) ?? { weight: 0, volume: 0 };
-    acc.weight += billT.weight;
-    acc.volume += billT.volume;
-    totals.set(config.ship, acc);
+    let list = byShip.get(config.ship);
+    if (!list) {
+      list = [];
+      byShip.set(config.ship, list);
+    }
+    list.push({
+      naturalId: base.naturalId,
+      site: base.site,
+      days: config.days,
+      bill,
+    });
   }
-  const result = new Set<string>();
-  for (const [shipId, t] of totals) {
+  const map = new Map<string, MilkRunResult>();
+  for (const [shipId, bases] of byShip) {
     const store = cxShipById.value.get(shipId)?.cargoStore;
     if (!store) {
       continue;
     }
-    // Free capacity net of whatever is already in the cargo hold, matching FIT.
-    if (
-      t.weight > store.weightCapacity - store.weightLoad ||
-      t.volume > store.volumeCapacity - store.volumeLoad
-    ) {
+    const plan = planBasesMilkRun(bases, store);
+    if (plan) {
+      map.set(shipId, plan);
+    }
+  }
+  return map;
+});
+
+const overloadedShips = computed(() => {
+  const result = new Set<string>();
+  for (const [shipId, plan] of milkRunByShip.value) {
+    if (!plan.fits) {
       result.add(shipId);
+    }
+  }
+  return result;
+});
+
+const pickupsByStop = computed(() => {
+  const map = new Map<string, Record<string, number>>();
+  for (const plan of milkRunByShip.value.values()) {
+    for (const [id, pickup] of plan.pickupsByStop) {
+      if (Object.keys(pickup).length > 0) {
+        map.set(id, pickup);
+      }
+    }
+  }
+  return map;
+});
+
+const overflowStopIds = computed(() => {
+  const result = new Set<string>();
+  for (const plan of milkRunByShip.value.values()) {
+    if (plan.firstOverflow?.stopId) {
+      result.add(plan.firstOverflow.stopId);
     }
   }
   return result;
@@ -341,10 +391,21 @@ const executeTooltip = computed(() => {
   if (!hasAssignedShip.value) {
     return 'Assign a ship to at least one base first';
   }
-  if (overloadedShips.value.size > 0) {
-    return 'A ship is loaded above its capacity';
+  if (overloadedShips.value.size === 0) {
+    return undefined;
   }
-  return undefined;
+  const parts: string[] = [];
+  for (const [shipId, plan] of milkRunByShip.value) {
+    if (!plan.firstOverflow) {
+      continue;
+    }
+    const entry = cxShipById.value.get(shipId);
+    const shipLabel = entry?.ship.name ?? entry?.ship.registration ?? 'Ship';
+    const stopId = plan.firstOverflow.stopId;
+    const stopLabel = stopId ? (rowById.value.get(stopId)?.base.planetName ?? stopId) : undefined;
+    parts.push(formatMilkRunOverflow(plan.firstOverflow, shipLabel, stopLabel));
+  }
+  return parts.join('; ') || 'A ship is loaded above its capacity';
 });
 
 interface IncludedBase {
@@ -392,11 +453,10 @@ function fitBase(naturalId: string) {
     return;
   }
 
-  const sharingBases = rows.value.map(x => ({
-    naturalId: x.base.naturalId,
-    config: x.config!,
-    site: x.base.site,
-  }));
+  const sharingBases = orderedIds.value.flatMap(id => {
+    const row = rowById.value.get(id);
+    return row ? [{ naturalId: row.base.naturalId, config: row.config, site: row.base.site }] : [];
+  });
 
   const days = fitDaysForShip(config.ship, sharingBases, dispatchShip.cargoStore);
   if (days === undefined) {
@@ -501,6 +561,36 @@ function execute() {
       materials = mergeBills(materials, group?.materials);
     }
 
+    const pickupSourceNames: string[] = [];
+    const plan = milkRunByShip.value.get(first.config.ship!);
+    if (plan) {
+      materials = subtractMaterials(materials ?? {}, plan.sourced);
+      for (const base of shipBases) {
+        const pickup = plan.pickupsByStop.get(base.naturalId);
+        if (!pickup || Object.keys(pickup).length === 0) {
+          continue;
+        }
+        const sourceName = groupNameOf(base);
+        groups.push({
+          type: 'Manual',
+          name: pickupGroupName(sourceName),
+          materials: pickup,
+        });
+        pickupSourceNames.push(sourceName);
+      }
+      for (const [consumerId, sourced] of plan.sourcedByConsumer) {
+        const consumer = shipBases.find(x => x.naturalId === consumerId);
+        if (!consumer?.config.cxBuy) {
+          continue;
+        }
+        const code = consumer.dispatchShip.exchangeCode;
+        const buy = exchangeBills.get(code);
+        if (buy) {
+          exchangeBills.set(code, subtractMaterials(buy, sourced));
+        }
+      }
+    }
+
     groups.push({
       type: 'Manual',
       name: loadName,
@@ -522,6 +612,7 @@ function execute() {
       offloadGroups,
       agentGroups,
       repairGroups,
+      pickupGroups: pickupSourceNames,
     });
     mtraActions.push(load);
     finishActions.push(finish);
@@ -622,6 +713,7 @@ function reset() {
               <th :class="[$style.narrowCol, $style.centered]" colspan="2">Burn</th>
               <th :class="[$style.narrowCol, $style.centered]" colspan="2">Rep</th>
               <th :class="[$style.narrowCol, $style.centered]">Load</th>
+              <th :class="[$style.narrowCol, $style.centered]">Pickup</th>
               <th :class="[$style.narrowCol, $style.centered]">Materials</th>
               <th :class="[$style.narrowCol, $style.centered]">Fit</th>
               <th :class="[$style.narrowCol, $style.centered]">Days</th>
@@ -641,9 +733,11 @@ function reset() {
               :planet-name="rowById.get(id)!.base.planetName"
               :config="rowById.get(id)!.config"
               :bill="billByBase.get(id)"
+              :pickup="pickupsByStop.get(id)"
               :overloaded="
                 !!rowById.get(id)!.config.ship && overloadedShips.has(rowById.get(id)!.config.ship!)
               "
+              :peak-overflow="overflowStopIds.has(id)"
               @fit="fitBase(rowById.get(id)!.base.naturalId)" />
           </tbody>
         </table>
