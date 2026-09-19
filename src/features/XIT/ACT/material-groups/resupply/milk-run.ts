@@ -51,8 +51,6 @@ export interface MilkRunResult {
   pickupsByStop: Map<string, Record<string, number>>;
   firstOverflow?: PeakOverflow;
   overflows: PeakOverflow[];
-  // Advisory only — leftover takeable surplus that the ACT plan never loads.
-  surplusOverflows: PeakOverflow[];
   fits: boolean;
 }
 
@@ -109,6 +107,11 @@ function outputByStop(stops: MilkRunStop[]) {
   for (const stop of stops) {
     const output: Record<string, number> = {};
     for (const ticker of Object.keys(stop.storeQty)) {
+      // Peak-load output is net production only. Parked stock still sources
+      // transfers via takeableAmount; it just does not ride along as output.
+      if ((stop.dailyAmount[ticker] ?? 0) <= 0) {
+        continue;
+      }
       const takeable = takeableAmount(stop, ticker);
       if (takeable > 0) {
         output[ticker] = takeable;
@@ -117,6 +120,17 @@ function outputByStop(stops: MilkRunStop[]) {
     map.set(stop.id, output);
   }
   return map;
+}
+
+function maxMaterials(a: Record<string, number>, b: Record<string, number>) {
+  const result: Record<string, number> = {};
+  for (const ticker of new Set([...Object.keys(a), ...Object.keys(b)])) {
+    const amount = Math.max(a[ticker] ?? 0, b[ticker] ?? 0);
+    if (amount > 0) {
+      result[ticker] = amount;
+    }
+  }
+  return result;
 }
 
 function totalsOf(
@@ -215,14 +229,11 @@ export function planMilkRun(input: MilkRunInput): MilkRunResult {
   cxBill = subtractMaterials(cxBill, sourced);
 
   const departureTotals = totalsOf(cxBill, input.sizeOf);
-  let plannedWeight = input.cargo.weightLoad + departureTotals.weight;
-  let plannedVolume = input.cargo.volumeLoad + departureTotals.volume;
-  let surplusWeight = plannedWeight;
-  let surplusVolume = plannedVolume;
+  let weightLoad = input.cargo.weightLoad + departureTotals.weight;
+  let volumeLoad = input.cargo.volumeLoad + departureTotals.volume;
 
   const overflows: PeakOverflow[] = [];
-  const surplusOverflows: PeakOverflow[] = [];
-  const departure = checkLoad(input.cargo, plannedWeight, plannedVolume, undefined);
+  const departure = checkLoad(input.cargo, weightLoad, volumeLoad, undefined);
   if (departure) {
     overflows.push(departure);
   }
@@ -230,25 +241,19 @@ export function planMilkRun(input: MilkRunInput): MilkRunResult {
   const outputs = outputByStop(input.stops);
   for (const stop of input.stops) {
     const unloaded = totalsOf(stop.bill, input.sizeOf);
-    plannedWeight -= unloaded.weight;
-    plannedVolume -= unloaded.volume;
-    surplusWeight -= unloaded.weight;
-    surplusVolume -= unloaded.volume;
-
-    const plannedLoad = totalsOf(pickupsByStop.get(stop.id) ?? {}, input.sizeOf);
-    plannedWeight += plannedLoad.weight;
-    plannedVolume += plannedLoad.volume;
-    const plannedPeak = checkLoad(input.cargo, plannedWeight, plannedVolume, stop.id);
-    if (plannedPeak) {
-      overflows.push(plannedPeak);
-    }
-
-    const surplusLoad = totalsOf(outputs.get(stop.id) ?? {}, input.sizeOf);
-    surplusWeight += surplusLoad.weight;
-    surplusVolume += surplusLoad.volume;
-    const surplusPeak = checkLoad(input.cargo, surplusWeight, surplusVolume, stop.id);
-    if (surplusPeak) {
-      surplusOverflows.push(surplusPeak);
+    weightLoad -= unloaded.weight;
+    volumeLoad -= unloaded.volume;
+    // Output is no longer a superset of pickups — a transfer can move parked
+    // stock the source does not produce. Take the per-ticker max so both ride.
+    const loaded = totalsOf(
+      maxMaterials(outputs.get(stop.id) ?? {}, pickupsByStop.get(stop.id) ?? {}),
+      input.sizeOf,
+    );
+    weightLoad += loaded.weight;
+    volumeLoad += loaded.volume;
+    const peak = checkLoad(input.cargo, weightLoad, volumeLoad, stop.id);
+    if (peak) {
+      overflows.push(peak);
     }
   }
 
@@ -259,7 +264,6 @@ export function planMilkRun(input: MilkRunInput): MilkRunResult {
     pickupsByStop,
     firstOverflow: overflows[0],
     overflows,
-    surplusOverflows,
     fits: overflows.length === 0,
   };
 }

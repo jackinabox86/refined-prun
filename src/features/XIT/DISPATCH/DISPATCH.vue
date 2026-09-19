@@ -28,7 +28,6 @@ import {
   combinedBaseBill,
   fitDaysForShip,
   formatMilkRunOverflow,
-  formatMilkRunSurplus,
   getShipsAtCX,
   mergeBills,
   planBasesMilkRun,
@@ -363,27 +362,13 @@ const overflowByStop = computed(() => {
   for (const [shipId, plan] of milkRunByShip.value) {
     const entry = cxShipById.value.get(shipId);
     const shipLabel = entry?.ship.name ?? entry?.ship.registration ?? 'Ship';
-    const stopLabelOf = (stopId: string) => rowById.value.get(stopId)?.base.planetName ?? stopId;
-    // Surplus first, planned last. Surplus load is always >= planned, so a planned
-    // per-stop overflow always has a larger surplus one at the same stop — but the
-    // planned figure is the actionable one: it is what has to come off before
-    // EXECUTE re-enables. Showing the surplus number there would overstate the fix.
-    for (const overflow of plan.surplusOverflows) {
-      if (!overflow.stopId) {
-        continue;
-      }
-      map.set(overflow.stopId, {
-        tooltip: formatMilkRunSurplus(overflow, shipLabel, stopLabelOf(overflow.stopId)),
-        weightOver: overflow.weightOver,
-        volumeOver: overflow.volumeOver,
-      });
-    }
     for (const overflow of plan.overflows) {
       if (!overflow.stopId) {
         continue;
       }
+      const stopLabel = rowById.value.get(overflow.stopId)?.base.planetName ?? overflow.stopId;
       map.set(overflow.stopId, {
-        tooltip: formatMilkRunOverflow(overflow, shipLabel, stopLabelOf(overflow.stopId)),
+        tooltip: formatMilkRunOverflow(overflow, shipLabel, stopLabel),
         weightOver: overflow.weightOver,
         volumeOver: overflow.volumeOver,
       });
@@ -751,9 +736,6 @@ function reset() {
               :planet-name="rowById.get(id)!.base.planetName"
               :config="rowById.get(id)!.config"
               :bill="billByBase.get(id)"
-              :overloaded="
-                !!rowById.get(id)!.config.ship && overloadedShips.has(rowById.get(id)!.config.ship!)
-              "
               :peak-overflow="overflowByStop.has(id)"
               :overflow-tooltip="overflowByStop.get(id)?.tooltip"
               :overflow-weight="overflowByStop.get(id)?.weightOver"

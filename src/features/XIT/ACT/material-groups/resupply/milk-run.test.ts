@@ -192,7 +192,9 @@ describe('planMilkRun', () => {
         bill: { RAT: Math.max(0, Math.ceil(days * 2 + 1)) },
         dailyAmount: { RAT: -2 },
       });
-      return plan([source, consumer], cargo(30)).fits;
+      // Produced RAT takeable is 39 at every day count, so capacity must clear
+      // that constant output or the predicate is false for every horizon.
+      return plan([source, consumer], cargo(40)).fits;
     }
 
     const fitted = maxFittingDays(fits);
@@ -233,26 +235,19 @@ describe('planMilkRun', () => {
     expect(takeableAmount(source, 'FE')).toBe(49);
     expect(plan([source, consumer]).sourced).toEqual({});
 
-    // Planned walk loads only sourcing transfers (none here): after A = 10, fits.
-    // Surplus walk loads takeable FE 49: after A = 59, 19 over — warn, do not block.
-    const warned = plan([source, consumer], cargo(40));
-    expect(warned.fits).toBe(true);
-    expect(warned.overflows).toEqual([]);
-    expect(warned.surplusOverflows[0]?.stopId).toBe('A');
-    expect(warned.surplusOverflows[0]?.weightOver).toBe(19);
-    expect(warned.surplusOverflows[0]?.volumeOver).toBe(19);
+    // Produced FE 49 rides after A: 15 - 5 + 49 = 59, 19 over at 40. Blocks.
+    const overflow = plan([source, consumer], cargo(40));
+    expect(overflow.fits).toBe(false);
+    expect(overflow.firstOverflow?.stopId).toBe('A');
+    expect(overflow.firstOverflow?.weightOver).toBe(19);
+    expect(overflow.firstOverflow?.volumeOver).toBe(19);
 
     const stillFits = plan([source, consumer], cargo(80));
     expect(stillFits.fits).toBe(true);
     expect(stillFits.overflows).toEqual([]);
-    expect(stillFits.surplusOverflows).toEqual([]);
   });
 
-  it('never under-reports a stop that already overflows on planned load', () => {
-    // Surplus load is the planned load plus the untaken remainder, so the advisory
-    // walk always carries a larger overage at such a stop. DISPATCH still shows the
-    // planned figure there: that is the amount the user has to shed before EXECUTE
-    // re-enables, and the surplus figure would overstate it.
+  it('ignores parked stock as output but still loads a sourcing transfer of it', () => {
     const source = stop({
       id: 'A',
       days: 10,
@@ -261,14 +256,16 @@ describe('planMilkRun', () => {
       dailyAmount: { B: 0, FE: 0 },
     });
     const consumer = stop({ id: 'B', days: 10, bill: { B: 60 } });
+
+    expect(takeableAmount(source, 'B')).toBe(49);
+    expect(takeableAmount(source, 'FE')).toBe(199);
+
     const result = plan([source, consumer], cargo(50));
-
     expect(result.sourced).toEqual({ B: 49 });
-    expect(result.overflows).toHaveLength(1);
-    expect(result.overflows[0]!.stopId).toBe('A');
-    expect(result.overflows[0]!.weightOver).toBe(10);
-
-    const surplusAtA = result.surplusOverflows.find(x => x.stopId === 'A');
-    expect(surplusAtA?.weightOver).toBeGreaterThan(result.overflows[0]!.weightOver);
+    // Parked FE does not ride. Sourced B does: after A = 11 - 0 + 49 = 60, 10 over.
+    expect(result.fits).toBe(false);
+    expect(result.firstOverflow?.stopId).toBe('A');
+    expect(result.firstOverflow?.weightOver).toBe(10);
+    expect(result.firstOverflow?.volumeOver).toBe(10);
   });
 });

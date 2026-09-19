@@ -21,7 +21,6 @@ const {
   naturalId,
   planetName,
   config,
-  overloaded,
   peakOverflow,
   overflowTooltip,
   overflowWeight,
@@ -32,7 +31,6 @@ const {
   naturalId: string;
   planetName: string;
   config: DispatchBaseConfig;
-  overloaded: boolean;
   peakOverflow: boolean;
   overflowTooltip?: string;
   overflowWeight?: number;
@@ -186,13 +184,13 @@ function clearShip() {
         <span :class="$style.statusNum">{{ repairDaysText }}</span>
       </div>
     </td>
-    <td
-      :class="[
-        C.type.typeSmall,
-        $style.loadCell,
-        (overloaded || peakOverflow) && [C.Workforces.daysMissing, $style.loadOverloaded],
-      ]">
-      <span :data-tooltip="overflowTooltip" data-tooltip-position="top">{{ loadText }}</span>
+    <td :class="[C.type.typeSmall, $style.loadCell]">
+      <div
+        :class="[$style.loadBox, peakOverflow && C.Workforces.daysMissing]"
+        :data-tooltip="overflowTooltip"
+        data-tooltip-position="top">
+        {{ loadText }}
+      </div>
     </td>
     <td :class="$style.selectCell">
       <div :class="[C.forms.input, $style.selectWrap]">
@@ -286,8 +284,13 @@ function clearShip() {
   color: #f7a600;
 }
 
-.loadOverloaded {
-  color: inherit;
+.loadBox {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 18px;
+  box-sizing: border-box;
+  padding: 2px 4px;
 }
 
 .shipCell {
