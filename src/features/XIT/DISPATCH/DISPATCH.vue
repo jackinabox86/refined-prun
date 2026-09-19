@@ -28,6 +28,7 @@ import {
   combinedBaseBill,
   fitDaysForShip,
   formatMilkRunOverflow,
+  formatMilkRunSurplus,
   getShipsAtCX,
   mergeBills,
   planBasesMilkRun,
@@ -362,15 +363,27 @@ const overflowByStop = computed(() => {
   for (const [shipId, plan] of milkRunByShip.value) {
     const entry = cxShipById.value.get(shipId);
     const shipLabel = entry?.ship.name ?? entry?.ship.registration ?? 'Ship';
-    // Surplus last so an advisory overage overwrites a planned one at the same
-    // stop — surplus load is always >= planned, so the cell shows the larger figure.
-    for (const overflow of [...plan.overflows, ...plan.surplusOverflows]) {
+    const stopLabelOf = (stopId: string) => rowById.value.get(stopId)?.base.planetName ?? stopId;
+    // Surplus first, planned last. Surplus load is always >= planned, so a planned
+    // per-stop overflow always has a larger surplus one at the same stop — but the
+    // planned figure is the actionable one: it is what has to come off before
+    // EXECUTE re-enables. Showing the surplus number there would overstate the fix.
+    for (const overflow of plan.surplusOverflows) {
       if (!overflow.stopId) {
         continue;
       }
-      const stopLabel = rowById.value.get(overflow.stopId)?.base.planetName ?? overflow.stopId;
       map.set(overflow.stopId, {
-        tooltip: formatMilkRunOverflow(overflow, shipLabel, stopLabel),
+        tooltip: formatMilkRunSurplus(overflow, shipLabel, stopLabelOf(overflow.stopId)),
+        weightOver: overflow.weightOver,
+        volumeOver: overflow.volumeOver,
+      });
+    }
+    for (const overflow of plan.overflows) {
+      if (!overflow.stopId) {
+        continue;
+      }
+      map.set(overflow.stopId, {
+        tooltip: formatMilkRunOverflow(overflow, shipLabel, stopLabelOf(overflow.stopId)),
         weightOver: overflow.weightOver,
         volumeOver: overflow.volumeOver,
       });

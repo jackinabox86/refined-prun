@@ -247,4 +247,28 @@ describe('planMilkRun', () => {
     expect(stillFits.overflows).toEqual([]);
     expect(stillFits.surplusOverflows).toEqual([]);
   });
+
+  it('never under-reports a stop that already overflows on planned load', () => {
+    // Surplus load is the planned load plus the untaken remainder, so the advisory
+    // walk always carries a larger overage at such a stop. DISPATCH still shows the
+    // planned figure there: that is the amount the user has to shed before EXECUTE
+    // re-enables, and the surplus figure would overstate it.
+    const source = stop({
+      id: 'A',
+      days: 10,
+      bill: {},
+      storeQty: { B: 50, FE: 200 },
+      dailyAmount: { B: 0, FE: 0 },
+    });
+    const consumer = stop({ id: 'B', days: 10, bill: { B: 60 } });
+    const result = plan([source, consumer], cargo(50));
+
+    expect(result.sourced).toEqual({ B: 49 });
+    expect(result.overflows).toHaveLength(1);
+    expect(result.overflows[0]!.stopId).toBe('A');
+    expect(result.overflows[0]!.weightOver).toBe(10);
+
+    const surplusAtA = result.surplusOverflows.find(x => x.stopId === 'A');
+    expect(surplusAtA?.weightOver).toBeGreaterThan(result.overflows[0]!.weightOver);
+  });
 });

@@ -270,6 +270,17 @@ export function formatMilkRunOverflow(
   return `${shipLabel} overloaded after ${stopLabel ?? overflow.stopId} (${over})`;
 }
 
+// The surplus walk counts stock the dispatch plan never loads, so a surplus-only
+// overage must not read as "this route is overloaded" — EXECUTE stays enabled for it.
+export function formatMilkRunSurplus(
+  overflow: { weightOver: number; volumeOver: number },
+  shipLabel: string,
+  stopLabel: string,
+) {
+  const over = `${fixed0(overflow.weightOver)}t / ${fixed0(overflow.volumeOver)}m³ over`;
+  return `${shipLabel} would be ${over} after ${stopLabel} if ${stopLabel}'s spare output rides along. The dispatch plan does not load it.`;
+}
+
 export function fitDaysForShip(
   shipId: string,
   bases: { naturalId: string; config: DispatchBaseConfig; site: PrunApi.Site }[],
