@@ -28,7 +28,7 @@ act.addAction<Config>({
   isValidConfig: (data, config) =>
     !!(data.skippable && config.skip) ||
     data.exchange !== configurableValue ||
-    config.exchange !== undefined,
+    (config.exchange !== undefined && config.exchange !== ''),
   generateSteps: async ctx => {
     const { data, config, state, log, getMaterialGroup, getMaterialGroupPrices, emitStep } = ctx;
 

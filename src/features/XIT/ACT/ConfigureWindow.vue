@@ -16,6 +16,19 @@ interface Block {
   data: unknown;
   config: unknown;
   shipStore?: PrunApi.Store;
+  cxBuyExchange?: string;
+}
+
+function cxBuyExchangeForGroup(group: string | undefined) {
+  const cxBuy = pkg.actions.find(a => a.type === 'CX Buy' && a.group === group);
+  if (cxBuy === undefined) {
+    return undefined;
+  }
+  if (cxBuy.exchange !== configurableValue) {
+    return cxBuy.exchange;
+  }
+  const actionConfig = config.actions[cxBuy.name!] as { exchange?: string } | undefined;
+  return actionConfig?.exchange;
 }
 
 const blocks = computed(() => {
@@ -64,6 +77,7 @@ const blocks = computed(() => {
       component: info.configureComponent,
       data: action,
       config: actionConfig,
+      cxBuyExchange: action.type === 'MTRA' ? cxBuyExchangeForGroup(action.group) : undefined,
     });
   }
   return blocks;
@@ -78,7 +92,8 @@ const blocks = computed(() => {
         :is="block.component"
         :data="block.data"
         :config="block.config"
-        :ship-store="block.shipStore" />
+        :ship-store="block.shipStore"
+        :cx-buy-exchange="block.cxBuyExchange" />
     </template>
     <slot name="extra" />
   </div>

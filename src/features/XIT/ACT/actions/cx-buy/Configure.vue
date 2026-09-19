@@ -9,7 +9,16 @@ const { data, config } = defineProps<{ data: UserData.ActionData; config: Config
 const exchanges = ['AI1', 'CI1', 'IC1', 'NC1', 'CI2', 'NC2'];
 
 config.skip ??= false;
-config.exchange ??= exchanges[0];
+if (!config.noDefaultExchange) {
+  config.exchange ??= exchanges[0];
+}
+
+const exchangeOptions = computed(() => {
+  if (config.noDefaultExchange && (config.exchange === undefined || config.exchange === '')) {
+    return [{ label: '—', value: '' }, ...exchanges];
+  }
+  return exchanges;
+});
 </script>
 
 <template>
@@ -21,7 +30,7 @@ config.exchange ??= exchanges[0];
       <RadioItem v-model="config.skip">skip cx buy</RadioItem>
     </Active>
     <Active v-if="!config.skip" label="Exchange">
-      <SelectInput v-model="config.exchange" :options="exchanges" />
+      <SelectInput v-model="config.exchange" :options="exchangeOptions" />
     </Active>
   </form>
 </template>

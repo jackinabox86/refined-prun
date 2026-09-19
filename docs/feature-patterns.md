@@ -875,10 +875,16 @@ Migrations are only for transforming a field that already has a *different* stor
 
 **That exemption stops at the top level.** `Object.assign` is a shallow merge, so a loaded
 blob's `settings` object replaces the default `settings` wholesale — every *nested* new
-field (`settings.burn.planetPickup`) reads back `undefined` for existing users no matter
-what its `initialUserData` default is. Nested fields always need a migration, and reads on
-the path should stay defensive (`settings.burn.planetPickup?.[id]`, as `getResupplyDays`
-already does for `planetResupply`) to cover data written before the migration lands.
+field (`settings.burn.planetPickup`, `settings.burn.planetCxExchange`) reads back
+`undefined` for existing users no matter what its `initialUserData` default is. Nested
+fields always need a migration, and reads on the path should stay defensive
+(`settings.burn.planetPickup?.[id]`, as `getResupplyDays` already does for
+`planetResupply`) to cover data written before the migration lands.
+
+`XIT BURNACT` stores the last chosen CX buy exchange in
+`settings.burn.planetCxExchange[planetNaturalId]`. Only a player-confirmed selection is
+written — opening a base must not invent `AI1`. When that exchange is set, MTRA "from"
+links to the matching CX warehouse (`linkedMtraOrigin` in `actions/mtra/cx-buy-origin.ts`).
 
 ### Comparators in a Primary/Secondary Sort Chain
 

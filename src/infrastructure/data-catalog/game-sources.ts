@@ -253,6 +253,7 @@ export const gameDataSources: DataSourceDescriptor[] = [
         resupply: userData.settings.burn.resupply,
         planetResupply: userData.settings.burn.planetResupply,
         planetPickup: userData.settings.burn.planetPickup,
+        planetCxExchange: userData.settings.burn.planetCxExchange,
       },
       repair: {
         threshold: userData.settings.repair.threshold,

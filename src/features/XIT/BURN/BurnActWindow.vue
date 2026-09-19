@@ -3,8 +3,16 @@ import { useXitParameters } from '@src/hooks/use-xit-parameters';
 import { useMinBufferHeight } from '@src/hooks/use-min-buffer-height';
 import ExecuteActionPackage from '@src/features/XIT/ACT/ExecuteActionPackage.vue';
 import { sitesStore } from '@src/infrastructure/prun-api/data/sites';
-import { getEntityNameFromAddress } from '@src/infrastructure/prun-api/data/addresses';
+import {
+  getEntityNameFromAddress,
+  getEntityNaturalIdFromAddress,
+} from '@src/infrastructure/prun-api/data/addresses';
 import { ActionPackageConfig, configurableValue } from '@src/features/XIT/ACT/shared-types';
+import {
+  rememberPlanetCxExchange,
+  savedPlanetCxExchange,
+} from '@src/features/XIT/BURN/cx-exchange';
+import { userData } from '@src/store/user-data';
 import { computeResupplyBill } from '@src/features/XIT/ACT/material-groups/resupply/bill';
 import type { MaterialFilter } from '@src/features/XIT/ACT/material-groups/resupply/config';
 import type { LogTag, LogContent } from '@src/features/XIT/ACT/runner/logger';
@@ -21,6 +29,33 @@ const site = computed(() => sitesStore.getByPlanetNaturalIdOrName(naturalId));
 const planetName = computed(() =>
   site.value ? getEntityNameFromAddress(site.value.address) : undefined,
 );
+const planetNaturalId = computed(() => getEntityNaturalIdFromAddress(site.value?.address));
+
+const initialConfig = computed(() => {
+  const saved = savedPlanetCxExchange(
+    userData.settings.burn.planetCxExchange,
+    planetNaturalId.value,
+  );
+  return {
+    materialGroups: {},
+    actions: {
+      'CX Buy': {
+        ...(saved !== undefined ? { exchange: saved } : {}),
+        noDefaultExchange: true,
+      },
+    },
+  } as ActionPackageConfig;
+});
+
+function persistExchange(pkgConfig: ActionPackageConfig) {
+  const id = planetNaturalId.value;
+  if (id === undefined) {
+    return;
+  }
+  const map = (userData.settings.burn.planetCxExchange ??= {});
+  const actions = pkgConfig.actions as unknown as Record<string, { exchange?: string }>;
+  rememberPlanetCxExchange(map, id, actions['CX Buy']?.exchange);
+}
 
 const agent = ref(false);
 
@@ -124,7 +159,12 @@ function afterExecute(
 
 <template>
   <div v-if="!planetName">Planet "{{ naturalId }}" not found.</div>
-  <ExecuteActionPackage v-else :pkg="pkg" :after-execute="afterExecute">
+  <ExecuteActionPackage
+    v-else
+    :pkg="pkg"
+    :initial-config="initialConfig"
+    :after-execute="afterExecute"
+    :config-applied="persistExchange">
     <template #extra>
       <Active label="Generate Return JSON">
         <RadioItem v-model="generateReturnJson">generate return json</RadioItem>
