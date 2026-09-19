@@ -6,6 +6,7 @@ import { parseFee } from './parse-fee';
 // space instead, so every space-grouping locale is probed with all three.
 const narrowNbsp = '\u202F';
 const nbsp = '\u00A0';
+const apostrophe = '\u2019';
 
 describe('parseFee', () => {
   it('returns 0 for missing or empty text', () => {
@@ -37,8 +38,11 @@ describe('parseFee', () => {
     }
   });
 
+  // Which apostrophe Intl reports for de-CH depends on the ICU build (U+0027 on some Node
+  // versions, U+2019 on others), so both forms have to parse whatever the runner reports.
   it('parses apostrophe-grouped de-CH', () => {
     expect(parseFee("12'345.6 AIC", 'de-CH')).toBeCloseTo(12345.6);
+    expect(parseFee(`12${apostrophe}345.6 AIC`, 'de-CH')).toBeCloseTo(12345.6);
   });
 
   it('sums concatenated amounts', () => {

@@ -1,3 +1,23 @@
+// Intl's codepoint and the game's markup do not always agree on which space or apostrophe a
+// grouping locale uses, and the answer also moves between ICU versions — de-CH reports
+// U+0027 on one Node build and U+2019 on another. Match and strip each family as a set
+// rather than trusting the single codepoint Intl happens to report.
+const spaceSeparators = [' ', '\u00A0', '\u202F', '\u2009'];
+const apostropheSeparators = ["'", '\u2019', '\u02BC'];
+
+function groupSeparators(group: string | undefined) {
+  if (group === undefined) {
+    return [];
+  }
+  if (spaceSeparators.includes(group) || /\s/.test(group)) {
+    return [...new Set([...spaceSeparators, group])];
+  }
+  if (apostropheSeparators.includes(group)) {
+    return apostropheSeparators;
+  }
+  return [group];
+}
+
 // The fee cell is rendered by the game in the client's locale, so both separators vary:
 // "12,345.6 AIC" (en), "12.345,6 AIC" (de), "12 345,6 AIC" (fr/ru/pl/sv/cs),
 // "12'345.6 AIC" (de-CH). Derive them from Intl for the active locale and admit them into
@@ -9,14 +29,9 @@ export function parseFee(text: string | null | undefined, locale: string | undef
   }
 
   const parts = new Intl.NumberFormat(locale).formatToParts(12345.6);
-  const group = parts.find(x => x.type === 'group')?.value;
   const decimal = parts.find(x => x.type === 'decimal')?.value ?? '.';
-
-  // Intl and the game's own markup do not always agree on which space character a
-  // space-grouping locale uses (U+0020, U+00A0 and U+202F are all in play), so match and
-  // strip them as one class rather than as the single codepoint Intl happens to report.
-  const groupIsSpace = group !== undefined && /\s/.test(group);
-  const groupClass = groupIsSpace ? '\\s' : escapeCharClass(group);
+  const groups = groupSeparators(parts.find(x => x.type === 'group')?.value);
+  const groupClass = groups.map(escapeCharClass).join('');
 
   // Amounts can be concatenated without spacing ("12,000 AIC4,000 CIS"), so a \b after
   // the currency code would fail — use a lookahead for "not another letter" instead.
@@ -32,9 +47,7 @@ export function parseFee(text: string | null | undefined, locale: string | undef
     if (!/\d/.test(raw)) {
       continue;
     }
-    if (groupIsSpace) {
-      raw = raw.replace(/\s/g, '');
-    } else if (group !== undefined) {
+    for (const group of groups) {
       raw = raw.replaceAll(group, '');
     }
     if (decimal !== '.') {
@@ -50,6 +63,6 @@ export function parseFee(text: string | null | undefined, locale: string | undef
 }
 
 // Inside a character class only these four codepoints carry meaning.
-function escapeCharClass(value: string | undefined) {
-  return value === undefined ? '' : value.replace(/[\\\]^-]/g, '\\$&');
+function escapeCharClass(value: string) {
+  return value.replace(/[\\\]^-]/g, '\\$&');
 }
