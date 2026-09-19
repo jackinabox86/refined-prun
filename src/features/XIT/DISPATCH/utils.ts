@@ -263,11 +263,11 @@ export function formatMilkRunOverflow(
   shipLabel: string,
   stopLabel?: string,
 ) {
-  const over = `${fixed0(overflow.weightOver)}t / ${fixed0(overflow.volumeOver)}m³ over`;
+  const over = `${fixed0(overflow.weightOver)}t / ${fixed0(overflow.volumeOver)}m³`;
   if (overflow.stopId === undefined) {
-    return `${shipLabel} overloaded at CX departure (${over})`;
+    return `${shipLabel} would be ${over} over at CX departure.`;
   }
-  return `${shipLabel} overloaded after ${stopLabel ?? overflow.stopId} (${over})`;
+  return `${shipLabel} would be ${over} over after ${stopLabel ?? overflow.stopId} due to its excess available output.`;
 }
 
 export function fitDaysForShip(

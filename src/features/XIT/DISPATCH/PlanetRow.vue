@@ -24,8 +24,8 @@ const {
   overloaded,
   peakOverflow,
   overflowTooltip,
-  overflowWeight,
-  overflowVolume,
+  pickupWeight,
+  pickupVolume,
   bill,
 } = defineProps<{
   siteId: string;
@@ -35,8 +35,8 @@ const {
   overloaded: boolean;
   peakOverflow: boolean;
   overflowTooltip?: string;
-  overflowWeight?: number;
-  overflowVolume?: number;
+  pickupWeight?: number;
+  pickupVolume?: number;
   bill?: Record<string, number>;
 }>();
 
@@ -81,16 +81,25 @@ const repairDaysText = computed(() => {
 });
 
 const loadText = computed(() => {
-  let text = '--';
+  let billWeight = 0;
+  let billVolume = 0;
+  let hasBill = false;
   if ((config.resupply || config.repair) && bill) {
     const totals = billTotals(bill);
-    text = `${fixed0(totals.weight)}t - ${fixed0(totals.volume)}m³`;
+    billWeight = totals.weight;
+    billVolume = totals.volume;
+    hasBill = true;
   }
-  if (!peakOverflow) {
-    return text;
+  const pickupW = pickupWeight ?? 0;
+  const pickupV = pickupVolume ?? 0;
+  const usePickup = pickupW > billWeight || pickupV > billVolume;
+  if (!hasBill && !usePickup) {
+    return peakOverflow ? '-- *' : '--';
   }
-  const overage = `+${fixed0(overflowWeight ?? 0)}t - ${fixed0(overflowVolume ?? 0)}m³`;
-  return `${text} ${overage} *`;
+  const weight = usePickup ? pickupW : billWeight;
+  const volume = usePickup ? pickupV : billVolume;
+  const text = `${fixed0(weight)}t - ${fixed0(volume)}m³`;
+  return peakOverflow ? `${text} *` : text;
 });
 
 const assignedShip = computed(() => (config.ship ? shipsStore.getById(config.ship) : undefined));
@@ -193,7 +202,7 @@ function clearShip() {
         :class="[$style.loadBox, (overloaded || peakOverflow) && C.Workforces.daysMissing]"
         :data-tooltip="overflowTooltip"
         data-tooltip-position="top">
-        {{ loadText }}
+        <span :class="$style.loadFigure">{{ loadText }}</span>
       </div>
     </td>
     <td :class="$style.selectCell">
@@ -295,6 +304,11 @@ function clearShip() {
   height: 18px;
   box-sizing: border-box;
   padding: 2px 4px;
+  white-space: normal;
+}
+
+.loadFigure {
+  white-space: nowrap;
 }
 
 .shipCell {

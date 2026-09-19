@@ -241,6 +241,8 @@ describe('planMilkRun', () => {
     expect(overflow.firstOverflow?.stopId).toBe('A');
     expect(overflow.firstOverflow?.weightOver).toBe(19);
     expect(overflow.firstOverflow?.volumeOver).toBe(19);
+    expect(overflow.loadedByStop.get('A')).toEqual({ FE: 49 });
+    expect(overflow.loadedByStop.get('B')).toEqual({});
 
     const stillFits = plan([source, consumer], cargo(80));
     expect(stillFits.fits).toBe(true);
@@ -267,5 +269,27 @@ describe('planMilkRun', () => {
     expect(result.firstOverflow?.stopId).toBe('A');
     expect(result.firstOverflow?.weightOver).toBe(10);
     expect(result.firstOverflow?.volumeOver).toBe(10);
+  });
+
+  it('does not count output on a single-destination route', () => {
+    const lone = stop({
+      id: 'A',
+      days: 10,
+      bill: { DW: 5 },
+      storeQty: { FE: 50 },
+      dailyAmount: { FE: 4 },
+    });
+    expect(takeableAmount(lone, 'FE')).toBe(49);
+
+    const alone = plan([lone], cargo(40));
+    expect(alone.fits).toBe(true);
+    expect(alone.overflows).toEqual([]);
+    expect(alone.loadedByStop.get('A')).toEqual({});
+
+    const consumer = stop({ id: 'B', days: 10, bill: { RAT: 10 } });
+    const withNext = plan([lone, consumer], cargo(40));
+    expect(withNext.fits).toBe(false);
+    expect(withNext.firstOverflow?.stopId).toBe('A');
+    expect(withNext.loadedByStop.get('A')).toEqual({ FE: 49 });
   });
 });

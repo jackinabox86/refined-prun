@@ -25,6 +25,7 @@ import { useTile } from '@src/hooks/use-tile';
 import {
   DispatchBaseConfig,
   DispatchShip,
+  billTotals,
   combinedBaseBill,
   fitDaysForShip,
   formatMilkRunOverflow,
@@ -351,14 +352,8 @@ const overloadedShips = computed(() => {
   return result;
 });
 
-interface StopOverflow {
-  tooltip: string;
-  weightOver: number;
-  volumeOver: number;
-}
-
 const overflowByStop = computed(() => {
-  const map = new Map<string, StopOverflow>();
+  const map = new Map<string, string>();
   for (const [shipId, plan] of milkRunByShip.value) {
     const entry = cxShipById.value.get(shipId);
     const shipLabel = entry?.ship.name ?? entry?.ship.registration ?? 'Ship';
@@ -367,11 +362,17 @@ const overflowByStop = computed(() => {
         continue;
       }
       const stopLabel = rowById.value.get(overflow.stopId)?.base.planetName ?? overflow.stopId;
-      map.set(overflow.stopId, {
-        tooltip: formatMilkRunOverflow(overflow, shipLabel, stopLabel),
-        weightOver: overflow.weightOver,
-        volumeOver: overflow.volumeOver,
-      });
+      map.set(overflow.stopId, formatMilkRunOverflow(overflow, shipLabel, stopLabel));
+    }
+  }
+  return map;
+});
+
+const pickupByStop = computed(() => {
+  const map = new Map<string, { weight: number; volume: number }>();
+  for (const [, plan] of milkRunByShip.value) {
+    for (const [stopId, loaded] of plan.loadedByStop) {
+      map.set(stopId, billTotals(loaded));
     }
   }
   return map;
@@ -409,7 +410,7 @@ const executeTooltip = computed(() => {
     const stopLabel = stopId ? (rowById.value.get(stopId)?.base.planetName ?? stopId) : undefined;
     parts.push(formatMilkRunOverflow(plan.firstOverflow, shipLabel, stopLabel));
   }
-  return parts.join('; ') || 'A ship is loaded above its capacity';
+  return parts.join(' ') || 'A ship is loaded above its capacity';
 });
 
 interface IncludedBase {
@@ -699,6 +700,7 @@ function reset() {
       <PrunButton dark @click="reset">RESET</PrunButton>
       <PrunButton
         primary
+        :class="$style.executeButton"
         :disabled="overloadedShips.size > 0"
         :data-tooltip="executeTooltip"
         @click="execute">
@@ -740,9 +742,9 @@ function reset() {
                 !!rowById.get(id)!.config.ship && overloadedShips.has(rowById.get(id)!.config.ship!)
               "
               :peak-overflow="overflowByStop.has(id)"
-              :overflow-tooltip="overflowByStop.get(id)?.tooltip"
-              :overflow-weight="overflowByStop.get(id)?.weightOver"
-              :overflow-volume="overflowByStop.get(id)?.volumeOver"
+              :overflow-tooltip="overflowByStop.get(id)"
+              :pickup-weight="pickupByStop.get(id)?.weight"
+              :pickup-volume="pickupByStop.get(id)?.volume"
               @fit="fitBase(rowById.get(id)!.base.naturalId)" />
           </tbody>
         </table>
@@ -798,5 +800,9 @@ function reset() {
 
 .centered {
   text-align: center;
+}
+
+.executeButton {
+  white-space: normal;
 }
 </style>

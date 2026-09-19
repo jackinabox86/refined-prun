@@ -49,6 +49,8 @@ export interface MilkRunResult {
   sourced: Record<string, number>;
   sourcedByConsumer: Map<string, Record<string, number>>;
   pickupsByStop: Map<string, Record<string, number>>;
+  // The record the peak walk actually loaded at each stop — display and gate share it.
+  loadedByStop: Map<string, Record<string, number>>;
   firstOverflow?: PeakOverflow;
   overflows: PeakOverflow[];
   fits: boolean;
@@ -210,10 +212,12 @@ export function planMilkRun(input: MilkRunInput): MilkRunResult {
   const sourced: Record<string, number> = {};
   const sourcedByConsumer = new Map<string, Record<string, number>>();
   const pickupsByStop = new Map<string, Record<string, number>>();
+  const loadedByStop = new Map<string, Record<string, number>>();
 
   for (const stop of input.stops) {
     pickupsByStop.set(stop.id, {});
     sourcedByConsumer.set(stop.id, {});
+    loadedByStop.set(stop.id, {});
   }
 
   for (const transfer of transfers) {
@@ -238,17 +242,20 @@ export function planMilkRun(input: MilkRunInput): MilkRunResult {
     overflows.push(departure);
   }
 
-  const outputs = outputByStop(input.stops);
+  // A lone stop has no subsequent destination, so its output never rides.
+  const countOutput = input.stops.length > 1;
+  const outputs = countOutput ? outputByStop(input.stops) : new Map();
   for (const stop of input.stops) {
     const unloaded = totalsOf(stop.bill, input.sizeOf);
     weightLoad -= unloaded.weight;
     volumeLoad -= unloaded.volume;
     // Output is no longer a superset of pickups — a transfer can move parked
     // stock the source does not produce. Take the per-ticker max so both ride.
-    const loaded = totalsOf(
-      maxMaterials(outputs.get(stop.id) ?? {}, pickupsByStop.get(stop.id) ?? {}),
-      input.sizeOf,
-    );
+    const record = countOutput
+      ? maxMaterials(outputs.get(stop.id) ?? {}, pickupsByStop.get(stop.id) ?? {})
+      : {};
+    loadedByStop.set(stop.id, record);
+    const loaded = totalsOf(record, input.sizeOf);
     weightLoad += loaded.weight;
     volumeLoad += loaded.volume;
     const peak = checkLoad(input.cargo, weightLoad, volumeLoad, stop.id);
@@ -262,6 +269,7 @@ export function planMilkRun(input: MilkRunInput): MilkRunResult {
     sourced,
     sourcedByConsumer,
     pickupsByStop,
+    loadedByStop,
     firstOverflow: overflows[0],
     overflows,
     fits: overflows.length === 0,
