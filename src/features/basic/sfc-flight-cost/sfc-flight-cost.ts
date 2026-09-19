@@ -7,6 +7,7 @@ import { createReactiveDiv } from '@src/utils/reactive-element';
 import { keepLast } from '@src/utils/keep-last';
 import { refPrunId } from '@src/infrastructure/prun-ui/attributes';
 import { refTextContent } from '@src/utils/reactive-dom';
+import { parseFee } from '@src/features/basic/sfc-flight-cost/parse-fee';
 
 function onTileReady(tile: PrunTile) {
   const ship = computed(() => shipsStore.getByRegistration(tile.parameter));
@@ -54,7 +55,7 @@ function onSummaryRowReady(
     if (fuelCost === undefined) {
       return undefined;
     }
-    return fuelCost + parseFee(feeText.value);
+    return fuelCost + parseFee(feeText.value, locale.value);
   });
 
   const text = computed(() =>
@@ -109,35 +110,6 @@ function getSegments(ship: PrunApi.Ship | undefined, planId: string | null) {
   }
 
   return flightPlansStore.getById(planId)?.segments;
-}
-
-function parseFee(text: string | null) {
-  if (!text) {
-    return 0;
-  }
-
-  const parts = new Intl.NumberFormat(locale.value).formatToParts(12345.6);
-  const group = parts.find(x => x.type === 'group')?.value;
-  const decimal = parts.find(x => x.type === 'decimal')?.value ?? '.';
-
-  // Amounts can be concatenated without spacing ("12,000 AIC4,000 CIS"), so a \b after
-  // the currency code would fail — use a lookahead for "not another letter" instead.
-  let fee = 0;
-  for (const match of text.matchAll(/([\d.,]+)\s*[A-Z]{3}(?![A-Z])/g)) {
-    let raw = match[1];
-    if (group) {
-      raw = raw.replaceAll(group, '');
-    }
-    if (decimal !== '.') {
-      raw = raw.replaceAll(decimal, '.');
-    }
-    const value = Number(raw);
-    if (!isFinite(value)) {
-      continue;
-    }
-    fee += value;
-  }
-  return fee;
 }
 
 function init() {
