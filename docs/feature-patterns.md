@@ -174,6 +174,16 @@ then `(tile.id, 'XIT <CMD>')`; the null-then-command two-step is required, with
 `showBuffer` as the fallback if the first dispatch fails (`GovBurnActWindow.vue`).
 Hooks: `beforeExecute` (logs land at the top of the run log) and `afterExecute`.
 
+**Package completion** is `StepMachine` exhausting its step list (`Action Package execution
+completed`), not cancel or fail. `act-dispatch-auto-close` (disabled by default in
+`settings.disabled`) closes the host ACT / DISPATCHACT window on that success path only.
+Close with `closePrunWindow(tile.window)`, not `closeTileWindow`. `ExecuteActionPackage`
+splits its solo host at mount (`TileAllocator`), and split children have `docked === true`
+(`companion-buffer.ts`), so `closeTileWindow` is a no-op on every reachable ACT path.
+Dashboard-docked tiles still no-op because `tile.window` is `null`. Other `*ACT` hosts
+(BURNACT, REFUELACT, REPAIRACT, GOVBURNEXEC) stay open so post-run log output remains
+visible. XIT DISPATCH itself is the planner — execution lives in DISPATCHACT.
+
 **A host `v-if`/`v-else` gating `ExecuteActionPackage` must not depend on data the run
 itself mutates.** `XIT AGENT`'s `ExecuteStoredPackage.vue` used to resolve its `pkg` via
 a `computed` over `agentReadyPackages`, gated by `v-if="!entry"`. The run's own
