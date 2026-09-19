@@ -164,7 +164,7 @@ function afterExecute(
     :pkg="pkg"
     :initial-config="initialConfig"
     :after-execute="afterExecute"
-    :config-applied="persistExchange">
+    :config-changed="persistExchange">
     <template #extra>
       <Active label="Generate Return JSON">
         <RadioItem v-model="generateReturnJson">generate return json</RadioItem>
