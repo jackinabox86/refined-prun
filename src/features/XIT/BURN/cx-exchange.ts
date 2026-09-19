@@ -1,6 +1,8 @@
 // Per-base CX buy exchange remembered by BURNACT.
-// Only a value the player actually chose is stored — opening a base never
-// invents AI1 (or any other exchange) for one that has no selection yet.
+// A base with no stored selection starts on DEFAULT_CX_EXCHANGE; the stored map
+// only ever holds a value that was actually in the package config.
+
+export const DEFAULT_CX_EXCHANGE = 'AI1';
 
 export function savedPlanetCxExchange(
   map: Record<string, string> | undefined,
@@ -10,6 +12,15 @@ export function savedPlanetCxExchange(
     return undefined;
   }
   return map?.[planetId];
+}
+
+// What BURNACT opens with: the remembered exchange, or the default until the
+// player picks something else.
+export function initialPlanetCxExchange(
+  map: Record<string, string> | undefined,
+  planetId: string | undefined,
+): string {
+  return savedPlanetCxExchange(map, planetId) ?? DEFAULT_CX_EXCHANGE;
 }
 
 export function rememberPlanetCxExchange(

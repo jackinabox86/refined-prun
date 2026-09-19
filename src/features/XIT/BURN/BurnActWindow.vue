@@ -9,8 +9,8 @@ import {
 } from '@src/infrastructure/prun-api/data/addresses';
 import { ActionPackageConfig, configurableValue } from '@src/features/XIT/ACT/shared-types';
 import {
+  initialPlanetCxExchange,
   rememberPlanetCxExchange,
-  savedPlanetCxExchange,
 } from '@src/features/XIT/BURN/cx-exchange';
 import { userData } from '@src/store/user-data';
 import { computeResupplyBill } from '@src/features/XIT/ACT/material-groups/resupply/bill';
@@ -31,21 +31,20 @@ const planetName = computed(() =>
 );
 const planetNaturalId = computed(() => getEntityNaturalIdFromAddress(site.value?.address));
 
-const initialConfig = computed(() => {
-  const saved = savedPlanetCxExchange(
-    userData.settings.burn.planetCxExchange,
-    planetNaturalId.value,
-  );
-  return {
-    materialGroups: {},
-    actions: {
-      'CX Buy': {
-        ...(saved !== undefined ? { exchange: saved } : {}),
-        noDefaultExchange: true,
+const initialConfig = computed(
+  () =>
+    ({
+      materialGroups: {},
+      actions: {
+        'CX Buy': {
+          exchange: initialPlanetCxExchange(
+            userData.settings.burn.planetCxExchange,
+            planetNaturalId.value,
+          ),
+        },
       },
-    },
-  } as ActionPackageConfig;
-});
+    }) as ActionPackageConfig,
+);
 
 function persistExchange(pkgConfig: ActionPackageConfig) {
   const id = planetNaturalId.value;

@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { rememberPlanetCxExchange, savedPlanetCxExchange } from './cx-exchange';
+import {
+  DEFAULT_CX_EXCHANGE,
+  initialPlanetCxExchange,
+  rememberPlanetCxExchange,
+  savedPlanetCxExchange,
+} from './cx-exchange';
 
 describe('savedPlanetCxExchange', () => {
   it('returns a stored exchange for that planet', () => {
@@ -10,6 +15,20 @@ describe('savedPlanetCxExchange', () => {
     expect(savedPlanetCxExchange({}, 'OT-580b')).toBeUndefined();
     expect(savedPlanetCxExchange(undefined, 'OT-580b')).toBeUndefined();
     expect(savedPlanetCxExchange({ 'OT-580b': 'NC1' }, 'VH-331a')).toBeUndefined();
+  });
+});
+
+describe('initialPlanetCxExchange', () => {
+  it('uses the remembered exchange when the base has one', () => {
+    expect(initialPlanetCxExchange({ 'OT-580b': 'NC1' }, 'OT-580b')).toBe('NC1');
+  });
+
+  it('starts a base with no selection on the default exchange', () => {
+    expect(DEFAULT_CX_EXCHANGE).toBe('AI1');
+    expect(initialPlanetCxExchange({}, 'OT-580b')).toBe('AI1');
+    expect(initialPlanetCxExchange(undefined, 'OT-580b')).toBe('AI1');
+    expect(initialPlanetCxExchange({ 'OT-580b': 'NC1' }, 'VH-331a')).toBe('AI1');
+    expect(initialPlanetCxExchange({ 'OT-580b': 'NC1' }, undefined)).toBe('AI1');
   });
 });
 
