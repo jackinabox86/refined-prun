@@ -12,6 +12,12 @@ import { Config, CX_BUY_ONLY_DEST } from '@src/features/XIT/ACT/actions/mtra/con
 import { AssertFn, configurableValue } from '@src/features/XIT/ACT/shared-types';
 import { generateAgentIds } from '@src/features/XIT/ACT/agent-sync';
 import { getPlanetName } from '@src/core/planet-name';
+import { pickupGroupName } from '@src/features/XIT/ACT/material-groups/resupply/milk-run';
+
+function extraStringList(data: UserData.ActionData, key: string) {
+  const value = (data as unknown as Record<string, unknown>)[key];
+  return Array.isArray(value) ? value.filter((x): x is string => typeof x === 'string') : [];
+}
 
 act.addAction<Config>({
   type: 'MTRA',
@@ -182,7 +188,9 @@ act.addAction<Config>({
         // the multi-group path, which resolves each group itself).
         const printGroups = data.offloadGroups ?? [];
         const agentGroups = data.agentGroups ?? (data.postToAgent ? printGroups : []);
-        const hasMultiGroups = printGroups.length > 0 || agentGroups.length > 0;
+        const pickupGroups = extraStringList(data, 'pickupGroups');
+        const hasMultiGroups =
+          printGroups.length > 0 || agentGroups.length > 0 || pickupGroups.length > 0;
 
         let planet: string | undefined;
         if (!hasMultiGroups) {
@@ -202,7 +210,7 @@ act.addAction<Config>({
               ? Array.from({ length: agentGroups.length }, (_, i) => `preview-${i + 1}`)
               : await generateAgentIds(agentGroups.length, ctx.state.reservedAgentIds);
           }
-          for (const name of [...new Set([...printGroups, ...agentGroups])]) {
+          for (const name of [...new Set([...printGroups, ...agentGroups, ...pickupGroups])]) {
             const groupMats = await getMaterialGroup(name);
             if (!groupMats) {
               log.warning(`Skipping offload for missing material group [${name}]`);
@@ -214,7 +222,30 @@ act.addAction<Config>({
               // Survives agent-channel sync - unmapped keys pass through compaction.
               offloadPkg.actions[0]!.braPlanet = groupPlanet;
             }
-            if (printGroups.includes(name)) {
+            if (pickupGroups.includes(name)) {
+              const pickupName = pickupGroupName(name);
+              const pickupMats = await getMaterialGroup(pickupName);
+              if (pickupMats && Object.keys(pickupMats).length > 0) {
+                offloadPkg.groups.push({
+                  type: 'Manual',
+                  name: pickupName,
+                  materials: pickupMats,
+                });
+                offloadPkg.actions.push({
+                  type: 'MTRA',
+                  name: pickupName,
+                  group: pickupName,
+                  origin: groupPlanet ? `${getPlanetName(groupPlanet)} Base` : `${name} Base`,
+                  dest: serializedDest,
+                });
+              }
+            }
+            // Pickup-only sources (neither JSON nor AGT) still print so the
+            // unload+pickup package exists — netting without a pickup arrives short.
+            const printPickup =
+              printGroups.includes(name) ||
+              (pickupGroups.includes(name) && !agentGroups.includes(name));
+            if (printPickup) {
               emitStep(LOG_JSON({ pkg: offloadPkg }));
             }
             if (ids && agentGroups.includes(name)) {
