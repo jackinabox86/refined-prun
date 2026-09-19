@@ -3,6 +3,10 @@ import Active from '@src/components/forms/Active.vue';
 import Passive from '@src/components/forms/Passive.vue';
 import SelectInput from '@src/components/forms/SelectInput.vue';
 import { Config, CX_BUY_ONLY_DEST } from '@src/features/XIT/ACT/actions/mtra/config';
+import {
+  linkedMtraOrigin,
+  serializedWarehouseForExchange,
+} from '@src/features/XIT/ACT/actions/mtra/cx-buy-origin';
 import { storagesStore } from '@src/infrastructure/prun-api/data/storage';
 import {
   atSameLocation,
@@ -13,7 +17,11 @@ import {
 } from '@src/features/XIT/ACT/actions/utils';
 import { configurableValue } from '@src/features/XIT/ACT/shared-types';
 
-const { data, config } = defineProps<{ data: UserData.ActionData; config: Config }>();
+const { data, config, cxBuyExchange } = defineProps<{
+  data: UserData.ActionData;
+  config: Config;
+  cxBuyExchange?: string;
+}>();
 
 const allStorages = computed(() => storagesStore.nonFuelStores.value ?? []);
 
@@ -34,6 +42,23 @@ const originOptions = computed(() => {
 
 if (data.origin === configurableValue && !config.origin && originStorages.value.length > 0) {
   config.origin = serializeStorage(originStorages.value[0]);
+}
+
+function applyLinkedOrigin(exchange: string | undefined) {
+  if (data.origin !== configurableValue) {
+    return false;
+  }
+  const linked = linkedMtraOrigin(true, exchange, serializedWarehouseForExchange);
+  const linkedStore = deserializeStorage(linked);
+  if (
+    linked !== undefined &&
+    linkedStore !== undefined &&
+    originStorages.value.includes(linkedStore)
+  ) {
+    config.origin = linked;
+    return true;
+  }
+  return false;
 }
 
 const destinationStorages = computed(() => {
@@ -68,6 +93,16 @@ if (
   config.destination = serializeStorage(destinationStorages.value[0]);
 }
 
+// When CX buy's exchange is set or changes, point MTRA from at that warehouse.
+// Do not keep rewriting from after the player picks a different origin.
+watch(
+  () => cxBuyExchange,
+  exchange => {
+    applyLinkedOrigin(exchange);
+  },
+  { immediate: true },
+);
+
 // Autofill and autofix selections on storage list change.
 watchEffect(() => {
   if (data.origin === configurableValue) {
@@ -78,7 +113,7 @@ watchEffect(() => {
       }
     }
 
-    if (!config.origin && originStorages.value.length === 1) {
+    if (!config.origin && !applyLinkedOrigin(cxBuyExchange) && originStorages.value.length === 1) {
       config.origin = serializeStorage(originStorages.value[0]);
     }
   }

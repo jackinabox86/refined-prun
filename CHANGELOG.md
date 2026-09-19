@@ -4,6 +4,7 @@
 
 ### Added
 
+- `XIT BURNACT`: Remembers the CX buy exchange chosen for a base and defaults that exchange (and MTRA from, when the CX warehouse exists) on the next open. A base with no stored selection starts on AI1.
 - `XIT FLT`: Optional name modifier (`XIT FLT ANT`, `XIT FLT ZV-307a`) filters the table to ships in that system or at that planet. CX tickers resolve like `FLTS` (ANT → Antares I). In-flight ships match their destination, same as the Status column.
 - `nots-cogc-repeat-vote`: Clicking a COGC program-changed notification opens `COGCPD p-{planet} pn-{program}` so you can vote to repeat that program.
 - `XIT BS`: Adds a DYNAMIC toggle beside the WAR column filter that ranks bases by the closer of burn days and repair age to their red thresholds, while Planet / Burn / Rep keep their raw-value sorts.

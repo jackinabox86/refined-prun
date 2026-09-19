@@ -13,13 +13,15 @@ import ConfigWindow from '@src/features/XIT/ACT/ConfigureWindow.vue';
 import { ActionPackageConfig, ActionStep } from '@src/features/XIT/ACT/shared-types';
 import { act } from '@src/features/XIT/ACT/act-registry';
 
-const { pkg, afterExecute, extraSteps } = defineProps<{
+const { pkg, afterExecute, extraSteps, initialConfig, configChanged } = defineProps<{
   pkg: UserData.ActionPackageData;
   afterExecute?: (
     config: ActionPackageConfig,
     log: (tag: LogTag, message: LogContent) => void,
   ) => void;
   extraSteps?: ActionStep[];
+  initialConfig?: ActionPackageConfig;
+  configChanged?: (config: ActionPackageConfig) => void;
 }>();
 
 const tile = useTile();
@@ -27,8 +29,8 @@ const command = useXitCommand();
 let goingToSplit = ref(false);
 
 const config = ref({
-  materialGroups: {},
-  actions: {},
+  materialGroups: { ...initialConfig?.materialGroups },
+  actions: { ...initialConfig?.actions },
 } as ActionPackageConfig);
 
 const log = ref([] as { tag: LogTag; message: LogContent }[]);
@@ -39,7 +41,16 @@ const status = ref(undefined as string | undefined);
 const actReady = ref(false);
 const skipReady = ref(false);
 
-watch(config, clearLog, { deep: true });
+watch(
+  config,
+  () => {
+    clearLog();
+    // Report on every edit, not just on APPLY: APPLY is disabled while any part
+    // of the package is invalid, so a selection would otherwise never be seen.
+    configChanged?.(config.value);
+  },
+  { deep: true },
+);
 
 watchEffect(() => {
   for (const name of pkg.groups.map(x => x.name!)) {

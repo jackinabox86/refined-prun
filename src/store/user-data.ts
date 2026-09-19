@@ -34,6 +34,8 @@ export const initialUserData = deepFreeze({
       planetResupply: {} as Record<string, number>,
       // Planet natural id -> ship-size label from core/ship-sizes.
       planetPickup: {} as Record<string, string>,
+      // Planet natural id -> last CX buy exchange chosen in BURNACT.
+      planetCxExchange: {} as Record<string, UserData.Exchange>,
     },
     flow: {
       overrides: {} as Record<string, UserData.PriceOverride>,

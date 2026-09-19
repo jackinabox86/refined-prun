@@ -17,6 +17,12 @@ function isCheckpoint(entry: MigrationEntry): entry is Checkpoint {
 // The date is for reference only, and it does not affect migration order.
 const migrations: MigrationEntry[] = [
   [
+    '18.09.2026 Add per-planet BURNACT CX exchange',
+    userData => {
+      userData.settings.burn.planetCxExchange = {};
+    },
+  ],
+  [
     '18.09.2026 Disable act-dispatch-auto-close by default',
     userData => {
       if (!userData.settings.disabled.includes('act-dispatch-auto-close')) {
