@@ -1,13 +1,19 @@
 <script setup lang="ts">
 import Active from '@src/components/forms/Active.vue';
 import Passive from '@src/components/forms/Passive.vue';
+import RadioItem from '@src/components/forms/RadioItem.vue';
 import SelectInput from '@src/components/forms/SelectInput.vue';
+import {
+  autoSfcPlanetRaw,
+  initialPlanetAutoSfc,
+  rememberPlanetAutoSfc,
+  shouldShowAutoSfcToggle,
+} from '@src/features/XIT/ACT/actions/mtra/auto-sfc';
 import { Config, CX_BUY_ONLY_DEST } from '@src/features/XIT/ACT/actions/mtra/config';
 import {
   linkedMtraOrigin,
   serializedWarehouseForExchange,
 } from '@src/features/XIT/ACT/actions/mtra/cx-buy-origin';
-import { storagesStore } from '@src/infrastructure/prun-api/data/storage';
 import {
   atSameLocation,
   deserializeStorage,
@@ -16,6 +22,12 @@ import {
   storageSort,
 } from '@src/features/XIT/ACT/actions/utils';
 import { configurableValue } from '@src/features/XIT/ACT/shared-types';
+import { useXitCommand } from '@src/hooks/use-xit-command';
+import { useXitParameters } from '@src/hooks/use-xit-parameters';
+import { getEntityNaturalIdFromAddress } from '@src/infrastructure/prun-api/data/addresses';
+import { sitesStore } from '@src/infrastructure/prun-api/data/sites';
+import { storagesStore } from '@src/infrastructure/prun-api/data/storage';
+import { userData } from '@src/store/user-data';
 
 const { data, config, cxBuyExchange } = defineProps<{
   data: UserData.ActionData;
@@ -139,6 +151,48 @@ function getOptions(storages: PrunApi.Store[]) {
   }
   return options;
 }
+
+const command = useXitCommand();
+const parameters = useXitParameters();
+
+const planetId = computed(() => {
+  const raw = autoSfcPlanetRaw(command, data.sfcDestination, parameters.join(' '));
+  if (raw === undefined) {
+    return undefined;
+  }
+  const site = sitesStore.getByPlanetNaturalIdOrName(raw);
+  return getEntityNaturalIdFromAddress(site?.address) ?? raw;
+});
+
+const showAutoSfcToggle = computed(
+  () => shouldShowAutoSfcToggle(command) && planetId.value !== undefined,
+);
+
+watch(
+  planetId,
+  id => {
+    if (id === undefined || !shouldShowAutoSfcToggle(command)) {
+      return;
+    }
+    config.autoSfc ??= initialPlanetAutoSfc(userData.settings.planetAutoSfc, id);
+  },
+  { immediate: true },
+);
+
+const autoSfc = computed({
+  get() {
+    return config.autoSfc ?? true;
+  },
+  set(value: boolean) {
+    config.autoSfc = value;
+    const id = planetId.value;
+    if (id === undefined) {
+      return;
+    }
+    const map = (userData.settings.planetAutoSfc ??= {});
+    rememberPlanetAutoSfc(map, id, value);
+  },
+});
 </script>
 
 <template>
@@ -155,5 +209,8 @@ function getOptions(storages: PrunApi.Store[]) {
     <Passive v-else label="To">
       <span>{{ data.dest }}</span>
     </Passive>
+    <Active v-if="showAutoSfcToggle" label="Auto SFC">
+      <RadioItem v-model="autoSfc">auto sfc</RadioItem>
+    </Active>
   </form>
 </template>

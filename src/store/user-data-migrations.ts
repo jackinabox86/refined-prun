@@ -17,6 +17,12 @@ function isCheckpoint(entry: MigrationEntry): entry is Checkpoint {
 // The date is for reference only, and it does not affect migration order.
 const migrations: MigrationEntry[] = [
   [
+    '19.09.2026 Add per-planet auto SFC',
+    userData => {
+      userData.settings.planetAutoSfc = {};
+    },
+  ],
+  [
     '18.09.2026 Add per-planet BURNACT CX exchange',
     userData => {
       userData.settings.burn.planetCxExchange = {};

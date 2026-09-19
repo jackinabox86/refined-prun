@@ -46,6 +46,8 @@ export const initialUserData = deepFreeze({
       planetOverrides: {} as Record<string, { threshold?: number; offset?: number }>,
     },
     noBuy: [] as string[],
+    // Planet natural id -> explicit auto-SFC off for BURNACT/REPAIRACT/GOVBURNEXEC.
+    planetAutoSfc: {} as Record<string, boolean>,
     sidebar: [
       ['BS', 'BS'],
       ['CONT', 'XIT CONTS'],
