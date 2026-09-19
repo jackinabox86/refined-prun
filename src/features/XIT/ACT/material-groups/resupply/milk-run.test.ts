@@ -159,6 +159,23 @@ describe('planMilkRun', () => {
     expect(result.firstOverflow?.volumeOver).toBe(10);
   });
 
+  it('keeps a burn-less stop as a consumer but never as a source', () => {
+    // Shape planBasesMilkRun builds for a repair-only base whose burn data has not
+    // loaded: bill known, store quantities and daily rates unknown.
+    const noBurn = stop({ id: 'A', days: 10, bill: { A: 40 } });
+    const consumer = stop({ id: 'B', days: 10, bill: { B: 20 } });
+
+    expect(takeableAmount(noBurn, 'B')).toBe(0);
+
+    const result = plan([noBurn, consumer], cargo(50));
+    expect(result.transfers).toEqual([]);
+    // Its bill still counts against capacity — dropping the stop hides the overflow.
+    expect(result.fits).toBe(false);
+    expect(result.firstOverflow?.stopId).toBeUndefined();
+    expect(result.firstOverflow?.weightOver).toBe(10);
+    expect(plan([consumer], cargo(50)).fits).toBe(true);
+  });
+
   it('hands maxFittingDays a monotonic fits predicate', () => {
     function fits(days: number) {
       const source = stop({

@@ -233,16 +233,17 @@ export function planBasesMilkRun(
     if (Object.keys(base.bill).length === 0) {
       continue;
     }
+    // A repair-only base bills without ever touching burn, so burn data can still be
+    // missing here. Dropping the stop would take the whole ship's peak-load check with
+    // it; keep it as a consumer and give it no store, which makes every ticker's
+    // takeable 0 so it can never be a source while its own horizon need is unknown.
     const dailyAmount = baseDailyAmount(base.site.siteId);
-    if (!dailyAmount) {
-      return undefined;
-    }
     stops.push({
       id: base.naturalId,
       days: base.days,
       bill: base.bill,
-      storeQty: baseStoreQty(base.site.siteId),
-      dailyAmount,
+      storeQty: dailyAmount ? baseStoreQty(base.site.siteId) : {},
+      dailyAmount: dailyAmount ?? {},
     });
   }
   return planMilkRun({
