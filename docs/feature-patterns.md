@@ -830,6 +830,16 @@ Avoid matching on localized text (like "Weight", "Volume"). Use element index or
 
 **Exception — fixed structural UI labels:** Matching `textContent` against `L.…()` is acceptable for identifying fixed structural UI rows (e.g. project-type rows in `C.PlanetaryProjectsList.row`). Do not match raw English, and do not extend this to user-generated game entity names.
 
+**Reading a number back out of localized text needs both separators, not just the decimal
+one.** The client renders numbers in its own locale, so a hardcoded `[\d.,]` character class
+truncates `12 345,6 AIC` (fr, ru, pl, sv, cs) and `12'345.6 AIC` (de-CH) to their last group
+— no crash, just a silently undercounted value. Derive both separators from
+`new Intl.NumberFormat(locale.value).formatToParts(12345.6)`, admit them into the character
+class, and strip the group separator before `Number()`. Match a space group separator as
+`\s` rather than as the codepoint Intl reports: Intl gives U+202F for fr-FR and U+00A0 for
+ru-RU, and the markup does not always agree. `parseFee` in
+`features/basic/sfc-flight-cost/parse-fee.ts` is the worked example.
+
 ### Reactivity
 
 **Prefer `computed` over `watch`/`watchEffect`.** Thinking in computed produces more compact and readable code.
