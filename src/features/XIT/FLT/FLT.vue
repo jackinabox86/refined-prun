@@ -8,6 +8,7 @@ import { isSameAddress } from '@src/infrastructure/prun-api/data/addresses';
 import { getInvStore } from '@src/core/store-id';
 import { showBuffer } from '@src/infrastructure/prun-ui/buffers';
 import { useTileState } from '@src/store/user-data-tiles';
+import { useXitParameters } from '@src/hooks/use-xit-parameters';
 import LoadingSpinner from '@src/components/LoadingSpinner.vue';
 import RadioItem from '@src/components/forms/RadioItem.vue';
 import StatusCell from './StatusCell.vue';
@@ -27,6 +28,12 @@ import {
   type SortKey,
 } from './defaults';
 import { openRefuelAllExchanges } from './refuel';
+import {
+  areFltLocationCatalogsReady,
+  getShipLocationAddress,
+  resolveFltLocationFilter,
+  shipMatchesLocationFilter,
+} from './location-filter';
 
 type FlightRow = {
   ship: PrunApi.Ship;
@@ -105,6 +112,17 @@ const fuelAlertThresholdMap: Record<FuelAlertFilter, number> = {
   '25': 0.25,
   '10': 0.1,
 };
+
+const parameters = useXitParameters();
+const locationFilter = computed(() => resolveFltLocationFilter(parameters));
+const locationCatalogsPending = computed(
+  () =>
+    parameters.length > 0 && locationFilter.value === undefined && !areFltLocationCatalogsReady(),
+);
+const locationFilterUnresolved = computed(
+  () =>
+    parameters.length > 0 && locationFilter.value === undefined && !locationCatalogsPending.value,
+);
 
 const rawRows = computed<FlightRow[] | undefined>(() => {
   const ships = shipsStore.all.value;
@@ -200,6 +218,16 @@ const filteredRows = computed(() => {
   }
 
   return source.filter(x => {
+    if (parameters.length > 0) {
+      const filter = locationFilter.value;
+      if (filter === undefined) {
+        return false;
+      }
+      const flight = flightsStore.getById(x.ship.flightId);
+      if (!shipMatchesLocationFilter(getShipLocationAddress(x.ship, flight), filter)) {
+        return false;
+      }
+    }
     if (!showStlShips.value && !x.isFtlCapable) {
       return false;
     }
@@ -757,7 +785,10 @@ function getCargoState(cargoRatio: number) {
 </script>
 
 <template>
-  <LoadingSpinner v-if="!rows" />
+  <LoadingSpinner v-if="!rows || locationCatalogsPending" />
+  <div v-else-if="locationFilterUnresolved" :class="$style.empty">
+    No system or planet matches "{{ parameters.join(' ') }}"
+  </div>
   <div v-else :class="$style.content">
     <div :class="[C.FormComponent.containerPassive, C.forms.passive, C.forms.formComponent]">
       <label :class="[C.FormComponent.label, C.fonts.fontRegular, C.type.typeRegular]">
@@ -1205,6 +1236,13 @@ function getCargoState(cargoRatio: number) {
 <style module>
 .content {
   padding-left: 6px;
+}
+
+.empty {
+  padding: 1rem;
+  font-style: italic;
+  opacity: 0.7;
+  text-align: center;
 }
 
 .minimize {

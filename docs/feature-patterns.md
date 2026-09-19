@@ -125,6 +125,8 @@ The file is auto-imported via `import.meta.glob` in `src/features/index.ts` — 
 
 The command should be short. Refer to `docs/game/commands.csv` for an example of game commands. Alias is usually added for backwards compatibility or if the community REALLY wants it.
 
+`XIT` splits the tile parameter on spaces/underscores (`XIT FLT ANT` → command `FLT`, parameters `['ANT']`). Join remaining parts when a name can contain spaces (`Hortus a`). Location modifiers on `XIT FLT` resolve planet first (natural id, name, or `Hortus a`), then system (natural id or name), then a CX station ticker to that station's system — the same mapping `FLTS` correction uses after the planet-first step. Match is case-insensitive exact, not substring. In-flight ships use destination, matching the Status column.
+
 ### One-Click Preconfigured Action Packages
 
 To give users a single button that runs a specific ACT action package without opening the ACT editor (e.g. `BURNACT`, `REFUELACT`), pair two files next to the relevant action:
