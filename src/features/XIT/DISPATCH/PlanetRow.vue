@@ -21,6 +21,7 @@ const {
   naturalId,
   planetName,
   config,
+  overloaded,
   peakOverflow,
   overflowTooltip,
   overflowWeight,
@@ -31,6 +32,7 @@ const {
   naturalId: string;
   planetName: string;
   config: DispatchBaseConfig;
+  overloaded: boolean;
   peakOverflow: boolean;
   overflowTooltip?: string;
   overflowWeight?: number;
@@ -185,8 +187,10 @@ function clearShip() {
       </div>
     </td>
     <td :class="[C.type.typeSmall, $style.loadCell]">
+      <!-- Ship-level overload shades every row of that ship. A CX-departure overflow has
+           no stop to hang the asterisk on, so this is its only row-level signal. -->
       <div
-        :class="[$style.loadBox, peakOverflow && C.Workforces.daysMissing]"
+        :class="[$style.loadBox, (overloaded || peakOverflow) && C.Workforces.daysMissing]"
         :data-tooltip="overflowTooltip"
         data-tooltip-position="top">
         {{ loadText }}

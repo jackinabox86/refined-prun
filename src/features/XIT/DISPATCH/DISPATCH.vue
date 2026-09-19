@@ -736,6 +736,9 @@ function reset() {
               :planet-name="rowById.get(id)!.base.planetName"
               :config="rowById.get(id)!.config"
               :bill="billByBase.get(id)"
+              :overloaded="
+                !!rowById.get(id)!.config.ship && overloadedShips.has(rowById.get(id)!.config.ship!)
+              "
               :peak-overflow="overflowByStop.has(id)"
               :overflow-tooltip="overflowByStop.get(id)?.tooltip"
               :overflow-weight="overflowByStop.get(id)?.weightOver"
