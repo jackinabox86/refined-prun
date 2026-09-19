@@ -13,6 +13,7 @@ interface StepMachineOptions {
   onBufferSplit: () => void;
   onStart: () => void;
   onEnd: () => void;
+  onComplete?: () => void;
   onStatusChanged: (status: string, keepReady?: boolean) => void;
   onActReady: () => void;
   onSkipReady: () => void;
@@ -92,6 +93,7 @@ export class StepMachine {
     if (this.steps.length === 0) {
       this.log.success('Action Package execution completed');
       this.stop();
+      this.options.onComplete?.();
       return;
     }
     const next = this.steps.shift()!;

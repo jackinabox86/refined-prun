@@ -77,6 +77,12 @@ session, near the end — not after every task.
   evidence for the rule. Cross-reference by section title, never by list number — numbered
   references break silently the moment the list is reordered.
 
+## CHANGELOG
+
+Do NOT touch `CHANGELOG.md` unless the user explicitly asks you to in that task.
+Release tooling owns the file. A per-PR entry stopped being required in #194, and the
+`## Unreleased` entries still in the file are not an instruction to add another one.
+
 ## MEMORY
 
 `MEMORY.md` is maintained exclusively by the harness's auto-memory system.
