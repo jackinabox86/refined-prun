@@ -5,10 +5,12 @@
 ### Added
 
 - `nots-cogc-repeat-vote`: Clicking a COGC program-changed notification opens `COGCPD p-{planet} pn-{program}` so you can vote to repeat that program.
+- `XIT BS`: Adds a DYNAMIC toggle beside the WAR column filter that ranks bases by the closer of burn days and repair age to their red thresholds, while Planet / Burn / Rep keep their raw-value sorts.
 
 ### Changed
 
 - Port upstream's typed `L` localization API. UI string matching uses locale keys (with English fallback) instead of the old `PrunI18N` dictionary.
+- `XIT FLT`: The collapsed filter row reads `Filters`, and goes back to reading `Minimize` once it is expanded.
 
 ## 1.1.3
 

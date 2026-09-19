@@ -387,6 +387,8 @@ const layoutClass = computed(() => {
 });
 
 const filterSymbol = computed(() => (showFilters.value ? '-' : '+'));
+// Collapsed, the row has to say what expanding it reveals.
+const filterLabel = computed(() => (showFilters.value ? 'Minimize' : 'Filters'));
 
 const optionFilterGroups = computed<MultiOptionFilterGroup[]>(() => [
   {
@@ -759,7 +761,7 @@ function getCargoState(cargoRatio: number) {
   <div v-else :class="$style.content">
     <div :class="[C.FormComponent.containerPassive, C.forms.passive, C.forms.formComponent]">
       <label :class="[C.FormComponent.label, C.fonts.fontRegular, C.type.typeRegular]">
-        Minimize
+        {{ filterLabel }}
       </label>
       <div :class="[C.FormComponent.input, C.forms.input]">
         <div>
