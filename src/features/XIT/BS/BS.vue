@@ -164,7 +164,8 @@ const filteredBases = computed(() => {
       <RadioItem
         v-model="dynamicSort"
         horizontal
-        data-tooltip="Sort by the closer of burn and repair to their thresholds">
+        data-tooltip="Sort by the closer of burn and repair to their thresholds"
+        data-tooltip-position="bottom">
         DYNAMIC
       </RadioItem>
       <div :class="$style.spacer" />
