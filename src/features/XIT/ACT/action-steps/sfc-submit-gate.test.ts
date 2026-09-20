@@ -1,20 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { hasShipStartedFlight, SFC_SUBMIT_STATUS, shouldWaitForSfcSubmit } from './sfc-submit-gate';
+import { hasShipStartedFlight, SFC_SUBMIT_STATUS } from './sfc-submit-gate';
 
 describe('SFC_SUBMIT_STATUS', () => {
-  it('uses DISPATCHACT sentence-case status wording', () => {
+  it('uses sentence-case status wording', () => {
     expect(SFC_SUBMIT_STATUS).toBe('Submit flight on the right or skip');
-  });
-});
-
-describe('shouldWaitForSfcSubmit', () => {
-  it('waits only on DISPATCH finishOnly MTRA actions', () => {
-    expect(shouldWaitForSfcSubmit({ finishOnly: true })).toBe(true);
-  });
-
-  it('does not wait when finishOnly is unset or false', () => {
-    expect(shouldWaitForSfcSubmit({})).toBe(false);
-    expect(shouldWaitForSfcSubmit({ finishOnly: false })).toBe(false);
   });
 });
 

@@ -31,9 +31,10 @@ describe('auto SFC wiring', () => {
     expect(source).not.toMatch(/const needsSfc = !data\.noSfc/);
   });
 
-  it('gates DISPATCHACT submit-wait through shouldWaitForSfcSubmit', () => {
+  it('does not pass a submit-wait flag on OPEN_SFC', () => {
     const source = productSource('mtra.ts');
-    expect(source).toContain('waitForSubmit: shouldWaitForSfcSubmit(data)');
-    expect(source).not.toMatch(/waitForSubmit:\s*true/);
+    expect(source).toContain('OPEN_SFC({');
+    expect(source).not.toMatch(/waitForSubmit/);
+    expect(source).not.toMatch(/shouldWaitForSfcSubmit/);
   });
 });

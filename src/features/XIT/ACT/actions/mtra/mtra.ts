@@ -10,7 +10,6 @@ import { OPEN_BRA } from '@src/features/XIT/ACT/action-steps/OPEN_BRA';
 import { atSameLocation, deserializeStorage } from '@src/features/XIT/ACT/actions/utils';
 import { Config, CX_BUY_ONLY_DEST } from '@src/features/XIT/ACT/actions/mtra/config';
 import { shouldEmitAutoSfc } from '@src/features/XIT/ACT/actions/mtra/auto-sfc';
-import { shouldWaitForSfcSubmit } from '@src/features/XIT/ACT/action-steps/sfc-submit-gate';
 import { AssertFn, configurableValue } from '@src/features/XIT/ACT/shared-types';
 import { generateAgentIds } from '@src/features/XIT/ACT/agent-sync';
 import { getPlanetName } from '@src/core/planet-name';
@@ -225,7 +224,6 @@ act.addAction<Config>({
             OPEN_SFC({
               shipId: dest.addressableId,
               destination: data.sfcDestination ?? planet,
-              waitForSubmit: shouldWaitForSfcSubmit(data),
             }),
           );
         }

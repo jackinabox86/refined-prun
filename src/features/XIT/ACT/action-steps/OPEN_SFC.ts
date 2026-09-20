@@ -15,14 +15,13 @@ import { watch } from 'vue';
 interface Data {
   shipId: string;
   destination?: string;
-  waitForSubmit?: boolean;
 }
 
 // Spacing between consecutive SFC opens. One ACT click opens the buffer and fills the
 // destination; the player submits that flight themselves while the next ship's SFC keeps
 // ACT grayed for this long. The run's first SFC has no preceding flight to wait on.
-// DISPATCHACT finish steps then hold after the open until fleet status shows a flight
-// (or skip); other hosts still complete immediately, so nothing pauses after their last.
+// After every open, the step holds until fleet status shows a flight (or skip), so the
+// last SFC of any host withholds package completion.
 const flightSubmitGapMs = 2000;
 
 export const OPEN_SFC = act.addActionStep<Data>({
@@ -70,7 +69,7 @@ export const OPEN_SFC = act.addActionStep<Data>({
       await applySfcStageLayout(tile);
     }
 
-    if (data.waitForSubmit && !hasShipStartedFlight(shipsStore.getById(data.shipId))) {
+    if (!hasShipStartedFlight(shipsStore.getById(data.shipId))) {
       // The handle is what watch() returns, so the immediate call sees it undefined. That's
       // fine - the guard above means the immediate call is never the started one, and the
       // finally below disposes the watcher either way. Calling a `const stop` from inside
