@@ -5,7 +5,6 @@ import Header from '@src/components/Header.vue';
 import { ActionRunner } from '@src/features/XIT/ACT/runner/action-runner';
 import { shouldAutoCloseActBuffer } from '@src/features/XIT/ACT/auto-close';
 import { useTile } from '@src/hooks/use-tile';
-import { useXitCommand } from '@src/hooks/use-xit-command';
 import { closePrunWindow } from '@src/infrastructure/prun-ui/utils/close-prun-window';
 import { Logger, LogTag, LogContent } from '@src/features/XIT/ACT/runner/logger';
 import LogWindow from '@src/features/XIT/ACT/LogWindow.vue';
@@ -13,19 +12,22 @@ import ConfigWindow from '@src/features/XIT/ACT/ConfigureWindow.vue';
 import { ActionPackageConfig, ActionStep } from '@src/features/XIT/ACT/shared-types';
 import { act } from '@src/features/XIT/ACT/act-registry';
 
-const { pkg, afterExecute, extraSteps, initialConfig, configChanged } = defineProps<{
-  pkg: UserData.ActionPackageData;
-  afterExecute?: (
-    config: ActionPackageConfig,
-    log: (tag: LogTag, message: LogContent) => void,
-  ) => void;
-  extraSteps?: ActionStep[];
-  initialConfig?: ActionPackageConfig;
-  configChanged?: (config: ActionPackageConfig) => void;
-}>();
+const { pkg, afterExecute, extraSteps, initialConfig, configChanged, keepOpenOnComplete } =
+  defineProps<{
+    pkg: UserData.ActionPackageData;
+    afterExecute?: (
+      config: ActionPackageConfig,
+      log: (tag: LogTag, message: LogContent) => void,
+    ) => void;
+    extraSteps?: ActionStep[];
+    initialConfig?: ActionPackageConfig;
+    configChanged?: (config: ActionPackageConfig) => void;
+    // Hosts whose afterExecute writes output the player copies out of the log return true
+    // here, so act-dispatch-auto-close doesn't take that log away with the window.
+    keepOpenOnComplete?: () => boolean;
+  }>();
 
 const tile = useTile();
-const command = useXitCommand();
 let goingToSplit = ref(false);
 
 const config = ref({
@@ -117,8 +119,9 @@ const runner = new ActionRunner({
     status.value = undefined;
     afterExecute?.(config.value, logMessage);
   },
-  onComplete: () => {
-    if (shouldAutoCloseActBuffer(command, true)) {
+  onComplete: result => {
+    const keepOpen = result.keepBufferOpen || (keepOpenOnComplete?.() ?? false);
+    if (shouldAutoCloseActBuffer(true, keepOpen)) {
       closePrunWindow(tile.window);
     }
   },

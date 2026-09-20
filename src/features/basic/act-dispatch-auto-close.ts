@@ -7,5 +7,6 @@ function init() {
 features.add(
   import.meta.url,
   init,
-  'Auto-closes XIT ACT and XIT DISPATCHACT when action-package execution completes.',
+  'Auto-closes an action-package buffer (XIT ACT, DISPATCHACT, BURNACT, REPAIRACT, ' +
+    'GOVBURNEXEC and the rest) when its execution completes.',
 );

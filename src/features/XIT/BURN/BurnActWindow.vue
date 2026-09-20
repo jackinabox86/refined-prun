@@ -94,6 +94,12 @@ const pkg = computed(
 
 const generateReturnJson = ref(false);
 
+// The return JSON lands in the run log for the player to copy, so a run that generated it
+// keeps its buffer open even with act-dispatch-auto-close on.
+function keepOpenOnComplete() {
+  return generateReturnJson.value;
+}
+
 function afterExecute(
   pkgConfig: ActionPackageConfig,
   log: (tag: LogTag, message: LogContent) => void,
@@ -163,7 +169,8 @@ function afterExecute(
     :pkg="pkg"
     :initial-config="initialConfig"
     :after-execute="afterExecute"
-    :config-changed="persistExchange">
+    :config-changed="persistExchange"
+    :keep-open-on-complete="keepOpenOnComplete">
     <template #extra>
       <Active label="Generate Return JSON">
         <RadioItem v-model="generateReturnJson">generate return json</RadioItem>
