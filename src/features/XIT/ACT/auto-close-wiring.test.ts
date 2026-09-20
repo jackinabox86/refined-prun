@@ -27,6 +27,14 @@ describe('ACT auto-close wiring', () => {
     expect(source).not.toMatch(/'DISPATCH'/);
   });
 
+  it('does not arm ACT during waitSkipOr', () => {
+    const source = productSource('runner/step-machine.ts');
+    const waitSkipOr = source.match(/private async waitSkipOr[\s\S]*?\n {2}\}/)?.[0];
+    expect(waitSkipOr).toBeDefined();
+    expect(waitSkipOr).toContain('onSkipReady()');
+    expect(waitSkipOr).not.toContain('onActReady');
+  });
+
   it('closes from ExecuteActionPackage only through shouldAutoCloseActBuffer', () => {
     const source = productSource('ExecuteActionPackage.vue');
     expect(source).toContain('shouldAutoCloseActBuffer(command, true)');

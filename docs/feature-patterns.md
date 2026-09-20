@@ -247,6 +247,15 @@ has nothing to be spaced from, so it arms ACT immediately. `isFirstOfType` is pe
 per step type, so it survives extra steps appended after generation (`extraSteps`) and
 in-step retry loops — `POST_AGENT` re-arms the gap on retries by `&&`-ing in `attempt === 1`.
 
+**Every `OPEN_SFC` waits for the player to submit or skip after the buffer opens.**
+After the destination is filled, status becomes `Submit flight on the right or skip`,
+ACT stays gray, and SKIP / CANCEL stay live (`waitSkipOr`). The step completes —
+logging `Open SFC for n...` and releasing the next queued SFC's pre-ACT delay — only
+when that ship's `flightId` appears in fleet status, or the player skips. The last SFC
+of a run therefore withholds `Action Package execution completed` until departure or
+skip. Emission is still gated by `shouldEmitAutoSfc` / `noSfc`; only the hold is
+universal. The JAC-23 spacing delay on the following `OPEN_SFC` is unchanged.
+
 ### ACT Step Behaviors Worth Knowing
 
 - **Per-open click gate lives in `requestTile`.** A step that opens a buffer via
@@ -262,7 +271,9 @@ in-step retry loops — `POST_AGENT` re-arms the gap on retries by `&&`-ing in `
   that only arrives mid-run.
 - **MTRA into a ship store auto-emits `OPEN_SFC`** (destination `sfcDestination ??` the
   material group's `planet`) unless `noSfc` is set — a buy→load→launch package needs no
-  explicit launch step; the player still clicks the actual takeoff in SFC.
+  explicit launch step; the player still clicks the actual takeoff in SFC. Every emitted
+  `OPEN_SFC` (MTRA hosts and the XIT AGENT chain SFC) then holds on fleet-status
+  `flightId` or skip before completing.
 - **`CX Buy` with `useCXInv: true` nets out warehouse stock**, so a PREVIEW showing
   `Buy 900` against `Transfer 1,000` of the same ticker is correct (100 already in the
   warehouse), not a quantity bug.

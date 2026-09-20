@@ -27,3 +27,27 @@ describe('OPEN_SFC host window size', () => {
     expect(source.match(/if \(isFirstOfType\)/g)?.length).toBe(1);
   });
 });
+
+describe('OPEN_SFC submit gate', () => {
+  it('holds every unstarted SFC on fleet-status change', () => {
+    const source = productSource('OPEN_SFC.ts');
+    expect(source).toContain('if (!hasShipStartedFlight(shipsStore.getById(data.shipId)))');
+    expect(source).toContain('waitSkipOr');
+    expect(source).toContain('SFC_SUBMIT_STATUS');
+    expect(source.match(/waitSkipOr/g)?.length).toBe(2);
+    expect(source).not.toMatch(/waitForSubmit/);
+  });
+
+  it('does not take a waitForSubmit flag at either emitter', () => {
+    const mtra = readFileSync(join(here, '../actions/mtra/mtra.ts'), 'utf8');
+    const agent = readFileSync(join(here, '../../AGENT/ExecuteStoredPackage.vue'), 'utf8');
+    expect(mtra).not.toMatch(/waitForSubmit/);
+    expect(agent).not.toMatch(/waitForSubmit/);
+  });
+
+  it('does not complete immediately after waitSkipOr', () => {
+    const source = productSource('OPEN_SFC.ts');
+    expect(source).toContain('complete();');
+    expect(source).not.toMatch(/await waitSkipOr\([^;]+\);\s*complete\(\)/);
+  });
+});
