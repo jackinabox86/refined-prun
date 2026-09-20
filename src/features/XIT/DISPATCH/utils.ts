@@ -7,10 +7,17 @@ import {
   isSameAddress,
 } from '@src/infrastructure/prun-api/data/addresses';
 import { materialsStore } from '@src/infrastructure/prun-api/data/materials';
+import { getPlanetBurn } from '@src/core/burn';
 import { computeResupplyBill } from '@src/features/XIT/ACT/material-groups/resupply/bill';
 import { maxFittingDays } from '@src/features/XIT/ACT/material-groups/resupply/fit-days';
 import { computeRepairBill } from '@src/features/XIT/ACT/material-groups/repair/bill';
+import {
+  MilkRunResult,
+  MilkRunStop,
+  planMilkRun,
+} from '@src/features/XIT/ACT/material-groups/resupply/milk-run';
 import type { MaterialFilter } from '@src/features/XIT/ACT/material-groups/resupply/config';
+import { fixed0 } from '@src/utils/format';
 
 export interface DispatchBaseConfig {
   resupply: boolean;
@@ -172,6 +179,97 @@ export function regroupByShip(order: string[], shipOf: Map<string, string>): str
   return result;
 }
 
+export function baseStoreQty(siteId: string) {
+  const qty: Record<string, number> = {};
+  for (const store of storagesStore.getByAddressableId(siteId) ?? []) {
+    if (store.type !== 'STORE') {
+      continue;
+    }
+    for (const item of store.items) {
+      const quantity = item.quantity;
+      if (!quantity) {
+        continue;
+      }
+      const ticker = quantity.material.ticker;
+      qty[ticker] = (qty[ticker] ?? 0) + quantity.amount;
+    }
+  }
+  return qty;
+}
+
+export function baseDailyAmount(siteId: string) {
+  const burn = getPlanetBurn(siteId);
+  if (!burn) {
+    return undefined;
+  }
+  const daily: Record<string, number> = {};
+  for (const ticker of Object.keys(burn.burn)) {
+    daily[ticker] = burn.burn[ticker]!.dailyAmount;
+  }
+  return daily;
+}
+
+export function materialSizeOf(ticker: string) {
+  const mat = materialsStore.getByTicker(ticker);
+  if (!mat) {
+    return undefined;
+  }
+  return { weight: mat.weight, volume: mat.volume };
+}
+
+export interface MilkRunBase {
+  naturalId: string;
+  site: PrunApi.Site;
+  days: number;
+  bill: Record<string, number>;
+}
+
+export function planBasesMilkRun(
+  bases: MilkRunBase[],
+  cargoStore: PrunApi.Store,
+): MilkRunResult | undefined {
+  const stops: MilkRunStop[] = [];
+  for (const base of bases) {
+    if (Object.keys(base.bill).length === 0) {
+      continue;
+    }
+    // A repair-only base bills without ever touching burn, so burn data can still be
+    // missing here. Dropping the stop would take the whole ship's peak-load check with
+    // it; keep it as a consumer and give it no store, which makes every ticker's
+    // takeable 0 so it can never be a source while its own horizon need is unknown.
+    const dailyAmount = baseDailyAmount(base.site.siteId);
+    stops.push({
+      id: base.naturalId,
+      days: base.days,
+      bill: base.bill,
+      storeQty: dailyAmount ? baseStoreQty(base.site.siteId) : {},
+      dailyAmount: dailyAmount ?? {},
+    });
+  }
+  return planMilkRun({
+    stops,
+    cargo: {
+      weightLoad: cargoStore.weightLoad,
+      volumeLoad: cargoStore.volumeLoad,
+      weightCapacity: cargoStore.weightCapacity,
+      volumeCapacity: cargoStore.volumeCapacity,
+    },
+    sizeOf: materialSizeOf,
+  });
+}
+
+export function formatMilkRunOverflow(
+  overflow: { stopId?: string; weightOver: number; volumeOver: number },
+  shipLabel: string,
+  stopLabel?: string,
+) {
+  const over = `${fixed0(overflow.weightOver)}t / ${fixed0(overflow.volumeOver)}m³`;
+  if (overflow.stopId === undefined) {
+    return `${shipLabel} would be ${over} over at CX departure.`;
+  }
+  return `${shipLabel} would be ${over} over after ${stopLabel ?? overflow.stopId} due to its excess available output.`;
+}
+
 export function fitDaysForShip(
   shipId: string,
   bases: { naturalId: string; config: DispatchBaseConfig; site: PrunApi.Site }[],
@@ -212,28 +310,39 @@ export function fitDaysForShip(
     ) {
       return undefined;
     }
+    if (!baseDailyAmount(base.site.siteId)) {
+      return undefined;
+    }
   }
 
   return maxFittingDays(days => {
-    let weight = 0;
-    let volume = 0;
+    const billed: MilkRunBase[] = [];
     for (const base of sharing) {
-      if (!base.config.resupply) {
+      let resupply: Record<string, number> | undefined;
+      if (base.config.resupply) {
+        resupply = computeResupplyBill(
+          { type: 'Resupply', useBaseInv: true },
+          base.naturalId,
+          days,
+          base.config.materialFilter,
+        )!;
+      }
+      let repair: Record<string, number> | undefined;
+      if (base.config.repair) {
+        repair = computeRepairBill(base.site, base.config.repThreshold, base.config.repAdvance);
+      }
+      const bill = mergeBills(resupply, repair);
+      if (!bill || Object.keys(bill).length === 0) {
         continue;
       }
-      const entries = computeResupplyBill(
-        { type: 'Resupply', useBaseInv: true },
-        base.naturalId,
+      billed.push({
+        naturalId: base.naturalId,
+        site: base.site,
         days,
-        base.config.materialFilter,
-      )!;
-      const totals = billTotals(entries);
-      weight += totals.weight;
-      volume += totals.volume;
-      if (weight > freeWeight || volume > freeVolume) {
-        return false;
-      }
+        bill,
+      });
     }
-    return true;
+    const result = planBasesMilkRun(billed, cargoStore);
+    return result?.fits ?? false;
   });
 }

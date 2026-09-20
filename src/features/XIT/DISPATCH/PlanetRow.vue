@@ -16,12 +16,27 @@ import { fixed0 } from '@src/utils/format';
 import type { MaterialFilter } from '@src/features/XIT/ACT/material-groups/resupply/config';
 import { DispatchBaseConfig, billTotals } from '@src/features/XIT/DISPATCH/utils';
 
-const { siteId, naturalId, planetName, config, overloaded, bill } = defineProps<{
+const {
+  siteId,
+  naturalId,
+  planetName,
+  config,
+  overloaded,
+  peakOverflow,
+  overflowTooltip,
+  pickupWeight,
+  pickupVolume,
+  bill,
+} = defineProps<{
   siteId: string;
   naturalId: string;
   planetName: string;
   config: DispatchBaseConfig;
   overloaded: boolean;
+  peakOverflow: boolean;
+  overflowTooltip?: string;
+  pickupWeight?: number;
+  pickupVolume?: number;
   bill?: Record<string, number>;
 }>();
 
@@ -66,14 +81,25 @@ const repairDaysText = computed(() => {
 });
 
 const loadText = computed(() => {
-  if (!config.resupply && !config.repair) {
-    return '--';
+  let billWeight = 0;
+  let billVolume = 0;
+  let hasBill = false;
+  if ((config.resupply || config.repair) && bill) {
+    const totals = billTotals(bill);
+    billWeight = totals.weight;
+    billVolume = totals.volume;
+    hasBill = true;
   }
-  if (!bill) {
-    return '--';
+  const pickupW = pickupWeight ?? 0;
+  const pickupV = pickupVolume ?? 0;
+  const usePickup = pickupW > billWeight || pickupV > billVolume;
+  if (!hasBill && !usePickup) {
+    return peakOverflow ? '-- *' : '--';
   }
-  const totals = billTotals(bill);
-  return `${fixed0(totals.weight)}t - ${fixed0(totals.volume)}m³`;
+  const weight = usePickup ? pickupW : billWeight;
+  const volume = usePickup ? pickupV : billVolume;
+  const text = `${fixed0(weight)}t - ${fixed0(volume)}m³`;
+  return peakOverflow ? `${text} *` : text;
 });
 
 const assignedShip = computed(() => (config.ship ? shipsStore.getById(config.ship) : undefined));
@@ -169,13 +195,15 @@ function clearShip() {
         <span :class="$style.statusNum">{{ repairDaysText }}</span>
       </div>
     </td>
-    <td
-      :class="[
-        C.type.typeSmall,
-        $style.loadCell,
-        overloaded && [C.Workforces.daysMissing, $style.loadOverloaded],
-      ]">
-      {{ loadText }}
+    <td :class="[C.type.typeSmall, $style.loadCell]">
+      <!-- Ship-level overload shades every row of that ship. A CX-departure overflow has
+           no stop to hang the asterisk on, so this is its only row-level signal. -->
+      <div
+        :class="[$style.loadBox, (overloaded || peakOverflow) && C.Workforces.daysMissing]"
+        :data-tooltip="overflowTooltip"
+        data-tooltip-position="top">
+        <span :class="$style.loadFigure">{{ loadText }}</span>
+      </div>
     </td>
     <td :class="$style.selectCell">
       <div :class="[C.forms.input, $style.selectWrap]">
@@ -269,8 +297,18 @@ function clearShip() {
   color: #f7a600;
 }
 
-.loadOverloaded {
-  color: inherit;
+.loadBox {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 18px;
+  box-sizing: border-box;
+  padding: 2px 4px;
+  white-space: normal;
+}
+
+.loadFigure {
+  white-space: nowrap;
 }
 
 .shipCell {
