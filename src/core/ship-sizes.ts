@@ -25,3 +25,24 @@ export function getShipSize(id: string | undefined) {
   }
   return shipSizes.find(x => x.id === id);
 }
+
+// Catalog sizes whose cargo hold the player currently owns at least one of.
+export function shipSizesOwnedByFleet(
+  sizes: readonly ShipSize[],
+  ships: readonly { idShipStore: string }[] | undefined,
+  getHold: (id: string) => { weightCapacity: number; volumeCapacity: number } | undefined,
+) {
+  if (ships === undefined) {
+    return [];
+  }
+  return sizes.filter(size =>
+    ships.some(ship => {
+      const hold = getHold(ship.idShipStore);
+      return (
+        hold !== undefined &&
+        hold.weightCapacity === size.weight &&
+        hold.volumeCapacity === size.volume
+      );
+    }),
+  );
+}
