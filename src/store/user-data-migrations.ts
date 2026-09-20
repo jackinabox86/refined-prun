@@ -17,6 +17,12 @@ function isCheckpoint(entry: MigrationEntry): entry is Checkpoint {
 // The date is for reference only, and it does not affect migration order.
 const migrations: MigrationEntry[] = [
   [
+    '20.09.2026 Rename act-dispatch-auto-close',
+    userData => {
+      renameFeature(userData, 'act-dispatch-auto-close', 'act-auto-close');
+    },
+  ],
+  [
     '19.09.2026 Add per-planet auto SFC',
     userData => {
       userData.settings.planetAutoSfc = {};

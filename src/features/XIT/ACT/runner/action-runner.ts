@@ -15,7 +15,7 @@ interface ActionRunnerOptions {
   onBufferSplit: () => void;
   onStart: () => void;
   onEnd: () => void;
-  onComplete?: () => void;
+  onComplete?: (result: { keepBufferOpen: boolean }) => void;
   onStatusChanged: (status: string, keepReady?: boolean) => void;
   onActReady: () => void;
   onSkipReady: () => void;

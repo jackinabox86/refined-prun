@@ -14,7 +14,7 @@ interface StepMachineOptions {
   onBufferSplit: () => void;
   onStart: () => void;
   onEnd: () => void;
-  onComplete?: () => void;
+  onComplete?: (result: { keepBufferOpen: boolean }) => void;
   onStatusChanged: (status: string, keepReady?: boolean) => void;
   onActReady: () => void;
   onSkipReady: () => void;
@@ -32,11 +32,17 @@ export class StepMachine {
   // the previous step of its kind (agent posts, SFC opens) reads this so the first of a
   // kind doesn't gray ACT waiting on something that hasn't happened yet.
   private startedStepTypes = new Set<string>();
+  // Reasons this run's buffer must outlive completion even with act-auto-close on:
+  // a printed JSON payload is an output the player copies out of the log, and a skipped SFC
+  // leaves a staged, unsubmitted flight in the companion pane.
+  private keepBufferOpen: boolean;
 
   constructor(
     private steps: ActionStep[],
     private options: StepMachineOptions,
-  ) {}
+  ) {
+    this.keepBufferOpen = steps.some(x => x.type === 'LOG_JSON');
+  }
 
   get isRunning() {
     return this.next !== undefined;
@@ -67,6 +73,9 @@ export class StepMachine {
     const next = this.next;
     if (!next) {
       return;
+    }
+    if (next.type === 'OPEN_SFC') {
+      this.keepBufferOpen = true;
     }
     if (!opts?.silent) {
       const info = act.getActionStepInfo(next.type);
@@ -101,7 +110,7 @@ export class StepMachine {
     if (this.steps.length === 0) {
       this.log.success('Action Package execution completed');
       this.stop();
-      this.options.onComplete?.();
+      this.options.onComplete?.({ keepBufferOpen: this.keepBufferOpen });
       return;
     }
     const next = this.steps.shift()!;
