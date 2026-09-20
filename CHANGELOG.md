@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 1.1.4
+
 ### Added
 
 - `XIT BURNACT`: Remembers the CX buy exchange chosen for a base and defaults to that exchange and CX warehouse on subsequent use.
