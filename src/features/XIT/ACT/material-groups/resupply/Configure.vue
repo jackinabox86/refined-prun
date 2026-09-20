@@ -16,8 +16,9 @@ import { configurableValue } from '@src/features/XIT/ACT/shared-types';
 import { getResupplyDays } from '@src/core/burn';
 import { materialsStore } from '@src/infrastructure/prun-api/data/materials';
 import { shipsStore } from '@src/infrastructure/prun-api/data/ships';
+import { storagesStore } from '@src/infrastructure/prun-api/data/storage';
 import { fixed02 } from '@src/utils/format';
-import { shipSizes } from '@src/core/ship-sizes';
+import { shipSizes, shipSizesOwnedByFleet } from '@src/core/ship-sizes';
 
 const { data, config, shipStore } = defineProps<{
   data: UserData.MaterialGroupData;
@@ -111,6 +112,10 @@ function fitToShip(maxWeight: number, maxVolume: number) {
 
 const canFit = computed(() => bill.value !== undefined);
 
+const ownedShipSizes = computed(() =>
+  shipSizesOwnedByFleet(shipSizes, shipsStore.all.value, id => storagesStore.getById(id)),
+);
+
 const shipFree = computed(() => {
   if (!shipStore) {
     return undefined;
@@ -159,7 +164,7 @@ const shipName = computed(() => {
   <div v-if="data.days === configurableValue" :class="$style.fitRow">
     <span>Fit to Ship</span>
     <PrunButton
-      v-for="ship in shipSizes"
+      v-for="ship in ownedShipSizes"
       :key="ship.id"
       primary
       :disabled="!canFit"

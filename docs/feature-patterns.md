@@ -908,6 +908,13 @@ whatever exchange is current, linking to that CX warehouse when the player has o
 (`linkedMtraOrigin` in `actions/mtra/cx-buy-origin.ts`); otherwise the usual
 first-storage autofill stands.
 
+`XIT BURNACT`'s resupply "Fit to Ship" row lists only `src/core/ship-sizes.ts` catalog
+entries the player currently owns. Ownership is a live join of `shipsStore` (`SHIP_SHIPS`
+fleet) to each ship's cargo hold in `storagesStore` via `idShipStore`, matching
+`weightCapacity`/`volumeCapacity` — the same path XIT STO's visitation table uses. Sizes
+with zero matching holds are omitted, not disabled. Fit resolution (`maxFittingDays`) is
+unchanged. The XIT PLANETS pickup-size dropdown still offers the full catalog.
+
 `XIT BURNACT`, `XIT REPAIRACT`, and `XIT GOVBURNEXEC` share one per-base auto-SFC
 flag in `settings.planetAutoSfc[planetNaturalId]`. They did not already share a
 per-base settings record (burn / repair / govburn each have their own maps), so
