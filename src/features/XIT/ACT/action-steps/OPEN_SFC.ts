@@ -71,19 +71,22 @@ export const OPEN_SFC = act.addActionStep<Data>({
     }
 
     if (data.waitForSubmit && !hasShipStartedFlight(shipsStore.getById(data.shipId))) {
+      // The handle is what watch() returns, so the immediate call sees it undefined. That's
+      // fine - the guard above means the immediate call is never the started one, and the
+      // finally below disposes the watcher either way. Calling a `const stop` from inside
+      // the callback would instead throw on the immediate tick.
       let stopWatch: (() => void) | undefined;
       const flightStarted = new Promise<void>(resolve => {
-        const stop = watch(
+        stopWatch = watch(
           () => hasShipStartedFlight(shipsStore.getById(data.shipId)),
           started => {
             if (started) {
-              stop();
+              stopWatch?.();
               resolve();
             }
           },
           { immediate: true },
         );
-        stopWatch = stop;
       });
       try {
         const outcome = await waitSkipOr(SFC_SUBMIT_STATUS, flightStarted);
