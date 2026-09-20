@@ -159,6 +159,7 @@ export class StepMachine {
           }
         },
         requestTile: async (command, opts) => await this.requestTile(command, opts),
+        actTile: this.options.tile,
       });
     } catch (e) {
       if (e === ExecutionStopped) {

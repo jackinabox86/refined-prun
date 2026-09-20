@@ -53,7 +53,7 @@ function getTagClass(tag: LogTag) {
         <span
           v-for="(part, i) in message.message"
           :key="i"
-          :class="part.yellow ? $style.yellow : undefined"
+          :class="part.red ? $style.red : part.yellow ? $style.yellow : undefined"
           >{{ part.text }}</span
         >
       </template>
@@ -96,5 +96,9 @@ function getTagClass(tag: LogTag) {
 
 .yellow {
   color: #f7a600;
+}
+
+.red {
+  color: #d9534f;
 }
 </style>

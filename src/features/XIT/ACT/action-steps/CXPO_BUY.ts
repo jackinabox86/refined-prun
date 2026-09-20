@@ -2,6 +2,14 @@ import { act } from '@src/features/XIT/ACT/act-registry';
 import { fixed0, fixed02 } from '@src/utils/format';
 import { changeInputValue, clickElement } from '@src/util';
 import { fillAmount } from '@src/features/XIT/ACT/actions/cx-buy/utils';
+import {
+  priceExcessLevel,
+  resolveCxBuyPrice,
+} from '@src/features/XIT/ACT/actions/cx-buy/price-threshold';
+import PriceThresholdWarning from '@src/features/XIT/ACT/actions/cx-buy/PriceThresholdWarning.vue';
+import { showTileOverlay } from '@src/infrastructure/prun-ui/tile-overlay';
+import { getPrice } from '@src/infrastructure/fio/cx';
+import { userData } from '@src/store/user-data';
 import { storagesStore } from '@src/infrastructure/prun-api/data/storage';
 import { exchangesStore } from '@src/infrastructure/prun-api/data/exchanges';
 import { warehousesStore } from '@src/infrastructure/prun-api/data/warehouses';
@@ -157,6 +165,38 @@ export const CXPO_BUY = act.addActionStep<Data>({
     quantityInput.addEventListener('input', onManualInput);
     priceInput.addEventListener('input', onManualInput);
 
+    const filled = fillAmount(cxTicker, amount, priceLimit);
+    const buyPrice = resolveCxBuyPrice({
+      allowUnfilled: data.allowUnfilled,
+      priceLimit,
+      filled,
+    });
+    const refinedValue = getPrice(ticker);
+    const thresholds = userData.settings.noBuyThresholds;
+    const level = priceExcessLevel(
+      buyPrice,
+      refinedValue,
+      thresholds?.yellow ?? 10,
+      thresholds?.red ?? 20,
+    );
+    if (level !== 'none' && buyPrice !== undefined && refinedValue !== undefined) {
+      await new Promise<void>(resolve => {
+        showTileOverlay(
+          ctx.actTile.anchor,
+          PriceThresholdWarning,
+          {
+            ticker,
+            price: buyPrice,
+            refinedValue,
+            level,
+          },
+          // The overlay covers the ACT button. A backdrop click would let a player
+          // spam-clicking ACT dismiss the warning without ever reading it, so the
+          // only way out is DISMISS on the warning itself.
+          { onClosed: resolve, dismissOnBackdrop: false },
+        );
+      });
+    }
     await waitAct();
     quantityInput.removeEventListener('input', onManualInput);
     priceInput.removeEventListener('input', onManualInput);
