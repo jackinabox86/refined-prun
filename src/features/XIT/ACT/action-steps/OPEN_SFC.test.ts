@@ -27,3 +27,19 @@ describe('OPEN_SFC host window size', () => {
     expect(source.match(/if \(isFirstOfType\)/g)?.length).toBe(1);
   });
 });
+
+describe('OPEN_SFC DISPATCHACT submit gate', () => {
+  it('waits for fleet-status change only when waitForSubmit is set', () => {
+    const source = productSource('OPEN_SFC.ts');
+    expect(source).toContain('if (data.waitForSubmit && !hasShipStartedFlight');
+    expect(source).toContain('waitSkipOr');
+    expect(source).toContain('SFC_SUBMIT_STATUS');
+    expect(source.match(/waitSkipOr/g)?.length).toBe(2);
+  });
+
+  it('does not wait for submit on the default complete path', () => {
+    const source = productSource('OPEN_SFC.ts');
+    expect(source).toContain('complete();');
+    expect(source).not.toMatch(/await waitSkipOr\([^;]+\);\s*complete\(\)/);
+  });
+});

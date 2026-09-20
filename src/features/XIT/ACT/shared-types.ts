@@ -55,6 +55,8 @@ export interface ActionStepExecuteContext<T> extends ActionRunnerContext<T> {
   isFirstOfType: boolean;
   setStatus: (status: string) => void;
   waitAct: (status?: string, opts?: { actDelayMs?: number }) => Promise<void>;
+  // Status + SKIP/CANCEL only. ACT stays gray until the event or skip settles.
+  waitSkipOr: (status: string, event: Promise<void>) => Promise<'skip' | 'ready'>;
   waitActionFeedback: (tile: PrunTile) => Promise<void>;
   cacheDescription: () => void;
   complete: () => void;

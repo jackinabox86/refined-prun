@@ -5,6 +5,7 @@ import { TileAllocator } from '@src/features/XIT/ACT/runner/tile-allocator';
 import { clickElement } from '@src/util';
 import { sleep } from '@src/utils/sleep';
 import { closeAgentChannelSession } from '@src/infrastructure/prun-ui/agent-channel-messaging';
+import { raceSkipOrReady } from '@src/features/XIT/ACT/runner/skip-or-ready';
 
 interface StepMachineOptions {
   tile: PrunTile;
@@ -26,6 +27,7 @@ const actionFeedbackTimeoutMs = 30_000;
 export class StepMachine {
   private next?: ActionStep;
   private nextAct?: () => void;
+  private skipWait?: () => void;
   // Step types that have already started in this run. A pause that only spaces a step from
   // the previous step of its kind (agent posts, SFC opens) reads this so the first of a
   // kind doesn't gray ACT waiting on something that hasn't happened yet.
@@ -71,6 +73,9 @@ export class StepMachine {
       this.log.skip(info.description(next));
     }
     this.nextAct = undefined;
+    const skipWait = this.skipWait;
+    this.skipWait = undefined;
+    skipWait?.();
     void this.startNext();
   }
 
@@ -86,6 +91,9 @@ export class StepMachine {
     closeAgentChannelSession();
     this.next = undefined;
     this.nextAct = undefined;
+    const skipWait = this.skipWait;
+    this.skipWait = undefined;
+    skipWait?.();
     this.options.onEnd();
   }
 
@@ -113,6 +121,7 @@ export class StepMachine {
           status ??= description ?? info.description(next);
           await this.waitAct(status, opts);
         },
+        waitSkipOr: async (status, event) => await this.waitSkipOr(status, event),
         waitActionFeedback: async tile => {
           this.options.onStatusChanged('Waiting for action feedback...');
           const error = await waitActionFeedback(tile);
@@ -179,6 +188,16 @@ export class StepMachine {
       this.stop();
     }
     return tile;
+  }
+
+  private async waitSkipOr(status: string, event: Promise<void>) {
+    this.options.onStatusChanged(status);
+    this.options.onSkipReady();
+    const result = await raceSkipOrReady(event, skip => {
+      this.skipWait = skip;
+    });
+    this.skipWait = undefined;
+    return result;
   }
 
   private async waitAct(status: string, opts?: { actDelayMs?: number }) {
