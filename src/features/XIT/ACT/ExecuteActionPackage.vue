@@ -23,7 +23,7 @@ const { pkg, afterExecute, extraSteps, initialConfig, configChanged, keepOpenOnC
     initialConfig?: ActionPackageConfig;
     configChanged?: (config: ActionPackageConfig) => void;
     // Hosts whose afterExecute writes output the player copies out of the log return true
-    // here, so act-dispatch-auto-close doesn't take that log away with the window.
+    // here, so act-auto-close doesn't take that log away with the window.
     keepOpenOnComplete?: () => boolean;
   }>();
 

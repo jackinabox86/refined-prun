@@ -1,13 +1,13 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { setActDispatchAutoCloseEnabled, shouldAutoCloseActBuffer } from './auto-close';
+import { setActAutoCloseEnabled, shouldAutoCloseActBuffer } from './auto-close';
 
 afterEach(() => {
-  setActDispatchAutoCloseEnabled(false);
+  setActAutoCloseEnabled(false);
 });
 
 describe('shouldAutoCloseActBuffer', () => {
   it('closes on successful completion when enabled', () => {
-    setActDispatchAutoCloseEnabled(true);
+    setActAutoCloseEnabled(true);
     expect(shouldAutoCloseActBuffer(true)).toBe(true);
   });
 
@@ -16,12 +16,12 @@ describe('shouldAutoCloseActBuffer', () => {
   });
 
   it('does not close on failed or canceled completion', () => {
-    setActDispatchAutoCloseEnabled(true);
+    setActAutoCloseEnabled(true);
     expect(shouldAutoCloseActBuffer(false)).toBe(false);
   });
 
   it('does not close a run that kept its buffer open', () => {
-    setActDispatchAutoCloseEnabled(true);
+    setActAutoCloseEnabled(true);
     expect(shouldAutoCloseActBuffer(true, true)).toBe(false);
   });
 });

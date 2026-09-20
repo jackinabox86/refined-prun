@@ -1,7 +1,7 @@
-import { setActDispatchAutoCloseEnabled } from '@src/features/XIT/ACT/auto-close';
+import { setActAutoCloseEnabled } from '@src/features/XIT/ACT/auto-close';
 
 function init() {
-  setActDispatchAutoCloseEnabled(true);
+  setActAutoCloseEnabled(true);
 }
 
 features.add(

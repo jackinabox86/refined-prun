@@ -175,7 +175,7 @@ then `(tile.id, 'XIT <CMD>')`; the null-then-command two-step is required, with
 Hooks: `beforeExecute` (logs land at the top of the run log) and `afterExecute`.
 
 **Package completion** is `StepMachine` exhausting its step list (`Action Package execution
-completed`), not cancel or fail. `act-dispatch-auto-close` (disabled by default in
+completed`), not cancel or fail. `act-auto-close` (disabled by default in
 `settings.disabled`) closes the host window on that success path only, and for every host
 that mounts `ExecuteActionPackage` — ACT/ACTION, DISPATCHACT, BURNACT, REPAIRACT, REFUELACT,
 GOVBURNEXEC, GOVBURNDATA, AGENT — so no command allowlist is involved. The planners (XIT

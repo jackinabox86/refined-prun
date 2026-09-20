@@ -95,7 +95,7 @@ const pkg = computed(
 const generateReturnJson = ref(false);
 
 // The return JSON lands in the run log for the player to copy, so a run that generated it
-// keeps its buffer open even with act-dispatch-auto-close on.
+// keeps its buffer open even with act-auto-close on.
 function keepOpenOnComplete() {
   return generateReturnJson.value;
 }

@@ -1,6 +1,6 @@
 let enabled = false;
 
-export function setActDispatchAutoCloseEnabled(value: boolean) {
+export function setActAutoCloseEnabled(value: boolean) {
   enabled = value;
 }
 

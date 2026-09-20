@@ -32,7 +32,7 @@ export class StepMachine {
   // the previous step of its kind (agent posts, SFC opens) reads this so the first of a
   // kind doesn't gray ACT waiting on something that hasn't happened yet.
   private startedStepTypes = new Set<string>();
-  // Reasons this run's buffer must outlive completion even with act-dispatch-auto-close on:
+  // Reasons this run's buffer must outlive completion even with act-auto-close on:
   // a printed JSON payload is an output the player copies out of the log, and a skipped SFC
   // leaves a staged, unsubmitted flight in the companion pane.
   private keepBufferOpen: boolean;
