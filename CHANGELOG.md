@@ -4,15 +4,26 @@
 
 ### Added
 
-- `XIT BURNACT`: Remembers the CX buy exchange chosen for a base and defaults that exchange (and MTRA from, when the CX warehouse exists) on the next open. A base with no stored selection starts on AI1.
-- `XIT FLT`: Optional name modifier (`XIT FLT ANT`, `XIT FLT ZV-307a`) filters the table to ships in that system or at that planet. CX tickers resolve like `FLTS` (ANT → Antares I). In-flight ships match their destination, same as the Status column.
+- `XIT BURNACT`: Remembers the CX buy exchange chosen for a base and defaults to that exchange and CX warehouse on subsequent use.
+- `XIT FLT`: Optional name modifier (`XIT FLT ANT`, `XIT FLT ZV-307a`) filters the table to ships in that system or at that planet. CX tickers resolve like `FLTS` (ANT → Antares I).
 - `nots-cogc-repeat-vote`: Clicking a COGC program-changed notification opens `COGCPD p-{planet} pn-{program}` so you can vote to repeat that program.
-- `XIT BS`: Adds a DYNAMIC toggle beside the WAR column filter that ranks bases by the closer of burn days and repair age to their red thresholds, while Planet / Burn / Rep keep their raw-value sorts.
+- `XIT BS`: Adds a DYNAMIC toggle that ranks bases by the closer of burn days and repair age to their red thresholds.
+- `act-auto-close`: Off by default in XIT SET. When enabled, closes `XIT ACT` / `XIT BURNACT` / `XIT REPAIRACT` / `XIT DISPATCHACT` / `XIT GOVBURNEXEC` after a successful package run.
+- `XIT BURNACT` / `XIT REPAIRACT` / `XIT GOVBURNEXEC`: Auto SFC toggle under MTRA To. On by default; off is remembered per base and skips opening SFC.
+- `XIT NOBUY`: Yellow and Red percent fields (default 10 / 20) warn in ACT before a CX buy that exceeds the refined-PrUn price.
+- `XIT DISPATCH` / CX Buy: Optional PRICES toggle (default off) asks for one ACT click per missing CX category, then shows a ranked cost preview in the CX pane before the buys.
+- `XIT NOBUY`: All Materials excludes every ticker from CX Buy bills without clearing the specified list.
 
 ### Changed
 
+- `XIT DISPATCH/AGENT`: Major Change! Multiple bases w/ one ship using AGENT now account for inputs available at stops on route, instead of buying the full bill on the CX. Load cells show route peak to avoid overloads mid-route..
 - Port upstream's typed `L` localization API. UI string matching uses locale keys (with English fallback) instead of the old `PrunI18N` dictionary.
-- `XIT FLT`: The collapsed filter row reads `Filters`, and goes back to reading `Minimize` once it is expanded.
+- `XIT BURNACT`: Fit-to-ship offers only ship sizes you currently own.
+- `XIT ACT`: A CX buy past the NOBUY yellow/red threshold shows a blocking Price Warning overlay with the overage before Act/Skip.
+
+### Fixed
+
+- `sfc-flight-cost`: SFC fee amounts that use a space or apostrophe thousands separator no longer undercount the Cost overlay.
 
 ## 1.1.3
 
