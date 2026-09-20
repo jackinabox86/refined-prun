@@ -18,6 +18,7 @@ import { serializeStorage } from '@src/features/XIT/ACT/actions/utils';
 import { allExchangesValue } from '@src/features/XIT/ACT/actions/refuel/utils';
 import { setBufferSize, showBuffer } from '@src/infrastructure/prun-ui/buffers';
 import { stagedDispatch } from '@src/features/XIT/DISPATCH/staged';
+import { userData } from '@src/store/user-data';
 import { vDraggable } from 'vue-draggable-plus';
 import { grip } from '@src/components/grip';
 import GripHeaderCell from '@src/components/grip/GripHeaderCell.vue';
@@ -696,6 +697,7 @@ function reset() {
       </RadioItem>
       <div :class="$style.separator" />
       <RadioItem v-model="refuel" horizontal>REFUEL</RadioItem>
+      <RadioItem v-model="userData.settings.cxPricesPreview" horizontal>PRICES</RadioItem>
       <div :class="$style.spacer" />
       <PrunButton dark @click="reset">RESET</PrunButton>
       <PrunButton

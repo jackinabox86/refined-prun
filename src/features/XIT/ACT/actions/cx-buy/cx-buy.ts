@@ -3,8 +3,10 @@ import Edit from '@src/features/XIT/ACT/actions/cx-buy/Edit.vue';
 import Configure from '@src/features/XIT/ACT/actions/cx-buy/Configure.vue';
 import { Config } from '@src/features/XIT/ACT/actions/cx-buy/config';
 import { CXPO_BUY } from '@src/features/XIT/ACT/action-steps/CXPO_BUY';
+import { CX_PRICES_PREVIEW } from '@src/features/XIT/ACT/action-steps/CX_PRICES_PREVIEW';
 import { fixed0, fixed02 } from '@src/utils/format';
 import { fillAmount } from '@src/features/XIT/ACT/actions/cx-buy/utils';
+import { shouldEmitPricesPreview } from '@src/features/XIT/ACT/actions/cx-buy/prices-preview';
 import { AssertFn, configurableValue } from '@src/features/XIT/ACT/shared-types';
 import { userData } from '@src/store/user-data';
 
@@ -69,7 +71,20 @@ act.addAction<Config>({
       }
     }
 
+    // The all-materials switch stands in for listing every ticker individually.
+    // It runs after the CX-inventory pass so allocation stays identical either way.
+    if (userData.settings.noBuyAll && Object.keys(materials).length > 0) {
+      log.warning('No CX buys generated (XIT NOBUY is set to all materials)');
+      return;
+    }
+
     const noBuy = new Set(userData.settings.noBuy);
+    const buys = [] as {
+      ticker: string;
+      amount: number;
+      priceLimit: number;
+      allowUnfilled: boolean;
+    }[];
     for (const ticker of Object.keys(materials)) {
       if (noBuy.has(ticker)) {
         continue;
@@ -105,13 +120,32 @@ act.addAction<Config>({
         }
       }
 
+      buys.push({
+        ticker,
+        amount: bidAmount,
+        priceLimit,
+        allowUnfilled,
+      });
+    }
+
+    if (shouldEmitPricesPreview(userData.settings.cxPricesPreview, buys.length)) {
+      emitStep(
+        CX_PRICES_PREVIEW({
+          exchange,
+          group: data.group ?? 'materials',
+          buys,
+        }),
+      );
+    }
+
+    for (const buy of buys) {
       emitStep(
         CXPO_BUY({
           exchange,
-          ticker,
-          amount: bidAmount,
-          priceLimit: priceLimit,
-          allowUnfilled: allowUnfilled,
+          ticker: buy.ticker,
+          amount: buy.amount,
+          priceLimit: buy.priceLimit,
+          allowUnfilled: buy.allowUnfilled,
         }),
       );
     }

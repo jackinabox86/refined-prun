@@ -277,6 +277,27 @@ universal. The JAC-23 spacing delay on the following `OPEN_SFC` is unchanged.
 - **`CX Buy` with `useCXInv: true` nets out warehouse stock**, so a PREVIEW showing
   `Buy 900` against `Transfer 1,000` of the same ticker is correct (100 already in the
   warehouse), not a quantity bug.
+- **CX buy price-threshold warnings gate Act/Skip from the ACT tile.** `CXPO_BUY` compares
+  the live fill (or unfilled bid) price to `getPrice(ticker)` using the yellow/red percents
+  from `XIT NOBUY` (`settings.noBuyThresholds`, default 10/20). Past either threshold it
+  shows an overlay on `ctx.actTile` *before* `waitAct`. That overlay passes
+  `{ dismissOnBackdrop: false }` to `showTileOverlay`: it covers the ACT button, and
+  `Overlay.vue`'s backdrop closes on click by default, so a player spam-clicking ACT
+  dismissed the warning without ever seeing it. Any overlay the player must *read*
+  needs the same flag; editors opened by a deliberate click keep the default.
+  The forced dismiss is the whole gate — `waitAct()` takes no `actDelayMs`, so the player
+  acts or skips as soon as they have read it. The overlay names no colour; the overage
+  percent itself is shaded with `C.Workforces.daysMissing` / `daysWarning`, matching how
+  `BS` / `BURN` / `GOVBURN` render their red/yellow thresholds.
+  The shaded span covers the whole overage phrase (`42.0% over`), not just the number.
+  At or below threshold the existing `waitAct()` path is unchanged — no overlay, no delay.
+  Missing or non-positive refined-PrUn values skip the warning (no denominator).
+- **The no-buy list has an all-materials switch.** `settings.noBuyAll` (XIT NOBUY) stands in
+  for enumerating every ticker: when it is on, `cx-buy.ts` logs one warning and emits no
+  `CXPO_BUY` steps at all. It is checked *after* the `useCXInv` pass so warehouse allocation
+  in `state.WAR` is identical either way, and the individual `settings.noBuy` array is left
+  untouched so it applies again once the switch is off. Like `settings.noBuy`, it scopes to
+  `CX Buy` only — `refuel.ts` emits its own `CXPO_BUY` steps and neither one filters them.
 - **A short CX order book only warns, never aborts the package.** Both the generation-time
   check (`cx-buy.ts`) and the live one in `CXPO_BUY` log a warning and buy what
   `fillAmount()` says is available; a ticker with nothing available is skipped. `buyPartial`
@@ -294,6 +315,39 @@ universal. The JAC-23 spacing delay on the following `OPEN_SFC` is unchanged.
 - **`CXPO_BUY`'s quantity `watchEffect` reruns on every order-book tick** while the buffer
   sits open waiting for ACT. Anything with a side effect inside it (logging above all) must
   dedupe, or one slow CX fills the log with the same warning.
+- **CX prices preview is a separate preflight step, not a per-buy overlay.** When
+  `userData.settings.cxPricesPreview` is on, `CX Buy` emits `CX_PRICES_PREVIEW` ahead of
+  its `CXPO_BUY` steps. That step opens `CX {exchange}` in the right companion buffer
+  (unexpanded listing, `actGate: false`), then walks the category `<select>` for the
+  categories still missing from `cxobStore` — **one player ACT click per category page**,
+  never an automatic sweep. Each page is a bare `waitAct(status)` with no `actDelayMs`, so
+  the clicks are as fast as the player wants; `changeSelectIndex` runs only after the
+  click resolves. The ranked cost preview then renders **in that same companion pane**
+  (`showTileOverlay(tile.anchor, PricesPreview, …)`), not in the ACT log, followed by
+  `waitAct` with `actDelayMs: 2000`. Skip during that pause advances to the first buy. Toggle lives on
+  DISPATCH (next to REFUEL) and in the CX Buy configure form — one persisted setting,
+  default off. Shading uses `settings.noBuyThresholds` and `resolveCxBuyPrice` from
+  `price-threshold.ts`, the same comparison `CXPO_BUY`'s overlay makes, so a red preview
+  line is a red overlay on that buy. Cost is order-book fills only (plus an
+  `allowUnfilled` remainder at the player's own price limit); unfillable quantity is
+  logged as unavailable depth, not priced at the refined-PrUn value. A ticker with no
+  `cxobStore` book at all is a *failed price load*, not an empty market: it logs
+  `no CX price data` and a load warning, never `unavailable`. Conflating the two states
+  the market said something it never said.
+- **`PricesPreview.vue` keeps the total outside the scrolling list.** The panel opens
+  unscrolled, and the lines are ranked worst-overage first, so the total and the tickers
+  the player has to decide about are on screen without paging. The list is the only thing
+  that scrolls (`flex: 1 1 auto; min-height: 0; overflow-y: auto`, plus a `max-height`
+  cap for the case where the overlay hands it an unbounded height) — let the whole panel
+  scroll instead and the total pages off the top, which is the thing this layout exists
+  to prevent.
+- **`showTileOverlay` returns a close handle** (`undefined` when it could not mount, e.g.
+  a tile frame with no `C.ScrollView.view`). Closing is idempotent, so a backdrop
+  dismissal and the caller's own close are safe together. A step that keeps a panel up
+  until ACT needs it — but remember `ctx.skip()` never resumes the step, so the close
+  after `await waitAct()` is dropped on SKIP and the panel goes away only when the next
+  step retargets the pane. Steps that must render something regardless need the
+  `undefined` fallback path, as `CX_PRICES_PREVIEW` does by logging.
 - **Step `Data` is per-run, not persisted.** `action-steps/*` interfaces are rebuilt by
   every generation pass, so fields can be added or dropped freely. `UserData.ActionData`
   fields are the opposite: they persist in saved packages and are mirrored in
