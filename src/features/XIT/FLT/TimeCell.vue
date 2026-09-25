@@ -1,15 +1,21 @@
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, useCssModule } from 'vue';
 import { shipsStore } from '@src/infrastructure/prun-api/data/ships';
 import { flightsStore } from '@src/infrastructure/prun-api/data/flights';
 import { displaytimeBetween, hhmm } from '@src/utils/format';
 import { timestampEachMinute } from '@src/utils/dayjs';
 import { showBuffer } from '@src/infrastructure/prun-ui/buffers';
 import { getInvStore } from '@src/core/store-id';
+import {
+  getLocationLineFromAddress,
+  isStationLine,
+} from '@src/infrastructure/prun-api/data/addresses';
 
 const props = defineProps<{
   shipId: string;
 }>();
+
+const $style = useCssModule();
 
 const ship = computed(() => shipsStore.getById(props.shipId));
 const flight = computed(() => flightsStore.getById(ship.value?.flightId));
@@ -27,6 +33,17 @@ const timeData = computed(() => {
 });
 
 const hasItems = computed(() => (inventory.value?.items.length ?? 0) > 0);
+
+const isAtStation = computed(() =>
+  isStationLine(getLocationLineFromAddress(ship.value?.address ?? undefined)),
+);
+
+const unloadBtnClass = computed(() => {
+  if (isAtStation.value) {
+    return hasItems.value ? $style.bgOrange : $style.bgBlue;
+  }
+  return hasItems.value ? $style.bgLightRed : $style.bgLightPurple;
+});
 </script>
 
 <template>
@@ -40,7 +57,7 @@ const hasItems = computed(() => (inventory.value?.items.length ?? 0) > 0);
     <template v-else>
       <div :class="$style.actions">
         <span
-          :class="[$style.actionBtn, hasItems ? $style.bgOrange : $style.bgBlue]"
+          :class="[$style.actionBtn, unloadBtnClass]"
           :style="{ paddingRight: '5px' }"
           @click.stop="showBuffer(`SHPI ${ship?.registration}`)">
           {{ hasItems ? '⭱' : '⭳' }}
@@ -92,6 +109,14 @@ const hasItems = computed(() => (inventory.value?.items.length ?? 0) > 0);
 
 .bgBlue {
   background-color: #43a4df;
+}
+
+.bgLightRed {
+  background-color: #e8676b;
+}
+
+.bgLightPurple {
+  background-color: #b48ad8;
 }
 
 .bgGreen {
