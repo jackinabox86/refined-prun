@@ -1,34 +1,42 @@
 import PrunButton from '@src/components/PrunButton.vue';
 import { shipsStore } from '@src/infrastructure/prun-api/data/ships';
-import { getEntityNaturalIdFromAddress } from '@src/infrastructure/prun-api/data/addresses';
+import {
+  getEntityNameFromAddress,
+  getEntityNaturalIdFromAddress,
+} from '@src/infrastructure/prun-api/data/addresses';
 import { selectAddress } from '@src/infrastructure/prun-ui/utils/select-address';
+import { userData } from '@src/store/user-data';
 import $style from './sfc-exchange-destinations.module.css';
 
-// Commodity exchange stations, by their own natural ids. Ordered the way the
-// game lists their exchange codes (AI1, CI1, IC1, NC1).
-const exchangeStationIds = ['ANT', 'BEN', 'HRT', 'MOR'];
+// Shortcuts are set in XIT ACT's SFC tab (default: the four commodity exchange
+// stations). Blank slots are dropped so no empty button renders.
+const shortcuts = computed(() =>
+  userData.settings.sfcShortcuts.map(x => x.trim()).filter(x => x.length > 0),
+);
 
 function onTileReady(tile: PrunTile) {
-  // A docked ship's address resolves to the station's own natural id ("ANT");
-  // in flight it has no address, so no button is grayed out.
-  const location = computed(() =>
-    getEntityNaturalIdFromAddress(
-      shipsStore.getByRegistration(tile.parameter)?.address ?? undefined,
-    ),
-  );
+  // A docked ship's address resolves to the station's own natural id ("ANT")
+  // or the planet's ("OT-580b"); in flight it has no address, so no button is
+  // grayed out. The name is kept too, so a shortcut entered as "Montem" matches.
+  const location = computed(() => {
+    const address = shipsStore.getByRegistration(tile.parameter)?.address ?? undefined;
+    return [getEntityNaturalIdFromAddress(address), getEntityNameFromAddress(address)]
+      .filter(x => x !== undefined)
+      .map(x => x.toUpperCase());
+  });
 
   subscribe($$(tile.anchor, C.AddressSelector.container), container => {
     createFragmentApp(() => (
       <div class={$style.buttons}>
-        {exchangeStationIds.map(naturalId => (
+        {shortcuts.value.map((shortcut, i) => (
           <PrunButton
-            key={naturalId}
+            key={i}
             dark
             inline
-            disabled={location.value === naturalId}
+            disabled={location.value.includes(shortcut.toUpperCase())}
             class={$style.button}
-            onClick={() => selectAddress(container, naturalId)}>
-            {naturalId}
+            onClick={() => selectAddress(container, shortcut)}>
+            {shortcut}
           </PrunButton>
         ))}
       </div>
@@ -45,5 +53,5 @@ function init() {
 features.add(
   import.meta.url,
   init,
-  'SFC: Adds commodity exchange shortcut buttons to the destination field.',
+  'SFC: Adds destination shortcut buttons (set in XIT ACT) to the destination field.',
 );
