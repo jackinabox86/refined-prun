@@ -258,6 +258,9 @@ export const gameDataSources: DataSourceDescriptor[] = [
       repair: {
         threshold: userData.settings.repair.threshold,
         offset: userData.settings.repair.offset,
+        red: userData.settings.repair.red,
+        yellow: userData.settings.repair.yellow,
+        countdown: userData.settings.repair.countdown,
         planetOverrides: userData.settings.repair.planetOverrides,
       },
     }),

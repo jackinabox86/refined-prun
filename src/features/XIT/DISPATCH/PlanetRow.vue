@@ -7,7 +7,7 @@ import SelectInput from '@src/components/forms/SelectInput.vue';
 import GripCell from '@src/components/grip/GripCell.vue';
 import { getPlanetBurn } from '@src/core/burn';
 import { burnDaysClass, countDays, formatBurnDays } from '@src/features/XIT/BURN/utils';
-import { getRepairOffset, getRepairThreshold } from '@src/core/buildings';
+import { presentRepairCell, repairCellClass } from '@src/features/XIT/REP/present-repair-cell';
 import { getPlanetRepairAge } from '@src/features/XIT/REP/entries';
 import { showBuffer } from '@src/infrastructure/prun-ui/buffers';
 import { timestampEachMinute } from '@src/utils/dayjs';
@@ -57,27 +57,12 @@ const daysText = computed(() => (days.value === undefined ? '-' : formatBurnDays
 
 const repairAge = computed(() => getPlanetRepairAge(siteId, timestampEachMinute.value));
 
-const repairBgClass = computed(() => {
+const repairCell = computed(() => {
   const age = repairAge.value;
   if (age === undefined) {
-    return {};
+    return undefined;
   }
-  const threshold = getRepairThreshold(naturalId);
-  const offset = getRepairOffset(naturalId);
-  const d = Math.floor(age);
-  return {
-    [C.Workforces.daysMissing]: d >= threshold,
-    [C.Workforces.daysWarning]: d >= threshold - offset,
-    [C.Workforces.daysSupplied]: d < threshold - offset,
-  };
-});
-
-const repairDaysText = computed(() => {
-  const age = repairAge.value;
-  if (age === undefined) {
-    return '-';
-  }
-  return String(Math.floor(age));
+  return presentRepairCell(age, naturalId);
 });
 
 const loadText = computed(() => {
@@ -190,9 +175,9 @@ function clearShip() {
     </td>
     <td :class="$style.statusCell">
       <div
-        :class="[$style.statusContent, repairBgClass]"
+        :class="[$style.statusContent, repairCellClass(repairCell)]"
         @click="showBuffer(`XIT REP ${naturalId}`)">
-        <span :class="$style.statusNum">{{ repairDaysText }}</span>
+        <span :class="$style.statusNum">{{ repairCell?.text ?? '-' }}</span>
       </div>
     </td>
     <td :class="[C.type.typeSmall, $style.loadCell]">

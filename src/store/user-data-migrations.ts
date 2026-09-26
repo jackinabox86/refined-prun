@@ -17,6 +17,17 @@ function isCheckpoint(entry: MigrationEntry): entry is Checkpoint {
 // The date is for reference only, and it does not affect migration order.
 const migrations: MigrationEntry[] = [
   [
+    '26.09.2026 Add repair section thresholds',
+    userData => {
+      // The stored age threshold is the repair target. Leave it, the offset,
+      // and per-planet overrides alone so an existing XIT REP value carries over.
+      const repair = userData.settings.repair;
+      repair.red = 3;
+      repair.yellow = 7;
+      repair.countdown = false;
+    },
+  ],
+  [
     '20.09.2026 Rename act-dispatch-auto-close',
     userData => {
       renameFeature(userData, 'act-dispatch-auto-close', 'act-auto-close');

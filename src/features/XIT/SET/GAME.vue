@@ -16,6 +16,7 @@ import {
   restoreBackup,
   saveUserData,
 } from '@src/infrastructure/storage/user-data-serializer';
+import RadioItem from '@src/components/forms/RadioItem.vue';
 import SelectInput from '@src/components/forms/SelectInput.vue';
 import { objectId } from '@src/utils/object-id';
 import {
@@ -226,6 +227,33 @@ function confirmResetAllData(ev: Event) {
       tooltip="Default target amount of supplied days for the 'Need' column in XIT BURN.
        Can be overridden per planet in XIT PLANETS.">
       <NumberInput v-model="userData.settings.burn.resupply" float />
+    </Active>
+    <Active label="Base-specific" tooltip="Per-planet resupply amounts in XIT PLANETS.">
+      <PrunButton primary @click="showBuffer('XIT PLANETS')">BASES</PrunButton>
+    </Active>
+  </form>
+  <SectionHeader>Repair Settings</SectionHeader>
+  <form>
+    <Active
+      label="Target"
+      tooltip="Default repair target in days. Replaces the age threshold that used to live in XIT REP.
+       Can be overridden per planet in XIT PLANETS.">
+      <NumberInput v-model="userData.settings.repair.threshold" float />
+    </Active>
+    <Active label="Red" tooltip="Countdown turns red at or below this many days remaining.">
+      <NumberInput v-model="userData.settings.repair.red" float />
+    </Active>
+    <Active label="Yellow" tooltip="Countdown turns yellow at or below this many days remaining.">
+      <NumberInput v-model="userData.settings.repair.yellow" float />
+    </Active>
+    <Active
+      label="Countdown"
+      tooltip="Repair cells in XIT BS and XIT DISPATCH count up by default.
+       Turn this on to count down to the planet's repair target, or the global target when it has none.">
+      <RadioItem v-model="userData.settings.repair.countdown">count down</RadioItem>
+    </Active>
+    <Active label="Base-specific" tooltip="Per-planet repair targets in XIT PLANETS.">
+      <PrunButton primary @click="showBuffer('XIT PLANETS')">BASES</PrunButton>
     </Active>
   </form>
   <SectionHeader>

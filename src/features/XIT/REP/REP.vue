@@ -88,7 +88,7 @@ const singleSite = computed(() => {
   return undefined;
 });
 
-const singleSiteInfo = computed(() => {
+const singleSiteOverrides = computed(() => {
   const site = singleSite.value;
   if (!site) {
     return undefined;
@@ -98,17 +98,14 @@ const singleSiteInfo = computed(() => {
     return undefined;
   }
   const override = userData.settings.repair.planetOverrides[naturalId];
-  if (
-    override === undefined ||
-    (override.threshold === undefined && override.offset === undefined)
-  ) {
+  if (override === undefined) {
     return undefined;
   }
+  const planetName = getEntityNameFromAddress(site.address) ?? naturalId;
   return {
-    naturalId,
-    planetName: getEntityNameFromAddress(site.address) ?? naturalId,
-    threshold: getRepairThreshold(naturalId),
-    offset: getRepairOffset(naturalId),
+    planetName,
+    threshold: override.threshold === undefined ? undefined : getRepairThreshold(naturalId),
+    offset: override.offset === undefined ? undefined : getRepairOffset(naturalId),
   };
 });
 </script>
@@ -116,17 +113,24 @@ const singleSiteInfo = computed(() => {
 <template>
   <LoadingSpinner v-if="materials === undefined" />
   <template v-else>
-    <div v-if="singleSiteInfo" :class="$style.overrideNotice">
-      Using XIT PLANETS override for <b>{{ singleSiteInfo.planetName }}</b
-      >: threshold <b>{{ singleSiteInfo.threshold }}</b
-      >, offset <b>{{ singleSiteInfo.offset }}</b
-      >.
+    <div
+      v-if="
+        singleSiteOverrides?.threshold !== undefined || singleSiteOverrides?.offset !== undefined
+      "
+      :class="$style.overrideNotice">
+      <template v-if="singleSiteOverrides.threshold !== undefined">
+        Repair target for <b>{{ singleSiteOverrides.planetName }}</b> is
+        <b>{{ singleSiteOverrides.threshold }}</b
+        >.
+      </template>
+      <template v-if="singleSiteOverrides.offset !== undefined">
+        Time offset for <b>{{ singleSiteOverrides.planetName }}</b> is
+        <b>{{ singleSiteOverrides.offset }}</b
+        >.
+      </template>
       <PrunButton dark inline @click="showBuffer('XIT PLANETS')"> Edit in XIT PLANETS </PrunButton>
     </div>
-    <form v-else>
-      <Active label="Age Threshold">
-        <NumberInput v-model="userData.settings.repair.threshold" float />
-      </Active>
+    <form v-if="singleSiteOverrides?.offset === undefined">
       <Active label="Time Offset">
         <NumberInput v-model="userData.settings.repair.offset" float />
       </Active>

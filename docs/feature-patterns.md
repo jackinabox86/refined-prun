@@ -285,7 +285,8 @@ universal. The JAC-23 spacing delay on the following `OPEN_SFC` is unchanged.
   warehouse), not a quantity bug.
 - **CX buy price-threshold warnings gate Act/Skip from the ACT tile.** `CXPO_BUY` compares
   the live fill (or unfilled bid) price to `getPrice(ticker)` using the yellow/red percents
-  from `XIT NOBUY` (`settings.noBuyThresholds`, default 10/20). Past either threshold it
+  from the Act tab of `XIT SET` (`settings.noBuyThresholds`, default 10/20; `XIT NOBUY`
+  still opens that tab). Past either threshold it
   shows an overlay on `ctx.actTile` *before* `waitAct`. That overlay passes
   `{ dismissOnBackdrop: false }` to `showTileOverlay`: it covers the ACT button, and
   `Overlay.vue`'s backdrop closes on click by default, so a player spam-clicking ACT
@@ -298,7 +299,7 @@ universal. The JAC-23 spacing delay on the following `OPEN_SFC` is unchanged.
   The shaded span covers the whole overage phrase (`42.0% over`), not just the number.
   At or below threshold the existing `waitAct()` path is unchanged — no overlay, no delay.
   Missing or non-positive refined-PrUn values skip the warning (no denominator).
-- **The no-buy list has an all-materials switch.** `settings.noBuyAll` (XIT NOBUY) stands in
+- **The no-buy list has an all-materials switch.** `settings.noBuyAll` (XIT SET Act tab) stands in
   for enumerating every ticker: when it is on, `cx-buy.ts` logs one warning and emits no
   `CXPO_BUY` steps at all. It is checked *after* the `useCXInv` pass so warehouse allocation
   in `state.WAR` is identical either way, and the individual `settings.noBuy` array is left
@@ -971,6 +972,19 @@ field (`settings.burn.planetPickup`, `settings.burn.planetCxExchange`) reads bac
 fields always need a migration, and reads on the path should stay defensive
 (`settings.burn.planetPickup?.[id]`, as `getResupplyDays` already does for
 `planetResupply`) to cover data written before the migration lands.
+
+The XIT SET gameplay repair section edits the existing `settings.repair.threshold`
+(default 60) — that key is the old XIT REP age threshold, so moving the control does
+not copy or reset it. `settings.repair.red` / `yellow` (defaults 3 / 7) and
+`settings.repair.countdown` (default false) are new nested fields and have their own
+migration, which must not assign `threshold`, `offset`, `planetOverrides`, or any
+`settings.noBuy*` key. Per-planet repair targets stay
+`settings.repair.planetOverrides[naturalId].threshold`, read by `getRepairThreshold`.
+`presentRepairCell` is the only repair-cell formatter for XIT BS and XIT DISPATCH:
+count-up keeps age vs target/offset colours; countdown shows days left until the
+planet override or the global target and colours that remainder with the new
+red/yellow thresholds, the same comparison burn uses. The time-offset control stays
+in XIT REP.
 
 `XIT BURNACT` stores the last chosen CX buy exchange in
 `settings.burn.planetCxExchange[planetNaturalId]`. A base with nothing stored opens on

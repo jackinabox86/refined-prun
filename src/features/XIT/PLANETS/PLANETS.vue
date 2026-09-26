@@ -135,7 +135,7 @@ function setRepairField(
               Repair Threshold
               <Tooltip
                 position="bottom"
-                :tooltip="`Per-planet override. Leave empty to use the default (${defaultThreshold} days) from XIT REP.`" />
+                :tooltip="`Per-planet repair target. Leave empty to use the default (${defaultThreshold} days) from XIT SET.`" />
             </InlineFlex>
           </th>
           <th>
