@@ -50,7 +50,7 @@ export const initialUserData = deepFreeze({
     cxPricesPreview: false,
     // Planet natural id -> explicit auto-SFC off for BURNACT/REPAIRACT/GOVBURNEXEC.
     planetAutoSfc: {} as Record<string, boolean>,
-    // Destination shortcut buttons on SFC, set in XIT ACT. Blank slots show no button.
+    // Destination shortcut buttons on SFC, set in XIT SET. Blank slots show no button.
     sfcShortcuts: ['ANT', 'BEN', 'HRT', 'MOR'] as string[],
     sidebar: [
       ['BS', 'BS'],

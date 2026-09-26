@@ -8,7 +8,7 @@ import { selectAddress } from '@src/infrastructure/prun-ui/utils/select-address'
 import { userData } from '@src/store/user-data';
 import $style from './sfc-exchange-destinations.module.css';
 
-// Shortcuts are set in XIT ACT's SFC tab (default: the four commodity exchange
+// Shortcuts are set in XIT SET's SFC tab (default: the four commodity exchange
 // stations). Blank slots are dropped so no empty button renders.
 const shortcuts = computed(() =>
   userData.settings.sfcShortcuts.map(x => x.trim()).filter(x => x.length > 0),
@@ -53,5 +53,5 @@ function init() {
 features.add(
   import.meta.url,
   init,
-  'SFC: Adds destination shortcut buttons (set in XIT ACT) to the destination field.',
+  'SFC: Adds destination shortcut buttons (set in XIT SET) to the destination field.',
 );

@@ -4,23 +4,6 @@ import ActionPackageList from '@src/features/XIT/ACT/ActionPackageList.vue';
 import ActionPackageEditor from '@src/features/XIT/ACT/EditActionPackage.vue';
 import { userData } from '@src/store/user-data';
 import ExecuteActionPackage from '@src/features/XIT/ACT/ExecuteActionPackage.vue';
-import SfcShortcuts from '@src/features/XIT/ACT/SfcShortcuts.vue';
-import Tabs, { Tab } from '@src/components/Tabs.vue';
-
-const tabs: Tab[] = [
-  {
-    id: 'PACKAGES',
-    label: 'Packages',
-    component: ActionPackageList,
-  },
-  {
-    id: 'SFC',
-    label: 'SFC',
-    component: SfcShortcuts,
-  },
-];
-
-const activeTab = shallowRef(tabs[0]);
 
 const parameters = useXitParameters();
 parameters.unshift('ACT');
@@ -39,7 +22,7 @@ const pkg = computed(() => userData.actionPackages.find(x => x.global.name === p
 </script>
 
 <template>
-  <Tabs v-if="parameters.length === 1" v-model="activeTab" :tabs="tabs" />
+  <ActionPackageList v-if="parameters.length === 1" />
   <div v-else-if="!pkg">Action package "{{ pkgName }}" not found.</div>
   <ActionPackageEditor v-else-if="edit" :pkg="pkg" />
   <ExecuteActionPackage v-else :pkg="pkg" />

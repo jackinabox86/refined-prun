@@ -127,10 +127,6 @@ The command should be short. Refer to `docs/game/commands.csv` for an example of
 
 `XIT` splits the tile parameter on spaces/underscores (`XIT FLT ANT` → command `FLT`, parameters `['ANT']`). Join remaining parts when a name can contain spaces (`Hortus a`). Location modifiers on `XIT FLT` resolve planet first (natural id, name, or `Hortus a`), then system (natural id or name), then a CX station ticker to that station's system — the same mapping `FLTS` correction uses after the planet-first step. Match is case-insensitive exact, not substring. In-flight ships use destination, matching the Status column.
 
-Tabs on an XIT panel's root view use `Tabs.vue` (see `XIT SET`). Only deep-link a tab via
-parameter when the command has no other use for its first parameter: `XIT ACT_<x>` already
-means "run package x", so `XIT ACT`'s tabs (Packages, SFC) are picked in-panel only.
-
 ### One-Click Preconfigured Action Packages
 
 To give users a single button that runs a specific ACT action package without opening the ACT editor (e.g. `BURNACT`, `REFUELACT`), pair two files next to the relevant action:
