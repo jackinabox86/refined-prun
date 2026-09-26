@@ -17,6 +17,17 @@ function isCheckpoint(entry: MigrationEntry): entry is Checkpoint {
 // The date is for reference only, and it does not affect migration order.
 const migrations: MigrationEntry[] = [
   [
+    '26.09.2026 Add FLT button colors',
+    userData => {
+      userData.settings.fltButtonColors = {
+        baseEmpty: '#b48ad8',
+        baseCargo: '#e8676b',
+        cxEmpty: '#43a4df',
+        cxCargo: '#f7a600',
+      };
+    },
+  ],
+  [
     '20.09.2026 Rename act-dispatch-auto-close',
     userData => {
       renameFeature(userData, 'act-dispatch-auto-close', 'act-auto-close');

@@ -28,6 +28,7 @@ import {
   type SortKey,
 } from './defaults';
 import { openRefuelAllExchanges } from './refuel';
+import { FLT_BUTTONS_BUFFER_COMMAND } from './button-colors';
 import {
   areFltLocationCatalogsReady,
   getShipLocationAddress,
@@ -685,6 +686,10 @@ function onFuelAlertToggle(threshold: FuelAlertThreshold, enabled: boolean | und
   fuelAlertFilter.value = enabled === true ? threshold : 'any';
 }
 
+function openButtonColors() {
+  showBuffer(FLT_BUTTONS_BUFFER_COMMAND);
+}
+
 function clearFilters() {
   showStlShips.value = DEFAULTS.showStlShips;
   showFtlShips.value = DEFAULTS.showFtlShips;
@@ -980,6 +985,15 @@ function getCargoState(cargoRatio: number) {
             @update:model-value="problemFuelThreshold = $event ? threshold : 'any'">
             ≤{{ threshold }}%
           </RadioItem>
+        </div>
+      </div>
+
+      <div :class="$style.filterGroup">
+        <div :class="$style.filterTitle">Button colors</div>
+        <div :class="C.ComExOrdersPanel.filter">
+          <RadioItem :model-value="false" horizontal @update:model-value="openButtonColors"
+            >SET BUTTON COLOR</RadioItem
+          >
         </div>
       </div>
     </div>
