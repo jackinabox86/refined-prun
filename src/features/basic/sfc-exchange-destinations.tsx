@@ -9,9 +9,16 @@ import { userData } from '@src/store/user-data';
 import $style from './sfc-exchange-destinations.module.css';
 
 // Shortcuts are set in XIT SET's SFC tab (default: the four commodity exchange
-// stations). Blank slots are dropped so no empty button renders.
+// stations). Slots without a destination are dropped so no empty button
+// renders; labels always show upper-cased, falling back to the destination.
 const shortcuts = computed(() =>
-  userData.settings.sfcShortcuts.map(x => x.trim()).filter(x => x.length > 0),
+  userData.settings.sfcShortcuts
+    .map(x => ({ label: x.label.trim(), destination: x.destination.trim() }))
+    .filter(x => x.destination.length > 0)
+    .map(x => ({
+      label: (x.label || x.destination).toUpperCase(),
+      destination: x.destination,
+    })),
 );
 
 function onTileReady(tile: PrunTile) {
@@ -33,10 +40,10 @@ function onTileReady(tile: PrunTile) {
             key={i}
             dark
             inline
-            disabled={location.value.includes(shortcut.toUpperCase())}
+            disabled={location.value.includes(shortcut.destination.toUpperCase())}
             class={$style.button}
-            onClick={() => selectAddress(container, shortcut)}>
-            {shortcut}
+            onClick={() => selectAddress(container, shortcut.destination)}>
+            {shortcut.label}
           </PrunButton>
         ))}
       </div>

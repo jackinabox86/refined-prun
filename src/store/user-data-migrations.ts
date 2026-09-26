@@ -17,9 +17,14 @@ function isCheckpoint(entry: MigrationEntry): entry is Checkpoint {
 // The date is for reference only, and it does not affect migration order.
 const migrations: MigrationEntry[] = [
   [
-    '26.09.2026 Add SFC shortcut locations',
+    '26.09.2026 Add SFC shortcut locations with labels',
     userData => {
-      userData.settings.sfcShortcuts = ['ANT', 'BEN', 'HRT', 'MOR'];
+      userData.settings.sfcShortcuts = [
+        { label: 'ANT', destination: 'ANT' },
+        { label: 'BEN', destination: 'BEN' },
+        { label: 'HRT', destination: 'HRT' },
+        { label: 'MOR', destination: 'MOR' },
+      ];
     },
   ],
   [
