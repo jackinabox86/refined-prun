@@ -9,6 +9,13 @@ declare namespace UserData {
 
   export type Exchange = 'AI1' | 'CI1' | 'CI2' | 'IC1' | 'NC1' | 'NC2';
 
+  interface SfcShortcut {
+    // Button text; shown upper-cased. Blank falls back to the destination.
+    label: string;
+    // Exchange station or planet, as typed into the SFC destination field.
+    destination: string;
+  }
+
   interface PriceOverride {
     buy?: number;
     sell?: number;
