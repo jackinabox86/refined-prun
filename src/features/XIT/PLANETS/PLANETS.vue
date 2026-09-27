@@ -38,7 +38,6 @@ const rows = computed<Row[] | undefined>(() => {
 
 const defaultResupply = computed(() => userData.settings.burn.resupply);
 const defaultThreshold = computed(() => userData.settings.repair.threshold);
-const defaultOffset = computed(() => userData.settings.repair.offset);
 
 function getResupplyOverride(naturalId: string) {
   return userData.settings.burn.planetResupply[naturalId];
@@ -77,27 +76,12 @@ function getRepairOverride(naturalId: string) {
   return userData.settings.repair.planetOverrides[naturalId];
 }
 
-function setRepairField(
-  naturalId: string,
-  field: 'threshold' | 'offset',
-  value: number | undefined,
-) {
+function setRepairThreshold(naturalId: string, value: number | undefined) {
   const map = userData.settings.repair.planetOverrides;
-  const entry = map[naturalId];
   if (value === undefined || isNaN(value)) {
-    if (entry === undefined) {
-      return;
-    }
-    delete entry[field];
-    if (entry.threshold === undefined && entry.offset === undefined) {
-      delete map[naturalId];
-    }
+    delete map[naturalId];
   } else {
-    if (entry === undefined) {
-      map[naturalId] = { [field]: value };
-    } else {
-      entry[field] = value;
-    }
+    map[naturalId] = { threshold: value };
   }
 }
 </script>
@@ -107,8 +91,7 @@ function setRepairField(
   <div v-else-if="rows.length === 0" :class="$style.empty">No bases yet</div>
   <template v-else>
     <div :class="$style.note">
-      Clear any number field to remove its override and use the default value (from XIT SET / XIT
-      REP).
+      Clear any number field to remove its override and use the default value from XIT SET.
     </div>
     <table :class="$style.table">
       <thead>
@@ -132,18 +115,10 @@ function setRepairField(
           </th>
           <th>
             <InlineFlex>
-              Repair Threshold
+              Repair Target
               <Tooltip
                 position="bottom"
-                :tooltip="`Per-planet override. Leave empty to use the default (${defaultThreshold} days) from XIT REP.`" />
-            </InlineFlex>
-          </th>
-          <th>
-            <InlineFlex>
-              Repair Offset
-              <Tooltip
-                position="bottom"
-                :tooltip="`Per-planet override. Leave empty to use the default (${defaultOffset} days) from XIT REP.`" />
+                :tooltip="`Per-planet repair target. Leave empty to use the default (${defaultThreshold} days) from XIT SET.`" />
             </InlineFlex>
           </th>
         </tr>
@@ -171,14 +146,7 @@ function setRepairField(
               :model-value="getRepairOverride(row.naturalId)?.threshold"
               optional
               float
-              @update:model-value="setRepairField(row.naturalId, 'threshold', $event)" />
-          </td>
-          <td :class="$style.input">
-            <NumberInput
-              :model-value="getRepairOverride(row.naturalId)?.offset"
-              optional
-              float
-              @update:model-value="setRepairField(row.naturalId, 'offset', $event)" />
+              @update:model-value="setRepairThreshold(row.naturalId, $event)" />
           </td>
         </tr>
       </tbody>

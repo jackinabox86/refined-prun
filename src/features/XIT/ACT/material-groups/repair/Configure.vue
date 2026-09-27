@@ -10,7 +10,7 @@ import {
 } from '@src/infrastructure/prun-api/data/addresses';
 import { comparePlanets } from '@src/util';
 import { configurableValue } from '@src/features/XIT/ACT/shared-types';
-import { getRepairOffset, getRepairThreshold } from '@src/core/buildings';
+import { getRepairLeadDays, getRepairThreshold } from '@src/core/buildings';
 
 const { data, config } = defineProps<{ data: UserData.MaterialGroupData; config: Config }>();
 
@@ -29,10 +29,11 @@ if (data.days === configurableValue && config.days === undefined) {
   const seedPlanet = data.planet === configurableValue ? config.planet : data.planet;
   const seedSite = seedPlanet ? sitesStore.getByPlanetNaturalIdOrName(seedPlanet) : undefined;
   const seedNaturalId = seedSite ? getEntityNaturalIdFromAddress(seedSite.address) : undefined;
-  config.days = getRepairThreshold(seedNaturalId) - getRepairOffset(seedNaturalId);
+  config.days = getRepairThreshold(seedNaturalId) - getRepairLeadDays();
 }
 
-// REPAIRACT uses a 1-day time offset by default, not the user's XIT REP offset.
+// REPAIRACT's own time offset defaults to 1 day; it is a per-package parameter,
+// unrelated to the repair target and red/yellow settings in XIT SET.
 if (data.advanceDays === configurableValue && config.advanceDays === undefined) {
   config.advanceDays = 1;
 }

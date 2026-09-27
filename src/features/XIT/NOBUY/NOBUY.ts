@@ -1,8 +1,8 @@
-import NOBUY from '@src/features/XIT/NOBUY/NOBUY.vue';
+import SET from '@src/features/XIT/SET/SET.vue';
 
 xit.add({
   command: 'NOBUY',
-  name: 'NO BUY LIST',
-  description: 'Global list of materials excluded from all ACT material group bills.',
-  component: () => NOBUY,
+  name: 'REFINED PRUN SETTINGS',
+  description: 'Opens XIT SET on the Act tab.',
+  component: () => SET,
 });

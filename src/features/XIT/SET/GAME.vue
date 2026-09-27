@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import PrunButton from '@src/components/PrunButton.vue';
+import { useXitParameters } from '@src/hooks/use-xit-parameters';
 import SectionHeader from '@src/components/SectionHeader.vue';
 import Tooltip from '@src/components/Tooltip.vue';
 import TextInput from '@src/components/forms/TextInput.vue';
@@ -16,6 +17,7 @@ import {
   restoreBackup,
   saveUserData,
 } from '@src/infrastructure/storage/user-data-serializer';
+import RadioItem from '@src/components/forms/RadioItem.vue';
 import SelectInput from '@src/components/forms/SelectInput.vue';
 import { objectId } from '@src/utils/object-id';
 import {
@@ -29,6 +31,24 @@ import dayjs from 'dayjs';
 import { vDraggable } from 'vue-draggable-plus';
 import { grip } from '@src/components/grip';
 import GripChar from '@src/components/grip/GripChar.vue';
+
+const parameters = useXitParameters();
+const repairSection = ref<InstanceType<typeof SectionHeader> | null>(null);
+
+// XIT REP's CONFIG button opens `XIT SET GAME REPAIR`. Scroll the tile's own
+// scroll view down to the repair section so the player lands on it, the way
+// cxob-center-on-open positions the order book.
+onMounted(async () => {
+  if (parameters[1]?.toUpperCase() !== 'REPAIR') {
+    return;
+  }
+  await nextTick();
+  const section = repairSection.value?.$el as HTMLElement | undefined;
+  const scroll = section?.closest<HTMLElement>(`.${C.ScrollView.view}`);
+  if (section && scroll) {
+    scroll.scrollTop = section.offsetTop;
+  }
+});
 
 const isDefault24 = computed(() => {
   return hhForXitSet.value(dayjs.duration(12, 'hours').asMilliseconds()) === '13';
@@ -226,6 +246,33 @@ function confirmResetAllData(ev: Event) {
       tooltip="Default target amount of supplied days for the 'Need' column in XIT BURN.
        Can be overridden per planet in XIT PLANETS.">
       <NumberInput v-model="userData.settings.burn.resupply" float />
+    </Active>
+    <Active label="Base-specific" tooltip="Per-planet resupply amounts in XIT PLANETS.">
+      <PrunButton primary @click="showBuffer('XIT PLANETS')">XIT PLS</PrunButton>
+    </Active>
+  </form>
+  <SectionHeader ref="repairSection">Repair Settings</SectionHeader>
+  <form>
+    <Active
+      label="Target"
+      tooltip="Default repair target in days. Replaces the age threshold that used to live in XIT REP.
+       Can be overridden per planet in XIT PLANETS.">
+      <NumberInput v-model="userData.settings.repair.threshold" float />
+    </Active>
+    <Active label="Red" tooltip="Countdown turns red at or below this many days remaining.">
+      <NumberInput v-model="userData.settings.repair.red" float />
+    </Active>
+    <Active label="Yellow" tooltip="Countdown turns yellow at or below this many days remaining.">
+      <NumberInput v-model="userData.settings.repair.yellow" float />
+    </Active>
+    <Active
+      label="Countdown"
+      tooltip="Repair cells in XIT BS and XIT DISPATCH count up by default.
+       Turn this on to count down to the planet's repair target, or the global target when it has none.">
+      <RadioItem v-model="userData.settings.repair.countdown">count down</RadioItem>
+    </Active>
+    <Active label="Base-specific" tooltip="Per-planet repair targets in XIT PLANETS.">
+      <PrunButton primary @click="showBuffer('XIT PLANETS')">XIT PLS</PrunButton>
     </Active>
   </form>
   <SectionHeader>

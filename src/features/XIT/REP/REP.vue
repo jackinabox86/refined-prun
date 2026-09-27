@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import NumberInput from '@src/components/forms/NumberInput.vue';
 import {
   calculateBuildingEntries,
   calculateShipEntries,
@@ -11,7 +10,7 @@ import dayjs from 'dayjs';
 import { fixed1, percent1 } from '@src/utils/format';
 import MaterialPurchaseTable from '@src/components/MaterialPurchaseTable.vue';
 import LoadingSpinner from '@src/components/LoadingSpinner.vue';
-import { calcBuildingCondition, getRepairOffset, getRepairThreshold } from '@src/core/buildings';
+import { calcBuildingCondition, getRepairLeadDays, getRepairThreshold } from '@src/core/buildings';
 import { diffDays } from '@src/utils/time-diff';
 import { userData } from '@src/store/user-data';
 import { mergeMaterialAmounts } from '@src/core/sort-materials';
@@ -22,6 +21,7 @@ import PrunLink from '@src/components/PrunLink.vue';
 import PrunButton from '@src/components/PrunButton.vue';
 import { showBuffer } from '@src/infrastructure/prun-ui/buffers';
 import { repairButtonEnabled } from '@src/features/XIT/REP/repair-button';
+import { presentRepairCell, repairCellClass } from '@src/features/XIT/REP/present-repair-cell';
 import { objectId } from '@src/utils/object-id';
 import {
   getEntityNameFromAddress,
@@ -47,10 +47,10 @@ const visibleBuildings = computed(() => {
     return undefined;
   }
   const time = timestampEachMinute.value;
+  const lead = getRepairLeadDays();
   return buildingEntries.value.filter(entry => {
     const threshold = getRepairThreshold(entry.naturalId);
-    const offset = getRepairOffset(entry.naturalId);
-    const splitDate = time - threshold * msInADay + offset * msInADay;
+    const splitDate = time - threshold * msInADay + lead * msInADay;
     return entry.lastRepair < splitDate;
   });
 });
@@ -63,9 +63,9 @@ const materials = computed(() => {
   }
   const materials: PrunApi.MaterialAmount[] = [];
   const time = timestampEachMinute.value;
+  const lead = getRepairLeadDays();
   for (const building of visibleBuildings.value) {
-    const plannedRepairDate =
-      (time - building.lastRepair) / msInADay + getRepairOffset(building.naturalId);
+    const plannedRepairDate = (time - building.lastRepair) / msInADay + lead;
     for (const { material, amount } of building.fullMaterials) {
       materials.push({
         material,
@@ -81,6 +81,14 @@ function calculateAge(lastRepair: number) {
   return diffDays(lastRepair, timestampEachMinute.value, true);
 }
 
+// Shade the age with the same red/yellow rule the XIT BS and XIT DISPATCH repair
+// cells use. The Workforces day classes paint a background, so the caller has to
+// put them on an absolutely positioned filler behind the number, the way
+// BURN's DaysCell does.
+function ageCellClass(lastRepair: number, naturalId: string) {
+  return repairCellClass(presentRepairCell(calculateAge(lastRepair), naturalId));
+}
+
 const singleSite = computed(() => {
   if (sites.value?.length === 1 && (ships.value?.length ?? 0) === 0) {
     return sites.value[0];
@@ -88,47 +96,42 @@ const singleSite = computed(() => {
   return undefined;
 });
 
-const singleSiteInfo = computed(() => {
+const singleSiteNaturalId = computed(() => {
   const site = singleSite.value;
-  if (!site) {
-    return undefined;
+  return site ? getEntityNaturalIdFromAddress(site.address) : undefined;
+});
+
+// The target is read-only here: it is set in XIT SET Gameplay, or per planet in
+// XIT PLANETS. A single-site buffer shows that planet's effective target.
+const repairTarget = computed(() => getRepairThreshold(singleSiteNaturalId.value));
+
+const targetSource = computed(() => {
+  const naturalId = singleSiteNaturalId.value;
+  const override =
+    naturalId === undefined
+      ? undefined
+      : userData.settings.repair.planetOverrides?.[naturalId]?.threshold;
+  if (override === undefined) {
+    return 'Global repair target from XIT SET Gameplay.';
   }
-  const naturalId = getEntityNaturalIdFromAddress(site.address);
-  if (!naturalId) {
-    return undefined;
-  }
-  const override = userData.settings.repair.planetOverrides[naturalId];
-  if (
-    override === undefined ||
-    (override.threshold === undefined && override.offset === undefined)
-  ) {
-    return undefined;
-  }
-  return {
-    naturalId,
-    planetName: getEntityNameFromAddress(site.address) ?? naturalId,
-    threshold: getRepairThreshold(naturalId),
-    offset: getRepairOffset(naturalId),
-  };
+  const site = singleSite.value;
+  const planetName = (site ? getEntityNameFromAddress(site.address) : undefined) ?? naturalId;
+  return `Per-planet target for ${planetName} from XIT PLANETS.`;
 });
 </script>
 
 <template>
   <LoadingSpinner v-if="materials === undefined" />
   <template v-else>
-    <div v-if="singleSiteInfo" :class="$style.overrideNotice">
-      Using XIT PLANETS override for <b>{{ singleSiteInfo.planetName }}</b
-      >: threshold <b>{{ singleSiteInfo.threshold }}</b
-      >, offset <b>{{ singleSiteInfo.offset }}</b
-      >.
-      <PrunButton dark inline @click="showBuffer('XIT PLANETS')"> Edit in XIT PLANETS </PrunButton>
-    </div>
-    <form v-else>
-      <Active label="Age Threshold">
-        <NumberInput v-model="userData.settings.repair.threshold" float />
+    <form>
+      <Active label="Repair Target" :tooltip="targetSource" tooltip-position="bottom">
+        <span :class="$style.readOnly">{{ repairTarget }}</span>
       </Active>
-      <Active label="Time Offset">
-        <NumberInput v-model="userData.settings.repair.offset" float />
+      <Active
+        label="Repair Config"
+        tooltip="Repair target and red/yellow thresholds in XIT SET Gameplay."
+        tooltip-position="bottom">
+        <PrunButton dark @click="showBuffer('XIT SET GAME REPAIR')">CONFIG</PrunButton>
       </Active>
     </form>
     <SectionHeader>Shopping Cart</SectionHeader>
@@ -153,7 +156,12 @@ const singleSiteInfo = computed(() => {
           <td v-if="isMultiTarget">
             <PrunLink :command="`XIT REP ${entry.naturalId}`">{{ entry.target }}</PrunLink>
           </td>
-          <td>{{ fixed1(calculateAge(entry.lastRepair)) }}</td>
+          <td :style="{ position: 'relative' }">
+            <div
+              :style="{ position: 'absolute', left: 0, top: 0, width: '100%', height: '100%' }"
+              :class="ageCellClass(entry.lastRepair, entry.naturalId)" />
+            <span>{{ fixed1(calculateAge(entry.lastRepair)) }}</span>
+          </td>
           <td>{{ percent1(entry.condition) }}</td>
           <td v-if="repairButtonEnabled">
             <PrunButton dark inline @click="showBuffer(`XIT REPAIRACT ${entry.naturalId}`)">
@@ -174,14 +182,8 @@ const singleSiteInfo = computed(() => {
 </template>
 
 <style module>
-.overrideNotice {
-  padding: 6px 8px;
+.readOnly {
   font-size: 12px;
-  background-color: rgba(100, 149, 237, 0.08);
-  border-left: 3px solid #6495ed;
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 6px;
+  line-height: 20px;
 }
 </style>
