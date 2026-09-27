@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { beforeEach, describe, expect, it } from 'vitest';
-import { applyInitialUserData, userData } from '@src/store/user-data';
+import { applyInitialUserData, initialUserData, userData } from '@src/store/user-data';
 import {
   DEFAULT_FLT_BUTTON_COLORS,
   FLT_BUTTON_COLOR_OPTIONS,
@@ -22,11 +22,19 @@ describe('resolveFltButtonColor', () => {
     applyInitialUserData();
   });
 
-  it('defaults to light purple/red off-CX and blue/orange at CX', () => {
-    expect(resolveFltButtonColor(false, false)).toBe(DEFAULT_FLT_BUTTON_COLORS.baseEmpty);
-    expect(resolveFltButtonColor(false, true)).toBe(DEFAULT_FLT_BUTTON_COLORS.baseCargo);
-    expect(resolveFltButtonColor(true, false)).toBe(DEFAULT_FLT_BUTTON_COLORS.cxEmpty);
-    expect(resolveFltButtonColor(true, true)).toBe(DEFAULT_FLT_BUTTON_COLORS.cxCargo);
+  it('keeps historic blue/orange at a base and at a CX until the player picks a color', () => {
+    const historic = {
+      baseEmpty: '#43a4df',
+      baseCargo: '#f7a600',
+      cxEmpty: '#43a4df',
+      cxCargo: '#f7a600',
+    };
+    expect(DEFAULT_FLT_BUTTON_COLORS).toEqual(historic);
+    expect(initialUserData.settings.fltButtonColors).toEqual(historic);
+    expect(resolveFltButtonColor(false, false)).toBe('#43a4df');
+    expect(resolveFltButtonColor(false, true)).toBe('#f7a600');
+    expect(resolveFltButtonColor(true, false)).toBe('#43a4df');
+    expect(resolveFltButtonColor(true, true)).toBe('#f7a600');
   });
 
   it('reads customized colors from user settings', () => {

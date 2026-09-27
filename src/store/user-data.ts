@@ -52,8 +52,8 @@ export const initialUserData = deepFreeze({
     planetAutoSfc: {} as Record<string, boolean>,
     // XIT FLT unload-button colors for base/CX × empty/cargo.
     fltButtonColors: {
-      baseEmpty: '#b48ad8',
-      baseCargo: '#e8676b',
+      baseEmpty: '#43a4df',
+      baseCargo: '#f7a600',
       cxEmpty: '#43a4df',
       cxCargo: '#f7a600',
     } as {

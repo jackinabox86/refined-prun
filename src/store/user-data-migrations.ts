@@ -17,11 +17,38 @@ function isCheckpoint(entry: MigrationEntry): entry is Checkpoint {
 // The date is for reference only, and it does not affect migration order.
 const migrations: MigrationEntry[] = [
   [
+    '27.09.2026 Restore historic FLT unload colors',
+    userData => {
+      const colors = userData.settings.fltButtonColors;
+      if (!colors) {
+        userData.settings.fltButtonColors = {
+          baseEmpty: '#43a4df',
+          baseCargo: '#f7a600',
+          cxEmpty: '#43a4df',
+          cxCargo: '#f7a600',
+        };
+        return;
+      }
+      // The unreleased 26.09.2026 migration wrote light purple/red for bases.
+      // That pair was not a player choice. Put blue/orange back unless they edited a color.
+      const stillAutomatic =
+        colors.baseEmpty === '#b48ad8' &&
+        colors.baseCargo === '#e8676b' &&
+        colors.cxEmpty === '#43a4df' &&
+        colors.cxCargo === '#f7a600';
+      if (!stillAutomatic) {
+        return;
+      }
+      colors.baseEmpty = '#43a4df';
+      colors.baseCargo = '#f7a600';
+    },
+  ],
+  [
     '26.09.2026 Add FLT button colors',
     userData => {
       userData.settings.fltButtonColors = {
-        baseEmpty: '#b48ad8',
-        baseCargo: '#e8676b',
+        baseEmpty: '#43a4df',
+        baseCargo: '#f7a600',
         cxEmpty: '#43a4df',
         cxCargo: '#f7a600',
       };

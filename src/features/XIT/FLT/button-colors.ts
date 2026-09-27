@@ -30,10 +30,10 @@ export const FLT_BUTTON_COLOR_OPTIONS: { label: string; value: string }[] = [
 ];
 
 export const DEFAULT_FLT_BUTTON_COLORS: FltButtonColors = {
-  // Non-station (base) defaults match the PR title's light purple / light red.
-  baseEmpty: '#b48ad8',
-  baseCargo: '#e8676b',
-  // CX defaults keep the long-standing blue / orange unload colors.
+  // Historic unload colors: blue when empty, orange with cargo, at a base and at a CX.
+  // Purple and rose stay in the picker; they apply only after the player selects them.
+  baseEmpty: '#43a4df',
+  baseCargo: '#f7a600',
   cxEmpty: '#43a4df',
   cxCargo: '#f7a600',
 };
