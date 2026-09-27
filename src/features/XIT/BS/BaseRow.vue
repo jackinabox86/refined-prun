@@ -147,6 +147,12 @@ const warehouseStore = computed(() =>
     .getByAddressableId(warehouse.value?.warehouseId)
     ?.find(x => x.type === 'WAREHOUSE_STORE'),
 );
+
+const cmdsExpanded = ref(false);
+
+function onCmdsClick() {
+  cmdsExpanded.value = !cmdsExpanded.value;
+}
 </script>
 
 <template>
@@ -158,9 +164,12 @@ const warehouseStore = computed(() =>
         planetName
       }}</PrunLink>
     </td>
-    <td v-if="showCmds" :class="$style.cmdCell">
+    <td
+      v-if="showCmds"
+      :class="[$style.cmdCell, cmdsExpanded && $style.cmdsOpen]"
+      @click="onCmdsClick">
       <PrunButton dark inline>CMDS&#x25B6;</PrunButton>
-      <div :class="$style.expandedButtons">
+      <div :class="$style.expandedButtons" @click.stop>
         <PrunButton dark inline @click="showBuffer(`BBL ${siteId}`)">BUILDINGS</PrunButton>
         <PrunButton dark inline @click="showBuffer(`BBC ${naturalId}`)">CONSTRUCT</PrunButton>
         <PrunButton dark inline @click="showBuffer(`WF ${siteId}`)">WORKFORCE</PrunButton>
@@ -279,12 +288,12 @@ const warehouseStore = computed(() =>
   white-space: nowrap;
 }
 
-.cmdCell:hover .expandedButtons {
+.cmdsOpen .expandedButtons {
   display: flex;
 }
 
-.row:has(.cmdCell:hover) .statusCell > *,
-.row:has(.cmdCell:hover) .invCell > * {
+.row:has(.cmdsOpen) .statusCell > *,
+.row:has(.cmdsOpen) .invCell > * {
   visibility: hidden;
 }
 

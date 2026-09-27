@@ -6,7 +6,10 @@ import NumberInput from '@src/components/forms/NumberInput.vue';
 import SelectInput from '@src/components/forms/SelectInput.vue';
 import GripCell from '@src/components/grip/GripCell.vue';
 import { getPlanetBurn } from '@src/core/burn';
+import MaterialList from '@src/features/XIT/BURN/MaterialList.vue';
 import { burnDaysClass, countDays, formatBurnDays } from '@src/features/XIT/BURN/utils';
+import { toggleExpandedBurn } from '@src/features/XIT/BS/burn-cell-click';
+import { useTileState } from '@src/store/user-data-tiles';
 import { presentRepairCell, repairCellClass } from '@src/features/XIT/REP/present-repair-cell';
 import { getPlanetRepairAge } from '@src/features/XIT/REP/entries';
 import { showBuffer } from '@src/infrastructure/prun-ui/buffers';
@@ -50,6 +53,24 @@ const canFit = computed(() => !!config.ship);
 
 const burn = computed(() => getPlanetBurn(siteId));
 const days = computed(() => (burn.value ? countDays(burn.value.burn) : undefined));
+const expandedBurns = useTileState('expandedBurns', [] as string[]);
+const isBurnExpanded = computed(() => expandedBurns.value.includes(naturalId));
+
+function onBurnMouseDown(event: MouseEvent) {
+  if (!event.shiftKey || event.button !== 0) {
+    return;
+  }
+  event.preventDefault();
+}
+
+function onBurnClick(event: MouseEvent) {
+  if (event.shiftKey) {
+    event.preventDefault();
+    expandedBurns.value = toggleExpandedBurn(expandedBurns.value, naturalId);
+    return;
+  }
+  showBuffer(`XIT BURN ${naturalId}`);
+}
 
 const burnBgClass = computed(() => (days.value === undefined ? {} : burnDaysClass(days.value)));
 
@@ -166,7 +187,8 @@ function clearShip() {
     <td :class="$style.statusCell">
       <div
         :class="[$style.statusContent, burnBgClass]"
-        @click="showBuffer(`XIT BURN ${naturalId}`)">
+        @mousedown="onBurnMouseDown"
+        @click="onBurnClick">
         <span :class="$style.statusNum">{{ daysText }}</span>
       </div>
     </td>
@@ -215,6 +237,25 @@ function clearShip() {
     </td>
     <td :class="$style.advToggleCell">
       <RadioItem v-model="config.agent" horizontal>AGT</RadioItem>
+    </td>
+  </tr>
+  <tr v-if="isBurnExpanded && burn">
+    <td colspan="16" :class="$style.burnExpandCell">
+      <table :class="$style.burnExpandTable">
+        <thead>
+          <tr>
+            <th />
+            <th>Inv</th>
+            <th>Burn</th>
+            <th>Need</th>
+            <th>Days</th>
+            <th>CMD</th>
+          </tr>
+        </thead>
+        <tbody>
+          <MaterialList :burn="burn" />
+        </tbody>
+      </table>
     </td>
   </tr>
 </template>
@@ -424,5 +465,13 @@ function clearShip() {
   padding: 0 4px;
   line-height: 22px;
   vertical-align: middle;
+}
+
+.burnExpandCell {
+  padding: 0 4px 4px 24px;
+}
+
+.burnExpandTable {
+  border-collapse: collapse;
 }
 </style>
