@@ -16,7 +16,6 @@ function parsePmmgUserData(pmmg: any) {
   const resupply = yellow + Number(pmmg.burn_green_buffer ?? 0);
 
   const threshold = Number(pmmg.repair_threshold ?? 70);
-  const offset = Number(pmmg.repair_offset ?? 0);
 
   return {
     currency,
@@ -27,7 +26,6 @@ function parsePmmgUserData(pmmg: any) {
     },
     repair: {
       threshold,
-      offset,
     },
     sidebar: pmmg.sidebar,
     sorting: parseSortingModes(pmmg.sorting),
@@ -91,7 +89,6 @@ export function importPmmgSettings() {
       userData.settings.burn.yellow = pmmg.burn.yellow;
       userData.settings.burn.resupply = pmmg.burn.resupply;
       userData.settings.repair.threshold = pmmg.repair.threshold;
-      userData.settings.repair.offset = pmmg.repair.offset;
       if (pmmg.sidebar) {
         userData.settings.sidebar = pmmg.sidebar;
       }

@@ -38,8 +38,10 @@ export const initialUserData = deepFreeze({
     },
     repair: {
       threshold: 60,
-      offset: 10,
-      planetOverrides: {} as Record<string, { threshold?: number; offset?: number }>,
+      red: 3,
+      yellow: 7,
+      countdown: false,
+      planetOverrides: {} as Record<string, { threshold?: number }>,
     },
     noBuy: [] as string[],
     noBuyAll: false,

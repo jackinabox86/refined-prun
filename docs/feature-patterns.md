@@ -285,7 +285,8 @@ universal. The JAC-23 spacing delay on the following `OPEN_SFC` is unchanged.
   warehouse), not a quantity bug.
 - **CX buy price-threshold warnings gate Act/Skip from the ACT tile.** `CXPO_BUY` compares
   the live fill (or unfilled bid) price to `getPrice(ticker)` using the yellow/red percents
-  from `XIT NOBUY` (`settings.noBuyThresholds`, default 10/20). Past either threshold it
+  from the Act tab of `XIT SET` (`settings.noBuyThresholds`, default 10/20; `XIT NOBUY`
+  still opens that tab). Past either threshold it
   shows an overlay on `ctx.actTile` *before* `waitAct`. That overlay passes
   `{ dismissOnBackdrop: false }` to `showTileOverlay`: it covers the ACT button, and
   `Overlay.vue`'s backdrop closes on click by default, so a player spam-clicking ACT
@@ -298,7 +299,7 @@ universal. The JAC-23 spacing delay on the following `OPEN_SFC` is unchanged.
   The shaded span covers the whole overage phrase (`42.0% over`), not just the number.
   At or below threshold the existing `waitAct()` path is unchanged — no overlay, no delay.
   Missing or non-positive refined-PrUn values skip the warning (no denominator).
-- **The no-buy list has an all-materials switch.** `settings.noBuyAll` (XIT NOBUY) stands in
+- **The no-buy list has an all-materials switch.** `settings.noBuyAll` (XIT SET Act tab) stands in
   for enumerating every ticker: when it is on, `cx-buy.ts` logs one warning and emits no
   `CXPO_BUY` steps at all. It is checked *after* the `useCXInv` pass so warehouse allocation
   in `state.WAR` is identical either way, and the individual `settings.noBuy` array is left
@@ -922,7 +923,7 @@ const line = computed(() => productionStore.getById(tile.parameter));
 
 **A `watchEffect` that writes its own dependency must gate on value inequality, not
 just a condition.** DISPATCH's persisted-config migration rebuilt the patched object
-whenever the migration *condition* held; with a repair offset of 0 the migrated value
+whenever the migration *condition* held; with a repair lead of 0 the migrated value
 equaled the old one — same values, new object identity, so the effect re-fired on its
 own write in an unbounded loop. Before a self-write, prove the patch actually changes a
 value (e.g. `newDefault !== oldDefault`), not merely that the migration applies.
@@ -971,6 +972,46 @@ field (`settings.burn.planetPickup`, `settings.burn.planetCxExchange`) reads bac
 fields always need a migration, and reads on the path should stay defensive
 (`settings.burn.planetPickup?.[id]`, as `getResupplyDays` already does for
 `planetResupply`) to cover data written before the migration lands.
+
+The XIT SET gameplay repair section edits the existing `settings.repair.threshold`
+(default 60) — that key is the old XIT REP age threshold, so moving the control does
+not copy or reset it. `settings.repair.red` / `yellow` (defaults 3 / 7) and
+`settings.repair.countdown` (default false) are new nested fields and have their own
+migration, which must not assign `threshold`, `planetOverrides`, or any
+`settings.noBuy*` key. Per-planet repair targets stay
+`settings.repair.planetOverrides[naturalId].threshold`, read by `getRepairThreshold`.
+`presentRepairCell` is the only repair-cell formatter for XIT BS and XIT DISPATCH:
+both modes colour from days left until the planet override or the global target,
+compared against the red/yellow thresholds the same way burn compares days of supply;
+only the shown number differs (age counting up, remainder counting down).
+
+The repair **time offset** is gone. `yellow` is now the single lead time: XIT REP
+lists a building once it is inside the yellow zone (`age >= target - yellow`) and
+prices its materials at that planned repair date, and the XIT DISPATCH / ACT repair
+day thresholds seed from `target - yellow`. `getRepairLeadDays` in `core/buildings.ts`
+is the one accessor — do not reintroduce a separate offset setting. Migration
+`27.09.2026 Remove repair time offset` deletes `settings.repair.offset` and each
+`planetOverrides[*].offset`, dropping an override left with nothing else in it.
+XIT REP shows the effective target read-only with a CONFIG button to
+`XIT SET GAME REPAIR`; it has no repair inputs of its own. REPAIRACT's per-package
+"Time Offset" (`advanceDays`, default 1) is a different thing and stays.
+
+**A `C.Workforces.days*` class on a `<td>` shades nothing.** Those classes paint a
+background, and a table cell's own rule wins: putting `repairCellClass(...)` straight
+on XIT REP's Age cell left it unshaded in the live game. Follow `BURN/DaysCell.vue` —
+`position: relative` on the cell, an absolutely positioned full-size `<div>` carrying
+the classes behind the number. (Shading a `<span>` that wraps the text, as the ACT
+price warning does, also works; a bare `<td>` does not.)
+
+**Open XIT SET on a section, not just a tab.** `XIT SET <TAB> <SECTION>` — SET.vue
+routes `parameters[0]` to the tab, and the tab component reads `parameters[1]` itself
+through `useXitParameters`. `GAME.vue` handles `REPAIR` by setting `scrollTop` on the
+section header's nearest `C.ScrollView.view` ancestor (`closest`, as
+`EndlessScrollControl` does) to that header's `offsetTop`. No section parameter means
+no scroll, so plain `XIT SET` still opens at the top.
+
+XIT PLANETS answers to `PLANETS`, `PLNT`, and `PLS`. The XIT SET Base-specific
+buttons are labelled `XIT PLS` so the button names a command the player can type.
 
 `XIT BURNACT` stores the last chosen CX buy exchange in
 `settings.burn.planetCxExchange[planetNaturalId]`. A base with nothing stored opens on
