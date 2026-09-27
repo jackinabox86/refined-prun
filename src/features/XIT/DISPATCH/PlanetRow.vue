@@ -239,7 +239,7 @@ function clearShip() {
       <RadioItem v-model="config.agent" horizontal>AGT</RadioItem>
     </td>
   </tr>
-  <tr v-if="isBurnExpanded && burn">
+  <tr v-if="isBurnExpanded && burn" :class="$style.burnExpandRow">
     <td colspan="16" :class="$style.burnExpandCell">
       <table :class="$style.burnExpandTable">
         <thead>
@@ -465,6 +465,18 @@ function clearShip() {
   padding: 0 4px;
   line-height: 22px;
   vertical-align: middle;
+}
+
+/* Same JAC-63 hover containment as XIT BS BaseRow.vue: the game's `tr:hover td`
+   rule matches by descendant, so without this, hovering one nested material line
+   lights up the whole expanded block. See that file for the full reasoning. */
+.burnExpandRow .burnExpandCell,
+.burnExpandRow .burnExpandTable td {
+  background-color: #23282b;
+}
+
+.burnExpandRow .burnExpandTable tbody tr:hover td {
+  background-color: rgba(255, 255, 255, 0.15);
 }
 
 .burnExpandCell {

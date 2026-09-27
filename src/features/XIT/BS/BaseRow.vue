@@ -231,7 +231,7 @@ function onCmdsClick() {
         :on-click-cmd="`INV ${warehouseStore.id.substring(0, 8)}`" />
     </td>
   </tr>
-  <tr v-if="showBurn && isBurnExpanded && burn">
+  <tr v-if="showBurn && isBurnExpanded && burn" :class="$style.burnExpandRow">
     <td :colspan="columnCount" :class="$style.burnExpandCell">
       <table :class="$style.burnExpandTable">
         <thead>
@@ -355,6 +355,22 @@ function onCmdsClick() {
   margin: 0;
   font-size: 10px;
   line-height: 1;
+}
+
+/* The game highlights a hovered row with a `tr:hover td` rule that uses a
+   *descendant* combinator, so hovering one line of the nested material table
+   matches every `td` inside this wrapper row and the whole expanded block lights
+   up instead of the single row under the pointer (JAC-63). Pin the block to the
+   resting cell background so that leak paints nothing, then put the highlight
+   back on just the nested row the pointer is over. Two class selectors beat the
+   game's rule, which has one pseudo-class and only type selectors besides. */
+.burnExpandRow .burnExpandCell,
+.burnExpandRow .burnExpandTable td {
+  background-color: #23282b;
+}
+
+.burnExpandRow .burnExpandTable tbody tr:hover td {
+  background-color: rgba(255, 255, 255, 0.15);
 }
 
 .burnExpandCell {
