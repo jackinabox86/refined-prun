@@ -1224,6 +1224,8 @@ know about them and the next re-render or user drag overwrites them.
 
 The `custom-left-sidebar` feature hides the base-game sidebar buttons (`#TOUR_TARGET_SIDEBAR_LEFT_02`) and renders its own configurable set from `userData.settings.sidebar` (label → command pairs, drag-reorderable). Defaults remap several labels to XIT buffers (CONT → `XIT CONTS`, FIN → `XIT FIN`, MAP → `MU`) and append extension-only entries (ACT, BURN, REP, SET, HELP → `XIT *`). Consequence for testing: sidebar clicks in a browser with the extension loaded hit extension buttons, not base-game ones — the base mapping is documented in `docs/game/sidebar-screens.md`.
 
+The native `C.Frame.title` that is a direct child of `C.Frame.sidebar` is the rotated "APEX alpha" watermark (live 2026-09-27: `position: absolute`, `transform: rotate(-90deg)`, `transform-origin: 0 52px`, anchored to the bottom of the sidebar). Because it is positioned, it paints over the in-flow shortcut buttons once the window is short enough for the list to reach it. `prun-bugs` isolates `C.Frame.sidebar` and sets that title to `z-index: -1`, so the label stays behind the buttons and remains visible in the gap below them. Do not match every `C.Frame.title` — tile titles share that class.
+
 ## Context Controls
 
 All tiles have a `C.ContextControls.container` element. Add items to it via `$(tile.frame, C.ContextControls.container)`.
