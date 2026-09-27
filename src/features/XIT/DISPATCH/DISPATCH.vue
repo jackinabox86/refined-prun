@@ -12,7 +12,7 @@ import {
 import { comparePlanets } from '@src/util';
 import { useTileState } from '@src/store/user-data-tiles';
 import { getPlanetBurn, getResupplyDays } from '@src/core/burn';
-import { getRepairOffset, getRepairThreshold } from '@src/core/buildings';
+import { getRepairLeadDays, getRepairThreshold } from '@src/core/buildings';
 import { countDays } from '@src/features/XIT/BURN/utils';
 import { serializeStorage } from '@src/features/XIT/ACT/actions/utils';
 import { allExchangesValue } from '@src/features/XIT/ACT/actions/refuel/utils';
@@ -69,7 +69,7 @@ function createBaseConfig(naturalId: string): DispatchBaseConfig {
     resupply: true,
     repair: false,
     days: getResupplyDays(naturalId) ?? 10,
-    repThreshold: getRepairThreshold(naturalId) - getRepairOffset(naturalId),
+    repThreshold: getRepairThreshold(naturalId) - getRepairLeadDays(),
     repAdvance: 1,
     materialFilter: 'All',
     cxBuy: true,
@@ -133,11 +133,11 @@ watchEffect(() => {
         agent: existing.agent ?? false,
       };
     }
-    // One-time migration: old default was plain getRepairThreshold; new default
-    // matches REPAIRACT (threshold − offset). The newDefault check keeps this from
-    // re-firing forever when the offset is 0 (migrated value equals the old default).
+    // One-time migration: the original default was plain getRepairThreshold; the
+    // current default matches REPAIRACT (target − lead days). The newDefault check
+    // keeps this from re-firing forever when the lead is 0.
     const oldDefault = getRepairThreshold(base.naturalId);
-    const newDefault = oldDefault - getRepairOffset(base.naturalId);
+    const newDefault = oldDefault - getRepairLeadDays();
     if (existing.repThreshold === oldDefault && newDefault !== oldDefault) {
       patched = { ...patched, repThreshold: newDefault };
     }

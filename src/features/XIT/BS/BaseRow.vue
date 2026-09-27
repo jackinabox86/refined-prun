@@ -14,7 +14,7 @@ import { getPlanetProduction } from '@src/core/production';
 import { warehousesStore } from '@src/infrastructure/prun-api/data/warehouses';
 import { storagesStore } from '@src/infrastructure/prun-api/data/storage';
 import { userData } from '@src/store/user-data';
-import { getRepairOffset, getRepairThreshold } from '@src/core/buildings';
+import { presentRepairCell, repairCellClass } from '@src/features/XIT/REP/present-repair-cell';
 import { getPlanetRepairAge } from '@src/features/XIT/REP/entries';
 import { timestampEachMinute } from '@src/utils/dayjs';
 import { store as planetContextMenu } from '../planet-context-menu';
@@ -120,27 +120,12 @@ const prodText = computed(() => {
 
 const repairAge = computed(() => getPlanetRepairAge(siteId, timestampEachMinute.value));
 
-const repairBgClass = computed(() => {
-  const age = repairAge.value;
-  if (age === undefined) {
-    return {};
-  }
-  const threshold = getRepairThreshold(naturalId);
-  const offset = getRepairOffset(naturalId);
-  const d = Math.floor(age);
-  return {
-    [C.Workforces.daysMissing]: d >= threshold,
-    [C.Workforces.daysWarning]: d >= threshold - offset,
-    [C.Workforces.daysSupplied]: d < threshold - offset,
-  };
-});
-
-const repairDaysText = computed(() => {
+const repairCell = computed(() => {
   const age = repairAge.value;
   if (age === undefined) {
     return undefined;
   }
-  return String(Math.floor(age));
+  return presentRepairCell(age, naturalId);
 });
 
 const storageAlarm = computed(() => getStorageAlarmLevel(siteId));
@@ -199,9 +184,9 @@ const warehouseStore = computed(() =>
       </div>
     </td>
     <td v-if="showRepair" :class="$style.statusCell">
-      <div :class="[$style.statusContent, repairBgClass]">
+      <div :class="[$style.statusContent, repairCellClass(repairCell)]">
         <span :class="$style.statusNum" @click="showBuffer(`XIT REP ${naturalId}`)">{{
-          repairDaysText ?? '-'
+          repairCell?.text ?? '-'
         }}</span>
         <PrunButton dark inline @click="showBuffer(`XIT REPAIRACT ${naturalId}`)">REP</PrunButton>
       </div>
