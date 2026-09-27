@@ -17,10 +17,28 @@ function isCheckpoint(entry: MigrationEntry): entry is Checkpoint {
 // The date is for reference only, and it does not affect migration order.
 const migrations: MigrationEntry[] = [
   [
+    '27.09.2026 Remove repair time offset',
+    userData => {
+      // The repair target plus the red/yellow thresholds replace the time offset,
+      // so its control is gone from XIT REP and XIT PLANETS. Nothing reads the
+      // stored values any more; drop them, and drop an override left with nothing
+      // but an offset in it.
+      const repair = userData.settings.repair;
+      delete repair.offset;
+      const overrides = repair.planetOverrides ?? {};
+      for (const naturalId of Object.keys(overrides)) {
+        delete overrides[naturalId].offset;
+        if (overrides[naturalId].threshold === undefined) {
+          delete overrides[naturalId];
+        }
+      }
+    },
+  ],
+  [
     '26.09.2026 Add repair section thresholds',
     userData => {
-      // The stored age threshold is the repair target. Leave it, the offset,
-      // and per-planet overrides alone so an existing XIT REP value carries over.
+      // The stored age threshold is the repair target. Leave it and the per-planet
+      // overrides alone so an existing XIT REP value carries over.
       const repair = userData.settings.repair;
       repair.red = 3;
       repair.yellow = 7;

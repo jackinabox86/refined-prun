@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import NumberInput from '@src/components/forms/NumberInput.vue';
 import {
   calculateBuildingEntries,
   calculateShipEntries,
@@ -11,7 +10,7 @@ import dayjs from 'dayjs';
 import { fixed1, percent1 } from '@src/utils/format';
 import MaterialPurchaseTable from '@src/components/MaterialPurchaseTable.vue';
 import LoadingSpinner from '@src/components/LoadingSpinner.vue';
-import { calcBuildingCondition, getRepairOffset, getRepairThreshold } from '@src/core/buildings';
+import { calcBuildingCondition, getRepairLeadDays, getRepairThreshold } from '@src/core/buildings';
 import { diffDays } from '@src/utils/time-diff';
 import { userData } from '@src/store/user-data';
 import { mergeMaterialAmounts } from '@src/core/sort-materials';
@@ -47,10 +46,10 @@ const visibleBuildings = computed(() => {
     return undefined;
   }
   const time = timestampEachMinute.value;
+  const lead = getRepairLeadDays();
   return buildingEntries.value.filter(entry => {
     const threshold = getRepairThreshold(entry.naturalId);
-    const offset = getRepairOffset(entry.naturalId);
-    const splitDate = time - threshold * msInADay + offset * msInADay;
+    const splitDate = time - threshold * msInADay + lead * msInADay;
     return entry.lastRepair < splitDate;
   });
 });
@@ -63,9 +62,9 @@ const materials = computed(() => {
   }
   const materials: PrunApi.MaterialAmount[] = [];
   const time = timestampEachMinute.value;
+  const lead = getRepairLeadDays();
   for (const building of visibleBuildings.value) {
-    const plannedRepairDate =
-      (time - building.lastRepair) / msInADay + getRepairOffset(building.naturalId);
+    const plannedRepairDate = (time - building.lastRepair) / msInADay + lead;
     for (const { material, amount } of building.fullMaterials) {
       materials.push({
         material,
@@ -88,51 +87,39 @@ const singleSite = computed(() => {
   return undefined;
 });
 
-const singleSiteOverrides = computed(() => {
+const singleSiteNaturalId = computed(() => {
   const site = singleSite.value;
-  if (!site) {
-    return undefined;
-  }
-  const naturalId = getEntityNaturalIdFromAddress(site.address);
-  if (!naturalId) {
-    return undefined;
-  }
-  const override = userData.settings.repair.planetOverrides[naturalId];
+  return site ? getEntityNaturalIdFromAddress(site.address) : undefined;
+});
+
+// The target is read-only here: it is set in XIT SET gameplay, or per planet in
+// XIT PLANETS. A single-site buffer shows that planet's effective target.
+const repairTarget = computed(() => getRepairThreshold(singleSiteNaturalId.value));
+
+const targetSource = computed(() => {
+  const naturalId = singleSiteNaturalId.value;
+  const override =
+    naturalId === undefined
+      ? undefined
+      : userData.settings.repair.planetOverrides?.[naturalId]?.threshold;
   if (override === undefined) {
-    return undefined;
+    return 'Global repair target from XIT SET gameplay.';
   }
-  const planetName = getEntityNameFromAddress(site.address) ?? naturalId;
-  return {
-    planetName,
-    threshold: override.threshold === undefined ? undefined : getRepairThreshold(naturalId),
-    offset: override.offset === undefined ? undefined : getRepairOffset(naturalId),
-  };
+  const site = singleSite.value;
+  const planetName = (site ? getEntityNameFromAddress(site.address) : undefined) ?? naturalId;
+  return `Per-planet target for ${planetName} from XIT PLANETS.`;
 });
 </script>
 
 <template>
   <LoadingSpinner v-if="materials === undefined" />
   <template v-else>
-    <div
-      v-if="
-        singleSiteOverrides?.threshold !== undefined || singleSiteOverrides?.offset !== undefined
-      "
-      :class="$style.overrideNotice">
-      <template v-if="singleSiteOverrides.threshold !== undefined">
-        Repair target for <b>{{ singleSiteOverrides.planetName }}</b> is
-        <b>{{ singleSiteOverrides.threshold }}</b
-        >.
-      </template>
-      <template v-if="singleSiteOverrides.offset !== undefined">
-        Time offset for <b>{{ singleSiteOverrides.planetName }}</b> is
-        <b>{{ singleSiteOverrides.offset }}</b
-        >.
-      </template>
-      <PrunButton dark inline @click="showBuffer('XIT PLANETS')"> Edit in XIT PLANETS </PrunButton>
-    </div>
-    <form v-if="singleSiteOverrides?.offset === undefined">
-      <Active label="Time Offset">
-        <NumberInput v-model="userData.settings.repair.offset" float />
+    <form>
+      <Active label="Repair Target" :tooltip="targetSource">
+        <span :class="$style.readOnly">{{ repairTarget }}</span>
+      </Active>
+      <Active label="Repair Config" tooltip="Repair target and red/yellow thresholds.">
+        <PrunButton dark @click="showBuffer('XIT SET GAME')">CONFIG</PrunButton>
       </Active>
     </form>
     <SectionHeader>Shopping Cart</SectionHeader>
@@ -178,14 +165,8 @@ const singleSiteOverrides = computed(() => {
 </template>
 
 <style module>
-.overrideNotice {
-  padding: 6px 8px;
+.readOnly {
   font-size: 12px;
-  background-color: rgba(100, 149, 237, 0.08);
-  border-left: 3px solid #6495ed;
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 6px;
+  line-height: 20px;
 }
 </style>

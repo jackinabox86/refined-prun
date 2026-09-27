@@ -37,12 +37,11 @@ export function getRepairThreshold(planetNaturalId?: string | null) {
   return userData.settings.repair.threshold;
 }
 
-export function getRepairOffset(planetNaturalId?: string | null) {
-  if (planetNaturalId) {
-    const override = userData.settings.repair.planetOverrides?.[planetNaturalId]?.offset;
-    if (override !== undefined) {
-      return override;
-    }
-  }
-  return userData.settings.repair.offset;
+// Days before the repair target at which a building counts as due. The yellow
+// threshold does this job: it is where repair cells turn yellow, so it is also
+// where XIT REP starts listing the building and where the DISPATCH / ACT day
+// thresholds are seeded. Defensive default for data written before the
+// 26.09.2026 repair-thresholds migration.
+export function getRepairLeadDays() {
+  return userData.settings.repair.yellow ?? 7;
 }

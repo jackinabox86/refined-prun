@@ -923,7 +923,7 @@ const line = computed(() => productionStore.getById(tile.parameter));
 
 **A `watchEffect` that writes its own dependency must gate on value inequality, not
 just a condition.** DISPATCH's persisted-config migration rebuilt the patched object
-whenever the migration *condition* held; with a repair offset of 0 the migrated value
+whenever the migration *condition* held; with a repair lead of 0 the migrated value
 equaled the old one — same values, new object identity, so the effect re-fired on its
 own write in an unbounded loop. Before a self-write, prove the patch actually changes a
 value (e.g. `newDefault !== oldDefault`), not merely that the migration applies.
@@ -977,14 +977,24 @@ The XIT SET gameplay repair section edits the existing `settings.repair.threshol
 (default 60) — that key is the old XIT REP age threshold, so moving the control does
 not copy or reset it. `settings.repair.red` / `yellow` (defaults 3 / 7) and
 `settings.repair.countdown` (default false) are new nested fields and have their own
-migration, which must not assign `threshold`, `offset`, `planetOverrides`, or any
+migration, which must not assign `threshold`, `planetOverrides`, or any
 `settings.noBuy*` key. Per-planet repair targets stay
 `settings.repair.planetOverrides[naturalId].threshold`, read by `getRepairThreshold`.
 `presentRepairCell` is the only repair-cell formatter for XIT BS and XIT DISPATCH:
-count-up keeps age vs target/offset colours; countdown shows days left until the
-planet override or the global target and colours that remainder with the new
-red/yellow thresholds, the same comparison burn uses. The time-offset control stays
-in XIT REP.
+both modes colour from days left until the planet override or the global target,
+compared against the red/yellow thresholds the same way burn compares days of supply;
+only the shown number differs (age counting up, remainder counting down).
+
+The repair **time offset** is gone. `yellow` is now the single lead time: XIT REP
+lists a building once it is inside the yellow zone (`age >= target - yellow`) and
+prices its materials at that planned repair date, and the XIT DISPATCH / ACT repair
+day thresholds seed from `target - yellow`. `getRepairLeadDays` in `core/buildings.ts`
+is the one accessor — do not reintroduce a separate offset setting. Migration
+`27.09.2026 Remove repair time offset` deletes `settings.repair.offset` and each
+`planetOverrides[*].offset`, dropping an override left with nothing else in it.
+XIT REP shows the effective target read-only with a CONFIG button to `XIT SET GAME`;
+it has no repair inputs of its own. REPAIRACT's per-package "Time Offset"
+(`advanceDays`, default 1) is a different thing and stays.
 
 `XIT BURNACT` stores the last chosen CX buy exchange in
 `settings.burn.planetCxExchange[planetNaturalId]`. A base with nothing stored opens on
