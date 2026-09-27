@@ -21,6 +21,7 @@ import PrunLink from '@src/components/PrunLink.vue';
 import PrunButton from '@src/components/PrunButton.vue';
 import { showBuffer } from '@src/infrastructure/prun-ui/buffers';
 import { repairButtonEnabled } from '@src/features/XIT/REP/repair-button';
+import { presentRepairCell, repairCellClass } from '@src/features/XIT/REP/present-repair-cell';
 import { objectId } from '@src/utils/object-id';
 import {
   getEntityNameFromAddress,
@@ -80,6 +81,14 @@ function calculateAge(lastRepair: number) {
   return diffDays(lastRepair, timestampEachMinute.value, true);
 }
 
+// Shade the age with the same red/yellow rule the XIT BS and XIT DISPATCH repair
+// cells use. The Workforces day classes paint a background, so the caller has to
+// put them on an absolutely positioned filler behind the number, the way
+// BURN's DaysCell does.
+function ageCellClass(lastRepair: number, naturalId: string) {
+  return repairCellClass(presentRepairCell(calculateAge(lastRepair), naturalId));
+}
+
 const singleSite = computed(() => {
   if (sites.value?.length === 1 && (ships.value?.length ?? 0) === 0) {
     return sites.value[0];
@@ -92,7 +101,7 @@ const singleSiteNaturalId = computed(() => {
   return site ? getEntityNaturalIdFromAddress(site.address) : undefined;
 });
 
-// The target is read-only here: it is set in XIT SET gameplay, or per planet in
+// The target is read-only here: it is set in XIT SET Gameplay, or per planet in
 // XIT PLANETS. A single-site buffer shows that planet's effective target.
 const repairTarget = computed(() => getRepairThreshold(singleSiteNaturalId.value));
 
@@ -103,7 +112,7 @@ const targetSource = computed(() => {
       ? undefined
       : userData.settings.repair.planetOverrides?.[naturalId]?.threshold;
   if (override === undefined) {
-    return 'Global repair target from XIT SET gameplay.';
+    return 'Global repair target from XIT SET Gameplay.';
   }
   const site = singleSite.value;
   const planetName = (site ? getEntityNameFromAddress(site.address) : undefined) ?? naturalId;
@@ -115,11 +124,14 @@ const targetSource = computed(() => {
   <LoadingSpinner v-if="materials === undefined" />
   <template v-else>
     <form>
-      <Active label="Repair Target" :tooltip="targetSource">
+      <Active label="Repair Target" :tooltip="targetSource" tooltip-position="bottom">
         <span :class="$style.readOnly">{{ repairTarget }}</span>
       </Active>
-      <Active label="Repair Config" tooltip="Repair target and red/yellow thresholds.">
-        <PrunButton dark @click="showBuffer('XIT SET GAME')">CONFIG</PrunButton>
+      <Active
+        label="Repair Config"
+        tooltip="Repair target and red/yellow thresholds in XIT SET Gameplay."
+        tooltip-position="bottom">
+        <PrunButton dark @click="showBuffer('XIT SET GAME REPAIR')">CONFIG</PrunButton>
       </Active>
     </form>
     <SectionHeader>Shopping Cart</SectionHeader>
@@ -144,7 +156,12 @@ const targetSource = computed(() => {
           <td v-if="isMultiTarget">
             <PrunLink :command="`XIT REP ${entry.naturalId}`">{{ entry.target }}</PrunLink>
           </td>
-          <td>{{ fixed1(calculateAge(entry.lastRepair)) }}</td>
+          <td :style="{ position: 'relative' }">
+            <div
+              :style="{ position: 'absolute', left: 0, top: 0, width: '100%', height: '100%' }"
+              :class="ageCellClass(entry.lastRepair, entry.naturalId)" />
+            <span>{{ fixed1(calculateAge(entry.lastRepair)) }}</span>
+          </td>
           <td>{{ percent1(entry.condition) }}</td>
           <td v-if="repairButtonEnabled">
             <PrunButton dark inline @click="showBuffer(`XIT REPAIRACT ${entry.naturalId}`)">

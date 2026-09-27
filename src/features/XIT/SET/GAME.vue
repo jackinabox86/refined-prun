@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import PrunButton from '@src/components/PrunButton.vue';
+import { useXitParameters } from '@src/hooks/use-xit-parameters';
 import SectionHeader from '@src/components/SectionHeader.vue';
 import Tooltip from '@src/components/Tooltip.vue';
 import TextInput from '@src/components/forms/TextInput.vue';
@@ -30,6 +31,24 @@ import dayjs from 'dayjs';
 import { vDraggable } from 'vue-draggable-plus';
 import { grip } from '@src/components/grip';
 import GripChar from '@src/components/grip/GripChar.vue';
+
+const parameters = useXitParameters();
+const repairSection = ref<InstanceType<typeof SectionHeader> | null>(null);
+
+// XIT REP's CONFIG button opens `XIT SET GAME REPAIR`. Scroll the tile's own
+// scroll view down to the repair section so the player lands on it, the way
+// cxob-center-on-open positions the order book.
+onMounted(async () => {
+  if (parameters[1]?.toUpperCase() !== 'REPAIR') {
+    return;
+  }
+  await nextTick();
+  const section = repairSection.value?.$el as HTMLElement | undefined;
+  const scroll = section?.closest<HTMLElement>(`.${C.ScrollView.view}`);
+  if (section && scroll) {
+    scroll.scrollTop = section.offsetTop;
+  }
+});
 
 const isDefault24 = computed(() => {
   return hhForXitSet.value(dayjs.duration(12, 'hours').asMilliseconds()) === '13';
@@ -229,10 +248,10 @@ function confirmResetAllData(ev: Event) {
       <NumberInput v-model="userData.settings.burn.resupply" float />
     </Active>
     <Active label="Base-specific" tooltip="Per-planet resupply amounts in XIT PLANETS.">
-      <PrunButton primary @click="showBuffer('XIT PLANETS')">BASES</PrunButton>
+      <PrunButton primary @click="showBuffer('XIT PLANETS')">XIT PLS</PrunButton>
     </Active>
   </form>
-  <SectionHeader>Repair Settings</SectionHeader>
+  <SectionHeader ref="repairSection">Repair Settings</SectionHeader>
   <form>
     <Active
       label="Target"
@@ -253,7 +272,7 @@ function confirmResetAllData(ev: Event) {
       <RadioItem v-model="userData.settings.repair.countdown">count down</RadioItem>
     </Active>
     <Active label="Base-specific" tooltip="Per-planet repair targets in XIT PLANETS.">
-      <PrunButton primary @click="showBuffer('XIT PLANETS')">BASES</PrunButton>
+      <PrunButton primary @click="showBuffer('XIT PLANETS')">XIT PLS</PrunButton>
     </Active>
   </form>
   <SectionHeader>

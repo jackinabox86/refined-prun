@@ -992,9 +992,26 @@ day thresholds seed from `target - yellow`. `getRepairLeadDays` in `core/buildin
 is the one accessor — do not reintroduce a separate offset setting. Migration
 `27.09.2026 Remove repair time offset` deletes `settings.repair.offset` and each
 `planetOverrides[*].offset`, dropping an override left with nothing else in it.
-XIT REP shows the effective target read-only with a CONFIG button to `XIT SET GAME`;
-it has no repair inputs of its own. REPAIRACT's per-package "Time Offset"
-(`advanceDays`, default 1) is a different thing and stays.
+XIT REP shows the effective target read-only with a CONFIG button to
+`XIT SET GAME REPAIR`; it has no repair inputs of its own. REPAIRACT's per-package
+"Time Offset" (`advanceDays`, default 1) is a different thing and stays.
+
+**A `C.Workforces.days*` class on a `<td>` shades nothing.** Those classes paint a
+background, and a table cell's own rule wins: putting `repairCellClass(...)` straight
+on XIT REP's Age cell left it unshaded in the live game. Follow `BURN/DaysCell.vue` —
+`position: relative` on the cell, an absolutely positioned full-size `<div>` carrying
+the classes behind the number. (Shading a `<span>` that wraps the text, as the ACT
+price warning does, also works; a bare `<td>` does not.)
+
+**Open XIT SET on a section, not just a tab.** `XIT SET <TAB> <SECTION>` — SET.vue
+routes `parameters[0]` to the tab, and the tab component reads `parameters[1]` itself
+through `useXitParameters`. `GAME.vue` handles `REPAIR` by setting `scrollTop` on the
+section header's nearest `C.ScrollView.view` ancestor (`closest`, as
+`EndlessScrollControl` does) to that header's `offsetTop`. No section parameter means
+no scroll, so plain `XIT SET` still opens at the top.
+
+XIT PLANETS answers to `PLANETS`, `PLNT`, and `PLS`. The XIT SET Base-specific
+buttons are labelled `XIT PLS` so the button names a command the player can type.
 
 `XIT BURNACT` stores the last chosen CX buy exchange in
 `settings.burn.planetCxExchange[planetNaturalId]`. A base with nothing stored opens on
