@@ -1,8 +1,7 @@
 <script setup lang="ts">
+import ActionBar from '@src/components/ActionBar.vue';
 import PrunButton from '@src/components/PrunButton.vue';
 import SectionHeader from '@src/components/SectionHeader.vue';
-import Active from '@src/components/forms/Active.vue';
-import Commands from '@src/components/forms/Commands.vue';
 import TextInput from '@src/components/forms/TextInput.vue';
 import Tooltip from '@src/components/Tooltip.vue';
 import { initialUserData, userData } from '@src/store/user-data';
@@ -30,52 +29,65 @@ function reset() {
   <SectionHeader>
     SFC Shortcuts
     <Tooltip
+      position="bottom"
+      :class="$style.tooltip"
       tooltip="Shortcut buttons next to the SFC destination field.
          Label is the button text; Destination is
          an exchange station (ANT) or a planet (OT-580b or Montem).
          Add up to four shortcuts; REMOVE deletes the last one." />
   </SectionHeader>
-  <form>
-    <Active v-if="shortcuts.length > 0">
-      <div :class="$style.inputPair">
-        <div :class="[$style.input, $style.header]">Label</div>
-        <div :class="[$style.input, $style.header]">Destination</div>
-      </div>
-    </Active>
-    <Active v-for="(shortcut, i) in shortcuts" :key="i" :label="`Shortcut ${i + 1}`">
-      <div :class="$style.inputPair">
-        <TextInput v-model="shortcut.label" :class="[$style.input, $style.label]" />
-        <TextInput v-model="shortcut.destination" :class="$style.input" />
-      </div>
-    </Active>
-    <Commands>
-      <PrunButton primary @click="reset">RESET</PrunButton>
-      <PrunButton primary :disabled="!canRemove" @click="remove">REMOVE</PrunButton>
-      <PrunButton primary :disabled="!canAdd" @click="add">ADD NEW</PrunButton>
-    </Commands>
-  </form>
+  <ActionBar>
+    <PrunButton primary :disabled="!canAdd" @click="add">ADD NEW</PrunButton>
+    <PrunButton primary :disabled="!canRemove" @click="remove">REMOVE</PrunButton>
+    <PrunButton primary @click="reset">RESET</PrunButton>
+  </ActionBar>
+  <table>
+    <thead>
+      <tr>
+        <th>#</th>
+        <th>Label</th>
+        <th>Destination</th>
+      </tr>
+    </thead>
+    <tbody v-if="shortcuts.length === 0">
+      <tr>
+        <td colspan="3">No shortcuts.</td>
+      </tr>
+    </tbody>
+    <tbody v-else>
+      <tr v-for="(shortcut, i) in shortcuts" :key="i">
+        <td>{{ i + 1 }}</td>
+        <td :class="[$style.inputCell, $style.labelCell]">
+          <div :class="[C.forms.input, $style.inline]">
+            <TextInput v-model="shortcut.label" />
+          </div>
+        </td>
+        <td :class="$style.inputCell">
+          <div :class="[C.forms.input, $style.inline]">
+            <TextInput v-model="shortcut.destination" />
+          </div>
+        </td>
+      </tr>
+    </tbody>
+  </table>
 </template>
 
 <style module>
-.inputPair {
-  display: flex;
-  justify-content: flex-end;
-  column-gap: 10px;
+.inline {
+  display: inline-block;
 }
 
-.input {
-  width: 40%;
-}
-
-.input input {
+.inputCell * {
   width: 100%;
 }
 
-.header {
-  font-weight: bold;
+.labelCell input {
+  text-transform: uppercase;
 }
 
-.label input {
-  text-transform: uppercase;
+.tooltip {
+  float: revert;
+  font-size: 12px;
+  margin-top: -4px;
 }
 </style>
