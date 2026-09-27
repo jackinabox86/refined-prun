@@ -30,17 +30,14 @@ const migrations: MigrationEntry[] = [
         return;
       }
       // The unreleased 26.09.2026 migration wrote light purple/red for bases.
-      // That pair was not a player choice. Put blue/orange back unless they edited a color.
-      const stillAutomatic =
-        colors.baseEmpty === '#b48ad8' &&
-        colors.baseCargo === '#e8676b' &&
-        colors.cxEmpty === '#43a4df' &&
-        colors.cxCargo === '#f7a600';
-      if (!stillAutomatic) {
-        return;
+      // That pair was not a player choice, so put blue/orange back slot by slot.
+      // A slot holding anything else was chosen by the player and is left alone.
+      if (colors.baseEmpty === '#b48ad8') {
+        colors.baseEmpty = '#43a4df';
       }
-      colors.baseEmpty = '#43a4df';
-      colors.baseCargo = '#f7a600';
+      if (colors.baseCargo === '#e8676b') {
+        colors.baseCargo = '#f7a600';
+      }
     },
   ],
   [

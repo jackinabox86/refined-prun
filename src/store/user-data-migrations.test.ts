@@ -58,13 +58,30 @@ describe('FLT unload button color defaults', () => {
     const userData = appliedExcept([RESTORE_FLT_COLORS_ID]);
     userData.settings.fltButtonColors = {
       baseEmpty: '#2a9d8f',
-      baseCargo: '#e8676b',
+      baseCargo: '#5cb85c',
       cxEmpty: '#43a4df',
       cxCargo: '#f7a600',
     };
     migrateUserData(userData);
     expect(userData.settings.fltButtonColors.baseEmpty).toBe('#2a9d8f');
-    expect(userData.settings.fltButtonColors.baseCargo).toBe('#e8676b');
+    expect(userData.settings.fltButtonColors.baseCargo).toBe('#5cb85c');
+  });
+
+  it('restores the automatic base pair even when the player edited a CX color', () => {
+    const userData = appliedExcept([RESTORE_FLT_COLORS_ID]);
+    userData.settings.fltButtonColors = {
+      baseEmpty: '#b48ad8',
+      baseCargo: '#e8676b',
+      cxEmpty: '#2a9d8f',
+      cxCargo: '#e8676b',
+    };
+    migrateUserData(userData);
+    expect(userData.settings.fltButtonColors).toEqual({
+      baseEmpty: '#43a4df',
+      baseCargo: '#f7a600',
+      cxEmpty: '#2a9d8f',
+      cxCargo: '#e8676b',
+    });
   });
 });
 
