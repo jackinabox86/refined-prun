@@ -7,11 +7,18 @@ import TextInput from '@src/components/forms/TextInput.vue';
 import Tooltip from '@src/components/Tooltip.vue';
 import { initialUserData, userData } from '@src/store/user-data';
 
-const slotCount = 4;
+const maxShortcuts = 4;
 
-// Older data or a manual edit can leave fewer slots; pad so every input binds.
-while (userData.settings.sfcShortcuts.length < slotCount) {
-  userData.settings.sfcShortcuts.push({ label: '', destination: '' });
+const shortcuts = computed(() => userData.settings.sfcShortcuts);
+const canAdd = computed(() => shortcuts.value.length < maxShortcuts);
+const canRemove = computed(() => shortcuts.value.length > 0);
+
+function add() {
+  shortcuts.value.push({ label: '', destination: '' });
+}
+
+function remove() {
+  shortcuts.value.pop();
 }
 
 function reset() {
@@ -24,15 +31,18 @@ function reset() {
     SFC Shortcuts
     <Tooltip
       tooltip="Shortcut buttons next to the SFC destination field.
-         The first value is the button label, the second is the destination:
+         Label is the button text; Destination is
          an exchange station (ANT) or a planet (OT-580b or Montem).
-         Leave the destination empty to hide the button." />
+         Add up to four shortcuts; REMOVE deletes the last one." />
   </SectionHeader>
   <form>
-    <Active
-      v-for="(shortcut, i) in userData.settings.sfcShortcuts.slice(0, slotCount)"
-      :key="i"
-      :label="`Shortcut ${i + 1}`">
+    <Active v-if="shortcuts.length > 0">
+      <div :class="$style.inputPair">
+        <div :class="[$style.input, $style.header]">Label</div>
+        <div :class="[$style.input, $style.header]">Destination</div>
+      </div>
+    </Active>
+    <Active v-for="(shortcut, i) in shortcuts" :key="i" :label="`Shortcut ${i + 1}`">
       <div :class="$style.inputPair">
         <TextInput v-model="shortcut.label" :class="[$style.input, $style.label]" />
         <TextInput v-model="shortcut.destination" :class="$style.input" />
@@ -40,6 +50,8 @@ function reset() {
     </Active>
     <Commands>
       <PrunButton primary @click="reset">RESET</PrunButton>
+      <PrunButton primary :disabled="!canRemove" @click="remove">REMOVE</PrunButton>
+      <PrunButton primary :disabled="!canAdd" @click="add">ADD NEW</PrunButton>
     </Commands>
   </form>
 </template>
@@ -57,6 +69,10 @@ function reset() {
 
 .input input {
   width: 100%;
+}
+
+.header {
+  font-weight: bold;
 }
 
 .label input {

@@ -9,10 +9,11 @@ import { userData } from '@src/store/user-data';
 import $style from './sfc-exchange-destinations.module.css';
 
 // Shortcuts are set in XIT SET's SFC tab (default: the four commodity exchange
-// stations). Slots without a destination are dropped so no empty button
+// stations), at most four. Slots without a destination are dropped so no empty button
 // renders; labels always show upper-cased, falling back to the destination.
 const shortcuts = computed(() =>
   userData.settings.sfcShortcuts
+    .slice(0, 4)
     .map(x => ({ label: x.label.trim(), destination: x.destination.trim() }))
     .filter(x => x.destination.length > 0)
     .map(x => ({
