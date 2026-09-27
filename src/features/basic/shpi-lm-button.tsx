@@ -5,8 +5,7 @@ import {
   isPlanetLine,
   isStationLine,
 } from '@src/infrastructure/prun-api/data/addresses';
-import { fetchPlanetHasLocalMarket } from '@src/infrastructure/fio/planet-local-market';
-import { lmBufferCommand, lmLinkNaturalId } from '@src/core/lm-link';
+import { lmBufferCommand } from '@src/core/lm-link';
 import { shouldNarrowShipContextCommand } from '@src/features/basic/shpi-context-command';
 
 function narrowShipContextItem(item: HTMLElement) {
@@ -33,53 +32,20 @@ async function onTileReady(tile: PrunTile) {
   subscribe($$(tile.frame, C.ContextControls.item), narrowShipContextItem);
 
   const ship = computed(() => shipsStore.getByRegistration(tile.parameter));
-  const planetHasLocalMarket = ref<boolean | undefined>(undefined);
 
-  const location = computed(() => {
+  // Link wherever the ship is docked and let LM answer for itself. A planet with
+  // no local market shows the game's own error, which is the wanted behavior --
+  // gating on FIO's HasLocalMarket only bought a way for the link to go missing.
+  const linkId = computed(() => {
     const current = ship.value;
     if (current === undefined || current.flightId !== null) {
       return undefined;
     }
     const line = getLocationLineFromAddress(current.address ?? undefined);
-    if (isStationLine(line)) {
-      return { kind: 'station' as const, naturalId: line.entity.naturalId };
-    }
-    if (isPlanetLine(line)) {
-      return { kind: 'planet' as const, naturalId: line.entity.naturalId };
+    if (isStationLine(line) || isPlanetLine(line)) {
+      return line.entity.naturalId;
     }
     return undefined;
-  });
-
-  watch(
-    location,
-    async (current, _previous, onCleanup) => {
-      let cancelled = false;
-      onCleanup(() => {
-        cancelled = true;
-      });
-      if (current === undefined || current.kind !== 'planet') {
-        planetHasLocalMarket.value = undefined;
-        return;
-      }
-      const naturalId = current.naturalId;
-      planetHasLocalMarket.value = undefined;
-      const value = await fetchPlanetHasLocalMarket(naturalId);
-      if (cancelled) {
-        return;
-      }
-      planetHasLocalMarket.value = value;
-    },
-    { immediate: true },
-  );
-
-  const linkId = computed(() => {
-    const current = ship.value;
-    return lmLinkNaturalId({
-      inFlight: current !== undefined && current.flightId !== null,
-      kind: location.value?.kind,
-      naturalId: location.value?.naturalId,
-      planetHasLocalMarket: planetHasLocalMarket.value,
-    });
   });
 
   const contextBar = await $(tile.frame, C.ContextControls.container);
@@ -108,5 +74,5 @@ function init() {
 features.add(
   import.meta.url,
   init,
-  'SHPI: Adds an LM link when the ship is at a commodity exchange or a planet with a local market, and drops the ship id from SHP, SHPF, and SFC.',
+  'SHPI: Adds an LM link for the location the ship is docked at, and drops the ship id from SHP, SHPF, and SFC.',
 );

@@ -157,7 +157,7 @@ Experts provide fixed bonus multipliers to production line efficiency in their i
 - When material purchased at CX cannot fit the storage, an automatic pickup contract is sent to the buyer.
 
 ### Local Markets (LM)
-- A local bulletin board on the planet or space station. A station always has one (`localMarketId` on the station record). A planet has one only after its Local Market project is built. FIO's full planet document (`GET https://rest.fnar.net/planet/{PlanetNaturalId}`) exposes that as `HasLocalMarket`. The short `allplanets` list does not, so it cannot answer the question.
+- A local bulletin board on the planet or space station. A station always has one (`localMarketId` on the station record). A planet has one only after its Local Market project is built. `LM {naturalId}` is safe to open either way: a planet without a market opens the buffer and reports "This planet has no local market.", so a caller never has to check first (verified live). FIO's full planet document (`GET https://rest.fnar.net/planet/{PlanetNaturalId}`) exposes the flag as `HasLocalMarket`; the short `allplanets` list does not.
 - Three ad types: Buy, Sell, Shipping.
 - Buyers/sellers can be any company, even if they don't own base/warehouse on the planet.
 - Ad fees set by planetary governor (base + time factor).
