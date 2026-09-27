@@ -7,6 +7,7 @@ import NOBUY from '@src/features/XIT/NOBUY/NOBUY.vue';
 import FEAT from '@src/features/XIT/SET/FEAT.vue';
 import FIN from '@src/features/XIT/SET/FIN.vue';
 import BFR from '@src/features/XIT/SET/BFR.vue';
+import SFC from '@src/features/XIT/SET/SFC.vue';
 
 const tabs: Tab[] = [
   {
@@ -33,6 +34,11 @@ const tabs: Tab[] = [
     id: 'BFR',
     label: 'Buffers',
     component: BFR,
+  },
+  {
+    id: 'SFC',
+    label: 'SFC',
+    component: SFC,
   },
 ];
 
