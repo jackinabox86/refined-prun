@@ -7,7 +7,7 @@ import '@src/features/XIT/ACT/material-groups/repair/repair';
 import DispatchActWindow from '@src/features/XIT/DISPATCH/DispatchActWindow.vue';
 
 xit.add({
-  command: 'DISPATCHACT',
+  command: ['DISPATCHACT', 'DISPATCHEXEC'],
   name: 'DISPATCH EXECUTE',
   description: 'Executes the staged dispatch resupply/repair action package.',
   component: () => DispatchActWindow,
