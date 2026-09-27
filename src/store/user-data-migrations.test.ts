@@ -3,6 +3,19 @@ import { describe, expect, it } from 'vitest';
 import { migrateUserData } from '@src/store/user-data-migrations';
 import { initialUserData } from '@src/store/user-data';
 
+const FORCE_CX_BUY_ID = '27.09.2026 Add govburn force CX buy';
+
+describe('govburn force CX buy migration', () => {
+  it('defaults the toggle off without changing an existing resupply horizon', () => {
+    const userData = appliedExcept([FORCE_CX_BUY_ID]);
+    delete userData.govburn.config.forceCXBuy;
+    userData.govburn.config.resupplyDays = 15;
+    migrateUserData(userData);
+    expect(userData.govburn.config.forceCXBuy).toBe(false);
+    expect(userData.govburn.config.resupplyDays).toBe(15);
+  });
+});
+
 const RENAME_ID = '20.09.2026 Rename act-dispatch-auto-close';
 
 // User data as it looks just before the rename migration: every other migration applied.

@@ -17,6 +17,12 @@ function isCheckpoint(entry: MigrationEntry): entry is Checkpoint {
 // The date is for reference only, and it does not affect migration order.
 const migrations: MigrationEntry[] = [
   [
+    '27.09.2026 Add govburn force CX buy',
+    userData => {
+      userData.govburn.config.forceCXBuy = false;
+    },
+  ],
+  [
     '26.09.2026 Add SFC shortcut locations with labels',
     userData => {
       userData.settings.sfcShortcuts = [
