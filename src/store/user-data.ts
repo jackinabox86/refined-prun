@@ -59,6 +59,18 @@ export const initialUserData = deepFreeze({
       { label: 'HRT', destination: 'HRT' },
       { label: 'MOR', destination: 'MOR' },
     ] as UserData.SfcShortcut[],
+    // XIT FLT unload-button colors for base/CX × empty/cargo.
+    fltButtonColors: {
+      baseEmpty: '#43a4df',
+      baseCargo: '#f7a600',
+      cxEmpty: '#43a4df',
+      cxCargo: '#f7a600',
+    } as {
+      baseEmpty: string;
+      baseCargo: string;
+      cxEmpty: string;
+      cxCargo: string;
+    },
     sidebar: [
       ['BS', 'BS'],
       ['CONT', 'XIT CONTS'],

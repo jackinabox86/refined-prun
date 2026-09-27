@@ -6,6 +6,11 @@ import { displaytimeBetween, hhmm } from '@src/utils/format';
 import { timestampEachMinute } from '@src/utils/dayjs';
 import { showBuffer } from '@src/infrastructure/prun-ui/buffers';
 import { getInvStore } from '@src/core/store-id';
+import {
+  getLocationLineFromAddress,
+  isStationLine,
+} from '@src/infrastructure/prun-api/data/addresses';
+import { resolveFltButtonColor } from './button-colors';
 
 const props = defineProps<{
   shipId: string;
@@ -27,6 +32,12 @@ const timeData = computed(() => {
 });
 
 const hasItems = computed(() => (inventory.value?.items.length ?? 0) > 0);
+
+const isAtCx = computed(() =>
+  isStationLine(getLocationLineFromAddress(ship.value?.address ?? undefined)),
+);
+
+const unloadBtnColor = computed(() => resolveFltButtonColor(isAtCx.value, hasItems.value));
 </script>
 
 <template>
@@ -40,8 +51,8 @@ const hasItems = computed(() => (inventory.value?.items.length ?? 0) > 0);
     <template v-else>
       <div :class="$style.actions">
         <span
-          :class="[$style.actionBtn, hasItems ? $style.bgOrange : $style.bgBlue]"
-          :style="{ paddingRight: '5px' }"
+          :class="$style.actionBtn"
+          :style="{ paddingRight: '5px', backgroundColor: unloadBtnColor }"
           @click.stop="showBuffer(`SHPI ${ship?.registration}`)">
           {{ hasItems ? '⭱' : '⭳' }}
         </span>
@@ -84,14 +95,6 @@ const hasItems = computed(() => (inventory.value?.items.length ?? 0) > 0);
   align-items: center;
   justify-content: center;
   color: white;
-}
-
-.bgOrange {
-  background-color: #f7a600;
-}
-
-.bgBlue {
-  background-color: #43a4df;
 }
 
 .bgGreen {

@@ -28,6 +28,30 @@ const migrations: MigrationEntry[] = [
     },
   ],
   [
+    '27.09.2026 Restore historic FLT unload colors',
+    userData => {
+      const colors = userData.settings.fltButtonColors;
+      if (!colors) {
+        userData.settings.fltButtonColors = {
+          baseEmpty: '#43a4df',
+          baseCargo: '#f7a600',
+          cxEmpty: '#43a4df',
+          cxCargo: '#f7a600',
+        };
+        return;
+      }
+      // The unreleased 26.09.2026 migration wrote light purple/red for bases.
+      // That pair was not a player choice, so put blue/orange back slot by slot.
+      // A slot holding anything else was chosen by the player and is left alone.
+      if (colors.baseEmpty === '#b48ad8') {
+        colors.baseEmpty = '#43a4df';
+      }
+      if (colors.baseCargo === '#e8676b') {
+        colors.baseCargo = '#f7a600';
+      }
+    },
+  ],
+  [
     '27.09.2026 Remove repair time offset',
     userData => {
       // The repair target plus the red/yellow thresholds replace the time offset,
@@ -43,6 +67,17 @@ const migrations: MigrationEntry[] = [
           delete overrides[naturalId];
         }
       }
+    },
+  ],
+  [
+    '26.09.2026 Add FLT button colors',
+    userData => {
+      userData.settings.fltButtonColors = {
+        baseEmpty: '#43a4df',
+        baseCargo: '#f7a600',
+        cxEmpty: '#43a4df',
+        cxCargo: '#f7a600',
+      };
     },
   ],
   [
