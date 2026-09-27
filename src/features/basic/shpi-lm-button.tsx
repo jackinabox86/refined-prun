@@ -5,7 +5,8 @@ import {
   isPlanetLine,
   isStationLine,
 } from '@src/infrastructure/prun-api/data/addresses';
-import { lmBufferCommand } from '@src/core/lm-link';
+import { fetchPlanetHasLocalMarket } from '@src/infrastructure/fio/planet-local-market';
+import { lmBufferCommand, lmLinkNaturalId, PlanetLocalMarket } from '@src/core/lm-link';
 import { shouldNarrowShipContextCommand } from '@src/features/basic/shpi-context-command';
 
 function narrowShipContextItem(item: HTMLElement) {
@@ -33,20 +34,58 @@ async function onTileReady(tile: PrunTile) {
 
   const ship = computed(() => shipsStore.getByRegistration(tile.parameter));
 
-  // Link wherever the ship is docked and let LM answer for itself. A planet with
-  // no local market shows the game's own error, which is the wanted behavior --
-  // gating on FIO's HasLocalMarket only bought a way for the link to go missing.
-  const linkId = computed(() => {
+  const location = computed(() => {
     const current = ship.value;
     if (current === undefined || current.flightId !== null) {
       return undefined;
     }
     const line = getLocationLineFromAddress(current.address ?? undefined);
-    if (isStationLine(line) || isPlanetLine(line)) {
-      return line.entity.naturalId;
+    if (isStationLine(line)) {
+      return { kind: 'station' as const, naturalId: line.entity.naturalId };
+    }
+    if (isPlanetLine(line)) {
+      return { kind: 'planet' as const, naturalId: line.entity.naturalId };
     }
     return undefined;
   });
+
+  // Watch the id, not `location`. `location` rebuilds its object on every update
+  // to the ship's own record, so watching it re-ran this on unrelated changes and
+  // cancelled the request in flight — the link never appeared on a planet. A
+  // string only trips the watcher when the ship actually changes location.
+  const planetNaturalId = computed(() =>
+    location.value?.kind === 'planet' ? location.value.naturalId : undefined,
+  );
+  const planetLocalMarket = ref<PlanetLocalMarket>('loading');
+
+  watch(
+    planetNaturalId,
+    async (naturalId, _previous, onCleanup) => {
+      let cancelled = false;
+      onCleanup(() => {
+        cancelled = true;
+      });
+      planetLocalMarket.value = 'loading';
+      if (naturalId === undefined) {
+        return;
+      }
+      const value = await fetchPlanetHasLocalMarket(naturalId);
+      if (cancelled) {
+        return;
+      }
+      planetLocalMarket.value = value ?? 'unavailable';
+    },
+    { immediate: true },
+  );
+
+  const linkId = computed(() =>
+    lmLinkNaturalId({
+      inFlight: ship.value !== undefined && ship.value.flightId !== null,
+      kind: location.value?.kind,
+      naturalId: location.value?.naturalId,
+      planetLocalMarket: planetLocalMarket.value,
+    }),
+  );
 
   const contextBar = await $(tile.frame, C.ContextControls.container);
   createFragmentApp(() => {
@@ -74,5 +113,5 @@ function init() {
 features.add(
   import.meta.url,
   init,
-  'SHPI: Adds an LM link for the location the ship is docked at, and drops the ship id from SHP, SHPF, and SFC.',
+  'SHPI: Adds an LM link when the ship is at a commodity exchange or a planet with a local market, and drops the ship id from SHP, SHPF, and SFC.',
 );
