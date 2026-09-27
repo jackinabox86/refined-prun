@@ -52,6 +52,18 @@ export const initialUserData = deepFreeze({
     cxPricesPreview: false,
     // Planet natural id -> explicit auto-SFC off for BURNACT/REPAIRACT/GOVBURNEXEC.
     planetAutoSfc: {} as Record<string, boolean>,
+    // XIT FLT unload-button colors for base/CX × empty/cargo.
+    fltButtonColors: {
+      baseEmpty: '#43a4df',
+      baseCargo: '#f7a600',
+      cxEmpty: '#43a4df',
+      cxCargo: '#f7a600',
+    } as {
+      baseEmpty: string;
+      baseCargo: string;
+      cxEmpty: string;
+      cxCargo: string;
+    },
     sidebar: [
       ['BS', 'BS'],
       ['CONT', 'XIT CONTS'],

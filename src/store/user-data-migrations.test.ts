@@ -14,6 +14,77 @@ function beforeRename(disabled: string[]) {
   return userData;
 }
 
+const ADD_FLT_COLORS_ID = '26.09.2026 Add FLT button colors';
+const RESTORE_FLT_COLORS_ID = '27.09.2026 Restore historic FLT unload colors';
+
+function appliedExcept(ids: string[]) {
+  const userData = structuredClone(initialUserData) as any;
+  migrateUserData(userData);
+  userData.migrations = userData.migrations.filter((x: string) => !ids.includes(x));
+  return userData;
+}
+
+describe('FLT unload button color defaults', () => {
+  it('writes historic blue/orange for an existing player who has not picked a color', () => {
+    const userData = appliedExcept([ADD_FLT_COLORS_ID, RESTORE_FLT_COLORS_ID]);
+    delete userData.settings.fltButtonColors;
+    migrateUserData(userData);
+    expect(userData.settings.fltButtonColors).toEqual({
+      baseEmpty: '#43a4df',
+      baseCargo: '#f7a600',
+      cxEmpty: '#43a4df',
+      cxCargo: '#f7a600',
+    });
+  });
+
+  it('restores blue/orange when the unreleased migration stored purple/red', () => {
+    const userData = appliedExcept([RESTORE_FLT_COLORS_ID]);
+    userData.settings.fltButtonColors = {
+      baseEmpty: '#b48ad8',
+      baseCargo: '#e8676b',
+      cxEmpty: '#43a4df',
+      cxCargo: '#f7a600',
+    };
+    migrateUserData(userData);
+    expect(userData.settings.fltButtonColors).toEqual({
+      baseEmpty: '#43a4df',
+      baseCargo: '#f7a600',
+      cxEmpty: '#43a4df',
+      cxCargo: '#f7a600',
+    });
+  });
+
+  it('leaves a color the player already chose', () => {
+    const userData = appliedExcept([RESTORE_FLT_COLORS_ID]);
+    userData.settings.fltButtonColors = {
+      baseEmpty: '#2a9d8f',
+      baseCargo: '#5cb85c',
+      cxEmpty: '#43a4df',
+      cxCargo: '#f7a600',
+    };
+    migrateUserData(userData);
+    expect(userData.settings.fltButtonColors.baseEmpty).toBe('#2a9d8f');
+    expect(userData.settings.fltButtonColors.baseCargo).toBe('#5cb85c');
+  });
+
+  it('restores the automatic base pair even when the player edited a CX color', () => {
+    const userData = appliedExcept([RESTORE_FLT_COLORS_ID]);
+    userData.settings.fltButtonColors = {
+      baseEmpty: '#b48ad8',
+      baseCargo: '#e8676b',
+      cxEmpty: '#2a9d8f',
+      cxCargo: '#e8676b',
+    };
+    migrateUserData(userData);
+    expect(userData.settings.fltButtonColors).toEqual({
+      baseEmpty: '#43a4df',
+      baseCargo: '#f7a600',
+      cxEmpty: '#2a9d8f',
+      cxCargo: '#e8676b',
+    });
+  });
+});
+
 const REPAIR_SECTION_ID = '26.09.2026 Add repair section thresholds';
 const REPAIR_OFFSET_ID = '27.09.2026 Remove repair time offset';
 
