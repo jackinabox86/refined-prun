@@ -119,7 +119,9 @@ export const initialUserData = deepFreeze({
       planets: {} as Record<string, UserData.GovBurnPlanetConfig>,
       slots: {} as Record<string, UserData.GovBurnPlanetSlots>,
       resupplyDays: 30,
-      forceCXBuy: false,
+      // Planet natural id -> force CX buy to ignore warehouse stock, set in GOVBURNACT.
+      // Only planets that are turned on appear here.
+      planetForceCXBuy: {} as Record<string, boolean>,
       red: 3,
       yellow: 7,
     },

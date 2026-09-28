@@ -9,7 +9,11 @@ import PrunLink from '@src/components/PrunLink.vue';
 import { configurableValue } from '@src/features/XIT/ACT/shared-types';
 import { billTotals } from '@src/features/XIT/DISPATCH/utils';
 import { popiBuildings } from '@src/features/XIT/GOVBURN/buildings';
-import { govBurnUseCXInv } from '@src/features/XIT/GOVBURN/govburn-cx-buy';
+import {
+  govBurnUseCXInv,
+  planetForceCXBuy,
+  setPlanetForceCXBuy,
+} from '@src/features/XIT/GOVBURN/govburn-cx-buy';
 import { stagedGovBurn } from '@src/features/XIT/GOVBURN/staged';
 import {
   cogcRefills,
@@ -149,10 +153,11 @@ const horizonDays = computed(() => Number(resupplyDays.value));
 
 const forceCXBuy = computed({
   get() {
-    return userData.govburn.config.forceCXBuy === true;
+    return planetForceCXBuy(userData.govburn.config.planetForceCXBuy, naturalId.value);
   },
   set(value: boolean) {
-    userData.govburn.config.forceCXBuy = value;
+    const map = (userData.govburn.config.planetForceCXBuy ??= {});
+    setPlanetForceCXBuy(map, naturalId.value, value);
   },
 });
 
@@ -224,7 +229,7 @@ const pkg = computed<UserData.ActionPackageData>(() => ({
       name: 'CX Buy',
       group: 'GovBurn',
       exchange: configurableValue,
-      useCXInv: govBurnUseCXInv(userData.govburn.config.forceCXBuy),
+      useCXInv: govBurnUseCXInv(forceCXBuy.value),
       skippable: true,
     },
     {
@@ -275,7 +280,7 @@ function onExecuteClick() {
         </Active>
         <Active
           label="CX Buy"
-          tooltip="Ignore stock already in the CX warehouse and try to buy the full bill.">
+          tooltip="Ignore stock already in the CX warehouse and try to buy the full bill. Remembered for this planet only.">
           <RadioItem v-model="forceCXBuy">force CX buy</RadioItem>
         </Active>
 

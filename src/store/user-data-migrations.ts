@@ -17,9 +17,11 @@ function isCheckpoint(entry: MigrationEntry): entry is Checkpoint {
 // The date is for reference only, and it does not affect migration order.
 const migrations: MigrationEntry[] = [
   [
-    '27.09.2026 Add govburn force CX buy',
+    // Supersedes the unreleased global '27.09.2026 Add govburn force CX buy'.
+    '28.09.2026 Make govburn force CX buy per planet',
     userData => {
-      userData.govburn.config.forceCXBuy = false;
+      delete userData.govburn.config.forceCXBuy;
+      userData.govburn.config.planetForceCXBuy = {};
     },
   ],
   [

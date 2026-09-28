@@ -3,16 +3,25 @@ import { describe, expect, it } from 'vitest';
 import { migrateUserData } from '@src/store/user-data-migrations';
 import { initialUserData } from '@src/store/user-data';
 
-const FORCE_CX_BUY_ID = '27.09.2026 Add govburn force CX buy';
+const FORCE_CX_BUY_ID = '28.09.2026 Make govburn force CX buy per planet';
 
-describe('govburn force CX buy migration', () => {
-  it('defaults the toggle off without changing an existing resupply horizon', () => {
+describe('govburn per-planet force CX buy migration', () => {
+  it('creates an empty planet map without changing an existing resupply horizon', () => {
     const userData = appliedExcept([FORCE_CX_BUY_ID]);
-    delete userData.govburn.config.forceCXBuy;
+    delete userData.govburn.config.planetForceCXBuy;
     userData.govburn.config.resupplyDays = 15;
     migrateUserData(userData);
-    expect(userData.govburn.config.forceCXBuy).toBe(false);
+    expect(userData.govburn.config.planetForceCXBuy).toEqual({});
     expect(userData.govburn.config.resupplyDays).toBe(15);
+  });
+
+  it('drops the unreleased global flag so no planet inherits it', () => {
+    const userData = appliedExcept([FORCE_CX_BUY_ID]);
+    delete userData.govburn.config.planetForceCXBuy;
+    userData.govburn.config.forceCXBuy = true;
+    migrateUserData(userData);
+    expect(userData.govburn.config.forceCXBuy).toBeUndefined();
+    expect(userData.govburn.config.planetForceCXBuy).toEqual({});
   });
 });
 
