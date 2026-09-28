@@ -25,10 +25,11 @@ describe('planetForceCXBuy', () => {
 });
 
 describe('setPlanetForceCXBuy', () => {
-  it('turning one planet on leaves the others alone', () => {
-    const map: Record<string, boolean> = { 'OT-580b': true };
+  it('turning one planet on leaves every other planet off', () => {
+    const map: Record<string, boolean> = {};
     setPlanetForceCXBuy(map, 'KI-840c', true);
-    expect(map).toEqual({ 'OT-580b': true, 'KI-840c': true });
+    expect(planetForceCXBuy(map, 'KI-840c')).toBe(true);
+    expect(planetForceCXBuy(map, 'OT-580b')).toBe(false);
   });
 
   it('turning a planet off drops only that entry', () => {
