@@ -1,5 +1,3 @@
-import { isStagingPrunAppScript } from './prun-app-script';
-
 // This separate content script is required because it must be processed
 // superfast, before the PrUn script gets the chance to load.
 function prepare() {
@@ -18,7 +16,9 @@ function prepare() {
         observer.disconnect();
       }
       // Staging is dev-only. Production builds drop this branch.
-      if (import.meta.env.DEV && isStagingPrunAppScript(s.src)) {
+      // Keep the host check inline. This file is a classic content script, so a
+      // top-level import is a parse error and the script never runs.
+      if (import.meta.env.DEV && s.src.includes('apex.staging.prosperousuniverse.com')) {
         s.textContent = s.src;
         s.src = '';
         observer.disconnect();

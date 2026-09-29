@@ -33,6 +33,7 @@
     "src/**/*.vue",
     "vite.config.mts",
     "dev-staging-manifest.ts",
-    "dev-staging-manifest.test.ts"
+    "dev-staging-manifest.test.ts",
+    "content-script-entries.test.ts"
   ]
 }
