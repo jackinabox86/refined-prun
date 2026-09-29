@@ -48,6 +48,15 @@ function onInputKeydown(ev: KeyboardEvent) {
 </script>
 
 <template>
+  <SectionHeader>XIT BS</SectionHeader>
+  <form>
+    <Active
+      label="Days"
+      tooltip="XIT BS Days shows one decimal for a burn under 10 days.
+       Off keeps a whole number, and shows infinity from 500 days.">
+      <RadioItem v-model="userData.settings.burn.decimalDays">one decimal</RadioItem>
+    </Active>
+  </form>
   <SectionHeader>Price Warning Thresholds</SectionHeader>
   <form>
     <Active

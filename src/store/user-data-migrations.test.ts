@@ -26,6 +26,7 @@ describe('govburn per-planet force CX buy migration', () => {
 });
 
 const RENAME_ID = '20.09.2026 Rename act-dispatch-auto-close';
+const DECIMAL_DAYS_ID = '29.09.2026 Add XIT BS decimal burn days';
 
 // User data as it looks just before the rename migration: every other migration applied.
 function beforeRename(disabled: string[]) {
@@ -185,5 +186,20 @@ describe('act-dispatch-auto-close rename', () => {
   it('ships the new id disabled by default for a fresh install', () => {
     expect(initialUserData.settings.disabled).toContain('act-auto-close');
     expect(initialUserData.settings.disabled).not.toContain('act-dispatch-auto-close');
+  });
+});
+
+describe('XIT BS decimal burn days migration', () => {
+  it('gives an existing player the off default without changing other burn settings', () => {
+    const userData = appliedExcept([DECIMAL_DAYS_ID]);
+    delete userData.settings.burn.decimalDays;
+    userData.settings.burn.red = 4;
+    migrateUserData(userData);
+    expect(userData.settings.burn.decimalDays).toBe(false);
+    expect(userData.settings.burn.red).toBe(4);
+  });
+
+  it('ships off for a fresh install', () => {
+    expect(initialUserData.settings.burn.decimalDays).toBe(false);
   });
 });

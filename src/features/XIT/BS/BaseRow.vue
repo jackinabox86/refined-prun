@@ -7,6 +7,7 @@ import { burnCellBufferCommand, toggleExpandedBurn } from '@src/features/XIT/BS/
 import { showBuffer } from '@src/infrastructure/prun-ui/buffers';
 import { getPlanetBurn } from '@src/core/burn';
 import { countDays } from '@src/features/XIT/BURN/utils';
+import { formatBsBurnDays } from '@src/features/XIT/BS/format-bs-burn-days';
 import { useTileState } from '@src/store/user-data-tiles';
 import { getPickupAlarm, getStorageAlarmLevel } from '@src/core/storage-analysis';
 import { fixed1 } from '@src/utils/format';
@@ -84,8 +85,7 @@ const daysText = computed(() => {
   if (days.value === undefined) {
     return undefined;
   }
-  const d = Math.floor(days.value);
-  return d < 500 ? String(d) : '∞';
+  return formatBsBurnDays(days.value, userData.settings.burn.decimalDays === true);
 });
 
 const production = computed(() => getPlanetProduction(siteId));

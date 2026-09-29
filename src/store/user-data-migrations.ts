@@ -17,6 +17,12 @@ function isCheckpoint(entry: MigrationEntry): entry is Checkpoint {
 // The date is for reference only, and it does not affect migration order.
 const migrations: MigrationEntry[] = [
   [
+    '29.09.2026 Add XIT BS decimal burn days',
+    userData => {
+      userData.settings.burn.decimalDays = false;
+    },
+  ],
+  [
     // Supersedes the unreleased global '27.09.2026 Add govburn force CX buy'.
     '28.09.2026 Make govburn force CX buy per planet',
     userData => {
