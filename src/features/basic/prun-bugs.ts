@@ -58,6 +58,11 @@ function fixZOrder() {
     $style.filter,
   );
   applyCssRule(`.${C.ScrollView.track}`, $style.scrollTrack);
+  // C.Frame.title inside the sidebar is the rotated "APEX alpha" label. It is
+  // position:absolute, so it paints over the in-flow shortcut buttons when a
+  // short window makes them overlap. Drop it behind those buttons.
+  applyCssRule(`.${C.Frame.sidebar}`, $style.sidebar);
+  applyCssRule(`.${C.Frame.sidebar} > .${C.Frame.title}`, $style.sidebarTitle);
 }
 
 function fixSliders() {

@@ -6,6 +6,15 @@
   z-index: 2;
 }
 
+.sidebar {
+  /* Keeps the negative z-index below inside the sidebar, above its background. */
+  isolation: isolate;
+}
+
+.sidebarTitle {
+  z-index: -1;
+}
+
 .head {
   > div:nth-child(2) {
     flex-shrink: 0;
