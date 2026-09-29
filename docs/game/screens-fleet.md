@@ -21,7 +21,11 @@ Shows Ship (name + transponder links), Origin, Destination and the flight segmen
 
 Opened from a BLU row's `test` action, or directly as `BTF <blueprint natural id>`. It takes one origin and one destination (address selectors), not an ordered multi-stop list. On a `VALID` blueprint, two different locations fill the same mission-plan table as SFC, including the summary row (empty index and type) with total duration and STL/FTL consumption. A `LOCKED` blueprint stays at `--` and does not compute. Setting the two locations is local form state plus a read-only address lookup; it does not launch a ship. `delete` on the BLU list removes a blueprint.
 
-The computed plan arrives as `SHIP_FLIGHT_MISSION` (`eta`, `stlFuelConsumption`, `ftlFuelConsumption`, `status: OK`). `C.MissionPlan.table` then carries that `missionId` as `data-prun-id`. The id stays the same when the route is edited or submitted again; each submit replaces the plan object, including a repeat of the same origin and destination. `0` fuel is a real figure. The table mounts after the message.
+The computed plan arrives as `SHIP_FLIGHT_MISSION` (`eta`, `stlFuelConsumption`, `ftlFuelConsumption`, `status: OK`). `C.MissionPlan.table` then carries that `missionId` as `data-prun-id`. The id stays the same when the route is edited or submitted again; each submit replaces the plan object, including a repeat of the same origin and destination, and selecting the origin alone submits against the destination still on screen. The table mounts after the message.
+
+Segment addresses carry a `SYSTEM` line plus a location line. A planet stop's location line is `PLANET` with the planet natural id (`IA-158b`). A commodity-exchange stop's location line is `STATION` with the station natural id (`ANT`, `BEN`), not the system id. The requested leg is `segments[0].origin` and the last segment's `destination`.
+
+Plan-level fuel is `0` for a type the leg does not use (in-system Amethyst b → Amethyst e was STL 227 and FTL 0; Benten Station → Antares Station was STL 270 and FTL 0). Per-segment `ftlFuelConsumption` is `null` on those same plans. The Duration cell can show a day unit and whole minutes (`1 day 5h 17m`) while `eta.millis` still rounds to that same minute (`105478126`).
 
 ## SHP — Ship Information
 

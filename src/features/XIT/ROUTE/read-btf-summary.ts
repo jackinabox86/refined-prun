@@ -1,15 +1,23 @@
+import { getEntityNaturalIdFromAddress } from '@src/infrastructure/prun-api/data/addresses';
+
 export type BtfSummary =
   | { ok: true; duration: string; seconds: number; stl: number; ftl: number }
   | { ok: false; reason: string };
 
 // A blueprint test flight keeps one mission id and replaces the plan object
-// on every submit, including a repeat of the same route. The previous object
-// is the plan already on screen, so it is not a result.
+// on every submit. Selecting the origin alone also submits, against whatever
+// destination is still on screen, so a new object is not enough: the plan's
+// endpoints have to be the leg that was asked for.
 export function summarizeFreshPlan(
   plan: PrunApi.FlightPlan | undefined,
   previous: PrunApi.FlightPlan | undefined,
+  originQuery: string,
+  destinationQuery: string,
 ): Extract<BtfSummary, { ok: true }> | undefined {
   if (plan === undefined || plan === previous || plan.status !== 'OK') {
+    return undefined;
+  }
+  if (!planMatchesLeg(plan, originQuery, destinationQuery)) {
     return undefined;
   }
   if (plan.stlFuelConsumption === null || plan.ftlFuelConsumption === null) {
@@ -25,15 +33,40 @@ export function summarizeFreshPlan(
   };
 }
 
-export function flightPlanFailure(plan: PrunApi.FlightPlan | undefined) {
+export function planMatchesLeg(
+  plan: PrunApi.FlightPlan,
+  originQuery: string,
+  destinationQuery: string,
+) {
+  const first = plan.segments[0];
+  const last = plan.segments[plan.segments.length - 1];
+  if (first === undefined || last === undefined) {
+    return false;
+  }
+  return (
+    sameNaturalId(getEntityNaturalIdFromAddress(first.origin), originQuery) &&
+    sameNaturalId(getEntityNaturalIdFromAddress(last.destination), destinationQuery)
+  );
+}
+
+export function flightPlanFailure(
+  plan: PrunApi.FlightPlan | undefined,
+  originQuery: string,
+  destinationQuery: string,
+) {
   if (
     plan !== undefined &&
     plan.status === 'OK' &&
+    planMatchesLeg(plan, originQuery, destinationQuery) &&
     (plan.stlFuelConsumption === null || plan.ftlFuelConsumption === null)
   ) {
     return 'no fuel figures';
   }
   return 'no flight plan';
+}
+
+function sameNaturalId(actual: string | undefined, expected: string) {
+  return actual !== undefined && actual.toUpperCase() === expected.toUpperCase();
 }
 
 export function formatDuration(totalSeconds: number) {

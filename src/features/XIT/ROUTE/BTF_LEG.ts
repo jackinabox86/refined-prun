@@ -98,9 +98,21 @@ export const BTF_LEG = act.addActionStep<BtfLegData>({
         }
       }
       if (action === 'read-summary') {
-        let matched = summarizeFreshPlan(currentPlan(tile.anchor), previousPlan);
+        const originQuery = data.originQuery;
+        const destinationQuery = data.destinationQuery;
+        let matched = summarizeFreshPlan(
+          currentPlan(tile.anchor),
+          previousPlan,
+          originQuery,
+          destinationQuery,
+        );
         const changed = await waitFor(() => {
-          matched = summarizeFreshPlan(currentPlan(tile.anchor), previousPlan);
+          matched = summarizeFreshPlan(
+            currentPlan(tile.anchor),
+            previousPlan,
+            originQuery,
+            destinationQuery,
+          );
           return matched !== undefined;
         }, 8000);
         if (changed && matched !== undefined) {
@@ -108,7 +120,10 @@ export const BTF_LEG = act.addActionStep<BtfLegData>({
           return;
         }
         // The plan already on screen belongs to the previous submit.
-        finish(`${label}: ${flightPlanFailure(currentPlan(tile.anchor))}`, false);
+        finish(
+          `${label}: ${flightPlanFailure(currentPlan(tile.anchor), originQuery, destinationQuery)}`,
+          false,
+        );
       }
     }
   },
