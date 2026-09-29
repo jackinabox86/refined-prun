@@ -23,6 +23,13 @@ growth-rate work. Move logic worth checking into a plain `.ts` module next to th
 and unit-test it there, and verify what stays in the SFC against the live game
 (`docs/browser-testing.md`). Treat "compile is green" as saying nothing about a `.vue` change.
 
+That split leaves one seam unchecked: the object literal the SFC builds versus the property
+names the `.ts` module reads. A renamed or misspelled key there yields `undefined`, which for
+arithmetic becomes `NaN` and for a sort comparator means the sort silently does nothing. Short
+of the live game, `pnpm run build:fast` and grepping the emitted chunks proves the identifiers
+match — `dist/virtual/<Component>.vue2.js` holds the literal, `dist/virtual/<module>.js` the
+reads, and interfaces are erased by then, so what the grep finds is what runs.
+
 A fresh clone has no `node_modules` — run `pnpm install --frozen-lockfile` before
 `pnpm run compile` / `pnpm run lint`, or `tsc` reports missing `chrome`/`node`/`vite/client`
 type libraries, which reads like a broken tsconfig rather than a missing install. Cloud
