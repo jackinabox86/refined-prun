@@ -6,7 +6,8 @@ import MaterialList from '@src/features/XIT/BURN/MaterialList.vue';
 import { burnCellBufferCommand, toggleExpandedBurn } from '@src/features/XIT/BS/burn-cell-click';
 import { showBuffer } from '@src/infrastructure/prun-ui/buffers';
 import { getPlanetBurn } from '@src/core/burn';
-import { countDays, formatBurnDays } from '@src/features/XIT/BURN/utils';
+import { countDays } from '@src/features/XIT/BURN/utils';
+import { formatBsBurnDays } from '@src/features/XIT/BS/format-bs-burn-days';
 import { useTileState } from '@src/store/user-data-tiles';
 import { getPickupAlarm, getStorageAlarmLevel } from '@src/core/storage-analysis';
 import { fixed1 } from '@src/utils/format';
@@ -84,7 +85,7 @@ const daysText = computed(() => {
   if (days.value === undefined) {
     return undefined;
   }
-  return formatBurnDays(days.value);
+  return formatBsBurnDays(days.value, userData.settings.burn.decimalDays === true);
 });
 
 const production = computed(() => getPlanetProduction(siteId));
