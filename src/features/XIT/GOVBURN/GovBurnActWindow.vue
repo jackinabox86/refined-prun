@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import ActionBar from '@src/components/ActionBar.vue';
 import Active from '@src/components/forms/Active.vue';
+import RadioItem from '@src/components/forms/RadioItem.vue';
 import Header from '@src/components/Header.vue';
 import SelectInput from '@src/components/forms/SelectInput.vue';
 import PrunButton from '@src/components/PrunButton.vue';
@@ -8,6 +9,11 @@ import PrunLink from '@src/components/PrunLink.vue';
 import { configurableValue } from '@src/features/XIT/ACT/shared-types';
 import { billTotals } from '@src/features/XIT/DISPATCH/utils';
 import { popiBuildings } from '@src/features/XIT/GOVBURN/buildings';
+import {
+  govBurnUseCXInv,
+  planetForceCXBuy,
+  setPlanetForceCXBuy,
+} from '@src/features/XIT/GOVBURN/govburn-cx-buy';
 import { stagedGovBurn } from '@src/features/XIT/GOVBURN/staged';
 import {
   cogcRefills,
@@ -145,6 +151,16 @@ const resupplyDays = computed({
 
 const horizonDays = computed(() => Number(resupplyDays.value));
 
+const forceCXBuy = computed({
+  get() {
+    return planetForceCXBuy(userData.govburn.config.planetForceCXBuy, naturalId.value);
+  },
+  set(value: boolean) {
+    const map = (userData.govburn.config.planetForceCXBuy ??= {});
+    setPlanetForceCXBuy(map, naturalId.value, value);
+  },
+});
+
 function slotOptions(buildingTicker: string, slotIndex: number) {
   const building = captured.value?.buildings.find(x => x.ticker === buildingTicker);
   const upkeeps = building?.upkeeps ?? [];
@@ -213,7 +229,7 @@ const pkg = computed<UserData.ActionPackageData>(() => ({
       name: 'CX Buy',
       group: 'GovBurn',
       exchange: configurableValue,
-      useCXInv: true,
+      useCXInv: govBurnUseCXInv(forceCXBuy.value),
       skippable: true,
     },
     {
@@ -261,6 +277,11 @@ function onExecuteClick() {
       <div :class="$style.pane">
         <Active label="Days">
           <SelectInput v-model="resupplyDays" :options="dayOptions" />
+        </Active>
+        <Active
+          label="CX Buy"
+          tooltip="Ignore stock already in the CX warehouse and try to buy the full bill. Remembered for this planet only.">
+          <RadioItem v-model="forceCXBuy">force CX buy</RadioItem>
         </Active>
 
         <table v-if="buildingRows.length > 0">

@@ -36,7 +36,7 @@ function indicatorClass(command: string) {
 </script>
 
 <template>
-  <div v-draggable="[userData.settings.sidebar, { animation: 150 }]">
+  <div v-draggable="[userData.settings.sidebar, { animation: 150 }]" :class="$style.list">
     <div
       v-for="button in userData.settings.sidebar"
       :key="objectId(button)"
@@ -49,3 +49,15 @@ function indicatorClass(command: string) {
     </div>
   </div>
 </template>
+
+<style module>
+/* The game's toggle buttons are only rgba(255, 255, 255, 0.05) over a
+   transparent box, so the rotated "APEX alpha" watermark that prun-bugs parks
+   behind them still reads through. This wrapper is a direct child of the
+   sidebar and exactly as wide, so `inherit` repaints the sidebar's own
+   gradient as an opaque base that lines up pixel for pixel; the buttons keep
+   their own tint on top and the list looks unchanged. */
+.list {
+  background: inherit;
+}
+</style>
