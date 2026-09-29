@@ -5,34 +5,39 @@ export interface SortableBase {
   naturalId: string;
   days: number | undefined;
   repairDays: number | undefined;
-  burnThreshold: number;
-  repairThreshold: number;
+  repairTarget: number;
 }
 
-export function daysUntilBurnThreshold(days: number | undefined, threshold: number) {
+// Both factors floor at zero. Past a deadline there is nothing left to count
+// down, so a base that is already due does not keep ranking further ahead of
+// the rest the longer it waits.
+
+// Days until the base runs dry. Burn ranks toward zero supply, not toward the
+// red warning line that precedes it.
+export function daysUntilBurnOut(days: number | undefined) {
   if (days === undefined) {
     return undefined;
   }
-  return days - threshold;
+  return Math.max(0, days);
 }
 
-export function daysUntilRepairThreshold(age: number | undefined, threshold: number) {
+// Days until the oldest building reaches the repair target.
+export function daysUntilRepairTarget(age: number | undefined, target: number) {
   if (age === undefined) {
     return undefined;
   }
-  return threshold - age;
+  return Math.max(0, target - age);
 }
 
-// Most urgent of the two: fewer days until a red threshold ranks first.
+// Most urgent of the two: fewer days until a deadline ranks first.
 // A missing factor is omitted so one known value still ranks the base.
-export function combinedDaysUntilThreshold(
+export function combinedDaysUntilDue(
   days: number | undefined,
-  burnThreshold: number,
   age: number | undefined,
-  repairThreshold: number,
+  repairTarget: number,
 ) {
-  const burn = daysUntilBurnThreshold(days, burnThreshold);
-  const repair = daysUntilRepairThreshold(age, repairThreshold);
+  const burn = daysUntilBurnOut(days);
+  const repair = daysUntilRepairTarget(age, repairTarget);
   if (burn === undefined) {
     return repair ?? Infinity;
   }
@@ -65,18 +70,8 @@ export function compareBases(
     }
   }
   if (key === 'proximity') {
-    const proxA = combinedDaysUntilThreshold(
-      a.days,
-      a.burnThreshold,
-      a.repairDays,
-      a.repairThreshold,
-    );
-    const proxB = combinedDaysUntilThreshold(
-      b.days,
-      b.burnThreshold,
-      b.repairDays,
-      b.repairThreshold,
-    );
+    const proxA = combinedDaysUntilDue(a.days, a.repairDays, a.repairTarget);
+    const proxB = combinedDaysUntilDue(b.days, b.repairDays, b.repairTarget);
     if (proxA !== proxB) {
       return (proxA - proxB) * dir;
     }

@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import {
-  combinedDaysUntilThreshold,
+  combinedDaysUntilDue,
   compareBases,
-  daysUntilBurnThreshold,
-  daysUntilRepairThreshold,
+  daysUntilBurnOut,
+  daysUntilRepairTarget,
   type SortKey,
   type SortableBase,
 } from './base-sort';
@@ -12,8 +12,7 @@ function base(partial: Partial<SortableBase> & Pick<SortableBase, 'naturalId'>):
   return {
     days: 10,
     repairDays: 20,
-    burnThreshold: 3,
-    repairThreshold: 60,
+    repairTarget: 60,
     ...partial,
   };
 }
@@ -28,44 +27,67 @@ function order(entries: SortableBase[], key: SortKey, direction: 'asc' | 'desc' 
     .map(x => x.naturalId);
 }
 
-// Comfortable burn, repair one day from the red threshold.
+// Comfortable burn, repair one day from the target.
 const repairUrgent = base({ naturalId: 'AA-001a', days: 20, repairDays: 59 });
-// Low burn days, buildings far from the repair threshold.
+// Low burn days, buildings far from the repair target.
 const burnUrgent = base({ naturalId: 'ZZ-999z', days: 5, repairDays: 10 });
 
-describe('daysUntilBurnThreshold', () => {
-  it('is days remaining minus the red burn line', () => {
-    expect(daysUntilBurnThreshold(8, 3)).toBe(5);
+describe('daysUntilBurnOut', () => {
+  it('is days of supply remaining, not the distance to a warning line', () => {
+    expect(daysUntilBurnOut(8)).toBe(8);
+  });
+
+  it('floors at zero', () => {
+    expect(daysUntilBurnOut(-4)).toBe(0);
   });
 
   it('is undefined when burn days are unknown', () => {
-    expect(daysUntilBurnThreshold(undefined, 3)).toBeUndefined();
+    expect(daysUntilBurnOut(undefined)).toBeUndefined();
   });
 });
 
-describe('daysUntilRepairThreshold', () => {
-  it('is the red repair line minus building age', () => {
-    expect(daysUntilRepairThreshold(50, 60)).toBe(10);
+describe('daysUntilRepairTarget', () => {
+  it('is the repair target minus building age', () => {
+    expect(daysUntilRepairTarget(50, 60)).toBe(10);
+  });
+
+  it('floors at zero once the target is passed', () => {
+    expect(daysUntilRepairTarget(75, 60)).toBe(0);
+    expect(daysUntilRepairTarget(200, 60)).toBe(0);
   });
 
   it('is undefined when repair age is unknown', () => {
-    expect(daysUntilRepairThreshold(undefined, 60)).toBeUndefined();
+    expect(daysUntilRepairTarget(undefined, 60)).toBeUndefined();
   });
 });
 
-describe('combinedDaysUntilThreshold', () => {
+describe('combinedDaysUntilDue', () => {
   it('takes the more urgent of the two factors', () => {
-    expect(combinedDaysUntilThreshold(20, 3, 59, 60)).toBe(1);
-    expect(combinedDaysUntilThreshold(5, 3, 10, 60)).toBe(2);
+    expect(combinedDaysUntilDue(20, 59, 60)).toBe(1);
+    expect(combinedDaysUntilDue(5, 10, 60)).toBe(5);
+  });
+
+  it('measures burn against running dry, not against the burn red line', () => {
+    // A red line of 3 would have scored this 2; the deadline is zero supply.
+    expect(combinedDaysUntilDue(5, undefined, 60)).toBe(5);
   });
 
   it('omits a missing factor', () => {
-    expect(combinedDaysUntilThreshold(undefined, 3, 59, 60)).toBe(1);
-    expect(combinedDaysUntilThreshold(5, 3, undefined, 60)).toBe(2);
+    expect(combinedDaysUntilDue(undefined, 59, 60)).toBe(1);
+    expect(combinedDaysUntilDue(5, undefined, 60)).toBe(5);
   });
 
   it('is Infinity when both factors are missing', () => {
-    expect(combinedDaysUntilThreshold(undefined, 3, undefined, 60)).toBe(Infinity);
+    expect(combinedDaysUntilDue(undefined, undefined, 60)).toBe(Infinity);
+  });
+
+  it('does not run past a passed deadline', () => {
+    expect(combinedDaysUntilDue(0, 20, 60)).toBe(0);
+    expect(combinedDaysUntilDue(90, 300, 60)).toBe(0);
+  });
+
+  it('ties every overdue base at zero instead of ranking by how overdue it is', () => {
+    expect(combinedDaysUntilDue(90, 61, 60)).toBe(combinedDaysUntilDue(90, 400, 60));
   });
 });
 
@@ -84,7 +106,7 @@ describe('compareBases', () => {
     expect(order(pair, 'name')).toEqual(['AA-001a', 'ZZ-999z']);
   });
 
-  it('ranks by the closer threshold, not by one raw factor', () => {
+  it('ranks by the closer deadline, not by one raw factor', () => {
     expect(order(pair, 'proximity')).toEqual(['AA-001a', 'ZZ-999z']);
   });
 
@@ -113,5 +135,25 @@ describe('compareBases', () => {
       repairDays: undefined,
     });
     expect(order([unknown, burnUrgent], 'proximity')).toEqual(['ZZ-999z', 'MM-500c']);
+  });
+
+  // Reported order: a base one day from its repair target sank below nine bases
+  // whose repair was weeks out, because those were already past the burn red
+  // line and scored unboundedly negative.
+  it('puts a base one day from repair above bases with days of burn left', () => {
+    const reported = [
+      base({ naturalId: 'WU-308b', days: 1.4, repairDays: 55 }),
+      base({ naturalId: 'SE-751a', days: 1.4, repairDays: 56 }),
+      base({ naturalId: 'BO-001a', days: 2, repairDays: 55 }),
+      base({ naturalId: 'HA-001a', days: 2.1, repairDays: 43 }),
+      base({ naturalId: 'HE-001a', days: 2.2, repairDays: 37 }),
+      base({ naturalId: 'RO-001b', days: 2.3, repairDays: 4 }),
+      base({ naturalId: 'LE-137c', days: 2.7, repairDays: 4 }),
+      base({ naturalId: 'KI-840c', days: 3.1, repairDays: 36 }),
+      base({ naturalId: 'ME-001c', days: 4, repairDays: 59 }),
+      base({ naturalId: 'ME-001b', days: 4, repairDays: 52 }),
+      base({ naturalId: 'ME-001d', days: 4, repairDays: 58 }),
+    ];
+    expect(order(reported, 'proximity')[0]).toBe('ME-001c');
   });
 });
