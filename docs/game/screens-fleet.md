@@ -17,6 +17,10 @@ Optional Address parameter filters the fleet by location.
 
 Shows Ship (name + transponder links), Origin, Destination and the flight segment table: #, Type, Destination, Duration, Distance, Damage, Consumption. `abort` button cancels an active flight (server). Location names are links (station/planet screens). On flights that incur fees the segment table gains a `Fees` column and the `Damage` header gains an ⓘ info icon (both absent otherwise — column indices shift and header text changes); fee cells can contain multiple currency amounts concatenated without spacing, e.g. `12,000 AIC4,000 CIS`, and the summary row totals them per currency. The summary row (empty first cell) sits in its own `tbody` inside the table — that `tbody` is what `C.MissionPlan.stats` matches (there is no separate stats bar), so extension content injected into a summary-row cell is a descendant of `stats`.
 
+## BTF — Blueprint Test Flight
+
+Opened from a BLU row's `test` action, or directly as `BTF <blueprint natural id>`. It takes one origin and one destination (address selectors), not an ordered multi-stop list. On a `VALID` blueprint, two different locations fill the same mission-plan table as SFC, including the summary row (empty index and type) with total duration and STL/FTL consumption. A `LOCKED` blueprint stays at `--` and does not compute. Setting the two locations is local form state plus a read-only address lookup; it does not launch a ship. `delete` on the BLU list removes a blueprint.
+
 ## SHP — Ship Information
 
 Fields: Type (e.g. Freighter), Commissioned, Blueprint, Project History (link to shipyard project), Fuel Tanks (STL/FTL levels), Cargo Hold, Operating empty mass, Volume, STL/FTL operating time, Condition ⓘ, Repair costs ⓘ, `repair` button (server). Context bar: `SFC <transponder>`.
