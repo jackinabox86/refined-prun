@@ -15,6 +15,10 @@ Stack: TypeScript, Vue 3, Vite (content scripts), CSS Modules. Package manager: 
 | `pnpm run dev` | watch-mode development build |
 | `pnpm run test` | `vitest run` |
 
+`pnpm run dev` is the only build that may grant `https://apex.staging.prosperousuniverse.com`. Vite copies `public/manifest.json` into `dist/` with no transform (`vite:prepare-out-dir` at `renderStart`). `devStagingManifestPlugin` in `vite.config.mts` rewrites that copy in `closeBundle` when `NODE_ENV === 'development'`. `pnpm run build` does not set that variable, and its `dist/manifest.json` stays byte-identical to `public/manifest.json`.
+
+`refined-prun-prepare.ts` serializes game scripts whose `src` contains `apex.prosperousuniverse.com`. A staging URL does not contain that substring (`apex.staging…` is a different host). The extra check calls `isStagingPrunAppScript` inside `import.meta.env.DEV`, which production builds delete. Folding the staging host into the production `if` instead leaves `|| false` in the store bundle.
+
 **`pnpm run compile` does not type-check `.vue` script blocks.** `tsc` cannot read SFCs and
 there is no `vue-tsc` in this repo, so a green `compile` covers `.ts` only. An identifier used
 in a `<script setup>` block but never imported passes both `tsc` and eslint and throws at

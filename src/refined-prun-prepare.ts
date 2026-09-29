@@ -1,3 +1,5 @@
+import { isStagingPrunAppScript } from './prun-app-script';
+
 // This separate content script is required because it must be processed
 // superfast, before the PrUn script gets the chance to load.
 function prepare() {
@@ -11,6 +13,12 @@ function prepare() {
     // are injected. The scripts will be attached back to head in the client script.
     for (const s of Array.from(document.head?.getElementsByTagName('script') ?? [])) {
       if (s.src.includes('apex.prosperousuniverse.com')) {
+        s.textContent = s.src;
+        s.src = '';
+        observer.disconnect();
+      }
+      // Staging is dev-only. Production builds drop this branch.
+      if (import.meta.env.DEV && isStagingPrunAppScript(s.src)) {
         s.textContent = s.src;
         s.src = '';
         observer.disconnect();
