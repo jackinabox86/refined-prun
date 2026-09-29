@@ -47,6 +47,25 @@ export function combinedDaysUntilDue(
   return Math.min(burn, repair);
 }
 
+// How far past a deadline a base already is, taking whichever factor is further
+// past. Only breaks a tie between bases that both scored zero above: the more
+// overdue ranks first.
+export function daysPastDue(
+  days: number | undefined,
+  age: number | undefined,
+  repairTarget: number,
+) {
+  const burn = days === undefined ? 0 : Math.max(0, -days);
+  const repair = age === undefined ? 0 : Math.max(0, age - repairTarget);
+  return Math.max(burn, repair);
+}
+
+// Burn wins a tie on days past due: a base out of supply outranks one that has
+// only just reached its repair target.
+export function isBurnAtDeadline(days: number | undefined) {
+  return days !== undefined && days <= 0;
+}
+
 export function compareBases(
   a: SortableBase,
   b: SortableBase,
@@ -74,6 +93,16 @@ export function compareBases(
     const proxB = combinedDaysUntilDue(b.days, b.repairDays, b.repairTarget);
     if (proxA !== proxB) {
       return (proxA - proxB) * dir;
+    }
+    const dueA = daysPastDue(a.days, a.repairDays, a.repairTarget);
+    const dueB = daysPastDue(b.days, b.repairDays, b.repairTarget);
+    if (dueA !== dueB) {
+      return (dueB - dueA) * dir;
+    }
+    const burnA = isBurnAtDeadline(a.days);
+    const burnB = isBurnAtDeadline(b.days);
+    if (burnA !== burnB) {
+      return (burnA ? -1 : 1) * dir;
     }
   }
   return compareNames(a.naturalId, b.naturalId) * dir;

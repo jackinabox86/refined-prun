@@ -2,8 +2,10 @@ import { describe, expect, it } from 'vitest';
 import {
   combinedDaysUntilDue,
   compareBases,
+  daysPastDue,
   daysUntilBurnOut,
   daysUntilRepairTarget,
+  isBurnAtDeadline,
   type SortKey,
   type SortableBase,
 } from './base-sort';
@@ -91,6 +93,38 @@ describe('combinedDaysUntilDue', () => {
   });
 });
 
+describe('daysPastDue', () => {
+  it('is zero while both deadlines are still ahead', () => {
+    expect(daysPastDue(5, 20, 60)).toBe(0);
+  });
+
+  it('is days past the repair target', () => {
+    expect(daysPastDue(5, 90, 60)).toBe(30);
+  });
+
+  it('takes whichever factor is further past', () => {
+    expect(daysPastDue(-2, 70, 60)).toBe(10);
+    expect(daysPastDue(-40, 70, 60)).toBe(40);
+  });
+
+  it('ignores a missing factor', () => {
+    expect(daysPastDue(undefined, 90, 60)).toBe(30);
+    expect(daysPastDue(5, undefined, 60)).toBe(0);
+  });
+});
+
+describe('isBurnAtDeadline', () => {
+  it('is true once supply is gone', () => {
+    expect(isBurnAtDeadline(0)).toBe(true);
+    expect(isBurnAtDeadline(-3)).toBe(true);
+  });
+
+  it('is false while supply remains or is unknown', () => {
+    expect(isBurnAtDeadline(0.4)).toBe(false);
+    expect(isBurnAtDeadline(undefined)).toBe(false);
+  });
+});
+
 describe('compareBases', () => {
   const pair = [repairUrgent, burnUrgent];
 
@@ -135,6 +169,35 @@ describe('compareBases', () => {
       repairDays: undefined,
     });
     expect(order([unknown, burnUrgent], 'proximity')).toEqual(['ZZ-999z', 'MM-500c']);
+  });
+
+  it('ranks the most overdue base first among bases tied at zero', () => {
+    const overdue = [
+      base({ naturalId: 'AA-001a', days: 20, repairDays: 62 }),
+      base({ naturalId: 'BB-002b', days: 20, repairDays: 140 }),
+      base({ naturalId: 'CC-003c', days: 20, repairDays: 95 }),
+    ];
+    expect(order(overdue, 'proximity')).toEqual(['BB-002b', 'CC-003c', 'AA-001a']);
+  });
+
+  it('gives burn the tie when two bases are equally far past due', () => {
+    // Both score zero proximity and zero days past due: out of supply, versus
+    // buildings that have only just reached the repair target.
+    const outOfSupply = base({ naturalId: 'ZZ-999z', days: 0, repairDays: 10 });
+    const justDue = base({ naturalId: 'AA-001a', days: 20, repairDays: 60 });
+    expect(order([justDue, outOfSupply], 'proximity')).toEqual(['ZZ-999z', 'AA-001a']);
+  });
+
+  it('still lets a more overdue repair outrank an out-of-supply base', () => {
+    const outOfSupply = base({ naturalId: 'AA-001a', days: 0, repairDays: 10 });
+    const longOverdue = base({ naturalId: 'ZZ-999z', days: 20, repairDays: 95 });
+    expect(order([outOfSupply, longOverdue], 'proximity')).toEqual(['ZZ-999z', 'AA-001a']);
+  });
+
+  it('reverses the overdue tiebreak along with the direction', () => {
+    const outOfSupply = base({ naturalId: 'ZZ-999z', days: 0, repairDays: 10 });
+    const justDue = base({ naturalId: 'AA-001a', days: 20, repairDays: 60 });
+    expect(order([justDue, outOfSupply], 'proximity', 'desc')).toEqual(['AA-001a', 'ZZ-999z']);
   });
 
   // Reported order: a base one day from its repair target sank below nine bases
