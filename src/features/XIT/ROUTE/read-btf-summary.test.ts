@@ -1,60 +1,68 @@
 import { describe, expect, it } from 'vitest';
 import {
+  flightPlanFailure,
   formatDuration,
-  parseDurationSeconds,
-  readBtfSummary,
+  summarizeFreshPlan,
 } from '@src/features/XIT/ROUTE/read-btf-summary';
 import { formatRouteTotal } from '@src/features/XIT/ROUTE/route-results';
 
-const headers = [
-  '#',
-  'Type',
-  'Destination',
-  'Duration',
-  'Distance',
-  'Damage',
-  'Fees',
-  'Consumption',
-];
+function plan(patch: Partial<PrunApi.FlightPlan> = {}): PrunApi.FlightPlan {
+  return {
+    missionId: 'c37a17c2-0d6c-4308-b27c-a8c9e6275c34',
+    segments: [],
+    status: 'OK',
+    eta: { millis: 44586975 },
+    chargeTime: { millis: 0 },
+    stlDistance: null,
+    stlFuelConsumption: 246,
+    ftlDistance: null,
+    ftlFuelConsumption: 39,
+    minReactorUsageFactor: 0,
+    maxReactorUsageFactor: 0,
+    ...patch,
+  };
+}
 
-describe('readBtfSummary', () => {
-  it('reads the trip summary duration and both fuels', () => {
-    const summary = readBtfSummary(headers, [
-      '',
-      '',
-      'Acetares d',
-      '12h 22m 59s',
-      '148,799,512 km',
-      '0.457%',
-      '6,000 AIC',
-      '246 units STL fuel 39 units FTL fuel',
-    ]);
-    expect(summary).toEqual({
+describe('summarizeFreshPlan', () => {
+  it('reads duration and fuel from the flight plan', () => {
+    expect(summarizeFreshPlan(plan(), undefined)).toEqual({
       ok: true,
-      duration: '12h 22m 59s',
-      seconds: 12 * 3600 + 22 * 60 + 59,
+      duration: '12h 23m 7s',
+      seconds: 44587,
       stl: 246,
       ftl: 39,
     });
   });
 
-  it('does not treat a dashed plan as zero time or zero fuel', () => {
-    const summary = readBtfSummary(headers, ['', '', '', '--', '', '', '', '--']);
-    expect(summary).toEqual({ ok: false, reason: 'no flight plan' });
+  it('keeps a zero FTL figure', () => {
+    const summary = summarizeFreshPlan(
+      plan({ eta: { millis: 5932000 }, stlFuelConsumption: 226, ftlFuelConsumption: 0 }),
+      undefined,
+    );
+    expect(summary).toMatchObject({ ok: true, seconds: 5932, stl: 226, ftl: 0 });
   });
 
-  it('does not invent fuel when the duration is present but consumption is empty', () => {
-    const summary = readBtfSummary(headers, ['', '', 'Acetares d', '10s', '', '', '', '']);
-    expect(summary).toEqual({ ok: false, reason: 'no fuel figures' });
+  it('does not treat the plan already on screen as a new result', () => {
+    const current = plan();
+    expect(summarizeFreshPlan(current, current)).toBeUndefined();
+    expect(flightPlanFailure(current)).toBe('no flight plan');
   });
-});
 
-describe('parseDurationSeconds', () => {
-  it('parses the forms the test-flight table uses', () => {
-    expect(parseDurationSeconds('5h 41m')).toBe(5 * 3600 + 41 * 60);
-    expect(parseDurationSeconds('10m 0s')).toBe(600);
-    expect(parseDurationSeconds('10s')).toBe(10);
-    expect(parseDurationSeconds('--')).toBeUndefined();
+  it('accepts a replaced plan with the same figures', () => {
+    const summary = summarizeFreshPlan(plan(), plan());
+    expect(summary).toMatchObject({ ok: true, stl: 246, ftl: 39 });
+  });
+
+  it('does not invent fuel when the plan has no consumption', () => {
+    const missing = plan({ stlFuelConsumption: null, ftlFuelConsumption: null });
+    expect(summarizeFreshPlan(missing, undefined)).toBeUndefined();
+    expect(flightPlanFailure(missing)).toBe('no fuel figures');
+  });
+
+  it('does not accept a plan that failed to compute', () => {
+    const failed = plan({ status: 'FAILED' });
+    expect(summarizeFreshPlan(failed, undefined)).toBeUndefined();
+    expect(flightPlanFailure(failed)).toBe('no flight plan');
   });
 });
 

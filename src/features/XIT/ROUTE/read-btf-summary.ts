@@ -1,54 +1,39 @@
-export interface BtfLabels {
-  duration: string;
-  consumption: string;
-}
-
 export type BtfSummary =
   | { ok: true; duration: string; seconds: number; stl: number; ftl: number }
   | { ok: false; reason: string };
 
-const defaultLabels: BtfLabels = { duration: 'Duration', consumption: 'Consumption' };
-
-// Summary row of a blueprint test flight. A `--` duration is a missing plan,
-// not a zero-length flight, and a missing fuel cell is not zero fuel.
-export function readBtfSummary(
-  headers: string[],
-  cells: string[],
-  labels: BtfLabels = defaultLabels,
-): BtfSummary {
-  const durationIndex = headers.findIndex(x => x.trim().startsWith(labels.duration));
-  const consumptionIndex = headers.findIndex(x => x.trim().startsWith(labels.consumption));
-  if (durationIndex < 0 || consumptionIndex < 0) {
-    return { ok: false, reason: 'flight plan table is missing duration or fuel' };
+// A blueprint test flight keeps one mission id and replaces the plan object
+// on every submit, including a repeat of the same route. The previous object
+// is the plan already on screen, so it is not a result.
+export function summarizeFreshPlan(
+  plan: PrunApi.FlightPlan | undefined,
+  previous: PrunApi.FlightPlan | undefined,
+): Extract<BtfSummary, { ok: true }> | undefined {
+  if (plan === undefined || plan === previous || plan.status !== 'OK') {
+    return undefined;
   }
-  const duration = cells[durationIndex]?.trim() ?? '';
-  const seconds = parseDurationSeconds(duration);
-  if (seconds === undefined) {
-    const reason =
-      duration === '--' || duration.length === 0
-        ? 'no flight plan'
-        : `unreadable duration "${duration}"`;
-    return { ok: false, reason };
+  if (plan.stlFuelConsumption === null || plan.ftlFuelConsumption === null) {
+    return undefined;
   }
-  const fuel = parseFuel(cells[consumptionIndex]?.trim() ?? '');
-  if (fuel === undefined) {
-    return { ok: false, reason: 'no fuel figures' };
-  }
-  return { ok: true, duration, seconds, stl: fuel.stl, ftl: fuel.ftl };
+  const seconds = Math.round(plan.eta.millis / 1000);
+  return {
+    ok: true,
+    duration: formatDuration(seconds),
+    seconds,
+    stl: plan.stlFuelConsumption,
+    ftl: plan.ftlFuelConsumption,
+  };
 }
 
-export function parseDurationSeconds(text: string) {
-  const match = /^(?:(\d+)h)?\s*(?:(\d+)m)?\s*(?:(\d+)s)?$/.exec(text.trim());
-  if (match === null) {
-    return undefined;
+export function flightPlanFailure(plan: PrunApi.FlightPlan | undefined) {
+  if (
+    plan !== undefined &&
+    plan.status === 'OK' &&
+    (plan.stlFuelConsumption === null || plan.ftlFuelConsumption === null)
+  ) {
+    return 'no fuel figures';
   }
-  if (match[1] === undefined && match[2] === undefined && match[3] === undefined) {
-    return undefined;
-  }
-  const hours = Number(match[1] ?? 0);
-  const minutes = Number(match[2] ?? 0);
-  const seconds = Number(match[3] ?? 0);
-  return hours * 3600 + minutes * 60 + seconds;
+  return 'no flight plan';
 }
 
 export function formatDuration(totalSeconds: number) {
@@ -66,17 +51,4 @@ export function formatDuration(totalSeconds: number) {
     parts.push(`${seconds}s`);
   }
   return parts.join(' ');
-}
-
-function parseFuel(text: string) {
-  const matches = [...text.matchAll(/(\d[\d,]*)\s+units\s+(STL|FTL)\s+fuel/gi)];
-  const stl = matches.find(x => x[2]?.toUpperCase() === 'STL');
-  if (stl === undefined || stl[1] === undefined) {
-    return undefined;
-  }
-  const ftl = matches.find(x => x[2]?.toUpperCase() === 'FTL');
-  return {
-    stl: Number(stl[1].replace(/,/g, '')),
-    ftl: ftl?.[1] !== undefined ? Number(ftl[1].replace(/,/g, '')) : 0,
-  };
 }

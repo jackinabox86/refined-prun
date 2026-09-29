@@ -1,13 +1,15 @@
 import { act } from '@src/features/XIT/ACT/act-registry';
 import { btfLegActions } from '@src/features/XIT/ROUTE/btf-leg-actions';
 import { RouteLeg } from '@src/features/XIT/ROUTE/plan-route';
-import { readBtfSummary } from '@src/features/XIT/ROUTE/read-btf-summary';
+import { flightPlanFailure, summarizeFreshPlan } from '@src/features/XIT/ROUTE/read-btf-summary';
 import {
   formatLegLine,
   formatRouteTotal,
   routeResults,
 } from '@src/features/XIT/ROUTE/route-results';
 import { blueprintsStore } from '@src/infrastructure/prun-api/data/blueprints';
+import { flightPlansStore } from '@src/infrastructure/prun-api/data/flight-plans';
+import { getPrunId } from '@src/infrastructure/prun-ui/attributes';
 import { selectAddress } from '@src/infrastructure/prun-ui/utils/select-address';
 import { waitFor } from '@src/utils/wait-for';
 
@@ -79,7 +81,7 @@ export const BTF_LEG = act.addActionStep<BtfLegData>({
       return;
     }
 
-    const previous = summarySignature(tile.anchor);
+    const previousPlan = currentPlan(tile.anchor);
     for (const action of btfLegActions) {
       if (action === 'select-origin') {
         const selected = await selectAddress(originField, data.originQuery);
@@ -96,83 +98,26 @@ export const BTF_LEG = act.addActionStep<BtfLegData>({
         }
       }
       if (action === 'read-summary') {
-        const labels = btfLabels();
-        let matched = readChangedSummary(tile.anchor, previous, labels);
+        let matched = summarizeFreshPlan(currentPlan(tile.anchor), previousPlan);
         const changed = await waitFor(() => {
-          matched = readChangedSummary(tile.anchor, previous, labels);
+          matched = summarizeFreshPlan(currentPlan(tile.anchor), previousPlan);
           return matched !== undefined;
         }, 8000);
         if (changed && matched !== undefined) {
           finish(formatLegLine(label, matched), true, matched);
           return;
         }
-        // An unchanged summary is the previous leg's plan. Do not report it.
-        const current = readCurrentSummary(tile.anchor, labels);
-        const reason =
-          current !== undefined && current.ok === false ? current.reason : 'no flight plan';
-        finish(`${label}: ${reason}`, false);
+        // The plan already on screen belongs to the previous submit.
+        finish(`${label}: ${flightPlanFailure(currentPlan(tile.anchor))}`, false);
       }
     }
   },
 });
 
-function btfLabels() {
-  return {
-    duration: L.MissionPlan.duration() ?? 'Duration',
-    consumption: L.MissionPlan.consumption() ?? 'Consumption',
-  };
-}
-
-function summaryRow(anchor: Element) {
-  const table = _$(anchor, C.MissionPlan.table);
+function currentPlan(anchor: Element) {
+  const table = _$(anchor, C.MissionPlan.table) as HTMLElement | undefined;
   if (table === undefined) {
     return undefined;
   }
-  const stats = _$(table, C.MissionPlan.stats);
-  if (stats === undefined) {
-    return undefined;
-  }
-  return _$(stats, 'tr');
-}
-
-function summarySignature(anchor: Element) {
-  return summaryRow(anchor)?.textContent?.trim() ?? '';
-}
-
-function headerTexts(anchor: Element) {
-  const table = _$(anchor, C.MissionPlan.table);
-  const header = table === undefined ? undefined : _$(table, 'thead tr');
-  if (header === undefined) {
-    return [];
-  }
-  return Array.from(header.children).map(x => x.textContent?.trim() ?? '');
-}
-
-function cellTexts(row: Element) {
-  return Array.from(row.children).map(x => x.textContent?.trim() ?? '');
-}
-
-function readCurrentSummary(anchor: Element, labels: { duration: string; consumption: string }) {
-  const row = summaryRow(anchor);
-  if (row === undefined) {
-    return undefined;
-  }
-  return readBtfSummary(headerTexts(anchor), cellTexts(row), labels);
-}
-
-function readChangedSummary(
-  anchor: Element,
-  previous: string,
-  labels: { duration: string; consumption: string },
-) {
-  const row = summaryRow(anchor);
-  if (row === undefined) {
-    return undefined;
-  }
-  const signature = row.textContent?.trim() ?? '';
-  if (signature.length === 0 || signature === previous) {
-    return undefined;
-  }
-  const summary = readBtfSummary(headerTexts(anchor), cellTexts(row), labels);
-  return summary.ok ? summary : undefined;
+  return flightPlansStore.getById(getPrunId(table));
 }
