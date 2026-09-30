@@ -1,4 +1,5 @@
 import { showBuffer } from '@src/infrastructure/prun-ui/buffers';
+import { lmBufferCommand } from '@src/core/lm-link';
 import PlanetMenu from './PlanetMenu.vue';
 
 let clickOutsideListener: ((e: MouseEvent) => void) | null = null;
@@ -58,6 +59,10 @@ export const store = reactive({
     this.hideMenu();
     showBuffer(`${cmd} ${this.naturalId}`);
   },
+  openLocalMarket() {
+    this.hideMenu();
+    showBuffer(lmBufferCommand(this.naturalId));
+  },
 });
 
 async function init() {
@@ -71,5 +76,5 @@ async function init() {
 features.add(
   import.meta.url,
   init,
-  'Right-click planet cell in XIT BS/BURN to open PLI, COGC, POPR, POPI, or ADM.',
+  'Right-click planet cell in XIT BS/BURN to open PLI, COGC, POPR, POPI, ADM, or LM.',
 );

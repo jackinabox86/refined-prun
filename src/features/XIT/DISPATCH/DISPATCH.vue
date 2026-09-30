@@ -268,6 +268,9 @@ watch(shipAssignments, map => {
 
 const dragOptions = {
   ...grip.draggable,
+  // Drag the tbody so an expanded burn row stays with its base. The
+  // draggable selector keeps the thead out of Sortable's index.
+  draggable: 'tbody',
   onEnd: (evt: unknown) => {
     grip.draggable.onEnd?.(evt as never);
     baseOrder.value = [...orderedIds.value];
@@ -712,7 +715,7 @@ function reset() {
     <div ref="panesEl" :class="$style.panes">
       <ShipPool :ships="filteredCxShips" :base-configs="baseConfigs" />
       <div :class="$style.left">
-        <table :class="$style.table">
+        <table v-draggable="dragBinding" :class="$style.table">
           <thead>
             <tr>
               <th :class="[$style.narrowCol, $style.centered]">Assign</th>
@@ -731,10 +734,8 @@ function reset() {
               <th :class="[$style.narrowCol, $style.centered]">Agent</th>
             </tr>
           </thead>
-          <tbody v-draggable="dragBinding">
+          <tbody v-for="id in orderedIds" :key="id">
             <PlanetRow
-              v-for="id in orderedIds"
-              :key="id"
               :site-id="rowById.get(id)!.base.siteId"
               :natural-id="rowById.get(id)!.base.naturalId"
               :planet-name="rowById.get(id)!.base.planetName"

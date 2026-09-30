@@ -147,6 +147,12 @@ const warehouseStore = computed(() =>
     .getByAddressableId(warehouse.value?.warehouseId)
     ?.find(x => x.type === 'WAREHOUSE_STORE'),
 );
+
+const cmdsExpanded = ref(false);
+
+function onCmdsClick() {
+  cmdsExpanded.value = !cmdsExpanded.value;
+}
 </script>
 
 <template>
@@ -158,9 +164,12 @@ const warehouseStore = computed(() =>
         planetName
       }}</PrunLink>
     </td>
-    <td v-if="showCmds" :class="$style.cmdCell">
+    <td
+      v-if="showCmds"
+      :class="[$style.cmdCell, cmdsExpanded && $style.cmdsOpen]"
+      @click="onCmdsClick">
       <PrunButton dark inline>CMDS&#x25B6;</PrunButton>
-      <div :class="$style.expandedButtons">
+      <div :class="$style.expandedButtons" @click.stop>
         <PrunButton dark inline @click="showBuffer(`BBL ${siteId}`)">BUILDINGS</PrunButton>
         <PrunButton dark inline @click="showBuffer(`BBC ${naturalId}`)">CONSTRUCT</PrunButton>
         <PrunButton dark inline @click="showBuffer(`WF ${siteId}`)">WORKFORCE</PrunButton>
@@ -222,7 +231,7 @@ const warehouseStore = computed(() =>
         :on-click-cmd="`INV ${warehouseStore.id.substring(0, 8)}`" />
     </td>
   </tr>
-  <tr v-if="showBurn && isBurnExpanded && burn">
+  <tr v-if="showBurn && isBurnExpanded && burn" :class="$style.burnExpandRow">
     <td :colspan="columnCount" :class="$style.burnExpandCell">
       <table :class="$style.burnExpandTable">
         <thead>
@@ -279,12 +288,12 @@ const warehouseStore = computed(() =>
   white-space: nowrap;
 }
 
-.cmdCell:hover .expandedButtons {
+.cmdsOpen .expandedButtons {
   display: flex;
 }
 
-.row:has(.cmdCell:hover) .statusCell > *,
-.row:has(.cmdCell:hover) .invCell > * {
+.row:has(.cmdsOpen) .statusCell > *,
+.row:has(.cmdsOpen) .invCell > * {
   visibility: hidden;
 }
 
@@ -346,6 +355,22 @@ const warehouseStore = computed(() =>
   margin: 0;
   font-size: 10px;
   line-height: 1;
+}
+
+/* The game highlights a hovered row with a `tr:hover td` rule that uses a
+   *descendant* combinator, so hovering one line of the nested material table
+   matches every `td` inside this wrapper row and the whole expanded block lights
+   up instead of the single row under the pointer (JAC-63). Pin the block to the
+   resting cell background so that leak paints nothing, then put the highlight
+   back on just the nested row the pointer is over. Two class selectors beat the
+   game's rule, which has one pseudo-class and only type selectors besides. */
+.burnExpandRow .burnExpandCell,
+.burnExpandRow .burnExpandTable td {
+  background-color: #23282b;
+}
+
+.burnExpandRow .burnExpandTable tbody tr:hover td {
+  background-color: rgba(255, 255, 255, 0.15);
 }
 
 .burnExpandCell {
