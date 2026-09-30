@@ -7,4 +7,14 @@ describe('btfLegActions', () => {
     expect(btfLegActions).not.toContain('copy');
     expect(btfLegActions).not.toContain('create');
   });
+
+  it('applies the loadout after the destination, then reads the plan', () => {
+    expect(btfLegActions).toEqual([
+      'select-origin',
+      'select-destination',
+      'apply-loadout',
+      'confirm-loadout',
+      'read-summary',
+    ]);
+  });
 });

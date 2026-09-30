@@ -90,17 +90,31 @@ export async function applyConfirmedLoadout(anchor: Element, loadout: ConfirmedL
   const labels = fieldLabels();
   const stlLabel = L.BlueprintTestFlight.label.stlFuel() ?? '';
   const ftlLabel = L.BlueprintTestFlight.label.ftlFuel() ?? '';
-  const byLabel = new Map<string, Element>();
-  for (const slider of _$$(anchor, 'rc-slider')) {
-    const label = matchingFieldLabel(ancestorTexts(slider), labels);
-    if (label !== undefined) {
-      byLabel.set(label, slider);
-    }
-  }
   const ordered = [
     ...loadout.sliders.filter(x => x.tank === undefined),
     ...loadout.sliders.filter(x => x.tank !== undefined),
   ];
+  const findSliders = () => {
+    const byLabel = new Map<string, Element>();
+    for (const slider of _$$(anchor, 'rc-slider')) {
+      const label = matchingFieldLabel(ancestorTexts(slider), labels);
+      if (label !== undefined) {
+        byLabel.set(label, slider);
+      }
+    }
+    return byLabel;
+  };
+  // The destination change rebuilds the form. The sliders are not back yet
+  // when the address click returns.
+  let byLabel = findSliders();
+  const present = await waitFor(() => {
+    byLabel = findSliders();
+    return ordered.every(saved => byLabel.has(saved.label));
+  }, 5000);
+  if (!present) {
+    const missing = ordered.find(saved => !byLabel.has(saved.label));
+    return `${missing?.label ?? 'loadout'} slider is not on the test flight`;
+  }
   for (const saved of ordered) {
     const slider = byLabel.get(saved.label);
     if (slider === undefined) {
@@ -118,6 +132,40 @@ export async function applyConfirmedLoadout(anchor: Element, loadout: ConfirmedL
       const handler = set.handler === false ? ', no key handler' : '';
       const change = set.change ? ', change handler missed' : ', no change handler';
       return `could not set ${saved.label} to ${target} (now ${at}${arrow}${handler}${change})`;
+    }
+  }
+  return undefined;
+}
+
+// The address change rewrites the sliders after a write. Read them again at
+// the moment the plan is accepted, and refuse a plan whose tanks are not the
+// levels that leg was supposed to fly.
+export function tankLevelsAtTarget(anchor: Element, loadout: ConfirmedLoadout) {
+  const labels = fieldLabels();
+  const stlLabel = L.BlueprintTestFlight.label.stlFuel() ?? '';
+  const ftlLabel = L.BlueprintTestFlight.label.ftlFuel() ?? '';
+  const live = new Map<string, number | undefined>();
+  for (const slider of _$$(anchor, 'rc-slider')) {
+    const label = matchingFieldLabel(ancestorTexts(slider), labels);
+    if (label === undefined) {
+      continue;
+    }
+    const handle = sliderHandle(slider);
+    live.set(label, handle === undefined ? undefined : readNow(handle));
+  }
+  for (const kind of ['stl', 'ftl'] as const) {
+    const saved = loadout.sliders.find(
+      slider => tankKind(slider.label, stlLabel, ftlLabel) === kind,
+    );
+    const name = kind === 'stl' ? stlLabel || 'STL Fuel' : ftlLabel || 'FTL fuel';
+    if (saved === undefined) {
+      return `${name} was not confirmed`;
+    }
+    const now = live.get(saved.label);
+    const target = sliderTarget({ ...saved, tank: kind }, loadout.priorStl, loadout.priorFtl);
+    if (now !== target) {
+      const at = now === undefined ? 'no value' : String(now);
+      return `${saved.label} is ${at}, expected ${target}`;
     }
   }
   return undefined;

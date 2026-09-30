@@ -4,6 +4,7 @@ import {
   applyConfirmedLoadout,
   captureLoadout,
   confirmedLoadout,
+  tankLevelsAtTarget,
 } from '@src/features/XIT/ROUTE/btf-loadout';
 import { RouteLeg } from '@src/features/XIT/ROUTE/plan-route';
 import { flightPlanFailure, summarizeFreshPlan } from '@src/features/XIT/ROUTE/read-btf-summary';
@@ -151,6 +152,16 @@ export const BTF_LEG = act.addActionStep<BtfLegData>({
           isFirstOfType ? 1000 : 300,
         );
         if (matched !== undefined) {
+          const saved = confirmedLoadout.current;
+          if (saved === undefined) {
+            finish(`${label}: fuel loadout was not confirmed`, false);
+            return;
+          }
+          const tanks = tankLevelsAtTarget(tile.anchor, saved);
+          if (tanks !== undefined) {
+            finish(`${label}: ${tanks}`, false);
+            return;
+          }
           finish(formatLegLine(label, matched), true, matched);
           return;
         }
