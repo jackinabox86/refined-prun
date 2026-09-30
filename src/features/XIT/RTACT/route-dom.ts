@@ -10,6 +10,7 @@ import {
 } from '@src/features/XIT/RTACT/route-spec';
 import {
   assertEditorClick,
+  blockIndex,
   controlLabelOf,
   isAddWaypointArmed,
   isStepEditLabel,
@@ -20,7 +21,11 @@ import {
   selectControlLabel,
   type NamedControl,
 } from '@src/features/XIT/RTACT/route-controls';
-import { selectAddress } from '@src/infrastructure/prun-ui/utils/select-address';
+import { stationsStore } from '@src/infrastructure/prun-api/data/stations';
+import {
+  findStationBySystemId,
+  selectAddress,
+} from '@src/infrastructure/prun-ui/utils/select-address';
 import {
   changeSelectIndex,
   clickElement,
@@ -158,6 +163,43 @@ export function findWaypointScope(anchor: Element, needles: string[]): Element |
   return inner[0] ?? last;
 }
 
+function countStepEdits(el: Element): number {
+  return controlElements(el).filter(control => isStepEditLabel(controlLabelOf(control))).length;
+}
+
+// The step pencil is a sibling of the header row, so the header itself does not
+// contain it. The block is the first ancestor that does.
+export function waypointBlock(header: Element): Element {
+  const nodes: Element[] = [];
+  const counts: number[] = [];
+  let current: Element | null = header;
+  while (current !== null && nodes.length < 8) {
+    nodes.push(current);
+    counts.push(countStepEdits(current));
+    current = current.parentElement;
+  }
+  return nodes[blockIndex(counts)] ?? header;
+}
+
+export function stationName(query: string, canonical: string): string | undefined {
+  const ids = [canonical, query].map(value => value.trim()).filter(value => value.length > 0);
+  for (const id of ids) {
+    const bySystem = findStationBySystemId(id);
+    const name = bySystem?.name.trim() ?? '';
+    if (name.length > 0) {
+      return name;
+    }
+  }
+  for (const id of ids) {
+    const byTicker = stationsStore.getByNaturalId(id);
+    const name = byTicker?.name.trim() ?? '';
+    if (name.length > 0) {
+      return name;
+    }
+  }
+  return undefined;
+}
+
 export function revealHover(el: Element): void {
   el.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
   el.dispatchEvent(new MouseEvent('mouseenter', { bubbles: true }));
@@ -225,9 +267,26 @@ function findRow(editor: Element, heading: string): Element | undefined {
   return label.parentElement ?? undefined;
 }
 
-async function clickEditorWord(editor: Element, label: string): Promise<void> {
+async function clickModeWord(root: Element, label: string): Promise<void> {
   assertEditorClick(label);
-  await clickControl(editor, label);
+  const wanted = label.trim().toLowerCase();
+  const matches = Array.from(root.querySelectorAll('*')).filter(el => {
+    const text = (el.textContent ?? '').replace(/\s+/g, ' ').trim().toLowerCase();
+    return text === wanted;
+  });
+  let target: Element | undefined;
+  let bestLen = Infinity;
+  for (const el of matches) {
+    const len = (el.textContent ?? '').length;
+    if (target === undefined || len <= bestLen) {
+      target = el;
+      bestLen = len;
+    }
+  }
+  if (target === undefined) {
+    throw new Error(`Control not found: ${label}`);
+  }
+  await clickElement(target as HTMLElement);
 }
 
 async function chooseOption(editor: Element, optionText: string): Promise<boolean> {
@@ -258,8 +317,7 @@ async function applyLimit(
   }
   const click = limitClick(amountInputs(row).length > 0, limit.mode);
   if (click !== undefined) {
-    assertEditorClick(click);
-    await clickControl(row, click);
+    await clickModeWord(row, click);
     if (limit.mode === 'units') {
       await waitFor(() => amountInputs(row).length > 0, 2000);
     }
@@ -321,10 +379,10 @@ export async function fillStepEditor(editor: Element, step: RouteStep): Promise<
   const tank = tankLabel(step.tank);
   const source = sourceLabel(step.source);
   if (!(await chooseOption(editor, tank))) {
-    await clickEditorWord(editor, tank);
+    await clickModeWord(editor, tank);
   }
   if (!(await chooseOption(editor, source))) {
-    await clickEditorWord(editor, source);
+    await clickModeWord(editor, source);
   }
   await applyLimit(editor, 'Minimum', step.min);
   await applyLimit(editor, 'Maximum', step.max);

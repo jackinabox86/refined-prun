@@ -10,11 +10,13 @@ import {
   pickLocation,
   revealHover,
   snapshotRouteIds,
+  stationName,
   waitForEditor,
   waitForNewRouteId,
+  waypointBlock,
 } from '@src/features/XIT/RTACT/route-dom';
 import { editorTitle, type RouteStep, type RouteStop } from '@src/features/XIT/RTACT/route-spec';
-import { shouldClickAddWaypoint } from '@src/features/XIT/RTACT/route-controls';
+import { shouldClickAddWaypoint, waypointNeedles } from '@src/features/XIT/RTACT/route-controls';
 import { stagingRunBlock } from '@src/features/XIT/RTACT/staging-host';
 import { AssertFn } from '@src/features/XIT/ACT/shared-types';
 import { clickElement } from '@src/util';
@@ -106,17 +108,13 @@ async function addStop(
   }
   await waitActionFeedback(tile);
   const canonical = locationValue(tile.anchor);
-  const appeared = await waitFor(
-    () => findWaypointScope(tile.anchor, [canonical, stop.query]) !== undefined,
-    8000,
-  );
+  const needles = waypointNeedles(stop.query, canonical, stationName(stop.query, canonical));
+  const appeared = await waitFor(() => findWaypointScope(tile.anchor, needles) !== undefined, 8000);
   assert(appeared, `Could not find the new waypoint for ${stop.query}`);
-  const scope = findWaypointScope(tile.anchor, [canonical, stop.query]);
-  assert(scope !== undefined, `Could not find the new waypoint for ${stop.query}`);
   log.info(`Waypoint ${canonical.length > 0 ? canonical : stop.query}`);
 
   for (const step of stop.steps) {
-    const ok = await addStep(ctx, tile, scope, stop, step);
+    const ok = await addStep(ctx, tile, needles, stop, step);
     if (!ok) {
       return false;
     }
@@ -133,13 +131,18 @@ async function addStep(
     log: { info: (message: string) => void };
   },
   tile: PrunTile,
-  scope: Element,
+  needles: string[],
   stop: RouteStop,
   step: RouteStep,
 ): Promise<boolean> {
   const { waitAct, waitSkipOr, waitActionFeedback, fail, log } = ctx;
   const command = commandLabel(step);
   await waitAct(`Add ${command} at ${stop.query}?`);
+  const scope = findWaypointScope(tile.anchor, needles);
+  if (scope === undefined) {
+    fail(`Could not find the waypoint for ${stop.query}`);
+    return false;
+  }
   revealHover(scope);
   await waitFor(() => findLabeled(scope, command), 1500);
   try {
@@ -149,8 +152,12 @@ async function addStep(
     return false;
   }
   await waitActionFeedback(tile);
-  revealHover(scope);
-  const edit = findStepEdit(scope);
+  const fresh = findWaypointScope(tile.anchor, needles);
+  const block = fresh === undefined ? undefined : waypointBlock(fresh);
+  if (block !== undefined) {
+    revealHover(block);
+  }
+  const edit = block === undefined ? undefined : findStepEdit(block);
   if (edit === undefined) {
     fail(`Could not find the Edit control for ${command} at ${stop.query}`);
     return false;
@@ -173,11 +180,15 @@ async function addStep(
     return false;
   }
   log.info(`Filled ${editorTitle(step)}. Click SAVE yourself.`);
-  const closed = waitUntilDisconnected(editor);
-  const outcome = await waitSkipOr(`Click SAVE on ${editorTitle(step)}`, closed);
-  if (outcome === 'skip' && editor.isConnected) {
-    fail('Step editor is still open');
-    return false;
+  const watch = watchDisconnect(editor);
+  try {
+    const outcome = await waitSkipOr(`Click SAVE on ${editorTitle(step)}`, watch.done);
+    if (outcome === 'skip' && editor.isConnected) {
+      fail('Step editor is still open');
+      return false;
+    }
+  } finally {
+    watch.cancel();
   }
   return true;
 }
@@ -197,17 +208,28 @@ async function clickEdit(el: HTMLElement): Promise<void> {
   await clickElement(el);
 }
 
-function waitUntilDisconnected(el: Element): Promise<void> {
-  return new Promise(resolve => {
+function watchDisconnect(el: Element): { done: Promise<void>; cancel: () => void } {
+  let timer = 0;
+  const done = new Promise<void>(resolve => {
     if (!el.isConnected) {
       resolve();
       return;
     }
-    const timer = window.setInterval(() => {
+    timer = window.setInterval(() => {
       if (!el.isConnected) {
         window.clearInterval(timer);
+        timer = 0;
         resolve();
       }
     }, 200);
   });
+  return {
+    done,
+    cancel: () => {
+      if (timer !== 0) {
+        window.clearInterval(timer);
+        timer = 0;
+      }
+    },
+  };
 }

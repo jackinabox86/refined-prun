@@ -89,6 +89,36 @@ export function assertEditorClick(label: string): void {
   }
 }
 
+// Header edit-count is index 0. The waypoint block is the first ancestor whose
+// step-pencil count is higher. A later ancestor (the whole list) is not used.
+export function blockIndex(editCounts: number[]): number {
+  const header = editCounts[0] ?? 0;
+  for (let i = 1; i < editCounts.length; i++) {
+    if (editCounts[i] > header) {
+      return i;
+    }
+  }
+  return 0;
+}
+
+export function waypointNeedles(query: string, canonical: string, stationName?: string): string[] {
+  const seen = new Set<string>();
+  const needles: string[] = [];
+  for (const part of [canonical, query, stationName]) {
+    const value = part?.trim() ?? '';
+    if (value.length === 0) {
+      continue;
+    }
+    const key = value.toLowerCase();
+    if (seen.has(key)) {
+      continue;
+    }
+    seen.add(key);
+    needles.push(value);
+  }
+  return needles;
+}
+
 export function isStepEditLabel(label: string): boolean {
   const value = label.trim().toLowerCase();
   if (value.length === 0 || value.includes('delete') || value.includes('waypoint')) {

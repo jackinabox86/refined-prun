@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   assertEditorClick,
+  blockIndex,
   isAddWaypointArmed,
   isStepEditLabel,
   limitClick,
@@ -8,6 +9,7 @@ import {
   pickSuggestion,
   selectControlLabel,
   shouldClickAddWaypoint,
+  waypointNeedles,
 } from './route-controls';
 
 describe('selectControlLabel', () => {
@@ -90,6 +92,30 @@ describe('pickSuggestion', () => {
 
   it('returns undefined when nothing matches', () => {
     expect(pickSuggestion(labels, 'no-such-body')).toBeUndefined();
+  });
+});
+
+describe('blockIndex', () => {
+  it('does not stay on the header when a parent holds the step pencil', () => {
+    expect(blockIndex([0, 0, 1, 4])).toBe(2);
+  });
+
+  it('stays on the header when no ancestor has a pencil', () => {
+    expect(blockIndex([0, 0, 0])).toBe(0);
+  });
+});
+
+describe('waypointNeedles', () => {
+  it('includes the station display name a row actually shows', () => {
+    expect(waypointNeedles('HRT', 'OT-580', 'Hortus Station')).toEqual([
+      'OT-580',
+      'HRT',
+      'Hortus Station',
+    ]);
+  });
+
+  it('drops a blank station name', () => {
+    expect(waypointNeedles('ZV-307d', 'ZV-307d', '  ')).toEqual(['ZV-307d']);
   });
 });
 

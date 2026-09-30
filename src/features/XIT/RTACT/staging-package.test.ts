@@ -55,10 +55,35 @@ describe('RT_BUILD source order', () => {
 describe('route-dom click path', () => {
   const source = readFileSync(join(here, 'route-dom.ts'), 'utf8');
   const clickControl = source.slice(source.indexOf('export async function clickControl'));
+  const modeWord = source.slice(source.indexOf('async function clickModeWord'));
 
   it('selects the control before clicking it', () => {
     expect(clickControl.indexOf('selectControlLabel')).toBeLessThan(
       clickControl.indexOf('clickElement'),
     );
+  });
+
+  it('refuses SAVE before a mode-word click', () => {
+    expect(modeWord.indexOf('assertEditorClick')).toBeGreaterThan(-1);
+    expect(modeWord.indexOf('assertEditorClick')).toBeLessThan(modeWord.indexOf('clickElement'));
+  });
+});
+
+describe('addStep re-resolves and cancels the editor poll', () => {
+  const source = readFileSync(join(here, 'RT_BUILD.ts'), 'utf8');
+  const addStep = source.slice(
+    source.indexOf('async function addStep'),
+    source.indexOf('function findLabeled'),
+  );
+
+  it('looks up the waypoint again inside the step instead of taking a cached element', () => {
+    expect(addStep).toContain('findWaypointScope');
+    expect(addStep).toContain('waypointBlock');
+    expect(addStep).not.toContain('scope: Element');
+  });
+
+  it('clears the disconnect poll after the SAVE wait', () => {
+    expect(addStep.indexOf('waitSkipOr')).toBeGreaterThan(-1);
+    expect(addStep.indexOf('waitSkipOr')).toBeLessThan(addStep.indexOf('cancel()'));
   });
 });
