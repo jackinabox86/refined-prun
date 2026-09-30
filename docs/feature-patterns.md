@@ -280,6 +280,13 @@ universal. The JAC-23 spacing delay on the following `OPEN_SFC` is unchanged.
   explicit launch step; the player still clicks the actual takeoff in SFC. Every emitted
   `OPEN_SFC` (MTRA hosts and the XIT AGENT chain SFC) then holds on fleet-status
   `flightId` or skip before completing.
+  XIT AGENT owns that departure for a posted package. `ExecuteStoredPackage` appends
+  non-input base→ship loads and then one chain `OPEN_SFC` after the package steps. A
+  milk-run pickup whose destination is the ship would emit its own `OPEN_SFC` first and
+  depart before those loads, which then skip (`not present in origin`). When the host
+  can resolve the ship cargo store it sets `noSfc` on every MTRA in the run copy so the
+  loads stay while the ship is docked. The stored channel message is left unchanged, so a
+  printed package run in ACT still launches itself.
 - **`CX Buy` with `useCXInv: true` nets out warehouse stock**, so a PREVIEW showing
   `Buy 900` against `Transfer 1,000` of the same ticker is correct (100 already in the
   warehouse), not a quantity bug.
