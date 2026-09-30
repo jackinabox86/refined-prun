@@ -3,7 +3,7 @@ import ActionBar from '@src/components/ActionBar.vue';
 import Header from '@src/components/Header.vue';
 import PrunButton from '@src/components/PrunButton.vue';
 import Active from '@src/components/forms/Active.vue';
-import { validBlueprintOptions } from '@src/features/XIT/ROUTE/blueprint-options';
+import { shipOptions } from '@src/features/XIT/ROUTE/ship-options';
 import { planRouteLegs, stopLines } from '@src/features/XIT/ROUTE/plan-route';
 import { resolveRouteStop } from '@src/features/XIT/ROUTE/resolve-route-stop';
 import { stagedRoute } from '@src/features/XIT/ROUTE/staged';
@@ -16,24 +16,24 @@ import { showBuffer } from '@src/infrastructure/prun-ui/buffers';
 const tile = useTile();
 useMinBufferHeight();
 
-const blueprintNaturalId = ref('');
+const shipRegistration = ref('');
 const routeStops = ref('');
 const formError = ref('');
-const options = computed(() => validBlueprintOptions());
+const options = computed(() => shipOptions());
 
 watch(
   options,
   list => {
-    if (list.some(x => x.value === blueprintNaturalId.value)) {
+    if (list.some(x => x.value === shipRegistration.value)) {
       return;
     }
-    blueprintNaturalId.value = list[0]?.value ?? '';
+    shipRegistration.value = list[0]?.value ?? '';
   },
   { immediate: true },
 );
 
 const lines = computed(() => stopLines(routeStops.value));
-const canTest = computed(() => blueprintNaturalId.value.length > 0 && lines.value.length >= 2);
+const canTest = computed(() => shipRegistration.value.length > 0 && lines.value.length >= 2);
 
 const preview = computed(() => {
   if (lines.value.length < 2) {
@@ -55,7 +55,7 @@ const preview = computed(() => {
 function onTest() {
   formError.value = '';
   if (!canTest.value) {
-    formError.value = 'Choose a VALID blueprint and enter at least two stops';
+    formError.value = 'Choose a ship and enter at least two stops';
     return;
   }
   stagedRoute.value = {
@@ -65,7 +65,7 @@ function onTest() {
       {
         type: 'Route Test',
         name: 'Route',
-        blueprintNaturalId: blueprintNaturalId.value,
+        shipRegistration: shipRegistration.value,
         routeStops: routeStops.value,
       },
     ],
@@ -82,11 +82,9 @@ function onTest() {
   <div :class="$style.root">
     <Header>Route flight test</Header>
     <form :class="$style.form" @submit.prevent="onTest">
-      <p v-if="options.length === 0" :class="$style.note">
-        No VALID blueprint. Locked blueprints do not compute a test flight.
-      </p>
-      <Active v-else label="Blueprint">
-        <select v-model="blueprintNaturalId" :class="$style.select">
+      <p v-if="options.length === 0" :class="$style.note">No ships loaded.</p>
+      <Active v-else label="Ship">
+        <select v-model="shipRegistration" :class="$style.select">
           <option v-for="option in options" :key="option.value" :value="option.value">
             {{ option.label }}
           </option>
@@ -102,7 +100,9 @@ function onTest() {
       <pre v-if="preview" :class="$style.preview">{{ preview }}</pre>
       <p v-if="formError" :class="$style.error">{{ formError }}</p>
       <p :class="$style.note">
-        Runs each leg through that blueprint's test flight. Does not delete a blueprint.
+        Runs each leg through that ship's blueprint test flight. The first leg waits so the fuel
+        loadout can be set. Later legs reuse it and burn the tanks down. Does not delete a
+        blueprint.
       </p>
       <ActionBar>
         <PrunButton primary :disabled="!canTest" @click="onTest">Test route</PrunButton>

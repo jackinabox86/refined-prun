@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import Active from '@src/components/forms/Active.vue';
-import { validBlueprintOptions } from '@src/features/XIT/ROUTE/blueprint-options';
+import { shipOptions } from '@src/features/XIT/ROUTE/ship-options';
 import { stopLines } from '@src/features/XIT/ROUTE/plan-route';
 
 const { action } = defineProps<{
@@ -8,31 +8,31 @@ const { action } = defineProps<{
   pkg: UserData.ActionPackageData;
 }>();
 
-const blueprintNaturalId = ref(action.blueprintNaturalId ?? '');
+const shipRegistration = ref(action.shipRegistration ?? '');
 const routeStops = ref(action.routeStops ?? '');
-const blueprintError = ref(false);
+const shipError = ref(false);
 const stopsError = ref(false);
-const options = computed(() => validBlueprintOptions());
+const options = computed(() => shipOptions());
 
 watch(
   options,
   list => {
-    if (list.some(x => x.value === blueprintNaturalId.value)) {
+    if (list.some(x => x.value === shipRegistration.value)) {
       return;
     }
-    blueprintNaturalId.value = list[0]?.value ?? '';
+    shipRegistration.value = list[0]?.value ?? '';
   },
   { immediate: true },
 );
 
 function validate() {
-  blueprintError.value = blueprintNaturalId.value.trim().length === 0;
+  shipError.value = shipRegistration.value.trim().length === 0;
   stopsError.value = stopLines(routeStops.value).length < 2;
-  return !blueprintError.value && !stopsError.value;
+  return !shipError.value && !stopsError.value;
 }
 
 function save() {
-  action.blueprintNaturalId = blueprintNaturalId.value.trim();
+  action.shipRegistration = shipRegistration.value.trim();
   action.routeStops = routeStops.value;
 }
 
@@ -40,8 +40,8 @@ defineExpose({ validate, save });
 </script>
 
 <template>
-  <Active label="Blueprint" :error="blueprintError">
-    <select v-model="blueprintNaturalId" :class="$style.select">
+  <Active label="Ship" :error="shipError">
+    <select v-model="shipRegistration" :class="$style.select">
       <option v-for="option in options" :key="option.value" :value="option.value">
         {{ option.label }}
       </option>

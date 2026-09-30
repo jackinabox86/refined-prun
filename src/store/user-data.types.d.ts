@@ -133,8 +133,8 @@ declare namespace UserData {
     contTradeType?: 'BUYING' | 'SELLING';
     contLocation?: string;
 
-    // Route Test: VALID blueprint natural id, and one planet or CX stop per line.
-    blueprintNaturalId?: string;
+    // Route Test: ship registration, and one planet or CX stop per line.
+    shipRegistration?: string;
     routeStops?: string;
   }
 
