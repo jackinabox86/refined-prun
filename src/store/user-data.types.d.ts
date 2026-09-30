@@ -77,7 +77,14 @@ declare namespace UserData {
     materialFilter?: 'All' | 'Workforce' | 'Production';
   }
 
-  type ActionType = 'CX Buy' | 'MTRA' | 'Refuel' | 'CONT Ship' | 'CONT Trade' | 'GovBurn Data';
+  type ActionType =
+    | 'CX Buy'
+    | 'MTRA'
+    | 'Refuel'
+    | 'CONT Ship'
+    | 'CONT Trade'
+    | 'GovBurn Data'
+    | 'Staging RT';
 
   interface ActionData {
     type: ActionType;
@@ -96,6 +103,10 @@ declare namespace UserData {
 
     // GovBurn Data: planet natural ID or name.
     planet?: string;
+
+    // Staging RT: optional existing route id, and the stop list the player typed.
+    routeId?: string;
+    routeSpec?: string;
 
     origin?: string;
     dest?: string;
