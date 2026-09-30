@@ -4,12 +4,15 @@ import {
   blockIndex,
   isAddWaypointArmed,
   isStepEditLabel,
+  amountRowIndex,
   limitClick,
+  modeRowIndex,
   newRouteId,
   pickSuggestion,
   selectControlLabel,
   shouldClickAddWaypoint,
   waypointNeedles,
+  type LimitNode,
 } from './route-controls';
 
 describe('selectControlLabel', () => {
@@ -116,6 +119,53 @@ describe('waypointNeedles', () => {
 
   it('drops a blank station name', () => {
     expect(waypointNeedles('ZV-307d', 'ZV-307d', '  ')).toEqual(['ZV-307d']);
+  });
+});
+
+function measuredEditor(): LimitNode[] {
+  return [
+    {
+      text: 'MinimumunitscapacityMinimum unitsMaximumunitscapacityMaximum units',
+      inputs: 2,
+      parent: undefined,
+    },
+    { text: 'Minimumunitscapacity', inputs: 0, parent: 0 },
+    { text: 'Minimum', inputs: 0, parent: 1 },
+    { text: 'units', inputs: 0, parent: 1 },
+    { text: 'capacity', inputs: 0, parent: 1 },
+    { text: 'Minimum units', inputs: 1, parent: 0 },
+    { text: 'Maximumunitscapacity', inputs: 0, parent: 0 },
+    { text: 'Maximum', inputs: 0, parent: 6 },
+    { text: 'units', inputs: 0, parent: 6 },
+    { text: 'capacity', inputs: 0, parent: 6 },
+    { text: 'Maximum units', inputs: 1, parent: 0 },
+  ];
+}
+
+describe('limit rows', () => {
+  it('does not match mode words inside Minimumunitscapacity', () => {
+    expect(/\b(units|capacity)\b/i.test('Minimumunitscapacity')).toBe(false);
+  });
+
+  it('does not use the form for both the minimum and maximum amounts', () => {
+    const nodes = measuredEditor();
+    const minimum = amountRowIndex(nodes, 'Minimum');
+    const maximum = amountRowIndex(nodes, 'Maximum');
+    expect(minimum).toBe(5);
+    expect(maximum).toBe(10);
+    expect(minimum).not.toBe(maximum);
+  });
+
+  it('uses the heading parent as the mode row', () => {
+    const nodes = measuredEditor();
+    expect(modeRowIndex(nodes, 'Minimum')).toBe(1);
+    expect(modeRowIndex(nodes, 'Maximum')).toBe(6);
+    const nested: LimitNode[] = [
+      { text: 'Minimumunitscapacity', inputs: 0, parent: undefined },
+      { text: 'Minimum', inputs: 0, parent: 0 },
+      { text: 'Minimum', inputs: 0, parent: 1 },
+    ];
+    expect(modeRowIndex(nested, 'Minimum')).toBe(0);
   });
 });
 

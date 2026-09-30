@@ -9,16 +9,19 @@ import {
   type LoadLimit,
 } from '@src/features/XIT/RTACT/route-spec';
 import {
+  amountRowIndex,
   assertEditorClick,
   blockIndex,
   controlLabelOf,
   isAddWaypointArmed,
   isStepEditLabel,
   limitClick,
+  modeRowIndex,
   newRouteId,
   pickSuggestion,
   routeIdsInText,
   selectControlLabel,
+  type LimitNode,
   type NamedControl,
 } from '@src/features/XIT/RTACT/route-controls';
 import { stationsStore } from '@src/infrastructure/prun-api/data/stations';
@@ -243,28 +246,22 @@ function amountInputs(root: Element): HTMLInputElement[] {
   });
 }
 
-function findRow(editor: Element, heading: string): Element | undefined {
-  const wanted = heading.toLowerCase();
-  const labels = Array.from(editor.querySelectorAll('*')).filter(el => {
-    const text = (el.textContent ?? '').replace(/\s+/g, ' ').trim().toLowerCase();
-    return text === wanted || text.startsWith(`${wanted} `);
+function collectLimitNodes(editor: Element): { nodes: LimitNode[]; elements: Element[] } {
+  const elements = [editor, ...Array.from(editor.querySelectorAll('*'))];
+  const indexOf = new Map<Element, number>();
+  for (let i = 0; i < elements.length; i++) {
+    indexOf.set(elements[i], i);
+  }
+  const nodes = elements.map(el => {
+    const parentEl = el.parentElement;
+    const parent = parentEl === null ? undefined : indexOf.get(parentEl);
+    return {
+      text: el.textContent ?? '',
+      inputs: amountInputs(el).length,
+      parent,
+    };
   });
-  labels.sort((a, b) => (a.textContent?.length ?? 0) - (b.textContent?.length ?? 0));
-  const label = labels[0];
-  if (label === undefined) {
-    return undefined;
-  }
-  let row: Element | null = label;
-  for (let i = 0; i < 5 && row !== null; i++) {
-    if (
-      amountInputs(row).length > 0 ||
-      /\b(units|capacity|all carried)\b/i.test(row.textContent ?? '')
-    ) {
-      return row;
-    }
-    row = row.parentElement;
-  }
-  return label.parentElement ?? undefined;
+  return { nodes, elements };
 }
 
 async function clickModeWord(root: Element, label: string): Promise<void> {
@@ -311,21 +308,27 @@ async function applyLimit(
   heading: string,
   limit: LoadLimit | UnloadLimit | RefuelLimit,
 ): Promise<void> {
-  const row = findRow(editor, heading);
-  if (row === undefined) {
+  const first = collectLimitNodes(editor);
+  const modeIndex = modeRowIndex(first.nodes, heading);
+  if (modeIndex === undefined) {
     throw new Error(`Could not find the ${heading} row`);
   }
-  const click = limitClick(amountInputs(row).length > 0, limit.mode);
+  const modeRow = first.elements[modeIndex];
+  const hasAmount = () => amountRowIndex(collectLimitNodes(editor).nodes, heading) !== undefined;
+  const click = limitClick(hasAmount(), limit.mode);
   if (click !== undefined) {
-    await clickModeWord(row, click);
+    await clickModeWord(modeRow, click);
     if (limit.mode === 'units') {
-      await waitFor(() => amountInputs(row).length > 0, 2000);
+      await waitFor(hasAmount, 2000);
     }
   }
   if (limit.mode !== 'units') {
     return;
   }
-  const input = amountInputs(row)[0];
+  const after = collectLimitNodes(editor);
+  const amountIndex = amountRowIndex(after.nodes, heading);
+  const amountRow = amountIndex === undefined ? undefined : after.elements[amountIndex];
+  const input = amountRow === undefined ? undefined : amountInputs(amountRow)[0];
   if (input === undefined) {
     throw new Error(`Could not find the ${heading} amount`);
   }

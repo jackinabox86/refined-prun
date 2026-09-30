@@ -144,6 +144,64 @@ export function pickSuggestion(labels: string[], query: string): string | undefi
   return labels.find(label => label.toLowerCase().includes(needle));
 }
 
+// One limit side is two sibling rows. The mode row text is "Minimumunitscapacity"
+// with no separators, so a word-boundary test never matches it and a walk up
+// lands on the form, where both amounts share one input list.
+export interface LimitNode {
+  text: string;
+  inputs: number;
+  parent: number | undefined;
+}
+
+function limitText(text: string): string {
+  return text.replace(/\s+/g, ' ').trim().toLowerCase();
+}
+
+export function modeRowIndex(nodes: LimitNode[], heading: string): number | undefined {
+  const wanted = heading.trim().toLowerCase();
+  let label = -1;
+  let labelLen = Infinity;
+  for (let i = 0; i < nodes.length; i++) {
+    if (limitText(nodes[i].text) !== wanted) {
+      continue;
+    }
+    const len = nodes[i].text.length;
+    if (len < labelLen) {
+      label = i;
+      labelLen = len;
+    }
+  }
+  if (label < 0) {
+    return undefined;
+  }
+  let parent = nodes[label].parent;
+  while (parent !== undefined && limitText(nodes[parent].text) === wanted) {
+    parent = nodes[parent].parent;
+  }
+  return parent;
+}
+
+export function amountRowIndex(nodes: LimitNode[], heading: string): number | undefined {
+  const wanted = `${heading.trim().toLowerCase()} units`;
+  let best = -1;
+  let bestLen = Infinity;
+  for (let i = 0; i < nodes.length; i++) {
+    if (nodes[i].inputs < 1) {
+      continue;
+    }
+    const text = limitText(nodes[i].text);
+    if (text !== wanted && !text.startsWith(`${wanted} `)) {
+      continue;
+    }
+    const len = nodes[i].text.length;
+    if (len <= bestLen) {
+      best = i;
+      bestLen = len;
+    }
+  }
+  return best < 0 ? undefined : best;
+}
+
 export function limitClick(
   currentHasNumber: boolean,
   desired: 'units' | 'capacity' | 'all',

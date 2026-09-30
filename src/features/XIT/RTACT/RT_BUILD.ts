@@ -152,12 +152,16 @@ async function addStep(
     return false;
   }
   await waitActionFeedback(tile);
-  const fresh = findWaypointScope(tile.anchor, needles);
-  const block = fresh === undefined ? undefined : waypointBlock(fresh);
-  if (block !== undefined) {
-    revealHover(block);
-  }
-  const edit = block === undefined ? undefined : findStepEdit(block);
+  let edit: HTMLElement | undefined;
+  await waitFor(() => {
+    const fresh = findWaypointScope(tile.anchor, needles);
+    const block = fresh === undefined ? undefined : waypointBlock(fresh);
+    if (block !== undefined) {
+      revealHover(block);
+    }
+    edit = block === undefined ? undefined : findStepEdit(block);
+    return edit !== undefined;
+  }, 5000);
   if (edit === undefined) {
     fail(`Could not find the Edit control for ${command} at ${stop.query}`);
     return false;
