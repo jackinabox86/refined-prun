@@ -1,10 +1,10 @@
 import { L } from '@src/infrastructure/prun-ui/i18n';
 import { changeSelectIndex, clickElement } from '@src/util';
-import { sleep } from '@src/utils/sleep';
 import { waitFor } from '@src/utils/wait-for';
 import {
   LoadoutSlider,
   matchingFieldLabel,
+  sliderNudgeLimit,
   sliderTarget,
   tankKind,
 } from '@src/features/XIT/ROUTE/tank-level';
@@ -112,61 +112,73 @@ export async function applyConfirmedLoadout(anchor: Element, loadout: ConfirmedL
       loadout.priorFtl,
     );
     const set = await setSliderTo(slider, target);
-    if (!set) {
-      return `could not set ${saved.label} to ${target}`;
+    if (!set.ok) {
+      const at = set.now === undefined ? 'no value' : String(set.now);
+      const arrow = set.arrowMoved ? '' : ', arrow did not move it';
+      const handler = set.handler === false ? ', no key handler' : '';
+      const change = set.change ? ', change handler missed' : ', no change handler';
+      return `could not set ${saved.label} to ${target} (now ${at}${arrow}${handler}${change})`;
     }
   }
   return undefined;
 }
 
-// A pointer aims the handle, then arrow keys correct the unit the pixel grid cannot land.
-// Live on BP-STRT-0000: the STL track is 378px for 0..1500, a drag landed one unit off,
-// and one ArrowRight moved aria-valuenow by exactly 1.
+// Set the tank through the slider's own change handler. The route pane's
+// track is 103px for 0..3500, so a pointer cannot land on every unit, and a
+// constructed key event reports keyCode 0. The handler takes the unit directly.
 async function setSliderTo(slider: Element, target: number) {
   const handle = sliderHandle(slider);
   if (handle === undefined) {
-    return false;
+    return { ok: false, now: undefined, arrowMoved: false, handler: false, change: false };
   }
   const min = Number(handle.getAttribute('aria-valuemin'));
   const max = Number(handle.getAttribute('aria-valuemax'));
   if (!Number.isFinite(min) || !Number.isFinite(max) || target < min || target > max) {
-    return false;
+    return { ok: false, now: readNow(handle), arrowMoved: false, handler: false, change: false };
   }
   const current = readNow(handle);
   if (current === target) {
-    return true;
+    return { ok: true };
+  }
+  const onChange = sliderOnChange(handle);
+  const change = onChange !== undefined;
+  if (onChange !== undefined) {
+    try {
+      onChange(target);
+    } catch {
+      // The slider rejected the value. The arrow steps below are the fallback.
+    }
+    if (await waitFor(() => readNow(handle) === target, 1000)) {
+      return { ok: true };
+    }
   }
   const rect = slider.getBoundingClientRect();
   const span = max - min;
-  const ratio = span === 0 ? 0 : (target - min) / span;
-  const clientX = rect.left + ratio * rect.width;
-  const clientY = rect.top + rect.height / 2;
-  slider.dispatchEvent(mouseAt('mousedown', clientX, clientY));
-  await sleep(0);
-  document.dispatchEvent(mouseAt('mousemove', clientX, clientY));
-  await sleep(0);
-  document.dispatchEvent(mouseAt('mouseup', clientX, clientY));
-  let now = current;
-  await waitFor(() => {
-    now = readNow(handle);
-    return now !== current;
-  }, 1000);
+  const limit = sliderNudgeLimit(span, rect.width);
+  if (limit === undefined || span === 0) {
+    return { ok: false, now: current, arrowMoved: false, handler: false, change };
+  }
+  let now = readNow(handle);
   let guard = 0;
-  while (now !== target && now !== undefined && guard < 6) {
+  let arrowMoved = false;
+  let handler = false;
+  while (now !== target && now !== undefined && guard < limit) {
     const before = now;
-    const key = now < target ? 'ArrowRight' : 'ArrowLeft';
-    handle.focus();
-    handle.dispatchEvent(
-      new KeyboardEvent('keydown', { key, code: key, bubbles: true, cancelable: true }),
-    );
+    if (pressSliderKey(handle, now < target ? 'ArrowRight' : 'ArrowLeft')) {
+      handler = true;
+    }
     const moved = await waitFor(() => readNow(handle) !== before, 500);
     if (!moved) {
-      return false;
+      return { ok: false, now, arrowMoved, handler, change };
     }
+    arrowMoved = true;
     now = readNow(handle);
     guard += 1;
   }
-  return now === target;
+  if (now === target) {
+    return { ok: true };
+  }
+  return { ok: false, now, arrowMoved, handler, change };
 }
 
 function fieldLabels() {
@@ -206,16 +218,98 @@ function readNow(handle: HTMLElement) {
   return value;
 }
 
-function mouseAt(type: 'mousedown' | 'mousemove' | 'mouseup', clientX: number, clientY: number) {
-  return new MouseEvent(type, {
+function sliderOnChange(handle: HTMLElement) {
+  const record = handle as unknown as Record<string, unknown>;
+  const fiberKey = Object.getOwnPropertyNames(record).find(name =>
+    name.startsWith('__reactFiber$'),
+  );
+  let fiber = fiberKey === undefined ? undefined : record[fiberKey];
+  for (let depth = 0; depth < 12 && fiber !== null && typeof fiber === 'object'; depth += 1) {
+    const props = (fiber as { memoizedProps?: unknown }).memoizedProps;
+    if (
+      props !== null &&
+      typeof props === 'object' &&
+      'min' in props &&
+      'max' in props &&
+      typeof (props as { onChange?: unknown }).onChange === 'function'
+    ) {
+      return (props as unknown as { onChange: (value: number) => void }).onChange;
+    }
+    fiber = (fiber as { return?: unknown }).return;
+  }
+  return undefined;
+}
+
+function pressSliderKey(handle: HTMLElement, key: 'ArrowLeft' | 'ArrowRight') {
+  const keyCode = key === 'ArrowLeft' ? 37 : 39;
+  const event = {
+    key,
+    code: key,
+    keyCode,
+    which: keyCode,
+    altKey: false,
+    ctrlKey: false,
+    metaKey: false,
+    shiftKey: false,
+    preventDefault() {},
+    stopPropagation() {},
+    persist() {},
+    getModifierState() {
+      return false;
+    },
+    nativeEvent: { key, code: key, keyCode, which: keyCode },
+  };
+  const onKeyDown = findKeyDown(handle);
+  if (onKeyDown !== undefined) {
+    try {
+      onKeyDown(event);
+      return true;
+    } catch {
+      // The handler wanted a real event. The keyboard event below is the fallback.
+    }
+  }
+  handle.focus();
+  const keyboard = new KeyboardEvent('keydown', {
+    key,
+    code: key,
     bubbles: true,
     cancelable: true,
-    view: window,
-    clientX,
-    clientY,
-    button: 0,
-    buttons: type === 'mouseup' ? 0 : 1,
   });
+  // A constructed event reports keyCode 0. Own getters shadow that so a
+  // handler that still reads keyCode sees the arrow.
+  try {
+    Object.defineProperty(keyboard, 'keyCode', { get: () => keyCode });
+    Object.defineProperty(keyboard, 'which', { get: () => keyCode });
+  } catch {
+    // KeyCode is not configurable here. Dispatch the event as constructed.
+  }
+  handle.dispatchEvent(keyboard);
+  return false;
+}
+
+function findKeyDown(handle: HTMLElement) {
+  let node: HTMLElement | null = handle;
+  for (let depth = 0; depth < 4 && node !== null; depth += 1) {
+    const record = node as unknown as Record<string, unknown>;
+    for (const name of Object.getOwnPropertyNames(record)) {
+      if (!name.startsWith('__reactProps$') && !name.startsWith('__reactFiber$')) {
+        continue;
+      }
+      const owner = record[name];
+      const props =
+        owner !== null && typeof owner === 'object' && 'memoizedProps' in owner
+          ? (owner as { memoizedProps?: unknown }).memoizedProps
+          : owner;
+      if (props !== null && typeof props === 'object' && 'onKeyDown' in props) {
+        const handler = (props as { onKeyDown?: unknown }).onKeyDown;
+        if (typeof handler === 'function') {
+          return handler as (event: object) => void;
+        }
+      }
+    }
+    node = node.parentElement;
+  }
+  return undefined;
 }
 
 function gatewayToggle(select: HTMLSelectElement) {

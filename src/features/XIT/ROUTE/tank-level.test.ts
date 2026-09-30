@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   blueprintTestFlightBlock,
   matchingFieldLabel,
+  sliderNudgeLimit,
   sliderTarget,
   tankForLeg,
   tankKind,
@@ -51,6 +52,21 @@ describe('tankKind', () => {
     expect(tankKind('STL Fuel', 'STL Fuel', 'FTL fuel')).toBe('stl');
     expect(tankKind('FTL fuel', 'STL Fuel', 'FTL fuel')).toBe('ftl');
     expect(tankKind('Inventory', 'STL Fuel', 'FTL fuel')).toBeUndefined();
+  });
+});
+
+describe('sliderNudgeLimit', () => {
+  it('covers the pixel width of the narrow test-flight pane', () => {
+    expect(sliderNudgeLimit(3500, 103)).toBe(Math.ceil(3500 / 103) + 2);
+    expect(sliderNudgeLimit(3500, 103)).toBeGreaterThan(17);
+  });
+
+  it('covers the wider standalone track too', () => {
+    expect(sliderNudgeLimit(3500, 378)).toBe(Math.ceil(3500 / 378) + 2);
+  });
+
+  it('does not invent a bound when the track has no width', () => {
+    expect(sliderNudgeLimit(3500, 0)).toBeUndefined();
   });
 });
 

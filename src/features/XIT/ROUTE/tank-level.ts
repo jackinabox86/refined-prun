@@ -42,6 +42,15 @@ export function tankForLeg(confirmed: number, prior: number[]) {
   return rounded;
 }
 
+// A pointer lands on a pixel. One pixel of this track is `span / width` units,
+// so the arrow walk has to cover that whole pixel plus a small margin.
+export function sliderNudgeLimit(span: number, width: number) {
+  if (!Number.isFinite(span) || span < 0 || !Number.isFinite(width) || width <= 0) {
+    return undefined;
+  }
+  return Math.ceil(span / width) + 2;
+}
+
 export function sliderTarget(slider: LoadoutSlider, priorStl: number[], priorFtl: number[]) {
   if (slider.tank === 'stl') {
     return tankForLeg(slider.value, priorStl);
