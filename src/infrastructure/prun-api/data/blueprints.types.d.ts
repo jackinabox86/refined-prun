@@ -3,7 +3,8 @@ declare namespace PrunApi {
     id: string;
     naturalId: string;
     created: DateTime;
-    name: string;
+    // Live BLUEPRINT_BLUEPRINTS sends null for an unnamed blueprint.
+    name: string | null;
     billOfMaterial: MaterialQuantities;
     status: string;
     selections: BlueprintSelection[];
