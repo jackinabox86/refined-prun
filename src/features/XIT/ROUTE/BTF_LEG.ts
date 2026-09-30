@@ -69,7 +69,7 @@ export const BTF_LEG = act.addActionStep<BtfLegData>({
       return;
     }
 
-    const blueprint = blueprintsStore.getByNaturalId(data.blueprintNaturalId);
+    const blueprint = blueprintsStore.peek().getByNaturalId(data.blueprintNaturalId);
     const block = blueprintTestFlightBlock(blueprint, data.blueprintNaturalId);
     if (block !== undefined) {
       finish(`${label}: ${block}`, false);

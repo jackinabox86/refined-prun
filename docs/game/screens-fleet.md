@@ -33,6 +33,8 @@ Plan-level fuel is `0` for a type the leg does not use (in-system Amethyst b →
 
 Fields: Type (e.g. Freighter), Commissioned, Blueprint, Project History (link to shipyard project), Fuel Tanks (STL/FTL levels), Cargo Hold, Operating empty mass, Volume, STL/FTL operating time, Condition ⓘ, Repair costs ⓘ, `repair` button (server). Context bar: `SFC <transponder>`.
 
+The Blueprint line shows the blueprint's name, or its natural id when the name is null. That natural id is `Ship.blueprintNaturalId`. The BLU list uses the same display rule, so a named blueprint does not show its id there. Checked across 10 ships and 21 blueprints: each ship id matched exactly one loaded blueprint, including `AVI-05Y2T` → `BP-PSXY-5838` (`1st 2k`). An already-open BLU buffer does not refill the extension store after an extension reload; focusing it does not request `BLUEPRINT_BLUEPRINTS` again.
+
 ## SHPI — Ship Cargo Hold
 
 Same material-grid UI as `INV <store-id>` (weight/volume gauges, sort tabs) scoped to the ship's hold. Context bar: `SHP`, `SHPF`, `SFC`.

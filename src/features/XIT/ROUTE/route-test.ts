@@ -3,6 +3,8 @@ import Edit from '@src/features/XIT/ROUTE/Edit.vue';
 import { BTF_LEG } from '@src/features/XIT/ROUTE/BTF_LEG';
 import { planRouteLegs, stopLines } from '@src/features/XIT/ROUTE/plan-route';
 import { resolveRouteStop } from '@src/features/XIT/ROUTE/resolve-route-stop';
+import { ensureBlueprintsFetched } from '@src/features/XIT/ROUTE/load-blueprints';
+import { matchShipBlueprint } from '@src/features/XIT/ROUTE/ship-blueprint';
 import { blueprintTestFlightBlock } from '@src/features/XIT/ROUTE/tank-level';
 import { blueprintsStore } from '@src/infrastructure/prun-api/data/blueprints';
 import { shipsStore } from '@src/infrastructure/prun-api/data/ships';
@@ -34,8 +36,17 @@ act.addAction({
       fail();
       return;
     }
-    const blueprint = blueprintsStore.getByNaturalId(ship.blueprintNaturalId);
-    const block = blueprintTestFlightBlock(blueprint, ship.blueprintNaturalId);
+    const loaded = await ensureBlueprintsFetched();
+    const match = matchShipBlueprint(
+      loaded ? blueprintsStore.peek().all.value : undefined,
+      ship.blueprintNaturalId,
+    );
+    if ('error' in match) {
+      log.error(`${registration}: ${match.error}`);
+      fail();
+      return;
+    }
+    const block = blueprintTestFlightBlock(match.blueprint, match.blueprint.naturalId);
     if (block !== undefined) {
       log.error(`${registration}: ${block}`);
       fail();
@@ -55,7 +66,7 @@ act.addAction({
       emitStep(
         BTF_LEG({
           ...leg,
-          blueprintNaturalId: ship.blueprintNaturalId,
+          blueprintNaturalId: match.blueprint.naturalId,
           isLast: i === planned.legs.length - 1,
         }),
       );
