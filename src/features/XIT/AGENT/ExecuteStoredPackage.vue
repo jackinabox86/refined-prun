@@ -9,6 +9,7 @@ import { deserializeStorage } from '@src/features/XIT/ACT/actions/utils';
 import { ActionStep, configurableValue } from '@src/features/XIT/ACT/shared-types';
 import { getPlanetBurn } from '@src/core/burn';
 import { sitesStore } from '@src/infrastructure/prun-api/data/sites';
+import { packageForAgentRun } from '@src/features/XIT/AGENT/package-for-agent-run';
 
 const parameters = useXitParameters();
 const messageId = parameters.join(' ');
@@ -18,6 +19,38 @@ const messageId = parameters.join(' ');
 // the run in progress). A live computed here would flip `v-if="!entry"` and unmount
 // ExecuteActionPackage - and its runner - before the chained OPEN_SFC step could run.
 const entry = agentReadyPackages.value.find(x => x.messageId === messageId);
+
+// Same ship the host's trailing OPEN_SFC uses. Absent means this run does not
+// depart, so the posted package keeps its own auto-SFC.
+function resolveAgentShip(): PrunApi.Store | undefined {
+  if (entry === undefined) {
+    return undefined;
+  }
+  const origin = entry.pkg.actions.find(x => x.type === 'MTRA')?.origin;
+  if (origin === undefined || origin === configurableValue) {
+    return undefined;
+  }
+  const shipStore = deserializeStorage(origin);
+  if (shipStore?.type !== 'SHIP_STORE') {
+    return undefined;
+  }
+  return shipStore;
+}
+
+let memoOwnsDeparture: boolean | undefined;
+let memoPkg: UserData.ActionPackageData | undefined;
+const runPkg = computed(() => {
+  if (entry === undefined) {
+    return undefined;
+  }
+  const ownsDeparture = resolveAgentShip() !== undefined;
+  if (memoPkg !== undefined && memoOwnsDeparture === ownsDeparture) {
+    return memoPkg;
+  }
+  memoOwnsDeparture = ownsDeparture;
+  memoPkg = packageForAgentRun(entry.pkg, ownsDeparture);
+  return memoPkg;
+});
 
 // Build base→ship load transfers classified against planet burn.
 // Evaluated when EXECUTE is clicked, before the offload transfers run, so
@@ -91,13 +124,8 @@ const extraSteps = computed(() => {
     steps.push(AGENT_DONE({ id: entry.id }));
   }
 
-  // Resolve ship cargo store from the package's MTRA origin.
-  const origin = entry.pkg.actions.find(x => x.type === 'MTRA')?.origin;
-  if (origin === undefined || origin === configurableValue) {
-    return steps;
-  }
-  const shipStore = deserializeStorage(origin);
-  if (shipStore?.type !== 'SHIP_STORE') {
+  const shipStore = resolveAgentShip();
+  if (shipStore === undefined) {
     return steps;
   }
 
@@ -134,5 +162,5 @@ const extraSteps = computed(() => {
 
 <template>
   <div v-if="!entry"> Package "{{ messageId }}" not found. Refresh XIT AGENT and try again. </div>
-  <ExecuteActionPackage v-else :pkg="entry.pkg" :extra-steps="extraSteps" />
+  <ExecuteActionPackage v-else-if="runPkg" :pkg="runPkg" :extra-steps="extraSteps" />
 </template>
