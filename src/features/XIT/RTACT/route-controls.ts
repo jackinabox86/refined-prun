@@ -219,18 +219,21 @@ export function limitClick(
   return 'all carried';
 }
 
-const ROUTE_ID = /\bRT-[A-Z0-9]+-\d+\b/gi;
+const ROUTE_ID = /^RT-[A-Z0-9]+-\d+$/i;
 
-export function routeIdsInText(text: string): string[] {
+// The RT list's textContent runs cells together ("RT-PNWB-20050--", "deleteRT-SNXV-3853"),
+// so an id must be an element's whole text, never a match inside the joined blob.
+export function routeIdsInCells(texts: string[]): string[] {
   const seen = new Set<string>();
   const ids: string[] = [];
-  for (const match of text.matchAll(ROUTE_ID)) {
-    const id = match[0].toUpperCase();
-    if (seen.has(id)) {
+  for (const raw of texts) {
+    const text = raw.trim();
+    const id = text.toUpperCase();
+    if (!ROUTE_ID.test(text) || seen.has(id)) {
       continue;
     }
     seen.add(id);
-    ids.push(match[0]);
+    ids.push(text);
   }
   return ids;
 }

@@ -19,7 +19,7 @@ import {
   modeRowIndex,
   newRouteId,
   pickSuggestion,
-  routeIdsInText,
+  routeIdsInCells,
   selectControlLabel,
   type LimitNode,
   type NamedControl,
@@ -223,7 +223,7 @@ export function findEditor(anchor: Element, title: string): Element | undefined 
 }
 
 export function snapshotRouteIds(anchor: Element): string[] {
-  return routeIdsInText(anchor.textContent ?? '');
+  return routeIdsInCells(Array.from(anchor.querySelectorAll('*'), el => el.textContent ?? ''));
 }
 
 export async function waitForNewRouteId(
@@ -232,7 +232,7 @@ export async function waitForNewRouteId(
 ): Promise<string | undefined> {
   let created: string | undefined;
   await waitFor(() => {
-    created = newRouteId(before, routeIdsInText(anchor.textContent ?? ''));
+    created = newRouteId(before, snapshotRouteIds(anchor));
     return created !== undefined;
   }, 8000);
   return created;

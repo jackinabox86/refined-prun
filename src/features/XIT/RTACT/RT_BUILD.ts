@@ -48,8 +48,8 @@ export const RT_BUILD = act.addActionStep<Data>({
       if (list === undefined) {
         return;
       }
-      const before = snapshotRouteIds(list.anchor);
       await waitAct('Create route?');
+      const before = snapshotRouteIds(list.anchor);
       try {
         await clickControl(list.anchor, 'CREATE ROUTE');
       } catch (err) {

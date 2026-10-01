@@ -9,6 +9,7 @@ import {
   modeRowIndex,
   newRouteId,
   pickSuggestion,
+  routeIdsInCells,
   selectControlLabel,
   shouldClickAddWaypoint,
   waypointNeedles,
@@ -177,5 +178,17 @@ describe('newRouteId', () => {
   it('returns undefined when the list did not gain exactly one id', () => {
     expect(newRouteId(['RT-SNXV-3853'], ['RT-SNXV-3853'])).toBeUndefined();
     expect(newRouteId([], ['RT-AAAA-0001', 'RT-BBBB-0002'])).toBeUndefined();
+  });
+});
+
+describe('routeIdsInCells', () => {
+  it('reads ids from whole cells, not from the joined table text', () => {
+    // Measured staging RT list: textContent glues the waypoint count onto the id.
+    const table =
+      'NameWaypointsAssigned ShipsCreatedRT-PNWB-20050--3 minutes agodeleteRT-SNXV-38533AVI-0008Z3 days agodelete';
+    const before = [table.replace('RT-PNWB-20050--3 minutes agodelete', ''), ' RT-SNXV-3853 ', '3'];
+    const after = [table, 'RT-PNWB-2005', '0', '--', 'delete', ' RT-SNXV-3853 ', 'AVI-0008Z'];
+    expect(routeIdsInCells(after)).toEqual(['RT-PNWB-2005', 'RT-SNXV-3853']);
+    expect(newRouteId(routeIdsInCells(before), routeIdsInCells(after))).toBe('RT-PNWB-2005');
   });
 });
