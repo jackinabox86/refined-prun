@@ -445,13 +445,16 @@ function assignmentRows(anchor: Element): HTMLTableRowElement[] {
   return Array.from(table.querySelectorAll('tr')).filter(row => row.querySelector('td') !== null);
 }
 
-// The table may show a ship's name or its registration, so accept both.
+// The table may show a ship's name or its registration, so accept both. Unnamed ships carry a
+// null name, which crashes shipsStore.getByName, so scan the list directly.
 export function shipNames(ship: string): string[] {
   const id = ship.trim();
-  const byRegistration = shipsStore.getByRegistration(id.toUpperCase());
-  const byName = shipsStore.getByName(id);
-  return [id, byRegistration?.name, byName?.registration].filter(
-    (name): name is string => name !== undefined && name.trim().length > 0,
+  const wanted = id.toLowerCase();
+  const match = (shipsStore.all.value ?? []).find(
+    x => x.registration?.toLowerCase() === wanted || x.name?.toLowerCase() === wanted,
+  );
+  return [id, match?.registration, match?.name].filter(
+    (name): name is string => typeof name === 'string' && name.trim().length > 0,
   );
 }
 
