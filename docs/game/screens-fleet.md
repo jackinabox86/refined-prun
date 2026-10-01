@@ -17,9 +17,23 @@ Optional Address parameter filters the fleet by location.
 
 Shows Ship (name + transponder links), Origin, Destination and the flight segment table: #, Type, Destination, Duration, Distance, Damage, Consumption. `abort` button cancels an active flight (server). Location names are links (station/planet screens). On flights that incur fees the segment table gains a `Fees` column and the `Damage` header gains an ⓘ info icon (both absent otherwise — column indices shift and header text changes); fee cells can contain multiple currency amounts concatenated without spacing, e.g. `12,000 AIC4,000 CIS`, and the summary row totals them per currency. The summary row (empty first cell) sits in its own `tbody` inside the table — that `tbody` is what `C.MissionPlan.stats` matches (there is no separate stats bar), so extension content injected into a summary-row cell is a descendant of `stats`.
 
+## BTF — Blueprint Test Flight
+
+Opened from a BLU row's `test` action, or directly as `BTF <blueprint natural id>`. It takes one origin and one destination (address selectors), not an ordered multi-stop list. Two different locations fill the same mission-plan table as SFC, including the summary row (empty index and type) with total duration and STL/FTL consumption. A `LOCKED` blueprint computes the same way: `BP-STRT-0000` is `LOCKED` and returned a valid Amethyst b → Amethyst e plan. Setting the two locations is local form state plus a read-only address lookup; it does not launch a ship. `delete` on the BLU list removes a blueprint.
+
+The loadout above the table is local form state and is an input to that plan. Fuel usage, Inventory, STL Fuel, FTL fuel, and Condition are `rc-slider` handles (`role="slider"`, `aria-valuenow`), not range inputs. FTL preferences is a `<select>` (`least jumps` / `shortest FTL route`) plus a Use gateways toggle. Reactor usage is `--` when the blueprint has no reactor choice. One ArrowRight or ArrowLeft changes a fuel handle by 1 unit. A pointer drag on the STL track (378px for 0..1500 on `BP-STRT-0000`) lands within about one unit of the aimed value, so a drag alone is not an exact tank level. Dropping STL from a full tank to about half on that blueprint changed Amethyst b → Amethyst e from `7h 27m 58s` / 175 STL to `14h 56m 56s` / 138 STL. When the tank is below what the route needs, the other sliders unmount and the status reads that more STL fuel is necessary.
+
+The computed plan arrives as `SHIP_FLIGHT_MISSION` (`eta`, `stlFuelConsumption`, `ftlFuelConsumption`, `status: OK`). `C.MissionPlan.table` then carries that `missionId` as `data-prun-id`. The id stays the same when the route is edited or submitted again; each submit replaces the plan object, including a repeat of the same origin and destination, and selecting the origin alone submits against the destination still on screen. The table mounts after the message.
+
+Segment addresses carry a `SYSTEM` line plus a location line. A planet stop's location line is `PLANET` with the planet natural id (`IA-158b`). A commodity-exchange stop's location line is `STATION` with the station natural id (`ANT`, `BEN`), not the system id. The requested leg is `segments[0].origin` and the last segment's `destination`.
+
+Plan-level fuel is `0` for a type the leg does not use (in-system Amethyst b → Amethyst e was STL 227 and FTL 0; Benten Station → Antares Station was STL 270 and FTL 0). Per-segment `ftlFuelConsumption` is `null` on those same plans. The Duration cell can show a day unit and whole minutes (`1 day 5h 17m`) while `eta.millis` still rounds to that same minute (`105478126`).
+
 ## SHP — Ship Information
 
 Fields: Type (e.g. Freighter), Commissioned, Blueprint, Project History (link to shipyard project), Fuel Tanks (STL/FTL levels), Cargo Hold, Operating empty mass, Volume, STL/FTL operating time, Condition ⓘ, Repair costs ⓘ, `repair` button (server). Context bar: `SFC <transponder>`.
+
+The Blueprint line shows the blueprint's name, or its natural id when the name is null. That natural id is `Ship.blueprintNaturalId`. The BLU list uses the same display rule, so a named blueprint does not show its id there. Checked across 10 ships and 21 blueprints: each ship id matched exactly one loaded blueprint, including `AVI-05Y2T` → `BP-PSXY-5838` (`1st 2k`). An already-open BLU buffer does not refill the extension store after an extension reload; focusing it does not request `BLUEPRINT_BLUEPRINTS` again.
 
 ## SHPI — Ship Cargo Hold
 

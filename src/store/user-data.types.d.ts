@@ -77,7 +77,14 @@ declare namespace UserData {
     materialFilter?: 'All' | 'Workforce' | 'Production';
   }
 
-  type ActionType = 'CX Buy' | 'MTRA' | 'Refuel' | 'CONT Ship' | 'CONT Trade' | 'GovBurn Data';
+  type ActionType =
+    | 'CX Buy'
+    | 'MTRA'
+    | 'Refuel'
+    | 'CONT Ship'
+    | 'CONT Trade'
+    | 'GovBurn Data'
+    | 'Transits';
 
   interface ActionData {
     type: ActionType;
@@ -125,6 +132,10 @@ declare namespace UserData {
     // CONT Trade specific
     contTradeType?: 'BUYING' | 'SELLING';
     contLocation?: string;
+
+    // Transits: ship registration, and one planet or CX stop per line.
+    shipRegistration?: string;
+    routeStops?: string;
   }
 
   interface TaskList {
