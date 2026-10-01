@@ -27,6 +27,13 @@ act.addAction({
     assert(routeId.ok, routeId.ok ? '' : routeId.error);
     const spec = parseRouteSpec(data.routeSpec ?? '');
     assert(spec.ok, spec.ok ? '' : spec.error);
-    emitStep(RT_BUILD({ routeId: routeId.id, stops: spec.spec.stops }));
+    const shipId = data.shipId?.trim() ?? '';
+    emitStep(
+      RT_BUILD({
+        routeId: routeId.id,
+        shipId: shipId.length > 0 ? shipId : undefined,
+        stops: spec.spec.stops,
+      }),
+    );
   },
 });

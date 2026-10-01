@@ -21,9 +21,12 @@ import {
   pickSuggestion,
   routeIdsInCells,
   selectControlLabel,
+  shipAssignment,
+  type ShipAssignment,
   type LimitNode,
   type NamedControl,
 } from '@src/features/XIT/RTACT/route-controls';
+import { shipsStore } from '@src/infrastructure/prun-api/data/ships';
 import { stationsStore } from '@src/infrastructure/prun-api/data/stations';
 import {
   findStationBySystemId,
@@ -429,4 +432,51 @@ export async function waitForEditor(
 
 export function commandLabel(step: RouteStep): string {
   return stepCommandLabel(step);
+}
+
+// Body rows of the route view's Assignments table, the one whose header has a `Cmds` cell.
+function assignmentRows(anchor: Element): HTMLTableRowElement[] {
+  const table = Array.from(anchor.querySelectorAll('table')).find(el =>
+    Array.from(el.querySelectorAll('th')).some(th => (th.textContent ?? '').trim() === 'Cmds'),
+  );
+  if (table === undefined) {
+    return [];
+  }
+  return Array.from(table.querySelectorAll('tr')).filter(row => row.querySelector('td') !== null);
+}
+
+// The table may show a ship's name or its registration, so accept both.
+export function shipNames(ship: string): string[] {
+  const id = ship.trim();
+  const byRegistration = shipsStore.getByRegistration(id.toUpperCase());
+  const byName = shipsStore.getByName(id);
+  return [id, byRegistration?.name, byName?.registration].filter(
+    (name): name is string => name !== undefined && name.trim().length > 0,
+  );
+}
+
+export function readShipAssignment(
+  anchor: Element,
+  ship: string,
+  routeId: string,
+): { state: ShipAssignment; rows: HTMLTableRowElement[] } {
+  const rows = assignmentRows(anchor);
+  const cells = rows.map(row =>
+    Array.from(row.querySelectorAll('td'), td => (td.textContent ?? '').trim()),
+  );
+  return { state: shipAssignment(cells, shipNames(ship), routeId), rows };
+}
+
+// ASSIGN is the row's only control the runner may press; match the whole text exactly.
+export async function clickAssign(row: HTMLTableRowElement): Promise<void> {
+  const target = controlElements(row).find(
+    el =>
+      controlLabelOf(el).toUpperCase() === 'ASSIGN' &&
+      !isDisabled(el) &&
+      !el.classList.contains(C.Button.danger),
+  );
+  if (target === undefined) {
+    throw new Error('Could not find ASSIGN in the ship row');
+  }
+  await clickElement(target);
 }

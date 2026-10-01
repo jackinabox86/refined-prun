@@ -9,6 +9,7 @@ const { action } = defineProps<{
 
 const routeId = ref(action.routeId ?? '');
 const routeSpec = ref(action.routeSpec ?? '');
+const shipId = ref(action.shipId ?? '');
 const error = ref(false);
 
 function validate() {
@@ -19,6 +20,7 @@ function validate() {
 function save() {
   action.routeId = routeId.value.trim();
   action.routeSpec = routeSpec.value;
+  action.shipId = shipId.value.trim();
 }
 
 defineExpose({ validate, save });
@@ -30,6 +32,9 @@ defineExpose({ validate, save });
   </Active>
   <Active label="Stops" :error="error">
     <textarea v-model="routeSpec" :class="$style.spec" />
+  </Active>
+  <Active label="Ship">
+    <TextInput v-model="shipId" />
   </Active>
 </template>
 

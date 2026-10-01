@@ -11,6 +11,7 @@ import {
   pickSuggestion,
   routeIdsInCells,
   selectControlLabel,
+  shipAssignment,
   shouldClickAddWaypoint,
   waypointNeedles,
   type LimitNode,
@@ -190,5 +191,33 @@ describe('routeIdsInCells', () => {
     const after = [table, 'RT-PNWB-2005', '0', '--', 'delete', ' RT-SNXV-3853 ', 'AVI-0008Z'];
     expect(routeIdsInCells(after)).toEqual(['RT-PNWB-2005', 'RT-SNXV-3853']);
     expect(newRouteId(routeIdsInCells(before), routeIdsInCells(after))).toBe('RT-PNWB-2005');
+  });
+});
+
+describe('shipAssignment', () => {
+  // Measured staging route view, RT-RUJT-2222.
+  const rows = [
+    ['AVI-00090', '--', 'ASSIGN'],
+    ['AVI-0008Z', 'RT-SNXV-3853', 'execution'],
+  ];
+
+  it('finds the free ship and its ASSIGN row', () => {
+    expect(shipAssignment(rows, ['avi-00090'], 'RT-RUJT-2222')).toEqual({ kind: 'free', row: 0 });
+  });
+
+  it('refuses a ship that is already on another route', () => {
+    expect(shipAssignment(rows, ['AVI-0008Z'], 'RT-RUJT-2222')).toEqual({
+      kind: 'busy',
+      route: 'RT-SNXV-3853',
+      cmds: 'execution',
+    });
+  });
+
+  it('reports a ship already on this route', () => {
+    expect(shipAssignment(rows, ['AVI-0008Z'], 'rt-snxv-3853')).toEqual({ kind: 'here' });
+  });
+
+  it('matches the ship name cell exactly, not by substring', () => {
+    expect(shipAssignment(rows, ['AVI-0009'], 'RT-RUJT-2222')).toEqual({ kind: 'missing' });
   });
 });

@@ -13,10 +13,11 @@ const tile = useTile();
 const staging = isStagingHost(location.hostname);
 const routeId = ref('');
 const specText = ref('');
+const shipId = ref('');
 const error = ref('');
 
 function onRunClick() {
-  const built = buildStagingPackage(location.hostname, routeId.value, specText.value);
+  const built = buildStagingPackage(location.hostname, routeId.value, specText.value, shipId.value);
   if (!built.ok) {
     error.value = built.error;
     return;
@@ -37,8 +38,8 @@ function onRunClick() {
     <p v-if="!staging">This runner only runs on {{ STAGING_HOST }}.</p>
     <template v-else>
       <p>
-        One stop per line, at least two. A step sits after a pipe. Each ACT click authorizes one
-        add. You click SAVE on the step editor yourself.
+        One stop per line, at least two. A step sits after a pipe. Each ACT click authorizes one add
+        or one SAVE. A ship, if given, is assigned to the route after the last stop.
       </p>
       <p>ZV-307d</p>
       <p>ANT | load DW 1 100</p>
@@ -50,6 +51,10 @@ function onRunClick() {
         <input v-model="routeId" type="text" autocomplete="off" />
       </label>
       <textarea v-model="specText" :class="$style.spec" />
+      <label>
+        Ship (optional, assigned at the end)
+        <input v-model="shipId" type="text" autocomplete="off" />
+      </label>
       <p v-if="error.length > 0">{{ error }}</p>
       <PrunButton primary @click="onRunClick">Run</PrunButton>
     </template>

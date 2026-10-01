@@ -1,6 +1,7 @@
 import { act } from '@src/features/XIT/ACT/act-registry';
 import {
   addWaypointArmed,
+  clickAssign,
   clickControl,
   clickEditorSave,
   commandLabel,
@@ -10,6 +11,7 @@ import {
   findWaypointScope,
   locationValue,
   pickLocation,
+  readShipAssignment,
   revealHover,
   snapshotRouteIds,
   stationName,
@@ -27,6 +29,7 @@ import { waitFor } from '@src/utils/wait-for';
 
 interface Data {
   routeId?: string;
+  shipId?: string;
   stops: RouteStop[];
 }
 
@@ -42,7 +45,7 @@ export const RT_BUILD = act.addActionStep<Data>({
       return;
     }
 
-    const routeId = data.routeId?.trim() ?? '';
+    let routeId = data.routeId?.trim() ?? '';
     let tile: PrunTile | undefined;
     if (routeId.length > 0) {
       tile = await requestTile(`RT ${routeId}`);
@@ -63,6 +66,7 @@ export const RT_BUILD = act.addActionStep<Data>({
       const created = await waitForNewRouteId(list.anchor, before);
       assert(created !== undefined, 'Could not see the new route id');
       log.info(`Created ${created}`);
+      routeId = created;
       tile = await requestTile(`RT ${created}`, { actGate: false });
     }
     if (tile === undefined) {
@@ -76,6 +80,13 @@ export const RT_BUILD = act.addActionStep<Data>({
       }
     }
     log.success('Route stops are in.');
+    const ship = data.shipId?.trim() ?? '';
+    if (ship.length > 0) {
+      const ok = await assignShip(ctx, tile, ship, routeId);
+      if (!ok) {
+        return;
+      }
+    }
     complete();
   },
 });
@@ -223,6 +234,58 @@ async function dismissSaveFeedback(tile: PrunTile): Promise<void> {
   if (success !== undefined) {
     await clickElement(success);
   }
+}
+
+async function assignShip(
+  ctx: {
+    waitAct: (status?: string) => Promise<void>;
+    fail: (message?: string) => void;
+    log: { success: (message: string) => void };
+  },
+  tile: PrunTile,
+  ship: string,
+  routeId: string,
+): Promise<boolean> {
+  const { waitAct, fail, log } = ctx;
+  await waitFor(
+    () => readShipAssignment(tile.anchor, ship, routeId).state.kind !== 'missing',
+    5000,
+  );
+  const before = readShipAssignment(tile.anchor, ship, routeId);
+  switch (before.state.kind) {
+    case 'missing':
+      fail(`${ship} is not in the route's Assignments list`);
+      return false;
+    case 'here':
+      log.success(`${ship} is already assigned to ${routeId}`);
+      return true;
+    case 'busy':
+      fail(`${ship} is on ${before.state.route} (${before.state.cmds}); not reassigning it`);
+      return false;
+  }
+  await waitAct(`Assign ${ship} to ${routeId}?`);
+  const current = readShipAssignment(tile.anchor, ship, routeId);
+  if (current.state.kind !== 'free') {
+    fail(`${ship} is no longer free to assign`);
+    return false;
+  }
+  try {
+    await clickAssign(current.rows[current.state.row]);
+  } catch (err) {
+    fail(err instanceof Error ? err.message : `Could not click ASSIGN for ${ship}`);
+    return false;
+  }
+  const assigned = await waitFor(
+    () => readShipAssignment(tile.anchor, ship, routeId).state.kind === 'here',
+    8000,
+  );
+  if (!assigned) {
+    fail(`${ship} does not show ${routeId} after ASSIGN`);
+    return false;
+  }
+  await dismissSaveFeedback(tile);
+  log.success(`Assigned ${ship} to ${routeId}`);
+  return true;
 }
 
 function findLabeled(root: Element, label: string): boolean {

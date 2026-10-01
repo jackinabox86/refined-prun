@@ -10,6 +10,7 @@ export function buildStagingPackage(
   hostname: string,
   routeIdRaw: string,
   specText: string,
+  shipId = '',
 ): StagingPackageResult {
   const blocked = stagingRunBlock(hostname);
   if (blocked !== undefined) {
@@ -35,6 +36,7 @@ export function buildStagingPackage(
           name: 'Build route',
           routeId: routeId.id,
           routeSpec: specText,
+          shipId: shipId.trim().length > 0 ? shipId.trim() : undefined,
         },
       ],
     },

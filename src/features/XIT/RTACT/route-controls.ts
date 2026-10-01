@@ -247,3 +247,28 @@ export function newRouteId(before: string[], after: string[]): string | undefine
   }
   return added[0];
 }
+
+export type ShipAssignment =
+  | { kind: 'missing' }
+  | { kind: 'free'; row: number }
+  | { kind: 'here' }
+  | { kind: 'busy'; route: string; cmds: string };
+
+// The route view's Assignments table is Name | Route | Cmds, one row per ship. A free ship
+// shows `--` and an ASSIGN button; a ship on a route shows that route id instead.
+export function shipAssignment(rows: string[][], names: string[], routeId: string): ShipAssignment {
+  const wanted = new Set(names.map(name => name.trim().toLowerCase()).filter(n => n.length > 0));
+  const index = rows.findIndex(cells => wanted.has((cells[0] ?? '').trim().toLowerCase()));
+  if (index < 0) {
+    return { kind: 'missing' };
+  }
+  const route = (rows[index][1] ?? '').trim();
+  const cmds = (rows[index][2] ?? '').trim();
+  if (route.toUpperCase() === routeId.trim().toUpperCase()) {
+    return { kind: 'here' };
+  }
+  if (cmds.toUpperCase() === 'ASSIGN') {
+    return { kind: 'free', row: index };
+  }
+  return { kind: 'busy', route, cmds };
+}
