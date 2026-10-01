@@ -15,6 +15,14 @@ function prepare() {
         s.src = '';
         observer.disconnect();
       }
+      // Staging is dev-only. Production builds drop this branch.
+      // Keep the host check inline. This file is a classic content script, so a
+      // top-level import is a parse error and the script never runs.
+      if (import.meta.env.DEV && s.src.includes('apex.staging.prosperousuniverse.com')) {
+        s.textContent = s.src;
+        s.src = '';
+        observer.disconnect();
+      }
     }
   };
   serializeScripts();

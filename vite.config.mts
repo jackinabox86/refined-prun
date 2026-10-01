@@ -1,10 +1,12 @@
 import { defineConfig } from 'vite';
 import { resolve } from 'path';
+import { readFileSync, writeFileSync } from 'fs';
 import libAssetsPlugin from '@laynezh/vite-plugin-lib-assets';
 import vue from '@vitejs/plugin-vue';
 import vueJsx from '@vitejs/plugin-vue-jsx';
 import unimport from 'unimport/unplugin';
 import { createHash } from 'crypto';
+import { manifestForBuild, type ExtensionManifest } from './dev-staging-manifest';
 
 const isDev = process.env.NODE_ENV === 'development';
 
@@ -67,6 +69,7 @@ export default defineConfig({
       outputPath: 'assets',
       name: '[name].[contenthash:8].[ext]',
     }),
+    devStagingManifestPlugin(),
   ],
   publicDir: resolve(__dirname, 'public'),
   build: {
@@ -115,6 +118,25 @@ export default defineConfig({
     'process.env.NODE_ENV': `"${process.env.NODE_ENV}"`,
   },
 });
+
+function devStagingManifestPlugin() {
+  return {
+    name: 'rpr-dev-staging-manifest',
+    apply: 'build' as const,
+    closeBundle() {
+      if (!isDev) {
+        return;
+      }
+      const manifestPath = resolve(outDir, 'manifest.json');
+      const parsed: unknown = JSON.parse(readFileSync(manifestPath, 'utf8'));
+      if (typeof parsed !== 'object' || parsed === null) {
+        throw new Error('dist/manifest.json is not an object.');
+      }
+      const next = manifestForBuild(parsed as ExtensionManifest, true);
+      writeFileSync(manifestPath, `${JSON.stringify(next, null, 2)}\n`);
+    },
+  };
+}
 
 function sanitizeModuleClassname(name: string, filename: string | undefined): string {
   if (typeof filename !== 'string') {

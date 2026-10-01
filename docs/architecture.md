@@ -15,6 +15,12 @@ Stack: TypeScript, Vue 3, Vite (content scripts), CSS Modules. Package manager: 
 | `pnpm run dev` | watch-mode development build |
 | `pnpm run test` | `vitest run` |
 
+`pnpm run dev` is the only build that may grant `https://apex.staging.prosperousuniverse.com`. Vite copies `public/manifest.json` into `dist/` with no transform (`vite:prepare-out-dir` at `renderStart`). `devStagingManifestPlugin` in `vite.config.mts` rewrites that copy in `closeBundle` when `NODE_ENV === 'development'`. `pnpm run build` does not set that variable, and its `dist/manifest.json` stays byte-identical to `public/manifest.json`.
+
+`refined-prun-prepare.ts` serializes game scripts whose `src` contains `apex.prosperousuniverse.com`. A staging URL does not contain that substring (`apex.staging…` is a different host). The extra check is inlined — `import.meta.env.DEV && s.src.includes('apex.staging.prosperousuniverse.com')` — so production builds delete the branch. Folding the staging host into the production `if` instead leaves `|| false` in the store bundle.
+
+`refined-prun-prepare.ts` and `refined-prun-startup.ts` are manifest content scripts. Manifest V3 has no `"type": "module"` for `content_scripts`, so those files run as classic scripts: a top-level `import` is a parse error and the script never runs. The lib build uses `formats: ['es']` and `preserveModules: true`, which emits a cross-file import as a bare `import` instead of inlining it. Keep both files self-contained. Only `refined-prun.ts` may import other modules, because `refined-prun-startup.ts` loads that file with `script.type = 'module'`.
+
 **`pnpm run compile` does not type-check `.vue` script blocks.** `tsc` cannot read SFCs and
 there is no `vue-tsc` in this repo, so a green `compile` covers `.ts` only. An identifier used
 in a `<script setup>` block but never imported passes both `tsc` and eslint and throws at
@@ -121,9 +127,9 @@ Do not import upward (e.g. no `infrastructure` → `features` imports).
 
 Three Vite content scripts run in order:
 
-1. **`refined-prun-prepare.ts`** (`document_start`) — Serializes PrUn app scripts to pause game loading until socket proxies are injected.
-2. **`refined-prun-startup.ts`** (content script) — Loads user data from `chrome.storage.local`, injects CSS and main script as page-level `<script>` elements.
-3. **`refined-prun.ts`** (page context) — Imports shell, utils, all features, then calls `main()`.
+1. **`refined-prun-prepare.ts`** (`document_start`) — Serializes PrUn app scripts to pause game loading until socket proxies are injected. No imports; see "Commands" above.
+2. **`refined-prun-startup.ts`** (content script) — Loads user data from `chrome.storage.local`, injects CSS and main script as page-level `<script>` elements. No imports.
+3. **`refined-prun.ts`** (page context) — Imports shell, utils, all features, then calls `main()`. Loaded as `type="module"`.
 
 Important: the extension only uses the lightweight context scripts at the startup, and the main part is injected as a page-level `<script>` element. This allows the extension to work in the page context, instead of a content script sandbox.
 
