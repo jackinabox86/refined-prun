@@ -4,6 +4,7 @@ import {
   clickControl,
   commandLabel,
   fillStepEditor,
+  findEditor,
   findStepEdit,
   findWaypointScope,
   locationValue,
@@ -188,17 +189,30 @@ async function addStep(
     return false;
   }
   log.info(`Filled ${editorTitle(step)}. Click SAVE yourself.`);
-  const watch = watchDisconnect(editor);
+  const title = editorTitle(step);
+  const isOpen = () => findEditor(tile.anchor, title) !== undefined;
+  const watch = watchEditorClosed(isOpen);
   try {
-    const outcome = await waitSkipOr(`Click SAVE on ${editorTitle(step)}`, watch.done);
-    if (outcome === 'skip' && editor.isConnected) {
+    const outcome = await waitSkipOr(`Click SAVE on ${title}`, watch.done);
+    if (outcome === 'skip' && isOpen()) {
       fail('Step editor is still open');
       return false;
     }
   } finally {
     watch.cancel();
   }
+  await dismissSaveFeedback(tile);
   return true;
+}
+
+// The SAVE leaves a success overlay on the route tile; clear it before the next click.
+async function dismissSaveFeedback(tile: PrunTile): Promise<void> {
+  const find = () => _$(tile.frame, C.ActionFeedback.success) as HTMLElement | undefined;
+  await waitFor(() => find() !== undefined, 2000);
+  const success = find();
+  if (success !== undefined) {
+    await clickElement(success);
+  }
 }
 
 function findLabeled(root: Element, label: string): boolean {
@@ -216,15 +230,17 @@ async function clickEdit(el: HTMLElement): Promise<void> {
   await clickElement(el);
 }
 
-function watchDisconnect(el: Element): { done: Promise<void>; cancel: () => void } {
+// The editor's outer element survives SAVE (the tile swaps its contents), so poll for the
+// title instead of waiting for that element to disconnect.
+function watchEditorClosed(isOpen: () => boolean): { done: Promise<void>; cancel: () => void } {
   let timer = 0;
   const done = new Promise<void>(resolve => {
-    if (!el.isConnected) {
+    if (!isOpen()) {
       resolve();
       return;
     }
     timer = window.setInterval(() => {
-      if (!el.isConnected) {
+      if (!isOpen()) {
         window.clearInterval(timer);
         timer = 0;
         resolve();
