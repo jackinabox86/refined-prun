@@ -218,9 +218,15 @@ export function findStepEdit(scope: Element): HTMLElement | undefined {
 }
 
 export function findEditor(anchor: Element, title: string): Element | undefined {
+  // The editor text joins its buttons (`CANCELSAVE`), so SAVE must be an element's whole text.
+  const saves = Array.from(anchor.querySelectorAll('*')).filter(
+    el => (el.textContent ?? '').trim().toLowerCase() === 'save',
+  );
   const matches = Array.from(anchor.querySelectorAll('*')).filter(el => {
     const text = el.textContent ?? '';
-    return text.toLowerCase().includes(title.toLowerCase()) && /\bsave\b/i.test(text);
+    return (
+      text.toLowerCase().includes(title.toLowerCase()) && saves.some(save => el.contains(save))
+    );
   });
   matches.sort((a, b) => (a.textContent?.length ?? 0) - (b.textContent?.length ?? 0));
   return matches[0];
