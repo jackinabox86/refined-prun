@@ -46,9 +46,9 @@ describe('RT_BUILD source order', () => {
     expect(gate).toBeLessThan(click);
   });
 
-  it('does not name a delete or SAVE click', () => {
+  it('does not name a delete or CANCEL click', () => {
     expect(execute).not.toMatch(/clickControl\([^)]*delete/i);
-    expect(execute).not.toMatch(/clickControl\([^)]*SAVE/);
+    expect(execute).not.toMatch(/clickControl\([^)]*CANCEL/);
   });
 });
 
@@ -69,7 +69,7 @@ describe('route-dom click path', () => {
   });
 });
 
-describe('addStep re-resolves and cancels the editor poll', () => {
+describe('addStep re-resolves the waypoint and gates SAVE', () => {
   const source = readFileSync(join(here, 'RT_BUILD.ts'), 'utf8');
   const addStep = source.slice(
     source.indexOf('async function addStep'),
@@ -82,9 +82,13 @@ describe('addStep re-resolves and cancels the editor poll', () => {
     expect(addStep).not.toContain('scope: Element');
   });
 
-  it('clears the disconnect poll after the SAVE wait', () => {
-    expect(addStep.indexOf('waitSkipOr')).toBeGreaterThan(-1);
-    expect(addStep.indexOf('waitSkipOr')).toBeLessThan(addStep.indexOf('cancel()'));
+  it('clicks SAVE only after an ACT gate that follows the fill', () => {
+    const fill = addStep.indexOf('await fillStepEditor');
+    const gate = addStep.indexOf('await waitAct(`Save ');
+    const save = addStep.indexOf('await clickEditorSave');
+    expect(fill).toBeGreaterThan(-1);
+    expect(fill).toBeLessThan(gate);
+    expect(gate).toBeLessThan(save);
   });
 
   it('waits for a new step pencil instead of action feedback', () => {

@@ -232,6 +232,19 @@ export function findEditor(anchor: Element, title: string): Element | undefined 
   return matches[0];
 }
 
+// SAVE is the editor's only commit control. Its element's whole text is `SAVE`; CANCEL and
+// delete sit beside it, so match exactly and never fall back to a substring.
+export async function clickEditorSave(editor: Element): Promise<void> {
+  const saves = Array.from(editor.querySelectorAll('*')).filter(
+    el => (el.textContent ?? '').trim().toLowerCase() === 'save',
+  );
+  const target = saves[saves.length - 1] as HTMLElement | undefined;
+  if (target === undefined) {
+    throw new Error('Could not find SAVE in the step editor');
+  }
+  await clickElement(target);
+}
+
 export function snapshotRouteIds(anchor: Element): string[] {
   return routeIdsInCells(Array.from(anchor.querySelectorAll('*'), el => el.textContent ?? ''));
 }

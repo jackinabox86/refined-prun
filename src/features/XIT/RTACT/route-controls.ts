@@ -82,7 +82,8 @@ export function isAddWaypointArmed(flags: {
   return !flags.disabled && !flags.neutral && !flags.danger;
 }
 
-// Editor fills may click mode words only. SAVE, CANCEL, and delete stay with the player.
+// Editor fills may click mode words only. SAVE has its own ACT-gated click; CANCEL and
+// delete are never clicked.
 export function assertEditorClick(label: string): void {
   if (DELETE_LABEL.test(label) || !EDITOR_CLICKS.has(label.trim().toLowerCase())) {
     throw new Error(`Refusing editor click: ${label}`);

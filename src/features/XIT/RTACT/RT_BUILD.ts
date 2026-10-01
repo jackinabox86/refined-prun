@@ -2,6 +2,7 @@ import { act } from '@src/features/XIT/ACT/act-registry';
 import {
   addWaypointArmed,
   clickControl,
+  clickEditorSave,
   commandLabel,
   fillStepEditor,
   findEditor,
@@ -74,7 +75,7 @@ export const RT_BUILD = act.addActionStep<Data>({
         return;
       }
     }
-    log.success('Route stops are in. Each step SAVE was left to you.');
+    log.success('Route stops are in.');
     complete();
   },
 });
@@ -127,7 +128,6 @@ async function addStop(
 async function addStep(
   ctx: {
     waitAct: (status?: string) => Promise<void>;
-    waitSkipOr: (status: string, event: Promise<void>) => Promise<'skip' | 'ready'>;
     fail: (message?: string) => void;
     log: { info: (message: string) => void };
   },
@@ -136,7 +136,7 @@ async function addStep(
   stop: RouteStop,
   step: RouteStep,
 ): Promise<boolean> {
-  const { waitAct, waitSkipOr, fail, log } = ctx;
+  const { waitAct, fail, log } = ctx;
   const command = commandLabel(step);
   await waitAct(`Add ${command} at ${stop.query}?`);
   const scope = findWaypointScope(tile.anchor, needles);
@@ -190,18 +190,26 @@ async function addStep(
     fail(err instanceof Error ? err.message : `Could not fill ${editorTitle(step)}`);
     return false;
   }
-  log.info(`Filled ${editorTitle(step)}. Click SAVE yourself.`);
   const title = editorTitle(step);
-  const isOpen = () => findEditor(tile.anchor, title) !== undefined;
-  const watch = watchEditorClosed(isOpen);
+  log.info(`Filled ${title}`);
+  await waitAct(`Save ${title}?`);
+  const current = findEditor(tile.anchor, title);
+  if (current === undefined) {
+    fail(`${title} closed before SAVE`);
+    return false;
+  }
   try {
-    const outcome = await waitSkipOr(`Click SAVE on ${title}`, watch.done);
-    if (outcome === 'skip' && isOpen()) {
-      fail('Step editor is still open');
-      return false;
-    }
-  } finally {
-    watch.cancel();
+    await clickEditorSave(current);
+  } catch (err) {
+    fail(err instanceof Error ? err.message : `Could not click SAVE on ${title}`);
+    return false;
+  }
+  // The editor's outer element survives SAVE (the tile swaps its contents), so poll for the
+  // title instead of waiting for that element to disconnect.
+  const closed = await waitFor(() => findEditor(tile.anchor, title) === undefined, 8000);
+  if (!closed) {
+    fail(`${title} is still open after SAVE`);
+    return false;
   }
   await dismissSaveFeedback(tile);
   return true;
@@ -230,32 +238,4 @@ async function clickEdit(el: HTMLElement): Promise<void> {
     throw new Error(`Refusing to activate a delete control (${label})`);
   }
   await clickElement(el);
-}
-
-// The editor's outer element survives SAVE (the tile swaps its contents), so poll for the
-// title instead of waiting for that element to disconnect.
-function watchEditorClosed(isOpen: () => boolean): { done: Promise<void>; cancel: () => void } {
-  let timer = 0;
-  const done = new Promise<void>(resolve => {
-    if (!isOpen()) {
-      resolve();
-      return;
-    }
-    timer = window.setInterval(() => {
-      if (!isOpen()) {
-        window.clearInterval(timer);
-        timer = 0;
-        resolve();
-      }
-    }, 200);
-  });
-  return {
-    done,
-    cancel: () => {
-      if (timer !== 0) {
-        window.clearInterval(timer);
-        timer = 0;
-      }
-    },
-  };
 }
