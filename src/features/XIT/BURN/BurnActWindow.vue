@@ -13,6 +13,7 @@ import {
   rememberPlanetCxExchange,
 } from '@src/features/XIT/BURN/cx-exchange';
 import { userData } from '@src/store/user-data';
+import { burnActPackage } from '@src/features/XIT/BURN/burn-act-package';
 import { computeResupplyBill } from '@src/features/XIT/ACT/material-groups/resupply/bill';
 import type { MaterialFilter } from '@src/features/XIT/ACT/material-groups/resupply/config';
 import type { LogTag, LogContent } from '@src/features/XIT/ACT/runner/logger';
@@ -58,38 +59,20 @@ function persistExchange(pkgConfig: ActionPackageConfig) {
 
 const agent = ref(false);
 
-const pkg = computed(
-  () =>
-    ({
-      global: { name: `Burn Resupply: ${planetName.value ?? naturalId}` },
-      groups: [
-        {
-          type: 'Resupply' as UserData.MaterialGroupType,
-          name: 'Resupply',
-          planet: planetName.value,
-          days: configurableValue,
-          useBaseInv: true,
-        },
-      ],
-      actions: [
-        {
-          type: 'CX Buy' as UserData.ActionType,
-          name: 'CX Buy',
-          group: 'Resupply',
-          exchange: configurableValue,
-          useCXInv: true,
-          skippable: true,
-        },
-        {
-          type: 'MTRA' as UserData.ActionType,
-          name: 'MTRA',
-          group: 'Resupply',
-          origin: configurableValue,
-          dest: configurableValue,
-          postToAgent: agent.value,
-        },
-      ],
-    }) as UserData.ActionPackageData,
+const refuel = computed({
+  get: () => userData.settings.burn.refuel ?? true,
+  set: value => {
+    userData.settings.burn.refuel = value;
+  },
+});
+
+const pkg = computed(() =>
+  burnActPackage({
+    planetName: planetName.value,
+    naturalId,
+    refuel: refuel.value,
+    agent: agent.value,
+  }),
 );
 
 const generateReturnJson = ref(false);
@@ -172,6 +155,7 @@ function afterExecute(
     :config-changed="persistExchange"
     :keep-open-on-complete="keepOpenOnComplete">
     <template #extra>
+      <RadioItem v-model="refuel" horizontal>REFUEL</RadioItem>
       <Active label="Generate Return JSON">
         <RadioItem v-model="generateReturnJson">generate return json</RadioItem>
       </Active>

@@ -1013,6 +1013,13 @@ no scroll, so plain `XIT SET` still opens at the top.
 XIT PLANETS answers to `PLANETS`, `PLNT`, and `PLS`. The XIT SET Base-specific
 buttons are labelled `XIT PLS` so the button names a command the player can type.
 
+`XIT BURNACT` has a REFUEL toggle on the configure pane. On (the default) prepends
+the same action DISPATCH prepends: `Refuel` / `All Exchanges` / `buyMissingFuel`.
+The choice is `settings.burn.refuel`, one value for every base, because the action
+refuels ships at exchanges rather than the planet being resupplied. A floating
+BURNACT buffer does not keep `useTileState` across opens, so this lives on
+`userData`. Missing means on.
+
 `XIT BURNACT` stores the last chosen CX buy exchange in
 `settings.burn.planetCxExchange[planetNaturalId]`. A base with nothing stored opens on
 `DEFAULT_CX_EXCHANGE` (`AI1`) until the player picks something else. MTRA "from" follows

@@ -27,6 +27,7 @@ describe('govburn per-planet force CX buy migration', () => {
 
 const RENAME_ID = '20.09.2026 Rename act-dispatch-auto-close';
 const DECIMAL_DAYS_ID = '29.09.2026 Add XIT BS decimal burn days';
+const BURNACT_REFUEL_ID = '30.09.2026 Add BURNACT refuel option';
 
 // User data as it looks just before the rename migration: every other migration applied.
 function beforeRename(disabled: string[]) {
@@ -186,6 +187,21 @@ describe('act-dispatch-auto-close rename', () => {
   it('ships the new id disabled by default for a fresh install', () => {
     expect(initialUserData.settings.disabled).toContain('act-auto-close');
     expect(initialUserData.settings.disabled).not.toContain('act-dispatch-auto-close');
+  });
+});
+
+describe('BURNACT refuel migration', () => {
+  it('turns refuel on for an existing player without changing other burn settings', () => {
+    const userData = appliedExcept([BURNACT_REFUEL_ID]);
+    delete userData.settings.burn.refuel;
+    userData.settings.burn.red = 4;
+    migrateUserData(userData);
+    expect(userData.settings.burn.refuel).toBe(true);
+    expect(userData.settings.burn.red).toBe(4);
+  });
+
+  it('ships on for a fresh install', () => {
+    expect(initialUserData.settings.burn.refuel).toBe(true);
   });
 });
 
