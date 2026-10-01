@@ -197,6 +197,9 @@ function clearLog() {
   <div v-else :class="$style.root">
     <Header :class="$style.header">{{ pkg.global.name }}</Header>
     <ConfigWindow v-if="shouldShowConfigure" :pkg="pkg" :config="config" :class="$style.mainWindow">
+      <template v-if="$slots['mtra-extra']" #mtra-extra>
+        <slot name="mtra-extra" />
+      </template>
       <template v-if="$slots.extra" #extra>
         <slot name="extra" />
       </template>

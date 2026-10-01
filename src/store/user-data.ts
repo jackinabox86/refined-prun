@@ -34,6 +34,9 @@ export const initialUserData = deepFreeze({
       planetPickup: {} as Record<string, string>,
       // Planet natural id -> last CX buy exchange chosen in BURNACT.
       planetCxExchange: {} as Record<string, UserData.Exchange>,
+      // BURNACT configure pane. On prepends an all-exchanges Refuel action.
+      // One preference for every base; missing means on.
+      refuel: true,
     },
     flow: {
       overrides: {} as Record<string, UserData.PriceOverride>,
