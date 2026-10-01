@@ -87,10 +87,12 @@ describe('addStep re-resolves and cancels the editor poll', () => {
     expect(addStep.indexOf('waitSkipOr')).toBeLessThan(addStep.indexOf('cancel()'));
   });
 
-  it('waits for the step pencil after the add feedback', () => {
-    const afterFeedback = addStep.slice(addStep.lastIndexOf('await waitActionFeedback(tile);'));
-    const lookup = afterFeedback.indexOf('findStepEdit');
+  it('waits for a new step pencil instead of action feedback', () => {
+    expect(addStep).not.toContain('waitActionFeedback');
+    const afterClick = addStep.slice(addStep.indexOf('await clickControl(scope, command)'));
+    const lookup = afterClick.indexOf('findStepEdit');
     expect(lookup).toBeGreaterThan(-1);
-    expect(afterFeedback.indexOf('waitFor')).toBeLessThan(lookup);
+    expect(afterClick.indexOf('waitFor')).toBeLessThan(lookup);
+    expect(afterClick.indexOf('editsBefore')).toBeLessThan(lookup);
   });
 });

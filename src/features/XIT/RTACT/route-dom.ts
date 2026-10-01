@@ -208,8 +208,12 @@ export function revealHover(el: Element): void {
   el.dispatchEvent(new MouseEvent('mouseenter', { bubbles: true }));
 }
 
+export function stepEdits(scope: Element): HTMLElement[] {
+  return controlElements(scope).filter(el => isStepEditLabel(controlLabelOf(el)));
+}
+
 export function findStepEdit(scope: Element): HTMLElement | undefined {
-  const edits = controlElements(scope).filter(el => isStepEditLabel(controlLabelOf(el)));
+  const edits = stepEdits(scope);
   return edits[edits.length - 1];
 }
 

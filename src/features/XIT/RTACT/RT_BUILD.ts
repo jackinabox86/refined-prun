@@ -11,6 +11,7 @@ import {
   revealHover,
   snapshotRouteIds,
   stationName,
+  stepEdits,
   waitForEditor,
   waitForNewRouteId,
   waypointBlock,
@@ -126,7 +127,6 @@ async function addStep(
   ctx: {
     waitAct: (status?: string) => Promise<void>;
     waitSkipOr: (status: string, event: Promise<void>) => Promise<'skip' | 'ready'>;
-    waitActionFeedback: (tile: PrunTile) => Promise<void>;
     fail: (message?: string) => void;
     log: { info: (message: string) => void };
   },
@@ -135,7 +135,7 @@ async function addStep(
   stop: RouteStop,
   step: RouteStep,
 ): Promise<boolean> {
-  const { waitAct, waitSkipOr, waitActionFeedback, fail, log } = ctx;
+  const { waitAct, waitSkipOr, fail, log } = ctx;
   const command = commandLabel(step);
   await waitAct(`Add ${command} at ${stop.query}?`);
   const scope = findWaypointScope(tile.anchor, needles);
@@ -145,13 +145,14 @@ async function addStep(
   }
   revealHover(scope);
   await waitFor(() => findLabeled(scope, command), 1500);
+  const editsBefore = stepEdits(waypointBlock(scope)).length;
   try {
     await clickControl(scope, command);
   } catch (err) {
     fail(err instanceof Error ? err.message : `Could not click ${command}`);
     return false;
   }
-  await waitActionFeedback(tile);
+  // Adding a step shows no action feedback overlay; the new step row is the signal.
   let edit: HTMLElement | undefined;
   await waitFor(() => {
     const fresh = findWaypointScope(tile.anchor, needles);
@@ -159,9 +160,12 @@ async function addStep(
     if (block !== undefined) {
       revealHover(block);
     }
-    edit = block === undefined ? undefined : findStepEdit(block);
+    edit =
+      block === undefined || stepEdits(block).length <= editsBefore
+        ? undefined
+        : findStepEdit(block);
     return edit !== undefined;
-  }, 5000);
+  }, 8000);
   if (edit === undefined) {
     fail(`Could not find the Edit control for ${command} at ${stop.query}`);
     return false;
