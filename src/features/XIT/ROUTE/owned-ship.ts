@@ -1,4 +1,5 @@
 import { getShipSize } from '@src/core/ship-sizes';
+import { materialsStore } from '@src/infrastructure/prun-api/data/materials';
 import { shipsStore } from '@src/infrastructure/prun-api/data/ships';
 import { storagesStore } from '@src/infrastructure/prun-api/data/storage';
 
@@ -23,9 +24,20 @@ export function fuelCapacities(ship: PrunApi.Ship | undefined) {
     return { stl: 0, ftl: 0 };
   }
   return {
-    stl: storagesStore.getById(ship.idStlFuelStore)?.weightCapacity ?? 0,
-    ftl: storagesStore.getById(ship.idFtlFuelStore)?.weightCapacity ?? 0,
+    stl: tankUnits(ship.idStlFuelStore, 'SF'),
+    ftl: tankUnits(ship.idFtlFuelStore, 'FF'),
   };
+}
+
+// Tank capacity in fuel units, the same unit TRANSITS records per leg.
+// Store capacity is in m³; refuel.ts converts the same way.
+function tankUnits(storeId: string, ticker: string) {
+  const capacity = storagesStore.getById(storeId)?.volumeCapacity ?? 0;
+  const volume = materialsStore.getByTicker(ticker)?.volume ?? 0;
+  if (capacity <= 0 || volume <= 0) {
+    return 0;
+  }
+  return Math.round(capacity / volume);
 }
 
 export function cargoForRoute(sizeId: string | undefined): PrunApi.Store | undefined {
