@@ -154,10 +154,12 @@ function afterExecute(
     :after-execute="afterExecute"
     :config-changed="persistExchange"
     :keep-open-on-complete="keepOpenOnComplete">
-    <template #extra>
+    <template #mtra-extra>
       <Active label="Refuel">
         <RadioItem v-model="refuel">refuel</RadioItem>
       </Active>
+    </template>
+    <template #extra>
       <Active label="Generate Return JSON">
         <RadioItem v-model="generateReturnJson">generate return json</RadioItem>
       </Active>

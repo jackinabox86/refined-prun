@@ -209,6 +209,7 @@ const autoSfc = computed({
     <Passive v-else label="To">
       <span>{{ data.dest }}</span>
     </Passive>
+    <slot />
     <Active v-if="showAutoSfcToggle" label="Auto SFC">
       <RadioItem v-model="autoSfc">auto sfc</RadioItem>
     </Active>
