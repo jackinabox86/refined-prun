@@ -45,7 +45,7 @@ interface PoolEntry {
 }
 
 const parameters = useXitParameters();
-const selectedId = ref(parameters[0]);
+const selectedId = ref(parameters[0] ?? shippingRoutes()[0]?.id);
 const route = computed(() => findRoute(selectedId.value));
 const routes = computed(() => shippingRoutes());
 const ordered = ref<string[]>([]);
@@ -114,10 +114,11 @@ const catalog = computed(() => {
 });
 
 const available = computed(() => {
-  const items = catalog.value.bases.filter(x => !assigned.value.has(x.key));
+  const items: PoolEntry[] = [];
   if (!cxOnRoute.value) {
     items.push(...catalog.value.exchanges.filter(x => !assigned.value.has(x.key)));
   }
+  items.push(...catalog.value.bases.filter(x => !assigned.value.has(x.key)));
   return items;
 });
 
