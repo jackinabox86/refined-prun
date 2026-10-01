@@ -3,12 +3,16 @@ import ActionBar from '@src/components/ActionBar.vue';
 import Header from '@src/components/Header.vue';
 import PrunButton from '@src/components/PrunButton.vue';
 import Active from '@src/components/forms/Active.vue';
+import { ownedShipOfSize } from '@src/features/XIT/ROUTE/owned-ship';
+import { findRoute } from '@src/features/XIT/ROUTE/routes';
 import { shipOptions } from '@src/features/XIT/TRANSITS/ship-options';
 import { planRouteLegs, stopLines } from '@src/features/XIT/TRANSITS/plan-route';
 import { resolveRouteStop } from '@src/features/XIT/TRANSITS/resolve-route-stop';
+import { routeResults } from '@src/features/XIT/TRANSITS/route-results';
 import { stagedRoute } from '@src/features/XIT/TRANSITS/staged';
 import { useMinBufferHeight } from '@src/hooks/use-min-buffer-height';
 import { useTile } from '@src/hooks/use-tile';
+import { useXitParameters } from '@src/hooks/use-xit-parameters';
 import { UI_TILES_CHANGE_COMMAND } from '@src/infrastructure/prun-api/client-messages';
 import { dispatchClientPrunMessage } from '@src/infrastructure/prun-api/prun-api-listener';
 import { showBuffer } from '@src/infrastructure/prun-ui/buffers';
@@ -16,14 +20,40 @@ import { showBuffer } from '@src/infrastructure/prun-ui/buffers';
 const tile = useTile();
 useMinBufferHeight();
 
+const parameters = useXitParameters();
 const shipRegistration = ref('');
 const routeStops = ref('');
 const formError = ref('');
 const options = computed(() => shipOptions());
+let appliedStops = false;
+let appliedShip = false;
 
 watch(
   options,
   list => {
+    const routeId = parameters[0];
+    routeResults.routeId = routeId;
+    if (routeId !== undefined) {
+      const route = findRoute(routeId);
+      if (route !== undefined) {
+        if (!appliedStops) {
+          routeStops.value = route.stops.map(stop => stop.id).join('\n');
+          appliedStops = true;
+        }
+        if (!appliedShip) {
+          const ship = ownedShipOfSize(route.shipSize);
+          const registration = ship === undefined ? '' : ship.registration.trim();
+          const waitingForShip = route.shipSize !== undefined && registration.length === 0;
+          const listed = registration.length > 0 && list.some(x => x.value === registration);
+          if (!waitingForShip && (registration.length === 0 || listed)) {
+            if (listed) {
+              shipRegistration.value = registration;
+            }
+            appliedShip = true;
+          }
+        }
+      }
+    }
     if (list.some(x => x.value === shipRegistration.value)) {
       return;
     }
@@ -53,6 +83,7 @@ const preview = computed(() => {
 });
 
 function onTest() {
+  routeResults.routeId = parameters[0];
   formError.value = '';
   if (!canTest.value) {
     formError.value = 'Choose a ship and enter at least two stops';

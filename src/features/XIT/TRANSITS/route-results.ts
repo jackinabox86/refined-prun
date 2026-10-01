@@ -9,6 +9,7 @@ export interface RecordedLeg {
 
 export const routeResults = {
   legs: [] as RecordedLeg[],
+  routeId: undefined as string | undefined,
   reset() {
     this.legs = [];
   },

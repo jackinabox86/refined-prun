@@ -134,6 +134,9 @@ export const initialUserData = deepFreeze({
 
   // Used in user-data-migrations.ts
   migrations: undefined,
+  // Shared by XIT ROUTECONFIG and XIT ROUTEBURN. Absent on older blobs stays
+  // at this default because applyUserData assigns top-level keys only.
+  routes: [] as UserData.ShippingRoute[],
 });
 
 export const userData = reactive({} as typeof initialUserData);

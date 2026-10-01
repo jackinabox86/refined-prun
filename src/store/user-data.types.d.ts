@@ -258,4 +258,25 @@ declare namespace UserData {
   // Persists GOVBURNACT's slot picks; may be shorter than the configured
   // count when some slots are still unresolved.
   type GovBurnPlanetSlots = Record<string, string[]>;
+
+  interface ShippingRouteStop {
+    kind: 'cx' | 'base';
+    id: string;
+  }
+
+  interface ShippingRouteLeg {
+    ok: boolean;
+    seconds?: number;
+    stl?: number;
+    ftl?: number;
+  }
+
+  interface ShippingRoute {
+    id: string;
+    name: string;
+    stops: ShippingRouteStop[];
+    shipSize?: string;
+    days?: number;
+    legs?: ShippingRouteLeg[];
+  }
 }

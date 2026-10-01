@@ -14,6 +14,7 @@ import {
   formatRouteTotal,
   routeResults,
 } from '@src/features/XIT/TRANSITS/route-results';
+import { saveRouteLegs } from '@src/features/XIT/ROUTE/routes';
 import { blueprintTestFlightBlock } from '@src/features/XIT/TRANSITS/tank-level';
 import { blueprintsStore } from '@src/infrastructure/prun-api/data/blueprints';
 import { flightPlansStore } from '@src/infrastructure/prun-api/data/flight-plans';
@@ -47,6 +48,7 @@ export const BTF_LEG = act.addActionStep<BtfLegData>({
           ? { ok: true, seconds: recorded.seconds, stl: recorded.stl, ftl: recorded.ftl }
           : { ok: false },
       );
+      saveRouteLegs(routeResults.routeId, routeResults.legs);
       const text = data.isLast ? `${line} | ${formatRouteTotal(routeResults.legs)}` : line;
       if (ok && recorded !== undefined) {
         const saved = confirmedLoadout.current;
