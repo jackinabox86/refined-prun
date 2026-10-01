@@ -146,7 +146,9 @@ async function addStep(
   }
   revealHover(scope);
   await waitFor(() => findLabeled(scope, command), 1500);
-  const editsBefore = stepEdits(waypointBlock(scope)).length;
+  // Count the whole route: an empty waypoint's block resolves to the full list, so a
+  // per-block count would include the earlier waypoints' pencils.
+  const editsBefore = stepEdits(tile.anchor).length;
   try {
     await clickControl(scope, command);
   } catch (err) {
@@ -162,7 +164,7 @@ async function addStep(
       revealHover(block);
     }
     edit =
-      block === undefined || stepEdits(block).length <= editsBefore
+      block === undefined || stepEdits(tile.anchor).length <= editsBefore
         ? undefined
         : findStepEdit(block);
     return edit !== undefined;
