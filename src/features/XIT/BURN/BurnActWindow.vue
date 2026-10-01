@@ -155,7 +155,9 @@ function afterExecute(
     :config-changed="persistExchange"
     :keep-open-on-complete="keepOpenOnComplete">
     <template #extra>
-      <RadioItem v-model="refuel" horizontal>REFUEL</RadioItem>
+      <Active label="Refuel">
+        <RadioItem v-model="refuel">refuel</RadioItem>
+      </Active>
       <Active label="Generate Return JSON">
         <RadioItem v-model="generateReturnJson">generate return json</RadioItem>
       </Active>
