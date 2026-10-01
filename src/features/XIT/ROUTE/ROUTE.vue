@@ -101,8 +101,8 @@ function onTest() {
       <p v-if="formError" :class="$style.error">{{ formError }}</p>
       <p :class="$style.note">
         Runs each leg through that ship's blueprint test flight. The first leg waits so the fuel
-        loadout can be set. Later legs reuse it and burn the tanks down. Does not delete a
-        blueprint.
+        loadout can be set. Later legs reuse it and burn the tanks down. The last leg waits again so
+        that loadout can be confirmed. Does not delete a blueprint.
       </p>
       <ActionBar>
         <PrunButton primary :disabled="!canTest" @click="onTest">Test route</PrunButton>

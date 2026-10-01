@@ -144,31 +144,49 @@ export const BTF_LEG = act.addActionStep<BtfLegData>({
         confirmedLoadout.current = captured.loadout;
       }
       if (action === 'read-summary') {
-        const matched = await waitForLegPlan(
+        const settle = isFirstOfType ? 1000 : 300;
+        const shown = await waitForLegPlan(
           tile.anchor,
           previousPlan,
           originQuery,
           destinationQuery,
-          isFirstOfType ? 1000 : 300,
+          settle,
         );
-        if (matched !== undefined) {
-          const saved = confirmedLoadout.current;
-          if (saved === undefined) {
-            finish(`${label}: fuel loadout was not confirmed`, false);
-            return;
-          }
-          const tanks = tankLevelsAtTarget(tile.anchor, saved);
-          if (tanks !== undefined) {
-            finish(`${label}: ${tanks}`, false);
-            return;
-          }
-          finish(formatLegLine(label, matched), true, matched);
+        if (shown === undefined) {
+          finish(
+            `${label}: ${flightPlanFailure(currentPlan(tile.anchor), originQuery, destinationQuery)}`,
+            false,
+          );
           return;
         }
-        finish(
-          `${label}: ${flightPlanFailure(currentPlan(tile.anchor), originQuery, destinationQuery)}`,
-          false,
-        );
+        // The last leg stays on screen until the player confirms the fuel.
+        // Middle legs do not wait. A one-leg route already waited above.
+        const confirmLast = data.isLast && !isFirstOfType;
+        if (confirmLast) {
+          await waitAct(`Check the fuel loadout for ${label}, then ACT`);
+        }
+        const matched = confirmLast
+          ? await waitForLegPlan(tile.anchor, previousPlan, originQuery, destinationQuery, settle)
+          : shown;
+        if (matched === undefined) {
+          finish(
+            `${label}: ${flightPlanFailure(currentPlan(tile.anchor), originQuery, destinationQuery)}`,
+            false,
+          );
+          return;
+        }
+        const saved = confirmedLoadout.current;
+        if (saved === undefined) {
+          finish(`${label}: fuel loadout was not confirmed`, false);
+          return;
+        }
+        const tanks = tankLevelsAtTarget(tile.anchor, saved);
+        if (tanks !== undefined) {
+          finish(`${label}: ${tanks}`, false);
+          return;
+        }
+        finish(formatLegLine(label, matched), true, matched);
+        return;
       }
     }
   },

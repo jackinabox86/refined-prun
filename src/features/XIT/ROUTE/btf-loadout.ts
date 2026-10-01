@@ -233,6 +233,7 @@ function fieldLabels() {
   const label = L.BlueprintTestFlight.label;
   return [
     label.fuelUsage(),
+    label.reactorUsage(),
     label.payload(),
     label.stlFuel(),
     label.ftlFuel(),
