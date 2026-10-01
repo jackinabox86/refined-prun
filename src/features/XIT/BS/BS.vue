@@ -14,7 +14,6 @@ import {
 import { showBuffer } from '@src/infrastructure/prun-ui/buffers';
 import { comparePlanets } from '@src/util';
 import { useTileState } from '@src/store/user-data-tiles';
-import { userData } from '@src/store/user-data';
 import { getPlanetBurn } from '@src/core/burn';
 import { getRepairThreshold } from '@src/core/buildings';
 import { countDays } from '@src/features/XIT/BURN/utils';
@@ -75,8 +74,7 @@ interface BaseEntry {
   storeId: string;
   days: number | undefined;
   repairDays: number | undefined;
-  burnThreshold: number;
-  repairThreshold: number;
+  repairTarget: number;
 }
 
 const bases = computed<BaseEntry[] | undefined>(() => {
@@ -97,8 +95,7 @@ const bases = computed<BaseEntry[] | undefined>(() => {
         storeId: storagesStore.getByAddressableId(site.siteId)?.[0]?.id ?? '',
         days: burn ? countDays(burn.burn) : undefined,
         repairDays: getPlanetRepairAge(site.siteId, now),
-        burnThreshold: userData.settings.burn.red,
-        repairThreshold: getRepairThreshold(naturalId),
+        repairTarget: getRepairThreshold(naturalId),
       };
     })
     .filter(x => x.naturalId);
@@ -164,7 +161,7 @@ const filteredBases = computed(() => {
       <RadioItem
         v-model="dynamicSort"
         horizontal
-        data-tooltip="Sort by the closer of burn and repair to their thresholds"
+        data-tooltip="Sort by the closer of running out of supply and reaching the repair target"
         data-tooltip-position="bottom">
         DYNAMIC
       </RadioItem>
