@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { planRouteLegs } from '@src/features/XIT/ROUTE/plan-route';
-import { RouteStop } from '@src/features/XIT/ROUTE/resolve-route-stop';
+import { planRouteLegs } from '@src/features/XIT/TRANSITS/plan-route';
+import { RouteStop } from '@src/features/XIT/TRANSITS/resolve-route-stop';
 
 function stop(query: string, label = query): RouteStop {
   return { raw: query, label, query };

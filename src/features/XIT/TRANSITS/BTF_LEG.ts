@@ -1,19 +1,20 @@
 import { act } from '@src/features/XIT/ACT/act-registry';
-import { btfLegActions } from '@src/features/XIT/ROUTE/btf-leg-actions';
+import { btfLegActions } from '@src/features/XIT/TRANSITS/btf-leg-actions';
 import {
   applyConfirmedLoadout,
   captureLoadout,
   confirmedLoadout,
+  setInventoryFull,
   tankLevelsAtTarget,
-} from '@src/features/XIT/ROUTE/btf-loadout';
-import { RouteLeg } from '@src/features/XIT/ROUTE/plan-route';
-import { flightPlanFailure, summarizeFreshPlan } from '@src/features/XIT/ROUTE/read-btf-summary';
+} from '@src/features/XIT/TRANSITS/btf-loadout';
+import { RouteLeg } from '@src/features/XIT/TRANSITS/plan-route';
+import { flightPlanFailure, summarizeFreshPlan } from '@src/features/XIT/TRANSITS/read-btf-summary';
 import {
   formatLegLine,
   formatRouteTotal,
   routeResults,
-} from '@src/features/XIT/ROUTE/route-results';
-import { blueprintTestFlightBlock } from '@src/features/XIT/ROUTE/tank-level';
+} from '@src/features/XIT/TRANSITS/route-results';
+import { blueprintTestFlightBlock } from '@src/features/XIT/TRANSITS/tank-level';
 import { blueprintsStore } from '@src/infrastructure/prun-api/data/blueprints';
 import { flightPlansStore } from '@src/infrastructure/prun-api/data/flight-plans';
 import { getPrunId } from '@src/infrastructure/prun-ui/attributes';
@@ -121,6 +122,11 @@ export const BTF_LEG = act.addActionStep<BtfLegData>({
         }
       }
       if (action === 'confirm-loadout' && isFirstOfType) {
+        const full = await setInventoryFull(tile.anchor);
+        if (full !== undefined) {
+          finish(`${label}: ${full}`, false);
+          return;
+        }
         const shown = await waitForLegPlan(
           tile.anchor,
           previousPlan,

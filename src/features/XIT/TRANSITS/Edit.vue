@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import Active from '@src/components/forms/Active.vue';
-import { shipOptions } from '@src/features/XIT/ROUTE/ship-options';
-import { stopLines } from '@src/features/XIT/ROUTE/plan-route';
+import { shipOptions } from '@src/features/XIT/TRANSITS/ship-options';
+import { stopLines } from '@src/features/XIT/TRANSITS/plan-route';
 
 const { action } = defineProps<{
   action: UserData.ActionData;

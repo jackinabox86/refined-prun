@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   resolveRouteStop,
   type RouteStopLookups,
-} from '@src/features/XIT/ROUTE/resolve-route-stop';
+} from '@src/features/XIT/TRANSITS/resolve-route-stop';
 
 const lookups: RouteStopLookups = {
   findPlanet: raw =>

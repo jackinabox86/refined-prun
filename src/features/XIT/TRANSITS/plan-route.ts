@@ -1,4 +1,4 @@
-import { RouteStop } from '@src/features/XIT/ROUTE/resolve-route-stop';
+import { RouteStop } from '@src/features/XIT/TRANSITS/resolve-route-stop';
 
 export interface RouteLeg {
   originLabel: string;

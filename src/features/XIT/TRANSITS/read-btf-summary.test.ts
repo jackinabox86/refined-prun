@@ -3,8 +3,8 @@ import {
   flightPlanFailure,
   formatDuration,
   summarizeFreshPlan,
-} from '@src/features/XIT/ROUTE/read-btf-summary';
-import { formatRouteTotal } from '@src/features/XIT/ROUTE/route-results';
+} from '@src/features/XIT/TRANSITS/read-btf-summary';
+import { formatRouteTotal } from '@src/features/XIT/TRANSITS/route-results';
 
 const origin = 'IA-158b';
 const destination = 'QJ-684d';

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { shipOptions } from '@src/features/XIT/ROUTE/ship-options';
+import { shipOptions } from '@src/features/XIT/TRANSITS/ship-options';
 
 function ship(registration: string, name: string) {
   return { registration, name } as PrunApi.Ship;

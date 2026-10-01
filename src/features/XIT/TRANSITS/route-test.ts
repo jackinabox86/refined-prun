@@ -1,16 +1,16 @@
 import { act } from '@src/features/XIT/ACT/act-registry';
-import Edit from '@src/features/XIT/ROUTE/Edit.vue';
-import { BTF_LEG } from '@src/features/XIT/ROUTE/BTF_LEG';
-import { planRouteLegs, stopLines } from '@src/features/XIT/ROUTE/plan-route';
-import { resolveRouteStop } from '@src/features/XIT/ROUTE/resolve-route-stop';
-import { ensureBlueprintsFetched } from '@src/features/XIT/ROUTE/load-blueprints';
-import { matchShipBlueprint } from '@src/features/XIT/ROUTE/ship-blueprint';
-import { blueprintTestFlightBlock } from '@src/features/XIT/ROUTE/tank-level';
+import Edit from '@src/features/XIT/TRANSITS/Edit.vue';
+import { BTF_LEG } from '@src/features/XIT/TRANSITS/BTF_LEG';
+import { planRouteLegs, stopLines } from '@src/features/XIT/TRANSITS/plan-route';
+import { resolveRouteStop } from '@src/features/XIT/TRANSITS/resolve-route-stop';
+import { ensureBlueprintsFetched } from '@src/features/XIT/TRANSITS/load-blueprints';
+import { matchShipBlueprint } from '@src/features/XIT/TRANSITS/ship-blueprint';
+import { blueprintTestFlightBlock } from '@src/features/XIT/TRANSITS/tank-level';
 import { blueprintsStore } from '@src/infrastructure/prun-api/data/blueprints';
 import { shipsStore } from '@src/infrastructure/prun-api/data/ships';
 
 act.addAction({
-  type: 'Route Test',
+  type: 'Transits',
   shortDescription:
     'Flight time and fuel for each leg of a route, via a ship blueprint test flight',
   description: action => {

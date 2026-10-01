@@ -84,7 +84,7 @@ declare namespace UserData {
     | 'CONT Ship'
     | 'CONT Trade'
     | 'GovBurn Data'
-    | 'Route Test';
+    | 'Transits';
 
   interface ActionData {
     type: ActionType;
@@ -133,7 +133,7 @@ declare namespace UserData {
     contTradeType?: 'BUYING' | 'SELLING';
     contLocation?: string;
 
-    // Route Test: ship registration, and one planet or CX stop per line.
+    // Transits: ship registration, and one planet or CX stop per line.
     shipRegistration?: string;
     routeStops?: string;
   }

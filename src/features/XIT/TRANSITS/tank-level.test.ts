@@ -6,7 +6,7 @@ import {
   sliderTarget,
   tankForLeg,
   tankKind,
-} from '@src/features/XIT/ROUTE/tank-level';
+} from '@src/features/XIT/TRANSITS/tank-level';
 
 describe('tankForLeg', () => {
   it('keeps the confirmed tank when nothing has burned yet', () => {

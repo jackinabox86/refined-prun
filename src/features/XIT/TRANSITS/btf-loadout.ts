@@ -7,7 +7,7 @@ import {
   sliderNudgeLimit,
   sliderTarget,
   tankKind,
-} from '@src/features/XIT/ROUTE/tank-level';
+} from '@src/features/XIT/TRANSITS/tank-level';
 
 export interface ConfirmedLoadout {
   sliders: LoadoutSlider[];
@@ -133,6 +133,39 @@ export async function applyConfirmedLoadout(anchor: Element, loadout: ConfirmedL
       const change = set.change ? ', change handler missed' : ', no change handler';
       return `could not set ${saved.label} to ${target} (now ${at}${arrow}${handler}${change})`;
     }
+  }
+  return undefined;
+}
+
+// The test flight opens with an empty hold, which flies faster than a loaded
+// ship. Start the first leg at a full hold; the player may still lower it.
+export async function setInventoryFull(anchor: Element) {
+  const payload = L.BlueprintTestFlight.label.payload() ?? '';
+  if (payload.length === 0) {
+    return 'Inventory label is not loaded';
+  }
+  const labels = fieldLabels();
+  const find = () =>
+    _$$(anchor, 'rc-slider').find(
+      slider => matchingFieldLabel(ancestorTexts(slider), labels) === payload,
+    );
+  let slider = find();
+  await waitFor(() => {
+    slider = find();
+    return slider !== undefined;
+  }, 5000);
+  const handle = slider === undefined ? undefined : sliderHandle(slider);
+  if (slider === undefined || handle === undefined) {
+    return `${payload} slider is not on the test flight`;
+  }
+  const max = Number(handle.getAttribute('aria-valuemax'));
+  if (!Number.isFinite(max)) {
+    return `${payload} slider has no maximum`;
+  }
+  const set = await setSliderTo(slider, max);
+  if (!set.ok) {
+    const at = set.now === undefined ? 'no value' : String(set.now);
+    return `could not set ${payload} to ${max} (now ${at})`;
   }
   return undefined;
 }

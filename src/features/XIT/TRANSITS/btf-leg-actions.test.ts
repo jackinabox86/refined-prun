@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { btfLegActions } from '@src/features/XIT/ROUTE/btf-leg-actions';
+import { btfLegActions } from '@src/features/XIT/TRANSITS/btf-leg-actions';
 
 describe('btfLegActions', () => {
   it('does not delete, copy, or create a blueprint', () => {

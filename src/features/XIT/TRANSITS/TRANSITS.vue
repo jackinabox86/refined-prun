@@ -3,10 +3,10 @@ import ActionBar from '@src/components/ActionBar.vue';
 import Header from '@src/components/Header.vue';
 import PrunButton from '@src/components/PrunButton.vue';
 import Active from '@src/components/forms/Active.vue';
-import { shipOptions } from '@src/features/XIT/ROUTE/ship-options';
-import { planRouteLegs, stopLines } from '@src/features/XIT/ROUTE/plan-route';
-import { resolveRouteStop } from '@src/features/XIT/ROUTE/resolve-route-stop';
-import { stagedRoute } from '@src/features/XIT/ROUTE/staged';
+import { shipOptions } from '@src/features/XIT/TRANSITS/ship-options';
+import { planRouteLegs, stopLines } from '@src/features/XIT/TRANSITS/plan-route';
+import { resolveRouteStop } from '@src/features/XIT/TRANSITS/resolve-route-stop';
+import { stagedRoute } from '@src/features/XIT/TRANSITS/staged';
 import { useMinBufferHeight } from '@src/hooks/use-min-buffer-height';
 import { useTile } from '@src/hooks/use-tile';
 import { UI_TILES_CHANGE_COMMAND } from '@src/infrastructure/prun-api/client-messages';
@@ -59,11 +59,11 @@ function onTest() {
     return;
   }
   stagedRoute.value = {
-    global: { name: 'Route flight test' },
+    global: { name: 'Transits' },
     groups: [],
     actions: [
       {
-        type: 'Route Test',
+        type: 'Transits',
         name: 'Route',
         shipRegistration: shipRegistration.value,
         routeStops: routeStops.value,
@@ -71,16 +71,16 @@ function onTest() {
     ],
   };
   if (!dispatchClientPrunMessage(UI_TILES_CHANGE_COMMAND(tile.id, null))) {
-    showBuffer('XIT ROUTEACT');
+    showBuffer('XIT TRANSITSACT');
     return;
   }
-  dispatchClientPrunMessage(UI_TILES_CHANGE_COMMAND(tile.id, 'XIT ROUTEACT'));
+  dispatchClientPrunMessage(UI_TILES_CHANGE_COMMAND(tile.id, 'XIT TRANSITSACT'));
 }
 </script>
 
 <template>
   <div :class="$style.root">
-    <Header>Route flight test</Header>
+    <Header>Transits</Header>
     <form :class="$style.form" @submit.prevent="onTest">
       <p v-if="options.length === 0" :class="$style.note">No ships loaded.</p>
       <Active v-else label="Ship">

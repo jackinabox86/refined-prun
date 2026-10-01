@@ -1,4 +1,4 @@
-import { formatDuration } from '@src/features/XIT/ROUTE/read-btf-summary';
+import { formatDuration } from '@src/features/XIT/TRANSITS/read-btf-summary';
 
 export interface RecordedLeg {
   ok: boolean;

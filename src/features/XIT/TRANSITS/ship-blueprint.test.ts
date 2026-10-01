@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { matchShipBlueprint } from '@src/features/XIT/ROUTE/ship-blueprint';
+import { matchShipBlueprint } from '@src/features/XIT/TRANSITS/ship-blueprint';
 
 const named = { naturalId: 'BP-PSXY-5838', name: '1st 2k' };
 const unnamed = { naturalId: 'BP-BPXQ-4544', name: null };
