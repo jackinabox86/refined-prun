@@ -1,4 +1,4 @@
-import { changeInputValue, clickAtCenter, focusElement } from '@src/util';
+import { changeInputValue, clickElement, focusElement } from '@src/util';
 import { stationsStore } from '@src/infrastructure/prun-api/data/stations';
 import { getSystemLineFromAddress } from '@src/infrastructure/prun-api/data/addresses';
 import { waitFor } from '@src/utils/wait-for';
@@ -36,19 +36,8 @@ export async function selectAddress(
 
 async function selectStoredAddress(container: Element, locationName: string): Promise<boolean> {
   const input = _$(container, C.AddressSelector.input) as HTMLInputElement | undefined;
-  if (input === undefined) {
-    return false;
-  }
-  // Focusin alone does not open the suggestion portal. The portal node can
-  // also be absent until the field is actually focused.
-  input.focus();
-  focusElement(input);
-  const portalReady = await waitFor(
-    () => document.getElementById('autosuggest-portal') !== null,
-    2000,
-  );
   const portal = document.getElementById('autosuggest-portal');
-  if (!portalReady || portal === null) {
+  if (!input || !portal) {
     return false;
   }
 
@@ -64,11 +53,7 @@ async function selectStoredAddress(container: Element, locationName: string): Pr
     stationsStore.getByNaturalId(locationName)?.name ??
     locationName;
 
-  // React ignores the input event when its value tracker already equals the new text.
-  const tracker = (
-    input as HTMLInputElement & { _valueTracker?: { setValue: (next: string) => void } }
-  )._valueTracker;
-  tracker?.setValue('');
+  focusElement(input);
   changeInputValue(input, query);
 
   // The portal first renders a default list (own bases, warehouses, CX
@@ -83,16 +68,9 @@ async function selectStoredAddress(container: Element, locationName: string): Pr
   // keeping tolerance for odd human-entered fragments. No match at all leaves
   // the field for the user rather than guessing.
   const boundary = new RegExp(`(^|\\W)${query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(\\W|$)`, 'i');
-  const suggestions = () => {
-    const options = Array.from(portal.querySelectorAll('[role="option"]')) as HTMLElement[];
-    if (options.length > 0) {
-      return options;
-    }
-    const classed = _$$(portal, C.AddressSelector.suggestionContent) as HTMLElement[];
-    return classed;
-  };
+  const suggestions = () => _$$(portal, C.AddressSelector.suggestionContent) as HTMLElement[];
   const findBoundaryMatch = () => suggestions().find(s => boundary.test(s.textContent ?? ''));
-  await waitFor(() => !!findBoundaryMatch(), 8000);
+  await waitFor(() => !!findBoundaryMatch(), 5000);
   const match =
     findBoundaryMatch() ??
     suggestions().find(s => s.textContent?.trim().toLowerCase().includes(query.toLowerCase()));
@@ -100,7 +78,7 @@ async function selectStoredAddress(container: Element, locationName: string): Pr
     return false;
   }
 
-  await clickAtCenter(match);
+  await clickElement(match);
   return true;
 }
 
