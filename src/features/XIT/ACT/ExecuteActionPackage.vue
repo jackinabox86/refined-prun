@@ -12,20 +12,32 @@ import ConfigWindow from '@src/features/XIT/ACT/ConfigureWindow.vue';
 import { ActionPackageConfig, ActionStep } from '@src/features/XIT/ACT/shared-types';
 import { act } from '@src/features/XIT/ACT/act-registry';
 
-const { pkg, afterExecute, extraSteps, initialConfig, configChanged, keepOpenOnComplete } =
-  defineProps<{
-    pkg: UserData.ActionPackageData;
-    afterExecute?: (
-      config: ActionPackageConfig,
-      log: (tag: LogTag, message: LogContent) => void,
-    ) => void;
-    extraSteps?: ActionStep[];
-    initialConfig?: ActionPackageConfig;
-    configChanged?: (config: ActionPackageConfig) => void;
-    // Hosts whose afterExecute writes output the player copies out of the log return true
-    // here, so act-auto-close doesn't take that log away with the window.
-    keepOpenOnComplete?: () => boolean;
-  }>();
+const {
+  pkg,
+  afterExecute,
+  extraSteps,
+  initialConfig,
+  configChanged,
+  keepOpenOnComplete,
+  autoStart,
+  hidePreview,
+  closeWhenDone,
+} = defineProps<{
+  pkg: UserData.ActionPackageData;
+  afterExecute?: (
+    config: ActionPackageConfig,
+    log: (tag: LogTag, message: LogContent) => void,
+  ) => void;
+  extraSteps?: ActionStep[];
+  initialConfig?: ActionPackageConfig;
+  configChanged?: (config: ActionPackageConfig) => void;
+  // Hosts whose afterExecute writes output the player copies out of the log return true
+  // here, so act-auto-close doesn't take that log away with the window.
+  keepOpenOnComplete?: () => boolean;
+  autoStart?: boolean;
+  hidePreview?: boolean;
+  closeWhenDone?: boolean;
+}>();
 
 const tile = useTile();
 let goingToSplit = ref(false);
@@ -120,8 +132,9 @@ const runner = new ActionRunner({
     afterExecute?.(config.value, logMessage);
   },
   onComplete: result => {
-    const keepOpen = result.keepBufferOpen || (keepOpenOnComplete?.() ?? false);
-    if (shouldAutoCloseActBuffer(true, keepOpen)) {
+    const routeFailed = closeWhenDone === true && log.value.some(entry => entry.tag === 'ERROR');
+    const keepOpen = result.keepBufferOpen || (keepOpenOnComplete?.() ?? false) || routeFailed;
+    if (shouldAutoCloseActBuffer(true, keepOpen) || (closeWhenDone === true && !keepOpen)) {
       closePrunWindow(tile.window);
     }
   },
@@ -164,6 +177,12 @@ function onExecuteClick() {
   skipReady.value = false;
   runner.execute(pkg, config.value, extraSteps);
 }
+
+onMounted(() => {
+  if (autoStart && !shouldShowConfigure.value) {
+    onExecuteClick();
+  }
+});
 
 function onCancelClick() {
   actReady.value = false;
@@ -219,19 +238,19 @@ function clearLog() {
       </template>
       <template v-else-if="isPreviewing">
         <PrunButton v-if="needsConfigure" primary @click="onConfigureClick">CONFIGURE</PrunButton>
-        <PrunButton disabled>PREVIEW</PrunButton>
+        <PrunButton v-if="!hidePreview" disabled>PREVIEW</PrunButton>
         <PrunButton disabled>EXECUTE</PrunButton>
       </template>
       <template v-else-if="!isRunning">
         <PrunButton v-if="needsConfigure" primary @click="onConfigureClick">CONFIGURE</PrunButton>
-        <PrunButton primary @click="onPreviewClick">PREVIEW</PrunButton>
+        <PrunButton v-if="!hidePreview" primary @click="onPreviewClick">PREVIEW</PrunButton>
         <PrunButton primary :class="$style.executeButton" @click="onExecuteClick">
           EXECUTE
         </PrunButton>
       </template>
       <template v-else>
         <PrunButton v-if="needsConfigure" primary disabled>CONFIGURE</PrunButton>
-        <PrunButton primary disabled>PREVIEW</PrunButton>
+        <PrunButton v-if="!hidePreview" primary disabled>PREVIEW</PrunButton>
         <PrunButton
           danger
           :disabled="!actReady && !skipReady"

@@ -3,7 +3,6 @@ import GripCell from '@src/components/grip/GripCell.vue';
 import GripHeaderCell from '@src/components/grip/GripHeaderCell.vue';
 import { grip } from '@src/components/grip';
 import PrunButton from '@src/components/PrunButton.vue';
-import { shipSizes, shipSizesOwnedByFleet } from '@src/core/ship-sizes';
 import { billTotals } from '@src/features/XIT/DISPATCH/utils';
 import { departureBill, planRouteLoads, routeBaseBills } from '@src/features/XIT/ROUTE/route-load';
 import {
@@ -15,20 +14,22 @@ import {
   routeSupplyDays,
   snapDays,
 } from '@src/features/XIT/ROUTE/route-calc';
-import { cargoForRoute, fuelCapacities, ownedShipOfSize } from '@src/features/XIT/ROUTE/owned-ship';
+import {
+  cargoForRouteShip,
+  fuelCapacities,
+  shipForRoute,
+} from '@src/features/XIT/ROUTE/owned-ship';
 import {
   createRoute,
   findRoute,
-  removeRoute,
   ROUTE_STOP_MIME,
   shippingRoutes,
 } from '@src/features/XIT/ROUTE/routes';
 import StopPool from '@src/features/XIT/ROUTE/StopPool.vue';
+import { shipOptions } from '@src/features/XIT/TRANSITS/ship-options';
 import { useXitParameters } from '@src/hooks/use-xit-parameters';
 import { exchangesStore } from '@src/infrastructure/prun-api/data/exchanges';
-import { shipsStore } from '@src/infrastructure/prun-api/data/ships';
 import { sitesStore } from '@src/infrastructure/prun-api/data/sites';
-import { storagesStore } from '@src/infrastructure/prun-api/data/storage';
 import {
   getEntityNameFromAddress,
   getEntityNaturalIdFromAddress,
@@ -46,8 +47,17 @@ interface PoolEntry {
 
 const parameters = useXitParameters();
 const selectedId = ref(parameters[0] ?? shippingRoutes()[0]?.id);
+const draftName = ref('');
 const route = computed(() => findRoute(selectedId.value));
 const routes = computed(() => shippingRoutes());
+
+watch(
+  () => route.value?.id,
+  () => {
+    draftName.value = route.value?.name ?? '';
+  },
+  { immediate: true },
+);
 const ordered = ref<string[]>([]);
 
 watch(
@@ -122,27 +132,21 @@ const available = computed(() => {
   return items;
 });
 
-const sunk = computed(() => {
-  const items = catalog.value.bases.filter(x => assigned.value.has(x.key));
-  if (cxOnRoute.value) {
-    items.push(...catalog.value.exchanges);
+const assignedBases = computed(() => catalog.value.bases.filter(x => assigned.value.has(x.key)));
+const sunkExchanges = computed(() => (cxOnRoute.value ? catalog.value.exchanges : []));
+
+const shipChoices = computed(() => {
+  const list = shipOptions();
+  const current = route.value?.ship;
+  if (current !== undefined && current.length > 0 && !list.some(x => x.value === current)) {
+    return [{ value: current, label: current }, ...list];
   }
-  return items;
+  return list;
 });
 
-const sizeChoices = computed(() => {
-  const owned = shipSizesOwnedByFleet(shipSizes, shipsStore.all.value, id =>
-    storagesStore.getById(id),
-  );
-  const current = route.value?.shipSize;
-  if (current !== undefined && !owned.some(x => x.id === current)) {
-    const stored = shipSizes.find(x => x.id === current);
-    if (stored !== undefined) {
-      return [...owned, stored];
-    }
-  }
-  return owned;
-});
+const selectedShip = computed(() => shipForRoute(route.value));
+const cargo = computed(() => cargoForRouteShip(route.value));
+const canTransit = computed(() => (route.value?.stops.length ?? 0) >= 2);
 
 const paddedSeconds = computed(() =>
   sumBy(paddedLegSeconds(route.value?.legs ?? []), seconds => seconds),
@@ -155,7 +159,7 @@ const tanks = computed(() => {
   if (current === undefined) {
     return undefined;
   }
-  const ship = ownedShipOfSize(current.shipSize);
+  const ship = selectedShip.value;
   if (ship === undefined) {
     return undefined;
   }
@@ -176,8 +180,8 @@ const loadPlan = computed(() => {
   if (current === undefined) {
     return undefined;
   }
-  const cargo = cargoForRoute(current.shipSize);
-  if (cargo === undefined) {
+  const hold = cargo.value;
+  if (hold === undefined) {
     return undefined;
   }
   const billed = routeBaseBills(current.stops, supplyDays.value, fuelLoads.value);
@@ -186,7 +190,7 @@ const loadPlan = computed(() => {
   }
   return {
     billed,
-    plan: planRouteLoads(billed, cargo),
+    plan: planRouteLoads(billed, hold),
   };
 });
 
@@ -284,12 +288,18 @@ function loadText(record: Record<string, number> | undefined) {
   return `${fixed0(totals.weight)}t / ${fixed0(totals.volume)}m³`;
 }
 
-function rowOver(stop: UserData.ShippingRouteStop, index: number) {
-  if (stop.kind === 'cx') {
-    const firstCx = route.value?.stops.findIndex(x => x.kind === 'cx') ?? -1;
-    return firstCx === index && overflowIds.value.has('cx-departure');
+function inputOver(stop: UserData.ShippingRouteStop, index: number) {
+  const hold = cargo.value;
+  const record = inputRecord(stop, index);
+  if (hold === undefined || record === undefined) {
+    return false;
   }
-  return overflowIds.value.has(stop.id);
+  const totals = billTotals(record);
+  return totals.weight > hold.weightCapacity || totals.volume > hold.volumeCapacity;
+}
+
+function outputOver(stop: UserData.ShippingRouteStop) {
+  return stop.kind === 'base' && overflowIds.value.has(stop.id);
 }
 
 function fuelText(index: number) {
@@ -309,22 +319,25 @@ function onSelect(event: Event) {
   selectedId.value = (event.target as HTMLSelectElement).value;
 }
 
-function onName(event: Event) {
+function onRename() {
   const current = route.value;
   if (current === undefined) {
     return;
   }
-  const name = (event.target as HTMLInputElement).value.trim();
-  current.name = name.length > 0 ? name : current.name;
+  const name = draftName.value.trim();
+  if (name.length === 0) {
+    draftName.value = current.name;
+    return;
+  }
+  current.name = name;
 }
 
-function onRemove() {
+function onLoop() {
   const current = route.value;
   if (current === undefined) {
     return;
   }
-  removeRoute(current.id);
-  selectedId.value = shippingRoutes()[0]?.id;
+  current.loop = current.loop === false;
 }
 
 function setDays(days: number) {
@@ -343,17 +356,10 @@ function onDaysChange(event: Event) {
   input.value = clamped.toFixed(1);
 }
 
-function stepDays(direction: number) {
-  setDays(supplyDays.value + direction * 0.1);
-}
-
 function onFit() {
   const current = route.value;
-  if (current === undefined) {
-    return;
-  }
-  const cargo = cargoForRoute(current.shipSize);
-  if (cargo === undefined) {
+  const hold = cargo.value;
+  if (current === undefined || hold === undefined) {
     return;
   }
   if (routeBaseBills(current.stops, supplyDays.value, fuelLoads.value) === undefined) {
@@ -364,7 +370,7 @@ function onFit() {
     if (billed === undefined) {
       return false;
     }
-    return planRouteLoads(billed, cargo).fits;
+    return planRouteLoads(billed, hold).fits;
   });
 }
 
@@ -409,43 +415,52 @@ function removeStop(key: string) {
 
 function openTransits() {
   const current = route.value;
-  if (current === undefined) {
+  if (current === undefined || current.stops.length < 2) {
     return;
   }
   showBuffer(`XIT TRANSITS ${current.id}`);
 }
 
-function selectSize(id: string) {
+function selectShip(event: Event) {
   const current = route.value;
   if (current === undefined) {
     return;
   }
-  current.shipSize = id;
+  const registration = (event.target as HTMLSelectElement).value.trim();
+  current.ship = registration.length > 0 ? registration : undefined;
 }
 </script>
 
 <template>
   <div :class="$style.layout">
     <div :class="[C.ComExOrdersPanel.filter, $style.bar]">
+      <PrunButton
+        v-if="route"
+        :primary="route.loop !== false"
+        :dark="route.loop === false"
+        @click="onLoop">
+        LOOP
+      </PrunButton>
       <select :class="$style.select" :value="selectedId ?? ''" @change="onSelect">
         <option value="" disabled>Route</option>
         <option v-for="item in routes" :key="item.id" :value="item.id">{{ item.name }}</option>
       </select>
       <PrunButton primary @click="onCreate">NEW</PrunButton>
       <template v-if="route">
-        <input :class="$style.name" :value="route.name" @change="onName" />
-        <PrunButton dark @click="onRemove">REMOVE</PrunButton>
+        <input v-model="draftName" :class="$style.name" />
+        <PrunButton dark @click="onRename">RENAME</PrunButton>
         <div :class="$style.separator" />
-        <PrunButton
-          v-for="size in sizeChoices"
-          :key="size.id"
-          :primary="route.shipSize === size.id"
-          :dark="route.shipSize !== size.id"
-          @click="selectSize(size.id)">
-          {{ size.label }}
-        </PrunButton>
-        <span :class="$style.daysLabel">Days</span>
-        <button type="button" :class="$style.step" @click="stepDays(-1)">−</button>
+        <span :class="$style.daysLabel">Ship</span>
+        <select
+          :class="$style.select"
+          :value="route.ship ?? selectedShip?.registration.trim() ?? ''"
+          @change="selectShip">
+          <option value="" disabled>Ship</option>
+          <option v-for="option in shipChoices" :key="option.value" :value="option.value">
+            {{ option.label }}
+          </option>
+        </select>
+        <span :class="$style.daysLabel">Supply Days</span>
         <input
           :class="$style.days"
           type="number"
@@ -454,14 +469,13 @@ function selectSize(id: string) {
           max="999"
           :value="supplyDays.toFixed(1)"
           @change="onDaysChange" />
-        <button type="button" :class="$style.step" @click="stepDays(1)">+</button>
-        <PrunButton primary :disabled="route.shipSize === undefined" @click="onFit">FIT</PrunButton>
+        <PrunButton primary :disabled="selectedShip === undefined" @click="onFit">FIT</PrunButton>
         <span :class="$style.daysLabel">Route {{ routeDaysLabel }}d</span>
       </template>
     </div>
     <p v-if="route === undefined" :class="$style.note">Create a route to order its stops.</p>
     <div v-else :class="$style.panes">
-      <StopPool :available="available" :sunk="sunk" />
+      <StopPool :available="available" :assigned="assignedBases" :exchanges="sunkExchanges" />
       <div :class="$style.route" @dragenter="onDragOver" @dragover="onDragOver" @drop="onDrop">
         <table v-draggable="dragBinding" :class="$style.table">
           <thead>
@@ -482,12 +496,12 @@ function selectSize(id: string) {
                 <PrunButton dark inline @click="removeStop(stopKey(stop))">×</PrunButton>
               </td>
               <td>
-                <span :class="[rowOver(stop, index) && C.Workforces.daysMissing, $style.load]">
+                <span :class="[inputOver(stop, index) && C.Workforces.daysMissing, $style.load]">
                   {{ loadText(inputRecord(stop, index)) }}
                 </span>
               </td>
               <td>
-                <span :class="[rowOver(stop, index) && C.Workforces.daysMissing, $style.load]">
+                <span :class="[outputOver(stop) && C.Workforces.daysMissing, $style.load]">
                   {{ loadText(outputRecord(stop)) }}
                 </span>
               </td>
@@ -505,8 +519,13 @@ function selectSize(id: string) {
             </tr>
           </tfoot>
         </table>
-        <PrunButton primary :class="$style.transits" @click="openTransits">TRANSITS</PrunButton>
       </div>
+    </div>
+    <div v-if="route" :class="$style.footer">
+      <span>Press to Determine Flight Times.</span>
+      <PrunButton :primary="canTransit" :disabled="!canTransit" @click="openTransits">
+        TRANSITS
+      </PrunButton>
     </div>
   </div>
 </template>
@@ -516,6 +535,8 @@ function selectSize(id: string) {
   display: flex;
   flex-direction: column;
   box-sizing: border-box;
+  height: 100%;
+  min-height: 0;
 }
 
 .bar {
@@ -525,8 +546,7 @@ function selectSize(id: string) {
 
 .select,
 .name,
-.days,
-.step {
+.days {
   color: inherit;
   font-family: inherit;
   font-size: inherit;
@@ -557,6 +577,9 @@ function selectSize(id: string) {
 .panes {
   display: flex;
   flex-direction: row;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
 }
 
 .route {
@@ -581,8 +604,12 @@ function selectSize(id: string) {
   padding: 2px 4px;
 }
 
-.transits {
-  margin-top: 8px;
+.footer {
+  display: flex;
+  flex: 0 0 auto;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 4px;
 }
 
 .note {

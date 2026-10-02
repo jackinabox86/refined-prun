@@ -7,9 +7,10 @@ interface PoolEntry {
   label: string;
 }
 
-const { available, sunk } = defineProps<{
+const { available, assigned, exchanges } = defineProps<{
   available: PoolEntry[];
-  sunk: PoolEntry[];
+  assigned: PoolEntry[];
+  exchanges: PoolEntry[];
 }>();
 
 function onDragStart(event: DragEvent, key: string) {
@@ -49,10 +50,25 @@ function onDragStart(event: DragEvent, key: string) {
             </div>
           </td>
         </tr>
-        <tr v-if="sunk.length > 0" :class="$style.labelRow">
+        <tr v-if="assigned.length > 0" :class="$style.labelRow">
           <td :class="$style.labelCell">Assigned</td>
         </tr>
-        <tr v-for="entry in sunk" :key="entry.key" :class="$style.shipRow">
+        <tr v-for="entry in assigned" :key="entry.key" :class="$style.shipRow">
+          <td :class="$style.shipCell">
+            <div
+              :class="$style.shipWrap"
+              draggable="true"
+              @dragstart="onDragStart($event, entry.key)">
+              <PrunButton primary :class="$style.shipButton">
+                <span :class="$style.shipLabel">{{ entry.label }}</span>
+              </PrunButton>
+            </div>
+          </td>
+        </tr>
+        <tr v-if="exchanges.length > 0" :class="$style.labelRow">
+          <td :class="$style.labelCell">Exchanges</td>
+        </tr>
+        <tr v-for="entry in exchanges" :key="entry.key" :class="$style.shipRow">
           <td :class="$style.shipCell">
             <div
               :class="$style.shipWrap"

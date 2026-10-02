@@ -5,6 +5,7 @@ export interface RecordedLeg {
   seconds?: number;
   stl?: number;
   ftl?: number;
+  gateway?: boolean;
 }
 
 export const routeResults = {

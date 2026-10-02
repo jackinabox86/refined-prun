@@ -4,6 +4,7 @@ import {
   applyConfirmedLoadout,
   captureLoadout,
   confirmedLoadout,
+  readGateway,
   setInventoryFull,
   tankLevelsAtTarget,
 } from '@src/features/XIT/TRANSITS/btf-loadout';
@@ -38,14 +39,23 @@ export const BTF_LEG = act.addActionStep<BtfLegData>({
       confirmedLoadout.reset();
     }
     const label = `${data.originLabel} → ${data.destinationLabel}`;
+    const flight = { anchor: undefined as Element | undefined };
     const finish = (
       line: string,
       ok: boolean,
       recorded?: { seconds: number; stl: number; ftl: number },
     ) => {
+      const live = flight.anchor === undefined ? undefined : readGateway(flight.anchor);
+      const gateway = live ?? confirmedLoadout.current?.gatewayOn;
       routeResults.legs.push(
         ok && recorded !== undefined
-          ? { ok: true, seconds: recorded.seconds, stl: recorded.stl, ftl: recorded.ftl }
+          ? {
+              ok: true,
+              seconds: recorded.seconds,
+              stl: recorded.stl,
+              ftl: recorded.ftl,
+              ...(gateway === undefined ? {} : { gateway }),
+            }
           : { ok: false },
       );
       saveRouteLegs(routeResults.routeId, routeResults.legs);
@@ -84,6 +94,7 @@ export const BTF_LEG = act.addActionStep<BtfLegData>({
     if (tile === undefined) {
       return;
     }
+    flight.anchor = tile.anchor;
 
     const containers = _$$(tile.anchor, C.AddressSelector.container);
     const originField = containers[0];

@@ -433,3 +433,15 @@ function gatewayOn(el: HTMLElement) {
   }
   return false;
 }
+
+export function readGateway(anchor: Element) {
+  const select = anchor.querySelector('select');
+  if (select === null) {
+    return undefined;
+  }
+  const gateway = gatewayToggle(select);
+  if (gateway === undefined) {
+    return undefined;
+  }
+  return gatewayOn(gateway);
+}

@@ -33,7 +33,13 @@ export function removeRoute(id: string) {
 
 export function saveRouteLegs(
   routeId: string | undefined,
-  legs: readonly { ok: boolean; seconds?: number; stl?: number; ftl?: number }[],
+  legs: readonly {
+    ok: boolean;
+    seconds?: number;
+    stl?: number;
+    ftl?: number;
+    gateway?: boolean;
+  }[],
 ) {
   const route = findRoute(routeId);
   if (route === undefined) {
@@ -44,5 +50,6 @@ export function saveRouteLegs(
     seconds: x.seconds,
     stl: x.stl,
     ftl: x.ftl,
+    gateway: x.gateway,
   }));
 }

@@ -65,9 +65,12 @@ export function planRouteLoads(bases: MilkRunBase[], cargo: PrunApi.Store): Milk
         dailyAmount,
       };
     }),
+    // A route is a future plan. The cell prints the bill, and the owner
+    // compares that number to the ship's capacity. Cargo already in the
+    // hold is not part of either, so the check starts from an empty hold.
     cargo: {
-      weightLoad: cargo.weightLoad,
-      volumeLoad: cargo.volumeLoad,
+      weightLoad: 0,
+      volumeLoad: 0,
       weightCapacity: cargo.weightCapacity,
       volumeCapacity: cargo.volumeCapacity,
     },

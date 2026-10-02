@@ -159,6 +159,20 @@ export function fuelCargoLoads(stl: readonly TankStop[], ftl: readonly TankStop[
   return loads;
 }
 
+// TRANSITS stop list. A loop adds the origin once more so the return leg
+// is part of the flight time. The saved route stops stay as the player ordered them.
+export function transitStopIds(stops: readonly { id: string }[], loop: boolean | undefined) {
+  const ids = stops.map(stop => stop.id);
+  if (loop === false || ids.length === 0) {
+    return ids;
+  }
+  const origin = ids[0];
+  if (origin !== undefined) {
+    ids.push(origin);
+  }
+  return ids;
+}
+
 export function formatFuelCell(stl: TankStop | undefined, ftl: TankStop | undefined) {
   if (stl === undefined && ftl === undefined) {
     return '--';

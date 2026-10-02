@@ -40,6 +40,28 @@ function tankUnits(storeId: string, ticker: string) {
   return Math.round(capacity / volume);
 }
 
+export function shipForRoute(route: { ship?: string; shipSize?: string } | undefined) {
+  if (route === undefined) {
+    return undefined;
+  }
+  if (route.ship !== undefined && route.ship.length > 0) {
+    return shipsStore.getByRegistration(route.ship);
+  }
+  return ownedShipOfSize(route.shipSize);
+}
+
+export function cargoForRouteShip(route: { ship?: string; shipSize?: string } | undefined) {
+  const ship = shipForRoute(route);
+  const hold = ship === undefined ? undefined : storagesStore.getById(ship.idShipStore);
+  if (hold !== undefined) {
+    return hold;
+  }
+  if (route?.ship !== undefined && route.ship.length > 0) {
+    return undefined;
+  }
+  return cargoForRoute(route?.shipSize);
+}
+
 export function cargoForRoute(sizeId: string | undefined): PrunApi.Store | undefined {
   const ship = ownedShipOfSize(sizeId);
   const hold = ship === undefined ? undefined : storagesStore.getById(ship.idShipStore);

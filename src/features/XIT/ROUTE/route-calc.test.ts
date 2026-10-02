@@ -10,6 +10,7 @@ import {
   planTank,
   routeSupplyDays,
   snapDays,
+  transitStopIds,
 } from '@src/features/XIT/ROUTE/route-calc';
 
 describe('padLegSeconds', () => {
@@ -92,5 +93,18 @@ describe('route days', () => {
     expect(maxDaysAtStep(days => days <= 0.3)).toBe(0.3);
     expect(maxDaysAtStep(() => false)).toBe(0);
     expect(maxDaysAtStep(() => true)).toBe(999);
+  });
+});
+
+describe('transitStopIds', () => {
+  const stops = [{ id: 'ANT' }, { id: 'XG-123' }];
+
+  it('appends the origin when loop is on or unset', () => {
+    expect(transitStopIds(stops, undefined)).toEqual(['ANT', 'XG-123', 'ANT']);
+    expect(transitStopIds(stops, true)).toEqual(['ANT', 'XG-123', 'ANT']);
+  });
+
+  it('leaves the saved order alone when loop is off', () => {
+    expect(transitStopIds(stops, false)).toEqual(['ANT', 'XG-123']);
   });
 });

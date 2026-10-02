@@ -269,14 +269,21 @@ declare namespace UserData {
     seconds?: number;
     stl?: number;
     ftl?: number;
+    // Whether that leg's test flight had the gateway toggle on. Not shown.
+    gateway?: boolean;
   }
 
   interface ShippingRoute {
     id: string;
     name: string;
     stops: ShippingRouteStop[];
+    // Ship registration, the same value XIT TRANSITS uses. Older routes
+    // stored only shipSize.
+    ship?: string;
     shipSize?: string;
     days?: number;
+    // Absent means the route loops back to its first stop for flight time.
+    loop?: boolean;
     legs?: ShippingRouteLeg[];
   }
 }

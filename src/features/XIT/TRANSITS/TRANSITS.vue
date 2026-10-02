@@ -3,11 +3,11 @@ import ActionBar from '@src/components/ActionBar.vue';
 import Header from '@src/components/Header.vue';
 import PrunButton from '@src/components/PrunButton.vue';
 import Active from '@src/components/forms/Active.vue';
+import { transitStopIds } from '@src/features/XIT/ROUTE/route-calc';
 import { ownedShipOfSize } from '@src/features/XIT/ROUTE/owned-ship';
 import { findRoute } from '@src/features/XIT/ROUTE/routes';
 import { shipOptions } from '@src/features/XIT/TRANSITS/ship-options';
-import { planRouteLegs, stopLines } from '@src/features/XIT/TRANSITS/plan-route';
-import { resolveRouteStop } from '@src/features/XIT/TRANSITS/resolve-route-stop';
+import { stopLines } from '@src/features/XIT/TRANSITS/plan-route';
 import { routeResults } from '@src/features/XIT/TRANSITS/route-results';
 import { stagedRoute } from '@src/features/XIT/TRANSITS/staged';
 import { useMinBufferHeight } from '@src/hooks/use-min-buffer-height';
@@ -37,22 +37,35 @@ watch(
       const route = findRoute(routeId);
       if (route !== undefined) {
         if (!appliedStops) {
-          routeStops.value = route.stops.map(stop => stop.id).join('\n');
+          routeStops.value = transitStopIds(route.stops, route.loop).join('\n');
           appliedStops = true;
         }
         if (!appliedShip) {
-          const ship = ownedShipOfSize(route.shipSize);
-          const registration = ship === undefined ? '' : ship.registration.trim();
-          const waitingForShip = route.shipSize !== undefined && registration.length === 0;
+          const named = route.ship?.trim() ?? '';
+          const fromSize =
+            named.length > 0 ? '' : (ownedShipOfSize(route.shipSize)?.registration.trim() ?? '');
+          const registration = named.length > 0 ? named : fromSize;
           const listed = registration.length > 0 && list.some(x => x.value === registration);
-          if (!waitingForShip && (registration.length === 0 || listed)) {
-            if (listed) {
-              shipRegistration.value = registration;
-            }
+          const waiting =
+            list.length === 0 ||
+            (registration.length === 0 && (named.length > 0 || route.shipSize !== undefined));
+          if (listed) {
+            shipRegistration.value = registration;
+            appliedShip = true;
+          } else if (!waiting) {
             appliedShip = true;
           }
         }
+      } else {
+        appliedStops = true;
+        appliedShip = true;
       }
+    } else {
+      appliedStops = true;
+      appliedShip = true;
+    }
+    if (!appliedShip) {
+      return;
     }
     if (list.some(x => x.value === shipRegistration.value)) {
       return;
@@ -64,23 +77,6 @@ watch(
 
 const lines = computed(() => stopLines(routeStops.value));
 const canTest = computed(() => shipRegistration.value.length > 0 && lines.value.length >= 2);
-
-const preview = computed(() => {
-  if (lines.value.length < 2) {
-    return '';
-  }
-  const planned = planRouteLegs(lines.value.map(x => resolveRouteStop(x)));
-  if (planned.error !== undefined) {
-    return planned.error;
-  }
-  return planned.legs
-    .map(x =>
-      x.error === undefined
-        ? `${x.originLabel} → ${x.destinationLabel}`
-        : `${x.originLabel} → ${x.destinationLabel}: ${x.error}`,
-    )
-    .join('\n');
-});
 
 function onTest() {
   routeResults.routeId = parameters[0];
@@ -128,7 +124,6 @@ function onTest() {
           placeholder="One planet or commodity exchange per line&#10;Hortus a&#10;ANT"
           spellcheck="false" />
       </Active>
-      <pre v-if="preview" :class="$style.preview">{{ preview }}</pre>
       <p v-if="formError" :class="$style.error">{{ formError }}</p>
       <p :class="$style.note">
         Runs each leg through that ship's blueprint test flight. The first leg waits so the fuel
@@ -136,7 +131,7 @@ function onTest() {
         that loadout can be confirmed. Does not delete a blueprint.
       </p>
       <ActionBar>
-        <PrunButton primary :disabled="!canTest" @click="onTest">Test route</PrunButton>
+        <PrunButton primary :disabled="!canTest" @click="onTest">Set Flight Preferences</PrunButton>
       </ActionBar>
     </form>
   </div>
@@ -174,13 +169,6 @@ function onTest() {
 .select:focus,
 .textarea:focus {
   outline: none;
-}
-
-.preview {
-  margin: 4px 0 0;
-  white-space: pre-wrap;
-  font-family: inherit;
-  font-size: 11px;
 }
 
 .note {
