@@ -84,6 +84,7 @@ declare namespace UserData {
     | 'CONT Ship'
     | 'CONT Trade'
     | 'GovBurn Data'
+    | 'Staging RT'
     | 'Transits';
 
   interface ActionData {
@@ -103,6 +104,12 @@ declare namespace UserData {
 
     // GovBurn Data: planet natural ID or name.
     planet?: string;
+
+    // Staging RT: optional existing route id, the stop list the player typed, and an optional
+    // ship to assign once the stops are in.
+    routeId?: string;
+    routeSpec?: string;
+    shipId?: string;
 
     origin?: string;
     dest?: string;
