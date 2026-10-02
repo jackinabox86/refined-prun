@@ -107,18 +107,24 @@ export async function applyConfirmedLoadout(anchor: Element, loadout: ConfirmedL
   // The destination change rebuilds the form. The sliders are not back yet
   // when the address click returns.
   let byLabel = findSliders();
-  const present = await waitFor(() => {
+  const tanksPresent = await waitFor(() => {
     byLabel = findSliders();
-    return ordered.every(saved => byLabel.has(saved.label));
+    return ordered.every(saved => saved.tank === undefined || byLabel.has(saved.label));
   }, 5000);
-  if (!present) {
+  if (!tanksPresent) {
     const missing = ordered.find(saved => !byLabel.has(saved.label));
     return `${missing?.label ?? 'loadout'} slider is not on the test flight`;
   }
+  // A leg without an FTL jump shows Reactor usage as "--" with no slider, so a
+  // setting that does not come back is skipped. The tanks are always there.
+  await waitFor(() => {
+    byLabel = findSliders();
+    return ordered.every(saved => byLabel.has(saved.label));
+  }, 1500);
   for (const saved of ordered) {
     const slider = byLabel.get(saved.label);
     if (slider === undefined) {
-      return `${saved.label} slider is not on the test flight`;
+      continue;
     }
     const target = sliderTarget(
       { ...saved, tank: tankKind(saved.label, stlLabel, ftlLabel) },
@@ -432,6 +438,31 @@ function gatewayOn(el: HTMLElement) {
     node = node.parentElement;
   }
   return false;
+}
+
+// Fuel usage and reactor usage as flown. Reactor usage is undefined on a leg
+// without an FTL jump, where the test flight has no slider for it.
+export function readUsage(anchor: Element) {
+  const fuelLabel = L.BlueprintTestFlight.label.fuelUsage() ?? '';
+  const reactorLabel = L.BlueprintTestFlight.label.reactorUsage() ?? '';
+  const labels = fieldLabels();
+  let fuelUsage: number | undefined;
+  let reactorUsage: number | undefined;
+  for (const slider of _$$(anchor, 'rc-slider')) {
+    const label = matchingFieldLabel(ancestorTexts(slider), labels);
+    const handle = sliderHandle(slider);
+    const now = handle === undefined ? undefined : readNow(handle);
+    if (label === undefined || now === undefined) {
+      continue;
+    }
+    if (fuelLabel.length > 0 && label === fuelLabel) {
+      fuelUsage = now;
+    }
+    if (reactorLabel.length > 0 && label === reactorLabel) {
+      reactorUsage = now;
+    }
+  }
+  return { fuelUsage, reactorUsage };
 }
 
 export function readGateway(anchor: Element) {

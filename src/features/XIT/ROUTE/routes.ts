@@ -39,6 +39,8 @@ export function saveRouteLegs(
     stl?: number;
     ftl?: number;
     gateway?: boolean;
+    fuelUsage?: number;
+    reactorUsage?: number;
   }[],
 ) {
   const route = findRoute(routeId);
@@ -51,5 +53,7 @@ export function saveRouteLegs(
     stl: x.stl,
     ftl: x.ftl,
     gateway: x.gateway,
+    fuelUsage: x.fuelUsage,
+    reactorUsage: x.reactorUsage,
   }));
 }

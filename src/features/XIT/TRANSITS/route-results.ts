@@ -6,6 +6,8 @@ export interface RecordedLeg {
   stl?: number;
   ftl?: number;
   gateway?: boolean;
+  fuelUsage?: number;
+  reactorUsage?: number;
 }
 
 export const routeResults = {

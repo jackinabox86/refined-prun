@@ -271,6 +271,10 @@ declare namespace UserData {
     ftl?: number;
     // Whether that leg's test flight had the gateway toggle on. Not shown.
     gateway?: boolean;
+    // Fuel usage and reactor usage slider values for that leg. Not shown.
+    // Reactor usage is absent on a leg without an FTL jump.
+    fuelUsage?: number;
+    reactorUsage?: number;
   }
 
   interface ShippingRoute {

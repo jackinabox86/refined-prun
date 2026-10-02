@@ -5,6 +5,7 @@ import {
   captureLoadout,
   confirmedLoadout,
   readGateway,
+  readUsage,
   setInventoryFull,
   tankLevelsAtTarget,
 } from '@src/features/XIT/TRANSITS/btf-loadout';
@@ -47,6 +48,10 @@ export const BTF_LEG = act.addActionStep<BtfLegData>({
     ) => {
       const live = flight.anchor === undefined ? undefined : readGateway(flight.anchor);
       const gateway = live ?? confirmedLoadout.current?.gatewayOn;
+      const usage =
+        flight.anchor === undefined
+          ? { fuelUsage: undefined, reactorUsage: undefined }
+          : readUsage(flight.anchor);
       routeResults.legs.push(
         ok && recorded !== undefined
           ? {
@@ -55,6 +60,8 @@ export const BTF_LEG = act.addActionStep<BtfLegData>({
               stl: recorded.stl,
               ftl: recorded.ftl,
               ...(gateway === undefined ? {} : { gateway }),
+              ...(usage.fuelUsage === undefined ? {} : { fuelUsage: usage.fuelUsage }),
+              ...(usage.reactorUsage === undefined ? {} : { reactorUsage: usage.reactorUsage }),
             }
           : { ok: false },
       );
