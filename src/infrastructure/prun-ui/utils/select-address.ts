@@ -18,7 +18,23 @@ export function findStationBySystemId(id: string) {
 // tile DOM. Only one portal can be open at a time, so we search it directly.
 // Typing fires a read-only NOMENCLATURE_QUERY_ADDRESSES lookup to the game
 // server; selecting a suggestion is pure local form state.
-export async function selectAddress(container: Element, locationName: string): Promise<boolean> {
+// `waypoint` is the route editor only. Other callers keep the class match.
+export interface SelectAddressOptions {
+  waypoint?: boolean;
+}
+
+export async function selectAddress(
+  container: Element,
+  locationName: string,
+  options?: SelectAddressOptions,
+): Promise<boolean> {
+  if (options?.waypoint === true) {
+    return selectWaypointAddress(container, locationName);
+  }
+  return selectStoredAddress(container, locationName);
+}
+
+async function selectStoredAddress(container: Element, locationName: string): Promise<boolean> {
   const input = _$(container, C.AddressSelector.input) as HTMLInputElement | undefined;
   if (input === undefined) {
     return false;
@@ -86,4 +102,52 @@ export async function selectAddress(container: Element, locationName: string): P
 
   await clickAtCenter(match);
   return true;
+}
+
+function waypointSuggestions(input: HTMLElement): HTMLElement[] {
+  const nodes: HTMLElement[] = [];
+  const portal = document.getElementById('autosuggest-portal');
+  if (portal !== null) {
+    const options = Array.from(portal.querySelectorAll('[role="option"]')) as HTMLElement[];
+    nodes.push(
+      ...(options.length > 0
+        ? options
+        : (_$$(portal, C.AddressSelector.suggestionContent) as HTMLElement[])),
+    );
+  }
+  const list = input.closest('[role="combobox"]')?.querySelector('[role="listbox"]');
+  if (list !== null && list !== undefined) {
+    nodes.push(...(Array.from(list.querySelectorAll('[role="option"]')) as HTMLElement[]));
+  }
+  return nodes;
+}
+
+// A new route has no suggestion list until the field value changes, so this
+// path types first. The route editor presses the row's React handler itself.
+async function selectWaypointAddress(container: Element, locationName: string): Promise<boolean> {
+  const input = _$(container, C.AddressSelector.input) as HTMLInputElement | undefined;
+  if (input === undefined) {
+    return false;
+  }
+  const query =
+    findStationBySystemId(locationName)?.name ??
+    stationsStore.getByNaturalId(locationName)?.name ??
+    locationName;
+
+  input.focus();
+  focusElement(input);
+  const tracker = (
+    input as HTMLInputElement & { _valueTracker?: { setValue: (next: string) => void } }
+  )._valueTracker;
+  tracker?.setValue('');
+  changeInputValue(input, query);
+
+  const boundary = new RegExp(`(^|\\W)${query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(\\W|$)`, 'i');
+  const suggestions = () => waypointSuggestions(input);
+  const findBoundaryMatch = () => suggestions().find(s => boundary.test(s.textContent ?? ''));
+  await waitFor(() => !!findBoundaryMatch(), 8000);
+  const match =
+    findBoundaryMatch() ??
+    suggestions().find(s => s.textContent?.trim().toLowerCase().includes(query.toLowerCase()));
+  return match !== undefined;
 }

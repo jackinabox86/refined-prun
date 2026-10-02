@@ -136,6 +136,31 @@ export function loopSwitchLit(color: string): boolean {
   return Number(match[1]) >= 200 && Number(match[2]) >= 200 && Number(match[3]) >= 200;
 }
 
+export interface ScreenBox {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+// The route editor is one Enter location field among others. It sits on the
+// ADD WAYPOINT button. A field in another window is not close enough.
+export function waypointFieldIndex(fields: ScreenBox[], buttons: ScreenBox[]): number | undefined {
+  let best: number | undefined;
+  let bestDistance = Number.POSITIVE_INFINITY;
+  for (let index = 0; index < fields.length; index += 1) {
+    const field = fields[index]!;
+    for (const button of buttons) {
+      const distance = Math.hypot(field.x - button.x, field.y - button.y);
+      if (distance < 240 && distance < bestDistance) {
+        bestDistance = distance;
+        best = index;
+      }
+    }
+  }
+  return best;
+}
+
 export function isStepEditLabel(label: string): boolean {
   const value = label.trim().toLowerCase();
   if (value.length === 0 || value.includes('delete') || value.includes('waypoint')) {

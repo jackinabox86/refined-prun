@@ -24,6 +24,7 @@ import {
   routeIdsInCells,
   selectControlLabel,
   shipAssignment,
+  waypointFieldIndex,
   type ShipAssignment,
   type LimitNode,
   type NamedControl,
@@ -100,41 +101,35 @@ export async function clickControl(
   await clickElement(match.el);
 }
 
-function nearAddWaypoint(field: HTMLElement): boolean {
-  let node: HTMLElement | null = field;
-  for (let depth = 0; node !== null && depth < 8; depth += 1) {
-    const armed = Array.from(node.querySelectorAll('button')).some(
-      button => (button.textContent ?? '').trim().toLowerCase() === 'add waypoint',
-    );
-    if (armed) {
-      return true;
-    }
-    node = node.parentElement;
-  }
-  return false;
+function screenBox(el: HTMLElement): { x: number; y: number; width: number; height: number } {
+  const rect = el.getBoundingClientRect();
+  return { x: rect.x, y: rect.y, width: rect.width, height: rect.height };
 }
 
-// A split buffer can hold more than one Enter location field. The route editor's
-// field is the visible one beside ADD WAYPOINT. A hidden copy does not open suggestions.
+function onScreen(el: HTMLElement): boolean {
+  const box = screenBox(el);
+  return (
+    box.width > 0 &&
+    box.height > 0 &&
+    box.y + box.height > 0 &&
+    box.x + box.width > 0 &&
+    box.y < window.innerHeight &&
+    box.x < window.innerWidth
+  );
+}
+
+// Another window can hold an Enter location field. Only the one sitting on
+// ADD WAYPOINT opens the route suggestion list.
 function locationInput(root: Element): HTMLInputElement | undefined {
   const inputs = (_$$(root, C.AddressSelector.input) as HTMLInputElement[]).filter(
-    field => field.placeholder.trim().toLowerCase() === 'enter location',
+    field => field.placeholder.trim().toLowerCase() === 'enter location' && onScreen(field),
   );
-  const visible = inputs.filter(field => {
-    const rect = field.getBoundingClientRect();
-    return (
-      rect.width > 0 &&
-      rect.height > 0 &&
-      rect.bottom > 0 &&
-      rect.right > 0 &&
-      rect.top < window.innerHeight &&
-      rect.left < window.innerWidth
-    );
+  const buttons = Array.from(root.querySelectorAll('button')).filter(button => {
+    const label = (button.textContent ?? '').replace(/\s+/g, ' ').trim().toLowerCase();
+    return label === 'add waypoint' && onScreen(button);
   });
-  const besideAdd = visible.filter(nearAddWaypoint);
-  return (
-    besideAdd[besideAdd.length - 1] ?? visible[visible.length - 1] ?? inputs[inputs.length - 1]
-  );
+  const index = waypointFieldIndex(inputs.map(screenBox), buttons.map(screenBox));
+  return index === undefined ? undefined : inputs[index];
 }
 
 export function locationContainer(anchor: Element): Element | undefined {
@@ -163,19 +158,104 @@ export function addWaypointArmed(anchor: Element): boolean {
 }
 
 async function pickLocationOnce(anchor: Element, query: string): Promise<boolean> {
-  const container = locationContainer(document.body) ?? locationContainer(anchor);
+  const container = locationContainer(anchor) ?? locationContainer(document.body);
   if (container === undefined) {
     return false;
   }
-  return await selectAddress(container, query);
+  const picked = await selectAddress(container, query, { waypoint: true });
+  if (!picked) {
+    return false;
+  }
+  // The shared helper only confirms the row. This screen's click is the React handler.
+  return pressWaypointSuggestion(anchor);
+}
+
+function suggestionNodes(input: HTMLElement): HTMLElement[] {
+  const nodes: HTMLElement[] = [];
+  const portal = document.getElementById('autosuggest-portal');
+  if (portal !== null) {
+    const options = Array.from(portal.querySelectorAll('[role="option"]')) as HTMLElement[];
+    nodes.push(
+      ...(options.length > 0
+        ? options
+        : (_$$(portal, C.AddressSelector.suggestionContent) as HTMLElement[])),
+    );
+  }
+  const list = input.closest('[role="combobox"]')?.querySelector('[role="listbox"]');
+  if (list !== null && list !== undefined) {
+    nodes.push(...(Array.from(list.querySelectorAll('[role="option"]')) as HTMLElement[]));
+  }
+  return nodes;
+}
+
+async function pressWaypointSuggestion(anchor: Element): Promise<boolean> {
+  const input = locationInput(anchor) ?? locationInput(document.body);
+  if (input === undefined) {
+    return false;
+  }
+  const query = input.value.trim();
+  if (query.length === 0) {
+    return false;
+  }
+  const labels = suggestionNodes(input).map(node =>
+    (node.textContent ?? '').replace(/\s+/g, ' ').trim(),
+  );
+  const chosen = pickSuggestion(labels, query);
+  if (chosen === undefined) {
+    return false;
+  }
+  const match = suggestionNodes(input).find(
+    node => (node.textContent ?? '').replace(/\s+/g, ' ').trim() === chosen,
+  );
+  if (match === undefined) {
+    return false;
+  }
+  const onClick = suggestionOnClick(match);
+  if (onClick !== undefined) {
+    onClick({
+      target: match,
+      currentTarget: match,
+      preventDefault() {},
+      stopPropagation() {},
+      persist() {},
+      nativeEvent: { isTrusted: true, button: 0, detail: 1 },
+    });
+    return true;
+  }
+  await clickAtCenter(match);
+  return true;
+}
+
+function suggestionOnClick(start: HTMLElement): ((event: object) => void) | undefined {
+  const record = start as unknown as Record<string, unknown>;
+  const fiberKey = Object.getOwnPropertyNames(record).find(name =>
+    name.startsWith('__reactFiber$'),
+  );
+  let fiber = fiberKey === undefined ? undefined : record[fiberKey];
+  for (let depth = 0; depth < 8 && fiber !== null && typeof fiber === 'object'; depth += 1) {
+    const props = (fiber as { memoizedProps?: unknown; return?: unknown }).memoizedProps;
+    if (
+      props !== null &&
+      typeof props === 'object' &&
+      typeof (props as { onClick?: unknown }).onClick === 'function'
+    ) {
+      return (props as { onClick: (event: object) => void }).onClick;
+    }
+    fiber = (fiber as { return?: unknown }).return;
+  }
+  return undefined;
 }
 
 export async function pickLocation(anchor: Element, query: string): Promise<boolean> {
-  // The field is sometimes a hidden copy, and a suggestion click can miss.
-  // Retry until ADD WAYPOINT actually arms.
+  // The new route tile lays out after the create click. Wait until its own
+  // field is on screen beside ADD WAYPOINT. Another window's field does not count.
+  await waitFor(
+    () => locationContainer(anchor) !== undefined || locationContainer(document.body) !== undefined,
+    5000,
+  );
   for (let attempt = 0; attempt < 3; attempt++) {
     if (await pickLocationOnce(anchor, query)) {
-      const armed = await waitFor(() => addWaypointArmed(anchor), 1500);
+      const armed = await waitFor(() => addWaypointArmed(anchor), 3000);
       if (armed) {
         return true;
       }
@@ -578,21 +658,65 @@ export function routeLoopOn(toggle: HTMLElement): boolean {
   return loopSwitchLit(getComputedStyle(toggle).color);
 }
 
-// The settings switch ignores a content-script click. This is the in-page
-// attempt: a primary pointer at the center, on the element under that point.
+// A content-script mouse event does not flip this switch. The slider path
+// already calls the component's React handler; this does the same for onClick.
 export async function pressLoopSwitch(toggle: HTMLElement): Promise<void> {
+  const onClick = reactOnClick(toggle);
+  if (onClick !== undefined) {
+    onClick({
+      isTrusted: true,
+      button: 0,
+      detail: 1,
+      target: toggle,
+      currentTarget: toggle,
+      preventDefault() {},
+      stopPropagation() {},
+      persist() {},
+      nativeEvent: { isTrusted: true, button: 0, detail: 1 },
+    });
+    return;
+  }
   await clickAtCenter(toggle);
+}
+
+function reactOnClick(start: HTMLElement): ((event: object) => void) | undefined {
+  const record = start as unknown as Record<string, unknown>;
+  const fiberKey = Object.getOwnPropertyNames(record).find(name =>
+    name.startsWith('__reactFiber$'),
+  );
+  let fiber = fiberKey === undefined ? undefined : record[fiberKey];
+  for (let depth = 0; depth < 8 && fiber !== null && typeof fiber === 'object'; depth += 1) {
+    const node = fiber as { memoizedProps?: unknown; stateNode?: unknown; return?: unknown };
+    const stateNode = node.stateNode;
+    const onSwitch =
+      stateNode === start ||
+      (stateNode instanceof HTMLElement &&
+        (start.contains(stateNode) ||
+          (stateNode.contains(start) && isRouteLoopText(stateNode.textContent ?? ''))));
+    const props = node.memoizedProps;
+    if (
+      onSwitch &&
+      props !== null &&
+      typeof props === 'object' &&
+      typeof (props as { onClick?: unknown }).onClick === 'function'
+    ) {
+      return (props as { onClick: (event: object) => void }).onClick;
+    }
+    fiber = node.return;
+  }
+  return undefined;
 }
 
 export async function fillWaypointFlight(
   editor: Element,
   stop: { fuelUsage?: number; reactorUsage?: number; gateway?: boolean },
+  waitAct?: (status: string) => Promise<void>,
 ): Promise<void> {
   if (stop.fuelUsage !== undefined) {
     await setLabeledSlider(editor, flightLabel('fuel'), stop.fuelUsage);
   }
   if (stop.reactorUsage !== undefined) {
-    await setLabeledSlider(editor, flightLabel('reactor'), stop.reactorUsage);
+    await setReactorUsage(editor, stop.reactorUsage, waitAct);
   }
   if (stop.gateway !== undefined) {
     await setGateway(editor, stop.gateway);
@@ -667,14 +791,7 @@ function sliderOnChange(handle: HTMLElement): ((value: number) => void) | undefi
 }
 
 async function setLabeledSlider(editor: Element, label: string, target: number): Promise<void> {
-  const slider = sliderFor(editor, label);
-  if (slider === undefined) {
-    throw new Error(`${label} slider is not on the waypoint`);
-  }
-  const handle = sliderHandle(slider);
-  if (handle === undefined) {
-    throw new Error(`Could not find the ${label} handle`);
-  }
+  const handle = labeledHandle(editor, label);
   const min = Number(handle.getAttribute('aria-valuemin'));
   const max = Number(handle.getAttribute('aria-valuemax'));
   if (!Number.isFinite(min) || !Number.isFinite(max) || target < min || target > max) {
@@ -693,6 +810,52 @@ async function setLabeledSlider(editor: Element, label: string, target: number):
     const now = readNow(handle);
     throw new Error(`${label} stayed at ${now === undefined ? 'empty' : String(now)}`);
   }
+}
+
+async function setReactorUsage(
+  editor: Element,
+  target: number,
+  waitAct?: (status: string) => Promise<void>,
+): Promise<void> {
+  const label = flightLabel('reactor');
+  const handle = labeledHandle(editor, label);
+  if (readNow(handle) !== target) {
+    const min = Number(handle.getAttribute('aria-valuemin'));
+    const max = Number(handle.getAttribute('aria-valuemax'));
+    const onChange = sliderOnChange(handle);
+    if (
+      onChange !== undefined &&
+      Number.isFinite(min) &&
+      Number.isFinite(max) &&
+      target >= min &&
+      target <= max
+    ) {
+      onChange(target);
+      await waitFor(() => readNow(handle) === target, 1000);
+    }
+  }
+  if (readNow(handle) === target) {
+    return;
+  }
+  if (waitAct !== undefined) {
+    await waitAct(`Set Reactor usage to ${target}, then press ACT`);
+  }
+  if (readNow(handle) !== target) {
+    const now = readNow(handle);
+    throw new Error(`${label} stayed at ${now === undefined ? 'empty' : String(now)}`);
+  }
+}
+
+function labeledHandle(editor: Element, label: string): HTMLElement {
+  const slider = sliderFor(editor, label);
+  if (slider === undefined) {
+    throw new Error(`${label} slider is not on the waypoint`);
+  }
+  const handle = sliderHandle(slider);
+  if (handle === undefined) {
+    throw new Error(`Could not find the ${label} handle`);
+  }
+  return handle;
 }
 
 async function setGateway(editor: Element, on: boolean): Promise<void> {

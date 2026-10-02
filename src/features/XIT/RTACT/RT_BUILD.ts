@@ -121,8 +121,11 @@ async function addStop(
   const picked = await pickLocation(tile.anchor, stop.query);
   const armed = addWaypointArmed(tile.anchor);
   if (!shouldClickAddWaypoint({ suggestionPicked: picked, armed })) {
+    const options = document.querySelectorAll(
+      '#autosuggest-portal [role="option"], [role="listbox"] [role="option"]',
+    ).length;
     fail(
-      `ADD WAYPOINT is not armed for ${stop.query}. Raw text does not count until a suggestion is picked.`,
+      `ADD WAYPOINT is not armed for ${stop.query}. Raw text does not count until a suggestion is picked. Options visible: ${options}.`,
     );
     return false;
   }
@@ -192,7 +195,7 @@ async function saveWaypointFlight(
     return false;
   }
   try {
-    await fillWaypointFlight(editor, stop);
+    await fillWaypointFlight(editor, stop, waitAct);
   } catch (err) {
     fail(err instanceof Error ? err.message : `Could not fill ${title}`);
     return false;
@@ -247,32 +250,29 @@ async function setRouteLoop(
   if (routeLoopOn(toggle) === on) {
     return true;
   }
-  const beforeClass = toggle.className;
   try {
     await pressLoopSwitch(toggle);
   } catch (err) {
     fail(err instanceof Error ? err.message : 'Could not click the Loop toggle');
     return false;
   }
-  const flipped = await waitFor(() => {
-    const next = routeLoopToggle(tile.frame);
-    if (next === undefined) {
-      return false;
-    }
-    if (routeLoopOn(next) === on) {
-      return true;
-    }
-    // The route switch is a div labeled Loop. Its on-state is not always the
-    // sidebar indicator's Active class, so a class change after the click counts.
-    return next.className !== beforeClass;
-  }, 8000);
+  const flipped = await waitFor(() => loopIs(tile.frame, on), 1500);
   if (!flipped) {
+    await waitAct(on ? 'Turn Loop on, then press ACT' : 'Turn Loop off, then press ACT');
+  }
+  const done = await waitFor(() => loopIs(tile.frame, on), 1500);
+  if (!done) {
     fail(on ? 'Loop stayed off' : 'Loop stayed on');
     return false;
   }
   await dismissSaveFeedback(tile);
   log.info(on ? 'Loop is on' : 'Loop is off');
   return true;
+}
+
+function loopIs(root: Element, on: boolean): boolean {
+  const next = routeLoopToggle(root);
+  return next !== undefined && routeLoopOn(next) === on;
 }
 
 async function addStep(
