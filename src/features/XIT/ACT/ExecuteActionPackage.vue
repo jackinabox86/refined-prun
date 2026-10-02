@@ -179,7 +179,9 @@ function onExecuteClick() {
 }
 
 onMounted(() => {
-  if (autoStart && !shouldShowConfigure.value) {
+  // A solo buffer splits on setup and remounts this package in the left pane; only
+  // that instance owns the companion, so the one being split away must not start.
+  if (autoStart && !goingToSplit.value && !shouldShowConfigure.value) {
     onExecuteClick();
   }
 });

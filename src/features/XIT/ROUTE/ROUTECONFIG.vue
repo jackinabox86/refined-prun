@@ -3,6 +3,7 @@ import GripCell from '@src/components/grip/GripCell.vue';
 import GripHeaderCell from '@src/components/grip/GripHeaderCell.vue';
 import { grip } from '@src/components/grip';
 import PrunButton from '@src/components/PrunButton.vue';
+import RadioItem from '@src/components/forms/RadioItem.vue';
 import { billTotals } from '@src/features/XIT/DISPATCH/utils';
 import { departureBill, planRouteLoads, routeBaseBills } from '@src/features/XIT/ROUTE/route-load';
 import {
@@ -332,12 +333,12 @@ function onRename() {
   current.name = name;
 }
 
-function onLoop() {
+function onLoop(on: boolean | undefined) {
   const current = route.value;
   if (current === undefined) {
     return;
   }
-  current.loop = current.loop === false;
+  current.loop = on === true;
 }
 
 function setDays(days: number) {
@@ -434,18 +435,11 @@ function selectShip(event: Event) {
 <template>
   <div :class="$style.layout">
     <div :class="[C.ComExOrdersPanel.filter, $style.bar]">
-      <PrunButton
-        v-if="route"
-        :primary="route.loop !== false"
-        :dark="route.loop === false"
-        @click="onLoop">
-        LOOP
-      </PrunButton>
       <select :class="$style.select" :value="selectedId ?? ''" @change="onSelect">
         <option value="" disabled>Route</option>
         <option v-for="item in routes" :key="item.id" :value="item.id">{{ item.name }}</option>
       </select>
-      <PrunButton primary @click="onCreate">NEW</PrunButton>
+      <PrunButton dark @click="onCreate">NEW</PrunButton>
       <template v-if="route">
         <input v-model="draftName" :class="$style.name" />
         <PrunButton dark @click="onRename">RENAME</PrunButton>
@@ -469,63 +463,72 @@ function selectShip(event: Event) {
           max="999"
           :value="supplyDays.toFixed(1)"
           @change="onDaysChange" />
-        <PrunButton primary :disabled="selectedShip === undefined" @click="onFit">FIT</PrunButton>
+        <PrunButton dark :disabled="selectedShip === undefined" @click="onFit">FIT</PrunButton>
         <span :class="$style.daysLabel">Route {{ routeDaysLabel }}d</span>
+        <RadioItem
+          :class="$style.loop"
+          :model-value="route.loop !== false"
+          horizontal
+          @update:model-value="onLoop">
+          LOOP
+        </RadioItem>
       </template>
     </div>
     <p v-if="route === undefined" :class="$style.note">Create a route to order its stops.</p>
     <div v-else :class="$style.panes">
       <StopPool :available="available" :assigned="assignedBases" :exchanges="sunkExchanges" />
       <div :class="$style.route" @dragenter="onDragOver" @dragover="onDragOver" @drop="onDrop">
-        <table v-draggable="dragBinding" :class="$style.table">
-          <thead>
-            <tr>
-              <GripHeaderCell />
-              <th>Stop</th>
-              <th />
-              <th>Input</th>
-              <th>Output</th>
-              <th>Fuel</th>
-            </tr>
-          </thead>
-          <tbody v-for="(stop, index) in rowStops()" :key="stopKey(stop)">
-            <tr>
-              <GripCell />
-              <td>{{ labelFor(stop) }}</td>
-              <td>
-                <PrunButton dark inline @click="removeStop(stopKey(stop))">×</PrunButton>
-              </td>
-              <td>
-                <span :class="[inputOver(stop, index) && C.Workforces.daysMissing, $style.load]">
-                  {{ loadText(inputRecord(stop, index)) }}
-                </span>
-              </td>
-              <td>
-                <span :class="[outputOver(stop) && C.Workforces.daysMissing, $style.load]">
-                  {{ loadText(outputRecord(stop)) }}
-                </span>
-              </td>
-              <td>{{ fuelText(index) }}</td>
-            </tr>
-          </tbody>
-          <tfoot>
-            <tr>
-              <td />
-              <td>Total</td>
-              <td />
-              <td>{{ inputTotal }}</td>
-              <td />
-              <td />
-            </tr>
-          </tfoot>
-        </table>
+        <div :class="$style.routeBody">
+          <table v-draggable="dragBinding" :class="$style.table">
+            <thead>
+              <tr>
+                <GripHeaderCell />
+                <th>Stop</th>
+                <th />
+                <th>Input</th>
+                <th>Output</th>
+                <th>Fuel</th>
+              </tr>
+            </thead>
+            <tbody v-for="(stop, index) in rowStops()" :key="stopKey(stop)">
+              <tr>
+                <GripCell />
+                <td>{{ labelFor(stop) }}</td>
+                <td>
+                  <PrunButton dark inline @click="removeStop(stopKey(stop))">×</PrunButton>
+                </td>
+                <td>
+                  <span :class="[inputOver(stop, index) && C.Workforces.daysMissing, $style.load]">
+                    {{ loadText(inputRecord(stop, index)) }}
+                  </span>
+                </td>
+                <td>
+                  <span :class="[outputOver(stop) && C.Workforces.daysMissing, $style.load]">
+                    {{ loadText(outputRecord(stop)) }}
+                  </span>
+                </td>
+                <td>{{ fuelText(index) }}</td>
+              </tr>
+            </tbody>
+            <tfoot>
+              <tr>
+                <td />
+                <td>Total</td>
+                <td />
+                <td>{{ inputTotal }}</td>
+                <td />
+                <td />
+              </tr>
+            </tfoot>
+          </table>
+          <div :class="$style.footer">
+            <span>Press to Determine Flight Times.</span>
+            <PrunButton :primary="canTransit" :disabled="!canTransit" @click="openTransits">
+              TRANSITS
+            </PrunButton>
+          </div>
+        </div>
       </div>
-    </div>
-    <div v-if="route" :class="$style.footer">
-      <span>Press to Determine Flight Times.</span>
-      <PrunButton :primary="canTransit" :disabled="!canTransit" @click="openTransits">
-        TRANSITS
-      </PrunButton>
     </div>
   </div>
 </template>
@@ -534,9 +537,6 @@ function selectShip(event: Event) {
 .layout {
   display: flex;
   flex-direction: column;
-  box-sizing: border-box;
-  height: 100%;
-  min-height: 0;
 }
 
 .bar {
@@ -574,18 +574,20 @@ function selectShip(event: Event) {
   margin: 0 0.25rem;
 }
 
+/* No inner scroller: the game's ScrollView scrolls the tile, as in DISPATCH. */
 .panes {
   display: flex;
   flex-direction: row;
-  flex: 1 1 auto;
-  min-height: 0;
-  overflow: auto;
 }
 
 .route {
   flex: 1 1 auto;
   min-width: 0;
   padding: 4px;
+}
+
+.routeBody {
+  display: inline-block;
 }
 
 .table {
@@ -606,10 +608,14 @@ function selectShip(event: Event) {
 
 .footer {
   display: flex;
-  flex: 0 0 auto;
   justify-content: space-between;
   align-items: center;
-  padding: 8px 4px;
+  gap: 8px;
+  padding: 8px 6px;
+}
+
+.loop {
+  margin-left: auto;
 }
 
 .note {
