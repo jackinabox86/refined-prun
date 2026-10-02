@@ -483,3 +483,198 @@ export async function clickAssign(row: HTMLTableRowElement): Promise<void> {
   }
   await clickElement(target);
 }
+
+export const WAYPOINT_EDITOR_TITLE = 'Edit waypoint';
+
+export function routeLoopToggle(anchor: Element): HTMLElement | undefined {
+  const toggles = _$$(anchor, C.Frame.toggle).filter(el => {
+    const text = (el.textContent ?? '').replace(/\s+/g, ' ').trim().toLowerCase();
+    return text === 'loop' && _$(el, C.Frame.toggleIndicator) !== undefined;
+  });
+  return toggles[0];
+}
+
+export function routeLoopOn(toggle: HTMLElement): boolean {
+  const indicator = _$(toggle, C.Frame.toggleIndicator);
+  if (indicator === undefined) {
+    return false;
+  }
+  return Array.from(indicator.classList).some(
+    name => name.includes('Active') && !name.includes('Disabled'),
+  );
+}
+
+export async function fillWaypointFlight(
+  editor: Element,
+  stop: { fuelUsage?: number; reactorUsage?: number; gateway?: boolean },
+): Promise<void> {
+  if (stop.fuelUsage !== undefined) {
+    await setLabeledSlider(editor, flightLabel('fuel'), stop.fuelUsage);
+  }
+  if (stop.reactorUsage !== undefined) {
+    await setLabeledSlider(editor, flightLabel('reactor'), stop.reactorUsage);
+  }
+  if (stop.gateway !== undefined) {
+    await setGateway(editor, stop.gateway);
+  }
+}
+
+function flightLabel(which: 'fuel' | 'reactor') {
+  const fromShip =
+    which === 'fuel'
+      ? L.ShipFlightControl.label.fuelUsage()
+      : L.ShipFlightControl.label.reactorUsage();
+  if (fromShip !== undefined && fromShip.length > 0) {
+    return fromShip;
+  }
+  return which === 'fuel' ? 'Fuel usage' : 'Reactor usage';
+}
+
+function sliderFor(editor: Element, label: string): Element | undefined {
+  let best: Element | undefined;
+  let bestLength = Infinity;
+  const wanted = label.toLowerCase();
+  for (const slider of _$$(editor, 'rc-slider')) {
+    let node: Element | null = slider;
+    for (let depth = 0; depth < 8 && node !== null; depth += 1) {
+      const text = node.textContent ?? '';
+      if (text.toLowerCase().includes(wanted) && text.length < bestLength) {
+        best = slider;
+        bestLength = text.length;
+      }
+      node = node.parentElement;
+    }
+  }
+  return best;
+}
+
+function sliderHandle(slider: Element): HTMLElement | undefined {
+  const handle = _$(slider, 'rc-slider-handle');
+  if (handle instanceof HTMLElement) {
+    return handle;
+  }
+  return undefined;
+}
+
+function readNow(handle: HTMLElement): number | undefined {
+  const value = Number(handle.getAttribute('aria-valuenow'));
+  if (!Number.isFinite(value)) {
+    return undefined;
+  }
+  return value;
+}
+
+function sliderOnChange(handle: HTMLElement): ((value: number) => void) | undefined {
+  const record = handle as unknown as Record<string, unknown>;
+  const fiberKey = Object.getOwnPropertyNames(record).find(name =>
+    name.startsWith('__reactFiber$'),
+  );
+  let fiber = fiberKey === undefined ? undefined : record[fiberKey];
+  for (let depth = 0; depth < 12 && fiber !== null && typeof fiber === 'object'; depth += 1) {
+    const props = (fiber as { memoizedProps?: unknown }).memoizedProps;
+    if (
+      props !== null &&
+      typeof props === 'object' &&
+      'min' in props &&
+      'max' in props &&
+      typeof (props as { onChange?: unknown }).onChange === 'function'
+    ) {
+      return (props as unknown as { onChange: (value: number) => void }).onChange;
+    }
+    fiber = (fiber as { return?: unknown }).return;
+  }
+  return undefined;
+}
+
+async function setLabeledSlider(editor: Element, label: string, target: number): Promise<void> {
+  const slider = sliderFor(editor, label);
+  if (slider === undefined) {
+    throw new Error(`${label} slider is not on the waypoint`);
+  }
+  const handle = sliderHandle(slider);
+  if (handle === undefined) {
+    throw new Error(`Could not find the ${label} handle`);
+  }
+  const min = Number(handle.getAttribute('aria-valuemin'));
+  const max = Number(handle.getAttribute('aria-valuemax'));
+  if (!Number.isFinite(min) || !Number.isFinite(max) || target < min || target > max) {
+    throw new Error(`${label} cannot take ${target}`);
+  }
+  if (readNow(handle) === target) {
+    return;
+  }
+  const onChange = sliderOnChange(handle);
+  if (onChange === undefined) {
+    throw new Error(`${label} slider has no change handler`);
+  }
+  onChange(target);
+  const landed = await waitFor(() => readNow(handle) === target, 1000);
+  if (!landed) {
+    const now = readNow(handle);
+    throw new Error(`${label} stayed at ${now === undefined ? 'empty' : String(now)}`);
+  }
+}
+
+async function setGateway(editor: Element, on: boolean): Promise<void> {
+  const select = editor.querySelector('select');
+  if (select === null) {
+    throw new Error('Route preferences are not on the waypoint');
+  }
+  const toggle = gatewayLeaf(select);
+  if (toggle === undefined) {
+    throw new Error('Use gateways is not on the waypoint');
+  }
+  if (gatewayOn(toggle) === on) {
+    return;
+  }
+  await clickElement(toggle);
+  const flipped = await waitFor(() => gatewayOn(toggle) === on, 1500);
+  if (!flipped) {
+    throw new Error('Use gateways did not change');
+  }
+}
+
+function gatewayLeaf(select: HTMLSelectElement): HTMLElement | undefined {
+  const label = L.RoutePreferencesSelect.label.useGateways();
+  const wanted = label !== undefined && label.length > 0 ? label : 'Use gateways';
+  let node: Element | null = select.parentElement;
+  while (node !== null) {
+    const leaves = Array.from(node.querySelectorAll<HTMLElement>('[class*=Check]')).filter(el => {
+      if (el.contains(select) || select.contains(el)) {
+        return false;
+      }
+      const text = (el.textContent ?? '').trim();
+      if (text.length === 0 || text.length > 48) {
+        return false;
+      }
+      if (!text.toLowerCase().includes(wanted.toLowerCase()) && text !== wanted) {
+        return false;
+      }
+      return !Array.from(el.children).some(child => (child.textContent ?? '').trim() === text);
+    });
+    const leaf = leaves[0];
+    if (leaf !== undefined) {
+      return leaf;
+    }
+    node = node.parentElement;
+  }
+  return undefined;
+}
+
+function gatewayOn(el: HTMLElement): boolean {
+  let node: HTMLElement | null = el;
+  for (let depth = 0; depth < 4 && node !== null; depth += 1) {
+    const aria = node.getAttribute('aria-checked') ?? node.getAttribute('aria-pressed');
+    if (aria === 'true') {
+      return true;
+    }
+    if (aria === 'false') {
+      return false;
+    }
+    if (/active/i.test(node.className) && /check/i.test(node.className)) {
+      return true;
+    }
+    node = node.parentElement;
+  }
+  return false;
+}

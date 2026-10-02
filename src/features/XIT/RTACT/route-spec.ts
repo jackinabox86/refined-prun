@@ -50,10 +50,16 @@ export type RouteStep = LoadStep | UnloadStep | WaitStep | RefuelStep;
 export interface RouteStop {
   query: string;
   steps: RouteStep[];
+  // Leg that departs this waypoint. Absent when the text runner has no flight data.
+  fuelUsage?: number;
+  reactorUsage?: number;
+  gateway?: boolean;
 }
 
 export interface RouteSpec {
   stops: RouteStop[];
+  // Absent on a text spec, so the text runner leaves the game toggle alone.
+  loop?: boolean;
 }
 
 export type ParseResult = { ok: true; spec: RouteSpec } | { ok: false; error: string };
@@ -278,6 +284,212 @@ function parseLimit(
   const amount = Number(token);
   if (!Number.isFinite(amount) || amount < 0) {
     return { ok: false, error: `Line ${line}: ${side} must be a number, capacity, or all` };
+  }
+  return { ok: true, limit: { mode: 'units', amount } };
+}
+
+// JSON RouteSpec from the ROUTECONFIG bridge. The text parser does not carry flight fields.
+export function parseRoutePayload(text: string): ParseResult {
+  let value: unknown;
+  try {
+    value = JSON.parse(text);
+  } catch {
+    return { ok: false, error: 'Route payload is not JSON' };
+  }
+  if (typeof value !== 'object' || value === null) {
+    return { ok: false, error: 'Route payload is not a route' };
+  }
+  const record = value as { stops?: unknown; loop?: unknown };
+  if (!Array.isArray(record.stops)) {
+    return { ok: false, error: 'Route payload is not a route' };
+  }
+  const stops: RouteStop[] = [];
+  for (const entry of record.stops) {
+    const parsed = parsePayloadStop(entry);
+    if (!parsed.ok) {
+      return parsed;
+    }
+    stops.push(parsed.stop);
+  }
+  if (stops.length < 2) {
+    return { ok: false, error: 'Need at least 2 stops' };
+  }
+  if (record.loop !== undefined && typeof record.loop !== 'boolean') {
+    return { ok: false, error: 'Route payload loop must be a boolean' };
+  }
+  return {
+    ok: true,
+    spec: record.loop === undefined ? { stops } : { stops, loop: record.loop },
+  };
+}
+
+function parsePayloadStop(
+  entry: unknown,
+): { ok: true; stop: RouteStop } | { ok: false; error: string } {
+  if (typeof entry !== 'object' || entry === null) {
+    return { ok: false, error: 'Route payload stop is not an object' };
+  }
+  const record = entry as {
+    query?: unknown;
+    steps?: unknown;
+    fuelUsage?: unknown;
+    reactorUsage?: unknown;
+    gateway?: unknown;
+  };
+  if (typeof record.query !== 'string' || record.query.trim().length === 0) {
+    return { ok: false, error: 'Route payload stop is missing a query' };
+  }
+  if (!Array.isArray(record.steps)) {
+    return { ok: false, error: 'Route payload stop is missing steps' };
+  }
+  const steps: RouteStep[] = [];
+  for (const step of record.steps) {
+    const parsed = parsePayloadStep(step);
+    if (!parsed.ok) {
+      return parsed;
+    }
+    steps.push(parsed.step);
+  }
+  const stop: RouteStop = { query: record.query, steps };
+  if (record.fuelUsage !== undefined) {
+    if (typeof record.fuelUsage !== 'number' || !Number.isFinite(record.fuelUsage)) {
+      return { ok: false, error: 'Route payload fuel usage must be a number' };
+    }
+    stop.fuelUsage = record.fuelUsage;
+  }
+  if (record.reactorUsage !== undefined) {
+    if (typeof record.reactorUsage !== 'number' || !Number.isFinite(record.reactorUsage)) {
+      return { ok: false, error: 'Route payload reactor usage must be a number' };
+    }
+    stop.reactorUsage = record.reactorUsage;
+  }
+  if (record.gateway !== undefined) {
+    if (typeof record.gateway !== 'boolean') {
+      return { ok: false, error: 'Route payload gateway must be a boolean' };
+    }
+    stop.gateway = record.gateway;
+  }
+  return { ok: true, stop };
+}
+
+function parsePayloadStep(
+  step: unknown,
+): { ok: true; step: RouteStep } | { ok: false; error: string } {
+  if (typeof step !== 'object' || step === null) {
+    return { ok: false, error: 'Route payload step is not an object' };
+  }
+  const kind = (step as { kind?: unknown }).kind;
+  if (kind === 'wait') {
+    const wait = step as { amount?: unknown; unit?: unknown };
+    if (typeof wait.amount !== 'number' || !Number.isFinite(wait.amount) || wait.amount <= 0) {
+      return { ok: false, error: 'Route payload wait amount is invalid' };
+    }
+    if (
+      wait.unit !== 'seconds' &&
+      wait.unit !== 'minutes' &&
+      wait.unit !== 'hours' &&
+      wait.unit !== 'days'
+    ) {
+      return { ok: false, error: 'Route payload wait unit is invalid' };
+    }
+    return { ok: true, step: { kind: 'wait', amount: wait.amount, unit: wait.unit } };
+  }
+  if (kind === 'refuel') {
+    const refuel = step as { tank?: unknown; source?: unknown; min?: unknown; max?: unknown };
+    if (refuel.tank !== 'STL' && refuel.tank !== 'FTL') {
+      return { ok: false, error: 'Route payload tank must be STL or FTL' };
+    }
+    if (refuel.source !== 'ship' && refuel.source !== 'local') {
+      return { ok: false, error: 'Route payload fuel source must be ship or local' };
+    }
+    const min = payloadLimit(refuel.min, 'refuel');
+    const max = payloadLimit(refuel.max, 'refuel');
+    if (!min.ok) {
+      return min;
+    }
+    if (!max.ok) {
+      return max;
+    }
+    return {
+      ok: true,
+      step: {
+        kind: 'refuel',
+        tank: refuel.tank,
+        source: refuel.source,
+        min: min.limit,
+        max: max.limit,
+      },
+    };
+  }
+  if (kind !== 'load' && kind !== 'unload') {
+    return { ok: false, error: 'Route payload step kind is invalid' };
+  }
+  const cargo = step as { ticker?: unknown; min?: unknown; max?: unknown };
+  if (typeof cargo.ticker !== 'string' || !/^[A-Z0-9]{1,4}$/.test(cargo.ticker)) {
+    return { ok: false, error: 'Route payload ticker is invalid' };
+  }
+  if (kind === 'load') {
+    const min = payloadLimit(cargo.min, 'load');
+    const max = payloadLimit(cargo.max, 'load');
+    if (!min.ok) {
+      return min;
+    }
+    if (!max.ok) {
+      return max;
+    }
+    return {
+      ok: true,
+      step: { kind: 'load', ticker: cargo.ticker, min: min.limit, max: max.limit },
+    };
+  }
+  const min = payloadLimit(cargo.min, 'unload');
+  const max = payloadLimit(cargo.max, 'unload');
+  if (!min.ok) {
+    return min;
+  }
+  if (!max.ok) {
+    return max;
+  }
+  return {
+    ok: true,
+    step: { kind: 'unload', ticker: cargo.ticker, min: min.limit, max: max.limit },
+  };
+}
+
+function payloadLimit(
+  value: unknown,
+  kind: 'load' | 'refuel',
+): { ok: true; limit: LoadLimit } | { ok: false; error: string };
+function payloadLimit(
+  value: unknown,
+  kind: 'unload',
+): { ok: true; limit: UnloadLimit } | { ok: false; error: string };
+function payloadLimit(
+  value: unknown,
+  kind: 'load' | 'unload' | 'refuel',
+): { ok: true; limit: LoadLimit | UnloadLimit } | { ok: false; error: string } {
+  if (typeof value !== 'object' || value === null) {
+    return { ok: false, error: 'Route payload limit is invalid' };
+  }
+  const mode = (value as { mode?: unknown }).mode;
+  if (mode === 'capacity') {
+    if (kind === 'unload') {
+      return { ok: false, error: 'Route payload unload uses units or all, not capacity' };
+    }
+    return { ok: true, limit: { mode: 'capacity' } };
+  }
+  if (mode === 'all') {
+    if (kind !== 'unload') {
+      return { ok: false, error: 'Route payload load does not use all' };
+    }
+    return { ok: true, limit: { mode: 'all' } };
+  }
+  if (mode !== 'units') {
+    return { ok: false, error: 'Route payload limit is invalid' };
+  }
+  const amount = (value as { amount?: unknown }).amount;
+  if (typeof amount !== 'number' || !Number.isFinite(amount) || amount < 0) {
+    return { ok: false, error: 'Route payload limit amount is invalid' };
   }
   return { ok: true, limit: { mode: 'units', amount } };
 }

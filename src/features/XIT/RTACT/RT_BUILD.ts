@@ -6,6 +6,7 @@ import {
   clickEditorSave,
   commandLabel,
   fillStepEditor,
+  fillWaypointFlight,
   findEditor,
   findStepEdit,
   findWaypointScope,
@@ -13,11 +14,14 @@ import {
   pickLocation,
   readShipAssignment,
   revealHover,
+  routeLoopOn,
+  routeLoopToggle,
   snapshotRouteIds,
   stationName,
   stepEdits,
   waitForEditor,
   waitForNewRouteId,
+  WAYPOINT_EDITOR_TITLE,
   waypointBlock,
 } from '@src/features/XIT/RTACT/route-dom';
 import { editorTitle, type RouteStep, type RouteStop } from '@src/features/XIT/RTACT/route-spec';
@@ -31,6 +35,7 @@ interface Data {
   routeId?: string;
   shipId?: string;
   stops: RouteStop[];
+  loop?: boolean;
 }
 
 export const RT_BUILD = act.addActionStep<Data>({
@@ -76,6 +81,12 @@ export const RT_BUILD = act.addActionStep<Data>({
     for (const stop of data.stops) {
       const ok = await addStop(ctx, tile, stop);
       if (!ok) {
+        return;
+      }
+    }
+    if (data.loop !== undefined) {
+      const looped = await setRouteLoop(ctx, tile, data.loop);
+      if (!looped) {
         return;
       }
     }
@@ -133,6 +144,124 @@ async function addStop(
       return false;
     }
   }
+  if (!hasWaypointFlight(stop)) {
+    return true;
+  }
+  return await saveWaypointFlight(ctx, tile, needles, stop);
+}
+
+function hasWaypointFlight(stop: RouteStop): boolean {
+  return (
+    stop.fuelUsage !== undefined || stop.reactorUsage !== undefined || stop.gateway !== undefined
+  );
+}
+
+async function saveWaypointFlight(
+  ctx: {
+    waitAct: (status?: string) => Promise<void>;
+    fail: (message?: string) => void;
+    log: { info: (message: string) => void };
+  },
+  tile: PrunTile,
+  needles: string[],
+  stop: RouteStop,
+): Promise<boolean> {
+  const { waitAct, fail, log } = ctx;
+  const scope = findWaypointScope(tile.anchor, needles);
+  if (scope === undefined) {
+    fail(`Could not find the waypoint for ${stop.query}`);
+    return false;
+  }
+  const block = waypointBlock(scope);
+  revealHover(block);
+  try {
+    await clickControl(block, WAYPOINT_EDITOR_TITLE);
+  } catch (err) {
+    fail(err instanceof Error ? err.message : 'Could not open Edit waypoint');
+    return false;
+  }
+  const title = WAYPOINT_EDITOR_TITLE;
+  let editor: Element | undefined;
+  await waitFor(() => {
+    editor = findEditor(tile.anchor, title);
+    return editor !== undefined;
+  }, 8000);
+  if (editor === undefined) {
+    fail(`Could not find ${title}`);
+    return false;
+  }
+  try {
+    await fillWaypointFlight(editor, stop);
+  } catch (err) {
+    fail(err instanceof Error ? err.message : `Could not fill ${title}`);
+    return false;
+  }
+  log.info(`Filled ${title}`);
+  await waitAct(`Save ${title}?`);
+  const current = findEditor(tile.anchor, title);
+  if (current === undefined) {
+    fail(`${title} closed before SAVE`);
+    return false;
+  }
+  try {
+    await clickEditorSave(current);
+  } catch (err) {
+    fail(err instanceof Error ? err.message : `Could not click SAVE on ${title}`);
+    return false;
+  }
+  const closed = await waitFor(() => findEditor(tile.anchor, title) === undefined, 8000);
+  if (!closed) {
+    fail(`${title} is still open after SAVE`);
+    return false;
+  }
+  await dismissSaveFeedback(tile);
+  return true;
+}
+
+async function setRouteLoop(
+  ctx: {
+    waitAct: (status?: string) => Promise<void>;
+    fail: (message?: string) => void;
+    log: { info: (message: string) => void };
+  },
+  tile: PrunTile,
+  on: boolean,
+): Promise<boolean> {
+  const { waitAct, fail, log } = ctx;
+  const current = routeLoopToggle(tile.anchor);
+  if (current === undefined) {
+    fail('Could not find the Loop toggle');
+    return false;
+  }
+  if (routeLoopOn(current) === on) {
+    log.info(on ? 'Loop is already on' : 'Loop is already off');
+    return true;
+  }
+  await waitAct(on ? 'Turn route loop on?' : 'Turn route loop off?');
+  const toggle = routeLoopToggle(tile.anchor);
+  if (toggle === undefined) {
+    fail('Could not find the Loop toggle');
+    return false;
+  }
+  if (routeLoopOn(toggle) === on) {
+    return true;
+  }
+  try {
+    await clickElement(toggle);
+  } catch (err) {
+    fail(err instanceof Error ? err.message : 'Could not click the Loop toggle');
+    return false;
+  }
+  const flipped = await waitFor(() => {
+    const next = routeLoopToggle(tile.anchor);
+    return next !== undefined && routeLoopOn(next) === on;
+  }, 8000);
+  if (!flipped) {
+    fail(on ? 'Loop stayed off' : 'Loop stayed on');
+    return false;
+  }
+  await dismissSaveFeedback(tile);
+  log.info(on ? 'Loop is on' : 'Loop is off');
   return true;
 }
 

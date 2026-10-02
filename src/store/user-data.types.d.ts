@@ -106,9 +106,11 @@ declare namespace UserData {
     planet?: string;
 
     // Staging RT: optional existing route id, the stop list the player typed, and an optional
-    // ship to assign once the stops are in.
+    // ship to assign once the stops are in. routePayload is the ROUTECONFIG bridge's JSON
+    // RouteSpec; the text runner leaves it empty.
     routeId?: string;
     routeSpec?: string;
+    routePayload?: string;
     shipId?: string;
 
     origin?: string;

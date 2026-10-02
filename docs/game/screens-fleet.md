@@ -1,4 +1,4 @@
-# Fleet Screens (FLT, SFC, SHP, SHPI, SHPF)
+# Fleet Screens (FLT, SFC, SHP, SHPI, SHPF, RT)
 
 ## FLT — Fleet
 
@@ -44,3 +44,13 @@ Below the weight/volume gauges sits a standalone primary `unload` button (`Butto
 ## SHPF — Ship Fuel Tanks
 
 Two grids: STL fuel tank (SF) and FTL fuel tank (FF), each with weight/volume gauges. Context bar: `SHP`, `SHPI`, `SFC`.
+
+## RT — Routes
+
+`RT` lists routes. `RT <id>` opens one. Creating a route, adding a waypoint, saving a step or waypoint, assigning a ship, and the Loop toggle are server actions. `delete` on the list, and `Delete waypoint`, `Delete step`, and `CANCEL` in the editors, are server actions the staging runner does not click.
+
+The route view has a Settings row labeled Loop. The control is a `Frame` toggle (label plus indicator), not a button. The indicator's class includes `Active` when the route loops. On staging, `RT-SNXV-3853` had Loop on and three waypoints — Antares Station (Antares I), Antares II - Deimos (ZV-759c), Antares I - Phobos (ZV-307d). The origin was not listed again at the end. The ROUTECONFIG bridge sets this toggle and does not append the origin as a final waypoint. The first stop's unload-all is what clears cargo the ship still holds when the loop comes back. A duplicate origin was not submitted; this is the shape of an existing looping route.
+
+Each waypoint has an `Edit waypoint` button, separate from `Edit step`. The form is local until SAVE. It shows Destination, Fuel usage and Reactor usage as `rc-slider` handles (`role="slider"`, marks at 1%, 50%, and 100%), a Route preferences select (`least jumps` / `shortest FTL route`), a Use gateways check beside that select, and CANCEL and SAVE. The runner writes the leg's stored fuel usage, reactor usage, and gateway onto that form and leaves the route-preferences select alone. The number has to fall inside the handle's `aria-valuemin` and `aria-valuemax`; those stored numbers are the blueprint test flight's `aria-valuenow` for the same labels. A leg with no reactor slider cannot take a reactor value. SAVE is the commit.
+
+Other waypoint commands on the route view are Load, Unload, Refuel, Wait, Load shipment, and Unload shipment. Shipment steps are not part of the ROUTECONFIG bridge.

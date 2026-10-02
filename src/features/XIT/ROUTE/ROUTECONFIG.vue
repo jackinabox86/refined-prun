@@ -6,6 +6,10 @@ import PrunButton from '@src/components/PrunButton.vue';
 import RadioItem from '@src/components/forms/RadioItem.vue';
 import { billTotals } from '@src/features/XIT/DISPATCH/utils';
 import { departureBill, planRouteLoads, routeBaseBills } from '@src/features/XIT/ROUTE/route-load';
+import { buildRouteSpec } from '@src/features/XIT/ROUTE/route-rt';
+import { buildRouteconfigPackage } from '@src/features/XIT/RTACT/route-package';
+import { stagedRtRoute } from '@src/features/XIT/RTACT/staged';
+import { isStagingHost } from '@src/features/XIT/RTACT/staging-host';
 import {
   formatFuelCell,
   fuelCargoLoads,
@@ -28,7 +32,10 @@ import {
 } from '@src/features/XIT/ROUTE/routes';
 import StopPool from '@src/features/XIT/ROUTE/StopPool.vue';
 import { shipOptions } from '@src/features/XIT/TRANSITS/ship-options';
+import { useTile } from '@src/hooks/use-tile';
 import { useXitParameters } from '@src/hooks/use-xit-parameters';
+import { UI_TILES_CHANGE_COMMAND } from '@src/infrastructure/prun-api/client-messages';
+import { dispatchClientPrunMessage } from '@src/infrastructure/prun-api/prun-api-listener';
 import { exchangesStore } from '@src/infrastructure/prun-api/data/exchanges';
 import { sitesStore } from '@src/infrastructure/prun-api/data/sites';
 import {
@@ -46,7 +53,10 @@ interface PoolEntry {
   label: string;
 }
 
+const tile = useTile();
 const parameters = useXitParameters();
+const rtError = ref('');
+const staging = isStagingHost(location.hostname);
 const selectedId = ref(parameters[0] ?? shippingRoutes()[0]?.id);
 const draftName = ref('');
 const route = computed(() => findRoute(selectedId.value));
@@ -415,6 +425,69 @@ function removeStop(key: string) {
   current.legs = undefined;
 }
 
+const canBuildRt = computed(
+  () => staging && canTransit.value && loadPlan.value !== undefined && tanks.value !== undefined,
+);
+
+const rtTooltip = computed(() => {
+  if (!staging) {
+    return 'RT build runs on the staging host.';
+  }
+  if (!shipChosen.value) {
+    return 'Set a ship above to build the route.';
+  }
+  if ((route.value?.stops.length ?? 0) < 2) {
+    return 'Add at least two stops.';
+  }
+  if (loadPlan.value === undefined || tanks.value === undefined) {
+    return 'The bill is not ready.';
+  }
+  return undefined;
+});
+
+function onBuildRt() {
+  const current = route.value;
+  const planned = loadPlan.value;
+  const plannedTanks = tanks.value;
+  if (current === undefined || planned === undefined || plannedTanks === undefined) {
+    return;
+  }
+  if (!canBuildRt.value) {
+    return;
+  }
+  const built = buildRouteSpec({
+    stops: current.stops,
+    loop: current.loop,
+    legs: current.legs,
+    bills: planned.billed.map(base => ({ id: base.naturalId, bill: base.bill })),
+    sourced: planned.plan.sourced,
+    loadedByStop: planned.plan.loadedByStop,
+    refuelStl: plannedTanks.stl.map(stop => stop.refuel),
+    refuelFtl: plannedTanks.ftl.map(stop => stop.refuel),
+  });
+  if (!built.ok) {
+    rtError.value = built.error;
+    return;
+  }
+  const pkg = buildRouteconfigPackage(
+    location.hostname,
+    built.spec,
+    current.ship ?? '',
+    current.name,
+  );
+  if (!pkg.ok) {
+    rtError.value = pkg.error;
+    return;
+  }
+  rtError.value = '';
+  stagedRtRoute.value = { pkg: pkg.pkg };
+  if (!dispatchClientPrunMessage(UI_TILES_CHANGE_COMMAND(tile.id, null))) {
+    showBuffer('XIT RTEXEC');
+    return;
+  }
+  dispatchClientPrunMessage(UI_TILES_CHANGE_COMMAND(tile.id, 'XIT RTEXEC'));
+}
+
 function openTransits() {
   const current = route.value;
   if (current === undefined || !canTransit.value) {
@@ -519,6 +592,7 @@ function selectShip(event: Event) {
               </tr>
             </tfoot>
           </table>
+          <p v-if="rtError" :class="$style.note">{{ rtError }}</p>
           <div :class="$style.footer">
             <span>Press to Determine Flight Times.</span>
             <span
@@ -527,6 +601,14 @@ function selectShip(event: Event) {
               data-tooltip-position="left">
               <PrunButton :primary="canTransit" :disabled="!canTransit" @click="openTransits">
                 TRANSITS
+              </PrunButton>
+            </span>
+            <span
+              :class="$style.transitsGate"
+              :data-tooltip="rtTooltip"
+              data-tooltip-position="left">
+              <PrunButton :primary="canBuildRt" :disabled="!canBuildRt" @click="onBuildRt">
+                RT
               </PrunButton>
             </span>
           </div>
