@@ -120,6 +120,22 @@ export function waypointNeedles(query: string, canonical: string, stationName?: 
   return needles;
 }
 
+// The route settings row renders the word Loop on the row and again on the switch.
+export function isRouteLoopText(text: string): boolean {
+  const value = text.replace(/\s+/g, ' ').trim().toLowerCase();
+  return value === 'loop' || value === 'loop loop';
+}
+
+// Staging route settings, 2026-10-02: the switch text is rgb(153, 153, 153) while
+// off and rgb(221, 221, 221) while on. It does not gain an Active class.
+export function loopSwitchLit(color: string): boolean {
+  const match = color.match(/rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)/i);
+  if (match === null) {
+    return false;
+  }
+  return Number(match[1]) >= 200 && Number(match[2]) >= 200 && Number(match[3]) >= 200;
+}
+
 export function isStepEditLabel(label: string): boolean {
   const value = label.trim().toLowerCase();
   if (value.length === 0 || value.includes('delete') || value.includes('waypoint')) {

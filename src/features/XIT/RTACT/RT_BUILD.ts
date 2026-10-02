@@ -14,6 +14,7 @@ import {
   pickLocation,
   readShipAssignment,
   revealHover,
+  pressLoopSwitch,
   routeLoopOn,
   routeLoopToggle,
   snapshotRouteIds,
@@ -228,7 +229,7 @@ async function setRouteLoop(
   on: boolean,
 ): Promise<boolean> {
   const { waitAct, fail, log } = ctx;
-  const current = routeLoopToggle(tile.anchor);
+  const current = routeLoopToggle(tile.frame);
   if (current === undefined) {
     fail('Could not find the Loop toggle');
     return false;
@@ -238,7 +239,7 @@ async function setRouteLoop(
     return true;
   }
   await waitAct(on ? 'Turn route loop on?' : 'Turn route loop off?');
-  const toggle = routeLoopToggle(tile.anchor);
+  const toggle = routeLoopToggle(tile.frame);
   if (toggle === undefined) {
     fail('Could not find the Loop toggle');
     return false;
@@ -246,15 +247,24 @@ async function setRouteLoop(
   if (routeLoopOn(toggle) === on) {
     return true;
   }
+  const beforeClass = toggle.className;
   try {
-    await clickElement(toggle);
+    await pressLoopSwitch(toggle);
   } catch (err) {
     fail(err instanceof Error ? err.message : 'Could not click the Loop toggle');
     return false;
   }
   const flipped = await waitFor(() => {
-    const next = routeLoopToggle(tile.anchor);
-    return next !== undefined && routeLoopOn(next) === on;
+    const next = routeLoopToggle(tile.frame);
+    if (next === undefined) {
+      return false;
+    }
+    if (routeLoopOn(next) === on) {
+      return true;
+    }
+    // The route switch is a div labeled Loop. Its on-state is not always the
+    // sidebar indicator's Active class, so a class change after the click counts.
+    return next.className !== beforeClass;
   }, 8000);
   if (!flipped) {
     fail(on ? 'Loop stayed off' : 'Loop stayed on');

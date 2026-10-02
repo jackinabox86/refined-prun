@@ -14,8 +14,10 @@ import {
   blockIndex,
   controlLabelOf,
   isAddWaypointArmed,
+  isRouteLoopText,
   isStepEditLabel,
   limitClick,
+  loopSwitchLit,
   modeRowIndex,
   newRouteId,
   pickSuggestion,
@@ -34,10 +36,12 @@ import {
 } from '@src/infrastructure/prun-ui/utils/select-address';
 import {
   changeSelectIndex,
+  clickAtCenter,
   clickElement,
   selectAndChangeInputValue,
   selectMaterialInMaterialSelector,
 } from '@src/util';
+import { sleep } from '@src/utils/sleep';
 import { waitFor } from '@src/utils/wait-for';
 
 function controlElements(root: Element): HTMLElement[] {
@@ -96,10 +100,45 @@ export async function clickControl(
   await clickElement(match.el);
 }
 
-export function locationContainer(anchor: Element): Element | undefined {
-  const input = (_$$(anchor, C.AddressSelector.input) as HTMLInputElement[]).find(
+function nearAddWaypoint(field: HTMLElement): boolean {
+  let node: HTMLElement | null = field;
+  for (let depth = 0; node !== null && depth < 8; depth += 1) {
+    const armed = Array.from(node.querySelectorAll('button')).some(
+      button => (button.textContent ?? '').trim().toLowerCase() === 'add waypoint',
+    );
+    if (armed) {
+      return true;
+    }
+    node = node.parentElement;
+  }
+  return false;
+}
+
+// A split buffer can hold more than one Enter location field. The route editor's
+// field is the visible one beside ADD WAYPOINT. A hidden copy does not open suggestions.
+function locationInput(root: Element): HTMLInputElement | undefined {
+  const inputs = (_$$(root, C.AddressSelector.input) as HTMLInputElement[]).filter(
     field => field.placeholder.trim().toLowerCase() === 'enter location',
   );
+  const visible = inputs.filter(field => {
+    const rect = field.getBoundingClientRect();
+    return (
+      rect.width > 0 &&
+      rect.height > 0 &&
+      rect.bottom > 0 &&
+      rect.right > 0 &&
+      rect.top < window.innerHeight &&
+      rect.left < window.innerWidth
+    );
+  });
+  const besideAdd = visible.filter(nearAddWaypoint);
+  return (
+    besideAdd[besideAdd.length - 1] ?? visible[visible.length - 1] ?? inputs[inputs.length - 1]
+  );
+}
+
+export function locationContainer(anchor: Element): Element | undefined {
+  const input = locationInput(anchor);
   if (input === undefined) {
     return undefined;
   }
@@ -107,10 +146,7 @@ export function locationContainer(anchor: Element): Element | undefined {
 }
 
 export function locationValue(anchor: Element): string {
-  const input = (_$$(anchor, C.AddressSelector.input) as HTMLInputElement[]).find(
-    field => field.placeholder.trim().toLowerCase() === 'enter location',
-  );
-  return input?.value.trim() ?? '';
+  return locationInput(anchor)?.value.trim() ?? '';
 }
 
 export function addWaypointArmed(anchor: Element): boolean {
@@ -126,12 +162,27 @@ export function addWaypointArmed(anchor: Element): boolean {
   });
 }
 
-export async function pickLocation(anchor: Element, query: string): Promise<boolean> {
-  const container = locationContainer(anchor);
+async function pickLocationOnce(anchor: Element, query: string): Promise<boolean> {
+  const container = locationContainer(document.body) ?? locationContainer(anchor);
   if (container === undefined) {
     return false;
   }
   return await selectAddress(container, query);
+}
+
+export async function pickLocation(anchor: Element, query: string): Promise<boolean> {
+  // The field is sometimes a hidden copy, and a suggestion click can miss.
+  // Retry until ADD WAYPOINT actually arms.
+  for (let attempt = 0; attempt < 3; attempt++) {
+    if (await pickLocationOnce(anchor, query)) {
+      const armed = await waitFor(() => addWaypointArmed(anchor), 1500);
+      if (armed) {
+        return true;
+      }
+    }
+    await sleep(200);
+  }
+  return false;
 }
 
 function textIncludes(el: Element, needle: string): boolean {
@@ -486,22 +537,51 @@ export async function clickAssign(row: HTMLTableRowElement): Promise<void> {
 
 export const WAYPOINT_EDITOR_TITLE = 'Edit waypoint';
 
-export function routeLoopToggle(anchor: Element): HTMLElement | undefined {
-  const toggles = _$$(anchor, C.Frame.toggle).filter(el => {
-    const text = (el.textContent ?? '').replace(/\s+/g, ' ').trim().toLowerCase();
-    return text === 'loop' && _$(el, C.Frame.toggleIndicator) !== undefined;
+function frameLoopToggle(root: Element): HTMLElement | undefined {
+  const toggles = _$$(root, C.Frame.toggle).filter(el => {
+    if (_$(el, C.Frame.toggleIndicator) === undefined) {
+      return false;
+    }
+    const label = _$(el, C.Frame.toggleLabel);
+    const text = (label ?? el).textContent ?? '';
+    return isRouteLoopText(text);
   });
   return toggles[0];
 }
 
-export function routeLoopOn(toggle: HTMLElement): boolean {
-  const indicator = _$(toggle, C.Frame.toggleIndicator);
-  if (indicator === undefined) {
-    return false;
-  }
-  return Array.from(indicator.classList).some(
+// The route settings switch is a small div whose own text is Loop. It is not
+// the sidebar Frame.toggle, and the row also has a separate Loop label.
+function loopSwitch(root: Element): HTMLElement | undefined {
+  const divs = Array.from(root.querySelectorAll('div')).filter(el => {
+    const text = (el.textContent ?? '').replace(/\s+/g, ' ').trim();
+    return text === 'Loop' && el.getClientRects().length > 0;
+  });
+  divs.sort((a, b) => a.getBoundingClientRect().width - b.getBoundingClientRect().width);
+  return divs[0];
+}
+
+export function routeLoopToggle(root: Element): HTMLElement | undefined {
+  return frameLoopToggle(root) ?? loopSwitch(root) ?? loopSwitch(document.body);
+}
+
+function showsActive(el: Element): boolean {
+  return Array.from(el.classList).some(
     name => name.includes('Active') && !name.includes('Disabled'),
   );
+}
+
+export function routeLoopOn(toggle: HTMLElement): boolean {
+  const indicator = _$(toggle, C.Frame.toggleIndicator);
+  if (indicator !== undefined) {
+    return showsActive(indicator);
+  }
+  return loopSwitchLit(getComputedStyle(toggle).color);
+}
+
+// The settings switch ignores a content-script click. This is the in-page
+// attempt: a primary pointer at the center, on the element under that point.
+export async function pressLoopSwitch(toggle: HTMLElement): Promise<void> {
+  await clickAtCenter(toggle);
 }
 
 export async function fillWaypointFlight(

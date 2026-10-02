@@ -3,6 +3,8 @@ import {
   assertEditorClick,
   blockIndex,
   isAddWaypointArmed,
+  isRouteLoopText,
+  loopSwitchLit,
   isStepEditLabel,
   amountRowIndex,
   limitClick,
@@ -16,6 +18,22 @@ import {
   waypointNeedles,
   type LimitNode,
 } from './route-controls';
+
+describe('isRouteLoopText', () => {
+  it('accepts the settings row that repeats Loop', () => {
+    expect(isRouteLoopText('Loop')).toBe(true);
+    expect(isRouteLoopText('Loop Loop')).toBe(true);
+    expect(isRouteLoopText('Loop waypoint')).toBe(false);
+  });
+});
+
+describe('loopSwitchLit', () => {
+  it('reads the staging switch colors', () => {
+    expect(loopSwitchLit('rgb(221, 221, 221)')).toBe(true);
+    expect(loopSwitchLit('rgb(153, 153, 153)')).toBe(false);
+    expect(loopSwitchLit('rgb(39, 39, 39)')).toBe(false);
+  });
+});
 
 describe('selectControlLabel', () => {
   const controls = [

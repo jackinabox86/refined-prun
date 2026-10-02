@@ -445,6 +445,14 @@ const rtTooltip = computed(() => {
   return undefined;
 });
 
+// Exchange codes (AI1) are not suggestion text. The station name is.
+function waypointQuery(stop: { kind: 'cx' | 'base'; id: string }) {
+  if (stop.kind !== 'cx') {
+    return stop.id;
+  }
+  return getEntityNameFromAddress(exchangesStore.getByCode(stop.id)?.address) ?? stop.id;
+}
+
 function onBuildRt() {
   const current = route.value;
   const planned = loadPlan.value;
@@ -456,7 +464,11 @@ function onBuildRt() {
     return;
   }
   const built = buildRouteSpec({
-    stops: current.stops,
+    stops: current.stops.map(stop => ({
+      kind: stop.kind,
+      id: stop.id,
+      query: waypointQuery(stop),
+    })),
     loop: current.loop,
     legs: current.legs,
     bills: planned.billed.map(base => ({ id: base.naturalId, bill: base.bill })),

@@ -142,6 +142,21 @@ describe('buildRouteSpec', () => {
     });
   });
 
+  it('types a station name when the stored stop is an exchange code', () => {
+    const built = buildRouteSpec({
+      ...input(true),
+      stops: [
+        { kind: 'cx', id: 'AI1', query: 'Antares Station' },
+        { kind: 'base', id: 'ZV-759c' },
+      ],
+    });
+    expect(built.ok).toBe(true);
+    if (!built.ok) {
+      return;
+    }
+    expect(built.spec.stops.map(stop => stop.query)).toEqual(['Antares Station', 'ZV-759c']);
+  });
+
   it('rejects a route with one stop', () => {
     const built = buildRouteSpec({
       ...input(false),

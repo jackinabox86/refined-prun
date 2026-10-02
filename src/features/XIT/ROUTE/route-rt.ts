@@ -13,6 +13,9 @@ import type {
 export interface RouteBuildStop {
   kind: 'cx' | 'base';
   id: string;
+  // Address-selector text when the stored id is not what the game suggests.
+  // An exchange code such as AI1 never appears in the suggestion list.
+  query?: string;
 }
 
 export interface RouteBuildLeg {
@@ -67,6 +70,14 @@ function refuel(tank: RefuelStep['tank']): RefuelStep {
 
 function kindOf(stops: readonly RouteBuildStop[], id: string) {
   return stops.find(stop => stop.id === id)?.kind;
+}
+
+function searchQuery(stops: readonly RouteBuildStop[], id: string) {
+  const named = stops.find(stop => stop.id === id)?.query?.trim();
+  if (named !== undefined && named.length > 0) {
+    return named;
+  }
+  return id;
 }
 
 function billFor(input: RouteBuildInput, id: string) {
@@ -159,7 +170,7 @@ export function buildRouteSpec(
         steps.push({ kind: 'unload', ticker, min: carried, max: carried });
       }
     }
-    const stop: RouteStop = { query: id, steps };
+    const stop: RouteStop = { query: searchQuery(input.stops, id), steps };
     applyLeg(stop, input.legs?.[i]);
     stops.push(stop);
   }
