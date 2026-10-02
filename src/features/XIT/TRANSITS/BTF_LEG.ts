@@ -4,6 +4,7 @@ import {
   applyConfirmedLoadout,
   captureLoadout,
   confirmedLoadout,
+  mergeLegChoices,
   readGateway,
   readUsage,
   setInventoryFull,
@@ -185,13 +186,17 @@ export const BTF_LEG = act.addActionStep<BtfLegData>({
           );
           return;
         }
-        // The last leg stays on screen until the player confirms the fuel.
-        // Middle legs do not wait. A one-leg route already waited above.
-        const confirmLast = data.isLast && !isFirstOfType;
-        if (confirmLast) {
-          await waitAct(`Check the fuel loadout for ${label}, then ACT`);
+        // Every leg waits for the player's fuel and gateway choices for that leg.
+        // The first leg already waited above.
+        const confirmLeg = !isFirstOfType;
+        if (confirmLeg) {
+          await waitAct(`Set the fuel usage and gateway for ${label}, then ACT`);
+          const choices = captureLoadout(tile.anchor);
+          if (choices.ok && confirmedLoadout.current !== undefined) {
+            mergeLegChoices(confirmedLoadout.current, choices.loadout);
+          }
         }
-        const matched = confirmLast
+        const matched = confirmLeg
           ? await waitForLegPlan(tile.anchor, previousPlan, originQuery, destinationQuery, settle)
           : shown;
         if (matched === undefined) {

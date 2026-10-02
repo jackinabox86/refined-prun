@@ -63,6 +63,29 @@ export function captureLoadout(
   };
 }
 
+// The next leg starts from the choices the player just confirmed. Tank sliders
+// keep the first leg's levels, which later legs burn down from. A setting the
+// leg did not show, such as Reactor usage without an FTL jump, is kept.
+export function mergeLegChoices(loadout: ConfirmedLoadout, choices: ConfirmedLoadout) {
+  for (const chosen of choices.sliders) {
+    if (chosen.tank !== undefined) {
+      continue;
+    }
+    const saved = loadout.sliders.find(x => x.label === chosen.label);
+    if (saved === undefined) {
+      loadout.sliders.push(chosen);
+    } else {
+      saved.value = chosen.value;
+    }
+  }
+  if (choices.selectValue !== undefined) {
+    loadout.selectValue = choices.selectValue;
+  }
+  if (choices.gatewayOn !== undefined) {
+    loadout.gatewayOn = choices.gatewayOn;
+  }
+}
+
 export async function applyConfirmedLoadout(anchor: Element, loadout: ConfirmedLoadout) {
   const select = anchor.querySelector('select');
   if (
