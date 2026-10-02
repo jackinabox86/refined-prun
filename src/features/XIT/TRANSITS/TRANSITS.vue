@@ -75,6 +75,16 @@ watch(
   { immediate: true },
 );
 
+// ROUTECONFIG can change the route's ship while this buffer stays open.
+watch(
+  () => findRoute(parameters[0])?.ship?.trim(),
+  ship => {
+    if (ship !== undefined && options.value.some(x => x.value === ship)) {
+      shipRegistration.value = ship;
+    }
+  },
+);
+
 const lines = computed(() => stopLines(routeStops.value));
 const canTest = computed(() => shipRegistration.value.length > 0 && lines.value.length >= 2);
 

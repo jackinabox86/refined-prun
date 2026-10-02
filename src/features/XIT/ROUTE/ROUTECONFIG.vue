@@ -147,7 +147,8 @@ const shipChoices = computed(() => {
 
 const selectedShip = computed(() => shipForRoute(route.value));
 const cargo = computed(() => cargoForRouteShip(route.value));
-const canTransit = computed(() => (route.value?.stops.length ?? 0) >= 2);
+const shipChosen = computed(() => (route.value?.ship?.trim().length ?? 0) > 0);
+const canTransit = computed(() => shipChosen.value && (route.value?.stops.length ?? 0) >= 2);
 
 const paddedSeconds = computed(() =>
   sumBy(paddedLegSeconds(route.value?.legs ?? []), seconds => seconds),
@@ -416,7 +417,7 @@ function removeStop(key: string) {
 
 function openTransits() {
   const current = route.value;
-  if (current === undefined || current.stops.length < 2) {
+  if (current === undefined || !canTransit.value) {
     return;
   }
   showBuffer(`XIT TRANSITS ${current.id}`);
@@ -445,10 +446,7 @@ function selectShip(event: Event) {
         <PrunButton dark @click="onRename">RENAME</PrunButton>
         <div :class="$style.separator" />
         <span :class="$style.daysLabel">Ship</span>
-        <select
-          :class="$style.select"
-          :value="route.ship ?? selectedShip?.registration.trim() ?? ''"
-          @change="selectShip">
+        <select :class="$style.select" :value="route.ship ?? ''" @change="selectShip">
           <option value="" disabled>Ship</option>
           <option v-for="option in shipChoices" :key="option.value" :value="option.value">
             {{ option.label }}
@@ -523,9 +521,14 @@ function selectShip(event: Event) {
           </table>
           <div :class="$style.footer">
             <span>Press to Determine Flight Times.</span>
-            <PrunButton :primary="canTransit" :disabled="!canTransit" @click="openTransits">
-              TRANSITS
-            </PrunButton>
+            <span
+              :class="$style.transitsGate"
+              :data-tooltip="shipChosen ? undefined : 'Set a ship above to determine flight times.'"
+              data-tooltip-position="left">
+              <PrunButton :primary="canTransit" :disabled="!canTransit" @click="openTransits">
+                TRANSITS
+              </PrunButton>
+            </span>
           </div>
         </div>
       </div>
@@ -604,6 +607,11 @@ function selectShip(event: Event) {
 
 .load {
   padding: 2px 4px;
+}
+
+/* A disabled button swallows hover, so let the tooltip wrapper receive it. */
+.transitsGate button:disabled {
+  pointer-events: none;
 }
 
 .footer {
