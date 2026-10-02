@@ -84,7 +84,8 @@ declare namespace UserData {
     | 'CONT Ship'
     | 'CONT Trade'
     | 'GovBurn Data'
-    | 'Staging RT';
+    | 'Staging RT'
+    | 'Transits';
 
   interface ActionData {
     type: ActionType;
@@ -138,6 +139,10 @@ declare namespace UserData {
     // CONT Trade specific
     contTradeType?: 'BUYING' | 'SELLING';
     contLocation?: string;
+
+    // Transits: ship registration, and one planet or CX stop per line.
+    shipRegistration?: string;
+    routeStops?: string;
   }
 
   interface TaskList {
@@ -260,4 +265,36 @@ declare namespace UserData {
   // Persists GOVBURNACT's slot picks; may be shorter than the configured
   // count when some slots are still unresolved.
   type GovBurnPlanetSlots = Record<string, string[]>;
+
+  interface ShippingRouteStop {
+    kind: 'cx' | 'base';
+    id: string;
+  }
+
+  interface ShippingRouteLeg {
+    ok: boolean;
+    seconds?: number;
+    stl?: number;
+    ftl?: number;
+    // Whether that leg's test flight had the gateway toggle on. Not shown.
+    gateway?: boolean;
+    // Fuel usage and reactor usage slider values for that leg. Not shown.
+    // Reactor usage is absent on a leg without an FTL jump.
+    fuelUsage?: number;
+    reactorUsage?: number;
+  }
+
+  interface ShippingRoute {
+    id: string;
+    name: string;
+    stops: ShippingRouteStop[];
+    // Ship registration, the same value XIT TRANSITS uses. Older routes
+    // stored only shipSize.
+    ship?: string;
+    shipSize?: string;
+    days?: number;
+    // Absent means the route loops back to its first stop for flight time.
+    loop?: boolean;
+    legs?: ShippingRouteLeg[];
+  }
 }

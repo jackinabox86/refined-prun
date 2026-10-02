@@ -280,6 +280,13 @@ universal. The JAC-23 spacing delay on the following `OPEN_SFC` is unchanged.
   explicit launch step; the player still clicks the actual takeoff in SFC. Every emitted
   `OPEN_SFC` (MTRA hosts and the XIT AGENT chain SFC) then holds on fleet-status
   `flightId` or skip before completing.
+  XIT AGENT owns that departure for a posted package. `ExecuteStoredPackage` appends
+  non-input base→ship loads and then one chain `OPEN_SFC` after the package steps. A
+  milk-run pickup whose destination is the ship would emit its own `OPEN_SFC` first and
+  depart before those loads, which then skip (`not present in origin`). When the host
+  can resolve the ship cargo store it sets `noSfc` on every MTRA in the run copy so the
+  loads stay while the ship is docked. The stored channel message is left unchanged, so a
+  printed package run in ACT still launches itself.
 - **`CX Buy` with `useCXInv: true` nets out warehouse stock**, so a PREVIEW showing
   `Buy 900` against `Transfer 1,000` of the same ticker is correct (100 already in the
   warehouse), not a quantity bug.
@@ -1012,6 +1019,13 @@ no scroll, so plain `XIT SET` still opens at the top.
 
 XIT PLANETS answers to `PLANETS`, `PLNT`, and `PLS`. The XIT SET Base-specific
 buttons are labelled `XIT PLS` so the button names a command the player can type.
+
+`XIT BURNACT` has a REFUEL toggle on the configure pane. On (the default) prepends
+the same action DISPATCH prepends: `Refuel` / `All Exchanges` / `buyMissingFuel`.
+The choice is `settings.burn.refuel`, one value for every base, because the action
+refuels ships at exchanges rather than the planet being resupplied. A floating
+BURNACT buffer does not keep `useTileState` across opens, so this lives on
+`userData`. Missing means on.
 
 `XIT BURNACT` stores the last chosen CX buy exchange in
 `settings.burn.planetCxExchange[planetNaturalId]`. A base with nothing stored opens on

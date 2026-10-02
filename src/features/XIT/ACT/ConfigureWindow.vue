@@ -17,6 +17,7 @@ interface Block {
   config: unknown;
   shipStore?: PrunApi.Store;
   cxBuyExchange?: string;
+  mtra?: boolean;
 }
 
 function cxBuyExchangeForGroup(group: string | undefined) {
@@ -78,10 +79,15 @@ const blocks = computed(() => {
       data: action,
       config: actionConfig,
       cxBuyExchange: action.type === 'MTRA' ? cxBuyExchangeForGroup(action.group) : undefined,
+      mtra: action.type === 'MTRA',
     });
   }
   return blocks;
 });
+
+// The mtra-extra slot renders inside the first MTRA form, above Auto SFC.
+// Without an MTRA block it falls back to the bottom of the pane.
+const mtraBlock = computed(() => blocks.value.find(b => b.mtra));
 </script>
 
 <template>
@@ -93,8 +99,11 @@ const blocks = computed(() => {
         :data="block.data"
         :config="block.config"
         :ship-store="block.shipStore"
-        :cx-buy-exchange="block.cxBuyExchange" />
+        :cx-buy-exchange="block.cxBuyExchange">
+        <slot v-if="block === mtraBlock" name="mtra-extra" />
+      </component>
     </template>
+    <slot v-if="!mtraBlock" name="mtra-extra" />
     <slot name="extra" />
   </div>
 </template>

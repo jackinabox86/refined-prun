@@ -17,6 +17,7 @@ import { store } from './planet-context-menu';
         >POPI</PrunButton
       >
       <PrunButton dark :class="$style.prunButton" @click="store.showBuffer('ADM')">ADM</PrunButton>
+      <PrunButton dark :class="$style.prunButton" @click="store.openLocalMarket()">LM</PrunButton>
     </div>
   </div>
 </template>

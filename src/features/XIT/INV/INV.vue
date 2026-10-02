@@ -3,6 +3,8 @@ import { storagesStore } from '@src/infrastructure/prun-api/data/storage';
 import { sitesStore } from '@src/infrastructure/prun-api/data/sites';
 import { shipsStore } from '@src/infrastructure/prun-api/data/ships';
 import { warehousesStore } from '@src/infrastructure/prun-api/data/warehouses';
+import { exchangesStore } from '@src/infrastructure/prun-api/data/exchanges';
+import { invNameBufferCommand } from '@src/features/XIT/INV/name-buffer-command';
 import {
   getEntityNameFromAddress,
   getEntityNaturalIdFromAddress,
@@ -36,6 +38,7 @@ interface InvRow {
   warehousePlanetId?: string;
   contextMenuId?: string;
   onClickCmd: string;
+  nameClickCmd: string;
 }
 
 const showBase = useTileState('showBase');
@@ -79,24 +82,36 @@ const allRows = computed<InvRow[] | undefined>(() => {
       if (!naturalId) {
         continue;
       }
+      const inventoryCommand = `INV ${store.id.substring(0, 8)}`;
       rows.push({
         storeId: store.id,
         type: 'BASE',
         label: getEntityNameFromAddress(site.address) ?? naturalId,
         naturalId,
         contextMenuId: naturalId,
-        onClickCmd: `INV ${store.id.substring(0, 8)}`,
+        onClickCmd: inventoryCommand,
+        nameClickCmd: invNameBufferCommand({
+          type: 'BASE',
+          naturalId,
+          inventoryCommand,
+        }),
       });
     } else if (store.type === 'SHIP_STORE') {
       const ship = ships.find(s => s.idShipStore === store.id);
       if (!ship) {
         continue;
       }
+      const inventoryCommand = `SHPI ${ship.registration}`;
       rows.push({
         storeId: store.id,
         type: 'SHIP',
         label: ship.name || ship.registration,
-        onClickCmd: `SHPI ${ship.registration}`,
+        onClickCmd: inventoryCommand,
+        nameClickCmd: invNameBufferCommand({
+          type: 'SHIP',
+          registration: ship.registration,
+          inventoryCommand,
+        }),
       });
     } else if (store.type === 'WAREHOUSE_STORE') {
       const warehouse = warehouses.find(w => w.storeId === store.id);
@@ -107,13 +122,24 @@ const allRows = computed<InvRow[] | undefined>(() => {
       const isCx = isStationLine(locationLine);
       const naturalId = getEntityNaturalIdFromAddress(warehouse.address);
       const label = getEntityNameFromAddress(warehouse.address) ?? naturalId ?? 'Unknown';
+      const inventoryCommand = `INV ${store.id.substring(0, 8)}`;
+      const exchangeCode =
+        isCx && naturalId !== undefined
+          ? exchangesStore.getByNaturalId(naturalId)?.code
+          : undefined;
       rows.push({
         storeId: store.id,
         type: isCx ? 'CX' : 'WAREHOUSE',
         label,
         warehousePlanetId: isCx ? undefined : naturalId,
         contextMenuId: isCx ? undefined : (naturalId ?? undefined),
-        onClickCmd: `INV ${store.id.substring(0, 8)}`,
+        onClickCmd: inventoryCommand,
+        nameClickCmd: invNameBufferCommand({
+          type: isCx ? 'CX' : 'WAREHOUSE',
+          naturalId,
+          exchangeCode,
+          inventoryCommand,
+        }),
       });
     }
   }
@@ -207,7 +233,7 @@ const filteredRows = computed(() => {
             @contextmenu.prevent="
               row.contextMenuId && planetContextMenu.showMenu($event, row.contextMenuId)
             ">
-            <span :class="$style.nameText" @click="showBuffer(row.onClickCmd)">{{
+            <span :class="$style.nameText" @click="showBuffer(row.nameClickCmd)">{{
               row.label
             }}</span>
           </td>
