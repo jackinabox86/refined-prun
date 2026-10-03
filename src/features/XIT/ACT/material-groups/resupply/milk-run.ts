@@ -71,6 +71,18 @@ export function takeableAmount(stop: MilkRunStop, ticker: string) {
   return Math.max(0, Math.floor((stop.storeQty[ticker] ?? 0) - ownNeed));
 }
 
+// What a base will have produced over `days`, for plans that must not depend on
+// stock that happens to be on the base today. Only net output counts.
+export function expectedOutputQty(dailyAmount: Record<string, number>, days: number) {
+  const qty: Record<string, number> = {};
+  for (const [ticker, daily] of Object.entries(dailyAmount)) {
+    if (daily > 0) {
+      qty[ticker] = days * daily;
+    }
+  }
+  return qty;
+}
+
 export function subtractMaterials(
   bill: Record<string, number>,
   minus: Record<string, number>,

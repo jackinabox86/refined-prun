@@ -1,13 +1,13 @@
 import { computeResupplyBill } from '@src/features/XIT/ACT/material-groups/resupply/bill';
 import {
   addMaterials,
+  expectedOutputQty,
   planMilkRun,
   subtractMaterials,
   type MilkRunResult,
 } from '@src/features/XIT/ACT/material-groups/resupply/milk-run';
 import {
   baseDailyAmount,
-  baseStoreQty,
   materialSizeOf,
   type MilkRunBase,
 } from '@src/features/XIT/DISPATCH/utils';
@@ -63,7 +63,9 @@ export function planRouteLoads(bases: MilkRunBase[], cargo: PrunApi.Store): Milk
         id: base.naturalId,
         days: base.days,
         bill: base.bill,
-        storeQty: Object.keys(dailyAmount).length > 0 ? baseStoreQty(base.site.siteId) : {},
+        // Pick-ups come from what the base produces over the route's days, not
+        // from today's stock, so the plan holds for every later cycle.
+        storeQty: expectedOutputQty(dailyAmount, base.days),
         dailyAmount,
       };
     }),

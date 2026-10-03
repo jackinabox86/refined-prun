@@ -4,6 +4,7 @@ import {
   MilkRunCargo,
   MilkRunInput,
   MilkRunStop,
+  expectedOutputQty,
   planMilkRun,
   subtractMaterials,
   takeableAmount,
@@ -291,5 +292,23 @@ describe('planMilkRun', () => {
     expect(withNext.fits).toBe(false);
     expect(withNext.firstOverflow?.stopId).toBe('A');
     expect(withNext.loadedByStop.get('A')).toEqual({ FE: 49 });
+  });
+
+  it('sources from expected output over the days, not from parked stock', () => {
+    // A makes 5 FE/day and holds 1000 RAT it does not make; B needs 30 FE and 10 RAT.
+    const dailyA = { FE: 5, RAT: -1 };
+    const storeQty = expectedOutputQty(dailyA, 10);
+    expect(storeQty).toEqual({ FE: 50 });
+    const plan = planMilkRun({
+      stops: [
+        { id: 'A', days: 10, bill: { RAT: 11 }, storeQty, dailyAmount: dailyA },
+        { id: 'B', days: 10, bill: { FE: 30, RAT: 10 }, storeQty: {}, dailyAmount: { FE: -3 } },
+      ],
+      cargo: cargo(1000),
+      sizeOf,
+    });
+    expect(plan.sourced).toEqual({ FE: 30 });
+    // The whole expected stack rides, not just what B uses.
+    expect(plan.loadedByStop.get('A')).toEqual({ FE: 49 });
   });
 });
