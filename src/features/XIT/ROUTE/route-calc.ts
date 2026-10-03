@@ -28,10 +28,12 @@ export function paddedLegSeconds(legs: readonly { ok: boolean; seconds?: number 
 }
 
 // Flight time already spent when the ship arrives at this stop. Index 0 is the start.
+// The first leg is not counted, matching BURN: a base's clock already covers the
+// time to reach it from wherever the ship is now.
 export function cumulativeSecondsBeforeStop(paddedLegs: readonly number[], stopIndex: number) {
   let sum = 0;
   const last = Math.min(stopIndex, paddedLegs.length);
-  for (let i = 0; i < last; i++) {
+  for (let i = 1; i < last; i++) {
     sum += paddedLegs[i] ?? 0;
   }
   return sum;
