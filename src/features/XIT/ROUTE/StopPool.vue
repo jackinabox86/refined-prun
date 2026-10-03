@@ -74,7 +74,7 @@ function onDragStart(event: DragEvent, key: string) {
               :class="$style.shipWrap"
               draggable="true"
               @dragstart="onDragStart($event, entry.key)">
-              <PrunButton primary :class="$style.shipButton">
+              <PrunButton primary :class="[$style.shipButton, $style.exchangeButton]">
                 <span :class="$style.shipLabel">{{ entry.label }}</span>
               </PrunButton>
             </div>
@@ -138,6 +138,14 @@ function onDragStart(event: DragEvent, key: string) {
   pointer-events: none;
   vertical-align: middle;
   box-sizing: border-box;
+}
+
+.shipButton.exchangeButton {
+  background-color: #ff7f00;
+}
+
+.shipButton.exchangeButton:hover {
+  background-color: #ff9933;
 }
 
 .shipLabel {
