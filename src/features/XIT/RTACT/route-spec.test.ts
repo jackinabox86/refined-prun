@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseRouteId, parseRouteSpec } from './route-spec';
+import { parseRouteId, parseRouteSpec, routeSummaryLines } from './route-spec';
 
 const twoStops = `ZV-307d
 ANT | load DW 1 100
@@ -53,5 +53,60 @@ describe('parseRouteId', () => {
   it('accepts a route id and rejects anything else', () => {
     expect(parseRouteId('rt-suul-0521')).toEqual({ ok: true, id: 'RT-SUUL-0521' });
     expect(parseRouteId('ANT').ok).toBe(false);
+  });
+});
+
+describe('routeSummaryLines', () => {
+  it('spells out every waypoint setting and step', () => {
+    const lines = routeSummaryLines(
+      {
+        stops: [
+          {
+            query: 'Antares Station',
+            fuelUsage: 1,
+            reactorUsage: 30,
+            steps: [
+              { kind: 'unload', ticker: 'DW', min: { mode: 'all' }, max: { mode: 'all' } },
+              {
+                kind: 'load',
+                ticker: 'RAT',
+                min: { mode: 'units', amount: 120 },
+                max: { mode: 'units', amount: 120 },
+              },
+            ],
+          },
+          {
+            query: 'Deimos',
+            steps: [
+              {
+                kind: 'load',
+                ticker: 'FE',
+                min: { mode: 'units', amount: 0 },
+                max: { mode: 'capacity' },
+              },
+              {
+                kind: 'refuel',
+                tank: 'STL',
+                source: 'local',
+                min: { mode: 'capacity' },
+                max: { mode: 'capacity' },
+              },
+            ],
+          },
+        ],
+        loop: true,
+      },
+      'AVI-0008Z',
+    );
+    expect(lines).toEqual([
+      'Stop 1: Antares Station (fuel 1%, reactor 30%)',
+      'Antares Station: Unload all DW carried',
+      'Antares Station: Load 120 RAT',
+      'Stop 2: Deimos',
+      'Deimos: Load FE (min 0, max capacity)',
+      'Deimos: Refuel STL from local, capacity',
+      'Loop on',
+      'Assign AVI-0008Z',
+    ]);
   });
 });

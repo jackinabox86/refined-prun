@@ -64,6 +64,9 @@ export class ActionRunner {
     for (const step of steps) {
       const stepInfo = act.getActionStepInfo(step.type);
       this.log.action(stepInfo.description(step));
+      for (const line of stepInfo.previewLines?.(step) ?? []) {
+        this.log.info(line);
+      }
     }
   }
 

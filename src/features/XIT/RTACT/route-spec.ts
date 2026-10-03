@@ -113,6 +113,82 @@ export function stepCommandLabel(step: RouteStep): string {
   }
 }
 
+// Plain-text step for the RTEXEC preview and log: "Load 120 RAT", "Unload all DW carried".
+export function stepSummary(step: RouteStep): string {
+  switch (step.kind) {
+    case 'load':
+      return `Load ${amountText(step.ticker, step.min, step.max)}`;
+    case 'unload':
+      return `Unload ${amountText(step.ticker, step.min, step.max)}`;
+    case 'refuel':
+      return `Refuel ${step.tank} from ${step.source === 'ship' ? 'ship' : 'local'}, ${rangeText(step.min, step.max, 'SF')}`;
+    case 'wait':
+      return `Wait ${step.amount} ${step.unit}`;
+  }
+}
+
+function limitText(limit: LoadLimit | UnloadLimit): string {
+  switch (limit.mode) {
+    case 'units':
+      return String(limit.amount);
+    case 'capacity':
+      return 'capacity';
+    case 'all':
+      return 'all carried';
+  }
+}
+
+function rangeText(min: LoadLimit | UnloadLimit, max: LoadLimit | UnloadLimit, unit: string) {
+  const low = limitText(min);
+  const high = limitText(max);
+  if (low === high) {
+    return min.mode === 'units' ? `${low} ${unit}` : low;
+  }
+  return `min ${low}, max ${high}`;
+}
+
+function amountText(ticker: string, min: LoadLimit | UnloadLimit, max: LoadLimit | UnloadLimit) {
+  if (min.mode === 'units' && max.mode === 'units' && min.amount === max.amount) {
+    return `${min.amount} ${ticker}`;
+  }
+  if (min.mode === 'all' && max.mode === 'all') {
+    return `all ${ticker} carried`;
+  }
+  return `${ticker} (min ${limitText(min)}, max ${limitText(max)})`;
+}
+
+// One line per waypoint setting and step, in run order.
+export function routeSummaryLines(spec: RouteSpec, shipId?: string): string[] {
+  const lines: string[] = [];
+  for (const [index, stop] of spec.stops.entries()) {
+    const flight: string[] = [];
+    if (stop.fuelUsage !== undefined) {
+      flight.push(`fuel ${stop.fuelUsage}%`);
+    }
+    if (stop.reactorUsage !== undefined) {
+      flight.push(`reactor ${stop.reactorUsage}%`);
+    }
+    if (stop.gateway !== undefined) {
+      flight.push(stop.gateway ? 'gateway on' : 'gateway off');
+    }
+    const head = `Stop ${index + 1}: ${stop.query}`;
+    lines.push(flight.length > 0 ? `${head} (${flight.join(', ')})` : head);
+    if (stop.steps.length === 0) {
+      lines.push(`${stop.query}: no steps`);
+    }
+    for (const step of stop.steps) {
+      lines.push(`${stop.query}: ${stepSummary(step)}`);
+    }
+  }
+  if (spec.loop !== undefined) {
+    lines.push(spec.loop ? 'Loop on' : 'Loop off');
+  }
+  if (shipId !== undefined && shipId.length > 0) {
+    lines.push(`Assign ${shipId}`);
+  }
+  return lines;
+}
+
 export function editorTitle(step: RouteStep): string {
   switch (step.kind) {
     case 'load':

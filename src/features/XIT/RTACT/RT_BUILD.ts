@@ -26,7 +26,13 @@ import {
   WAYPOINT_EDITOR_TITLE,
   waypointBlock,
 } from '@src/features/XIT/RTACT/route-dom';
-import { editorTitle, type RouteStep, type RouteStop } from '@src/features/XIT/RTACT/route-spec';
+import {
+  editorTitle,
+  routeSummaryLines,
+  stepSummary,
+  type RouteStep,
+  type RouteStop,
+} from '@src/features/XIT/RTACT/route-spec';
 import { shouldClickAddWaypoint, waypointNeedles } from '@src/features/XIT/RTACT/route-controls';
 import { stagingRunBlock } from '@src/features/XIT/RTACT/staging-host';
 import { rtStageWindowSize } from '@src/features/XIT/RTACT/rt-stage-layout';
@@ -45,6 +51,8 @@ interface Data {
 export const RT_BUILD = act.addActionStep<Data>({
   type: 'RT_BUILD',
   description: data => `Build staging route (${data.stops.length} stops)`,
+  previewLines: data =>
+    routeSummaryLines({ stops: data.stops, loop: data.loop }, data.shipId?.trim()),
   execute: async ctx => {
     const { data, log, requestTile, waitAct, waitActionFeedback, fail, complete } = ctx;
     const assert: AssertFn = ctx.assert;
@@ -336,7 +344,8 @@ async function addStep(
 ): Promise<boolean> {
   const { waitAct, fail, log } = ctx;
   const command = commandLabel(step);
-  await waitAct(`Add ${command} at ${stop.query}?`);
+  const summary = stepSummary(step);
+  await waitAct(`Add ${summary} at ${stop.query}?`);
   const scope = findWaypointScope(tile.anchor, needles);
   if (scope === undefined) {
     fail(`Could not find the waypoint for ${stop.query}`);
@@ -389,7 +398,7 @@ async function addStep(
     return false;
   }
   const title = editorTitle(step);
-  log.info(`Filled ${title}`);
+  log.info(`Filled ${title} at ${stop.query}: ${summary}`);
   await waitAct(`Save ${title}?`);
   const current = findEditor(tile.anchor, title);
   if (current === undefined) {
