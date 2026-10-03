@@ -14,6 +14,7 @@ import {
   locationValue,
   pickLocation,
   readShipAssignment,
+  revealAssignments,
   revealHover,
   pressLoopSwitch,
   routeLoopOn,
@@ -436,13 +437,22 @@ async function assignShip(
   ctx: {
     waitAct: (status?: string) => Promise<void>;
     fail: (message?: string) => void;
-    log: { success: (message: string) => void };
+    log: { success: (message: string) => void; warning: (message: string) => void };
   },
   tile: PrunTile,
   ship: string,
   routeId: string,
 ): Promise<boolean> {
-  const { waitAct, fail, log } = ctx;
+  const { waitAct, log } = ctx;
+  // The route itself is built by now. Stop on the RT view's Assignments list so the
+  // player can assign another ship there.
+  const fail = (reason: string) => {
+    log.warning(
+      `${reason}. ${routeId} is built without ${ship}. Assign a ship in the Assignments list on the right.`,
+    );
+    revealAssignments(tile.anchor);
+    ctx.fail();
+  };
   await waitFor(
     () => readShipAssignment(tile.anchor, ship, routeId).state.kind !== 'missing',
     5000,

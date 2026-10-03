@@ -586,6 +586,12 @@ function assignmentRows(anchor: Element): HTMLTableRowElement[] {
   return Array.from(table.querySelectorAll('tr')).filter(row => row.querySelector('td') !== null);
 }
 
+// Scroll the Assignments table into view so the player can ASSIGN another ship by hand.
+export function revealAssignments(anchor: Element): void {
+  const row = assignmentRows(anchor)[0];
+  row?.closest('table')?.scrollIntoView({ block: 'center' });
+}
+
 // The table may show a ship's name or its registration, so accept both. Unnamed ships carry a
 // null name, which crashes shipsStore.getByName, so scan the list directly.
 export function shipNames(ship: string): string[] {
