@@ -14,7 +14,9 @@ import {
 import type { FuelLoad } from '@src/features/XIT/ROUTE/route-calc';
 import { sitesStore } from '@src/infrastructure/prun-api/data/sites';
 
-const resupplyGroup = { type: 'Resupply' as const, useBaseInv: true };
+// A route runs unattended for many cycles, so its bill is pure consumption over
+// the supply days. Stock that happens to be on the base today is not subtracted.
+const resupplyGroup = { type: 'Resupply' as const, useBaseInv: false };
 
 // Undefined means a base is missing burn data, same gate as DISPATCH fit.
 export function routeBaseBills(
