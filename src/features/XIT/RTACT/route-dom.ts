@@ -78,6 +78,18 @@ function namedControls(root: Element): { el: HTMLElement; control: NamedControl 
   }));
 }
 
+export function hasControl(root: Element, label: string): boolean {
+  try {
+    selectControlLabel(
+      namedControls(root).map(row => row.control),
+      label,
+    );
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export async function clickControl(
   root: Element,
   label: string,

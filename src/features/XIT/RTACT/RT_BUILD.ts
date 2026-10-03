@@ -10,6 +10,7 @@ import {
   findEditor,
   findStepEdit,
   findWaypointScope,
+  hasControl,
   locationValue,
   pickLocation,
   readShipAssignment,
@@ -61,6 +62,8 @@ export const RT_BUILD = act.addActionStep<Data>({
         return;
       }
       await waitAct('Create route?');
+      // The RT list can render its buttons after the tile opens.
+      await waitFor(() => hasControl(list.anchor, 'CREATE ROUTE'), 8000);
       const before = snapshotRouteIds(list.anchor);
       try {
         await clickControl(list.anchor, 'CREATE ROUTE');
