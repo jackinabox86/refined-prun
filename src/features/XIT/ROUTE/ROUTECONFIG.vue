@@ -7,6 +7,7 @@ import RadioItem from '@src/components/forms/RadioItem.vue';
 import { billTotals } from '@src/features/XIT/DISPATCH/utils';
 import { departureBill, planRouteLoads, routeBaseBills } from '@src/features/XIT/ROUTE/route-load';
 import { buildRouteSpec } from '@src/features/XIT/ROUTE/route-rt';
+import { setRouteBlock } from '@src/features/XIT/ROUTE/set-route-gate';
 import { buildRouteconfigPackage } from '@src/features/XIT/RTACT/route-package';
 import { stagedRtRoute } from '@src/features/XIT/RTACT/staged';
 import { isStagingHost } from '@src/features/XIT/RTACT/staging-host';
@@ -310,6 +311,21 @@ function inputOver(stop: UserData.ShippingRouteStop, index: number) {
   return totals.weight > hold.weightCapacity || totals.volume > hold.volumeCapacity;
 }
 
+const rtTooltip = computed(() =>
+  setRouteBlock({
+    staging,
+    shipChosen: shipChosen.value,
+    stopCount: route.value?.stops.length ?? 0,
+    billReady: loadPlan.value !== undefined && tanks.value !== undefined,
+    legs: route.value?.legs,
+    supplyDays: supplyDays.value,
+    hasOverflow: (loadPlan.value?.plan.overflows.length ?? 0) > 0,
+    inputOverloaded: rowStops().some((stop, index) => inputOver(stop, index)),
+  }),
+);
+
+const canBuildRt = computed(() => rtTooltip.value === undefined);
+
 function outputOver(stop: UserData.ShippingRouteStop) {
   return stop.kind === 'base' && overflowIds.value.has(stop.id);
 }
@@ -424,26 +440,6 @@ function removeStop(key: string) {
   current.stops = current.stops.filter(x => stopKey(x) !== key);
   current.legs = undefined;
 }
-
-const canBuildRt = computed(
-  () => staging && canTransit.value && loadPlan.value !== undefined && tanks.value !== undefined,
-);
-
-const rtTooltip = computed(() => {
-  if (!staging) {
-    return 'RT build runs on the staging host.';
-  }
-  if (!shipChosen.value) {
-    return 'Set a ship above to build the route.';
-  }
-  if ((route.value?.stops.length ?? 0) < 2) {
-    return 'Add at least two stops.';
-  }
-  if (loadPlan.value === undefined || tanks.value === undefined) {
-    return 'The bill is not ready.';
-  }
-  return undefined;
-});
 
 // Exchange codes (AI1) are not suggestion text. The station name is.
 function waypointQuery(stop: { kind: 'cx' | 'base'; id: string }) {
@@ -620,7 +616,7 @@ function selectShip(event: Event) {
               :data-tooltip="rtTooltip"
               data-tooltip-position="left">
               <PrunButton :primary="canBuildRt" :disabled="!canBuildRt" @click="onBuildRt">
-                RT
+                SET ROUTE
               </PrunButton>
             </span>
           </div>
