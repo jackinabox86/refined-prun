@@ -43,7 +43,8 @@ import {
   getEntityNameFromAddress,
   getEntityNaturalIdFromAddress,
 } from '@src/infrastructure/prun-api/data/addresses';
-import { showBuffer } from '@src/infrastructure/prun-ui/buffers';
+import { setBufferSize, showBuffer } from '@src/infrastructure/prun-ui/buffers';
+import { RT_ACT_PANE_WIDTH, rtStageWindowSize } from '@src/features/XIT/RTACT/rt-stage-layout';
 import { vDraggable } from 'vue-draggable-plus';
 import { fixed0 } from '@src/utils/format';
 
@@ -492,6 +493,12 @@ function onBuildRt() {
   if (!dispatchClientPrunMessage(UI_TILES_CHANGE_COMMAND(tile.id, null))) {
     showBuffer('XIT RTEXEC');
     return;
+  }
+  // RTEXEC takes over this window, and the runner's split adds a pane to its width.
+  // Start from the log pane's width instead of the much wider ROUTECONFIG table.
+  if (tile.container.classList.contains(C.Window.body)) {
+    const height = rtStageWindowSize(parseInt(tile.container.style.height, 10)).height;
+    setBufferSize(tile.id, RT_ACT_PANE_WIDTH, height);
   }
   dispatchClientPrunMessage(UI_TILES_CHANGE_COMMAND(tile.id, 'XIT RTEXEC'));
 }

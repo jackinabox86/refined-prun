@@ -58,11 +58,16 @@ export const RT_BUILD = act.addActionStep<Data>({
     let tile: PrunTile | undefined;
     if (routeId.length > 0) {
       tile = await requestTile(`RT ${routeId}`);
+      if (tile !== undefined) {
+        await applyRtStageLayout(tile);
+      }
     } else {
       const list = await requestTile('RT');
       if (list === undefined) {
         return;
       }
+      // Size the panes as soon as RT opens, not after the route exists.
+      await applyRtStageLayout(list);
       await waitAct('Create route?');
       // The RT list can render its buttons after the tile opens.
       await waitFor(() => hasControl(list.anchor, 'CREATE ROUTE'), 8000);

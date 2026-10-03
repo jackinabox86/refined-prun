@@ -11,5 +11,5 @@ const staging = isStagingHost(location.hostname);
 <template>
   <div v-if="!staging">This runner only runs on {{ STAGING_HOST }}.</div>
   <div v-else-if="!stagedRtRoute">Nothing staged. Open XIT RTACT and press Run.</div>
-  <ExecuteActionPackage v-else :pkg="stagedRtRoute.pkg" />
+  <ExecuteActionPackage v-else :pkg="stagedRtRoute.pkg" auto-start hide-preview />
 </template>
