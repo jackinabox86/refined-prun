@@ -6,6 +6,7 @@ import {
   MilkRunStop,
   expectedOutputQty,
   planMilkRun,
+  sourcedDayBuffer,
   subtractMaterials,
   takeableAmount,
 } from './milk-run';
@@ -310,5 +311,21 @@ describe('planMilkRun', () => {
     expect(plan.sourced).toEqual({ FE: 30 });
     // The whole expected stack rides, not just what B uses.
     expect(plan.loadedByStop.get('A')).toEqual({ FE: 49 });
+  });
+
+  it('buffers one day of consumer burn per sourced ticker and carries it in peak load', () => {
+    const stops: MilkRunStop[] = [
+      { id: 'A', days: 10, bill: {}, storeQty: { FE: 100 }, dailyAmount: { FE: 10 } },
+      { id: 'B', days: 10, bill: { FE: 25 }, storeQty: {}, dailyAmount: { FE: -2.5 } },
+      { id: 'C', days: 10, bill: { FE: 12 }, storeQty: {}, dailyAmount: { FE: -1.2 } },
+    ];
+    const plain = planMilkRun({ stops, cargo: cargo(1000), sizeOf });
+    const extra = sourcedDayBuffer(stops, plain.transfers);
+    expect(extra).toEqual({ FE: 5 });
+    const buffered = planMilkRun({ stops, cargo: cargo(1000), sizeOf, departureExtra: extra });
+    expect(buffered.transfers).toEqual(plain.transfers);
+    expect(buffered.departureExtra).toEqual({ FE: 5 });
+    const tight = planMilkRun({ stops, cargo: cargo(4), sizeOf, departureExtra: extra });
+    expect(tight.firstOverflow).toMatchObject({ stopId: undefined, weightOver: 1 });
   });
 });

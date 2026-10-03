@@ -9,7 +9,7 @@ import {
   departureBill,
   planRouteLoads,
   routeBaseBills,
-  selfConsumedByStop,
+  ownUseByStop,
 } from '@src/features/XIT/ROUTE/route-load';
 import { buildRouteSpec } from '@src/features/XIT/ROUTE/route-rt';
 import { setRouteBlock } from '@src/features/XIT/ROUTE/set-route-gate';
@@ -289,7 +289,7 @@ function inputRecord(stop: UserData.ShippingRouteStop, index: number) {
   if (firstCx !== index) {
     return undefined;
   }
-  return departureBill(planned.billed, planned.plan.sourced);
+  return departureBill(planned.billed, planned.plan.sourced, planned.plan.departureExtra);
 }
 
 function outputRecord(stop: UserData.ShippingRouteStop) {
@@ -476,7 +476,8 @@ function onBuildRt() {
     bills: planned.billed.map(base => ({ id: base.naturalId, bill: base.bill })),
     sourced: planned.plan.sourced,
     loadedByStop: planned.plan.loadedByStop,
-    selfConsumedByStop: selfConsumedByStop(planned.billed),
+    ownUseByStop: ownUseByStop(planned.billed),
+    departureExtra: planned.plan.departureExtra,
     refuelStl: plannedTanks.stl.map(stop => stop.refuel),
     refuelFtl: plannedTanks.ftl.map(stop => stop.refuel),
   });

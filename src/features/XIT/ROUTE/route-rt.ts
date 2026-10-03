@@ -31,9 +31,11 @@ export interface RouteBuildInput {
   bills: readonly { id: string; bill: Record<string, number> }[];
   sourced: Record<string, number>;
   loadedByStop: ReadonlyMap<string, Record<string, number>>;
-  // Outputs a base also consumes. Their pick-up stops at the planned amount so the
-  // base keeps what its own production needs.
-  selfConsumedByStop?: ReadonlyMap<string, ReadonlySet<string>>;
+  // What a base uses of its own outputs over the supply days. The ship loads the
+  // whole stack, then unloads this back, the same way inputs are handled.
+  ownUseByStop?: ReadonlyMap<string, Record<string, number>>;
+  // Loaded at the first stop on top of the bill, see sourcedDayBuffer.
+  departureExtra?: Record<string, number>;
   refuelStl: readonly boolean[];
   refuelFtl: readonly boolean[];
 }
@@ -47,12 +49,13 @@ const nothing = { mode: 'units' as const, amount: 0 };
 function departureAmounts(
   bills: readonly { bill: Record<string, number> }[],
   sourced: Record<string, number>,
+  extra: Record<string, number> | undefined,
 ) {
   let bill: Record<string, number> = {};
   for (const base of bills) {
     bill = addMaterials(bill, base.bill);
   }
-  return subtractMaterials(bill, sourced);
+  return addMaterials(subtractMaterials(bill, sourced), extra);
 }
 
 function positiveTickers(record: Record<string, number> | undefined) {
@@ -150,7 +153,7 @@ export function buildRouteSpec(
   if (ids.length < 2) {
     return { ok: false, error: 'Need at least 2 stops' };
   }
-  const departure = departureAmounts(input.bills, input.sourced);
+  const departure = departureAmounts(input.bills, input.sourced, input.departureExtra);
   const materials = routeMaterials(input);
   const outputs = routeMaterials({ ...input, bills: [] });
   const last = ids.length - 1;
@@ -178,11 +181,13 @@ export function buildRouteSpec(
           { kind: 'unload', ticker, min: units(amount), max: units(amount) },
         );
       }
-      const loaded = input.loadedByStop.get(id);
-      const selfConsumed = input.selfConsumedByStop?.get(id);
-      for (const ticker of positiveTickers(loaded)) {
-        const max = selfConsumed?.has(ticker) ? units(Math.floor(loaded?.[ticker] ?? 0)) : capacity;
-        steps.push({ kind: 'load', ticker, min: nothing, max });
+      const ownUse = input.ownUseByStop?.get(id);
+      for (const ticker of positiveTickers(input.loadedByStop.get(id))) {
+        steps.push({ kind: 'load', ticker, min: nothing, max: capacity });
+        const amount = ownUse?.[ticker] ?? 0;
+        if (amount > 0) {
+          steps.push({ kind: 'unload', ticker, min: units(amount), max: units(amount) });
+        }
       }
     }
     if (!first && input.refuelStl[i] === true) {

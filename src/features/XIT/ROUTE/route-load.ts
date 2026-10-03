@@ -3,6 +3,7 @@ import {
   addMaterials,
   expectedOutputQty,
   planMilkRun,
+  sourcedDayBuffer,
   subtractMaterials,
   type MilkRunResult,
 } from '@src/features/XIT/ACT/material-groups/resupply/milk-run';
@@ -56,36 +57,44 @@ export function routeBaseBills(
   return billed;
 }
 
-// Tickers each base consumes itself, whether or not it nets them as output.
-export function selfConsumedByStop(bases: readonly MilkRunBase[]) {
-  const result = new Map<string, Set<string>>();
+// What each base uses of its own net outputs over the supply days, billed the
+// same way as an input: ceil(days x daily use + 1).
+export function ownUseByStop(bases: readonly MilkRunBase[]) {
+  const result = new Map<string, Record<string, number>>();
   for (const base of bases) {
     const burn = getPlanetBurn(base.site.siteId)?.burn ?? {};
-    const consumed = new Set<string>();
+    const use: Record<string, number> = {};
     for (const [ticker, value] of Object.entries(burn)) {
-      if (value.input > 0 || value.workforce > 0) {
-        consumed.add(ticker);
+      const daily = value.input + value.workforce;
+      if (value.dailyAmount > 0 && daily > 0) {
+        use[ticker] = Math.ceil(base.days * daily + 1);
       }
     }
-    result.set(base.naturalId, consumed);
+    result.set(base.naturalId, use);
   }
   return result;
 }
 
 export function planRouteLoads(bases: MilkRunBase[], cargo: PrunApi.Store): MilkRunResult {
-  return planMilkRun({
-    stops: bases.map(base => {
-      const dailyAmount = baseDailyAmount(base.site.siteId) ?? {};
-      return {
-        id: base.naturalId,
-        days: base.days,
-        bill: base.bill,
-        // Pick-ups come from what the base produces over the route's days, not
-        // from today's stock, so the plan holds for every later cycle.
-        storeQty: expectedOutputQty(dailyAmount, base.days),
-        dailyAmount,
-      };
-    }),
+  const stops = bases.map(base => {
+    const dailyAmount = baseDailyAmount(base.site.siteId) ?? {};
+    // Pick-ups come from what the base produces over the route's days, not
+    // from today's stock, so the plan holds for every later cycle. takeableAmount
+    // holds 1 unit back at the source; the route takes the whole output, so add it.
+    const storeQty = expectedOutputQty(dailyAmount, base.days);
+    for (const ticker of Object.keys(storeQty)) {
+      storeQty[ticker] = (storeQty[ticker] ?? 0) + 1;
+    }
+    return {
+      id: base.naturalId,
+      days: base.days,
+      bill: base.bill,
+      storeQty,
+      dailyAmount,
+    };
+  });
+  const input = {
+    stops,
     // A route is a future plan. The cell prints the bill, and the owner
     // compares that number to the ship's capacity. Cargo already in the
     // hold is not part of either, so the check starts from an empty hold.
@@ -96,13 +105,24 @@ export function planRouteLoads(bases: MilkRunBase[], cargo: PrunApi.Store): Milk
       volumeCapacity: cargo.volumeCapacity,
     },
     sizeOf: materialSizeOf,
-  });
+  };
+  // Transfers do not depend on the departure load, so a second pass only adds the buffer.
+  const first = planMilkRun(input);
+  const departureExtra = sourcedDayBuffer(stops, first.transfers);
+  if (Object.keys(departureExtra).length === 0) {
+    return first;
+  }
+  return planMilkRun({ ...input, departureExtra });
 }
 
-export function departureBill(bases: readonly MilkRunBase[], sourced: Record<string, number>) {
+export function departureBill(
+  bases: readonly MilkRunBase[],
+  sourced: Record<string, number>,
+  extra?: Record<string, number>,
+) {
   let bill: Record<string, number> = {};
   for (const base of bases) {
     bill = addMaterials(bill, base.bill);
   }
-  return subtractMaterials(bill, sourced);
+  return addMaterials(subtractMaterials(bill, sourced), extra);
 }

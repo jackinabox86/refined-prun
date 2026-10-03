@@ -152,31 +152,50 @@ describe('buildRouteSpec', () => {
     });
   });
 
-  it('caps an output pick-up at the planned amount when the base also consumes it', () => {
+  it('loads a whole output stack and unloads what the base uses of it itself', () => {
     const built = buildRouteSpec({
       ...input(true),
       loadedByStop: new Map<string, Record<string, number>>([
-        ['ZV-307d', { FE: 10.6, AL: 4 }],
+        ['ZV-307d', { FE: 10, AL: 4 }],
         ['ZV-759c', {}],
       ]),
-      selfConsumedByStop: new Map([['ZV-307d', new Set(['FE'])]]),
+      ownUseByStop: new Map([['ZV-307d', { FE: 7 }]]),
     });
     expect(built.ok).toBe(true);
     if (!built.ok) {
       return;
     }
-    const loads = built.spec.stops[1]?.steps.filter(
-      step => step.kind === 'load' && (step.ticker === 'FE' || step.ticker === 'AL'),
+    const steps = built.spec.stops[1]?.steps.filter(
+      step =>
+        (step.kind === 'load' || step.kind === 'unload') && ['FE', 'AL'].includes(step.ticker),
     );
-    expect(loads).toEqual([
+    expect(steps).toEqual([
       { kind: 'load', ticker: 'AL', min: { mode: 'units', amount: 0 }, max: { mode: 'capacity' } },
+      { kind: 'load', ticker: 'FE', min: { mode: 'units', amount: 0 }, max: { mode: 'capacity' } },
       {
-        kind: 'load',
+        kind: 'unload',
         ticker: 'FE',
-        min: { mode: 'units', amount: 0 },
-        max: { mode: 'units', amount: 10 },
+        min: { mode: 'units', amount: 7 },
+        max: { mode: 'units', amount: 7 },
       },
     ]);
+  });
+
+  it('loads the departure extra on top of the bill without changing drop-offs', () => {
+    const plain = buildRouteSpec(input(true));
+    const buffered = buildRouteSpec({ ...input(true), departureExtra: { DW: 2 } });
+    expect(plain.ok && buffered.ok).toBe(true);
+    if (!plain.ok || !buffered.ok) {
+      return;
+    }
+    const dwLoad = (spec: typeof plain.spec) =>
+      spec.stops[0]?.steps.find(step => step.kind === 'load' && step.ticker === 'DW');
+    expect(dwLoad(plain.spec)).toMatchObject({ max: { mode: 'units', amount: 2 } });
+    expect(dwLoad(buffered.spec)).toMatchObject({
+      min: { mode: 'units', amount: 4 },
+      max: { mode: 'units', amount: 4 },
+    });
+    expect(buffered.spec.stops.slice(1)).toEqual(plain.spec.stops.slice(1));
   });
 
   it('types a station name when the stored stop is an exchange code', () => {
