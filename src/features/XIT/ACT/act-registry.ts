@@ -61,6 +61,8 @@ interface ActionStepInfo<T> {
   type: string;
   preProcessData?: (data: T) => T;
   description: (data: T) => string;
+  // Extra preview lines under the step's description.
+  previewLines?: (data: T) => string[];
   totalMaterials?: (data: T) => Record<string, number>;
   execute: (ctx: ActionStepExecuteContext<T>) => Promise<void>;
 }

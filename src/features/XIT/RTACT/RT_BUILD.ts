@@ -6,23 +6,38 @@ import {
   clickEditorSave,
   commandLabel,
   fillStepEditor,
+  fillWaypointFlight,
   findEditor,
   findStepEdit,
   findWaypointScope,
+  hasControl,
   locationValue,
   pickLocation,
   readShipAssignment,
+  revealAssignments,
   revealHover,
+  pressLoopSwitch,
+  routeLoopOn,
+  routeLoopToggle,
   snapshotRouteIds,
   stationName,
   stepEdits,
   waitForEditor,
   waitForNewRouteId,
+  WAYPOINT_EDITOR_TITLE,
   waypointBlock,
 } from '@src/features/XIT/RTACT/route-dom';
-import { editorTitle, type RouteStep, type RouteStop } from '@src/features/XIT/RTACT/route-spec';
+import {
+  editorTitle,
+  routeSummaryLines,
+  stepSummary,
+  type RouteStep,
+  type RouteStop,
+} from '@src/features/XIT/RTACT/route-spec';
 import { shouldClickAddWaypoint, waypointNeedles } from '@src/features/XIT/RTACT/route-controls';
 import { stagingRunBlock } from '@src/features/XIT/RTACT/staging-host';
+import { rtStageWindowSize } from '@src/features/XIT/RTACT/rt-stage-layout';
+import { resizeSplitWindow, splitOwnerId } from '@src/infrastructure/prun-ui/companion-buffer';
 import { AssertFn } from '@src/features/XIT/ACT/shared-types';
 import { clickElement } from '@src/util';
 import { waitFor } from '@src/utils/wait-for';
@@ -31,11 +46,14 @@ interface Data {
   routeId?: string;
   shipId?: string;
   stops: RouteStop[];
+  loop?: boolean;
 }
 
 export const RT_BUILD = act.addActionStep<Data>({
   type: 'RT_BUILD',
   description: data => `Build staging route (${data.stops.length} stops)`,
+  previewLines: data =>
+    routeSummaryLines({ stops: data.stops, loop: data.loop }, data.shipId?.trim()),
   execute: async ctx => {
     const { data, log, requestTile, waitAct, waitActionFeedback, fail, complete } = ctx;
     const assert: AssertFn = ctx.assert;
@@ -49,12 +67,19 @@ export const RT_BUILD = act.addActionStep<Data>({
     let tile: PrunTile | undefined;
     if (routeId.length > 0) {
       tile = await requestTile(`RT ${routeId}`);
+      if (tile !== undefined) {
+        await applyRtStageLayout(tile);
+      }
     } else {
       const list = await requestTile('RT');
       if (list === undefined) {
         return;
       }
+      // Size the panes as soon as RT opens, not after the route exists.
+      await applyRtStageLayout(list);
       await waitAct('Create route?');
+      // The RT list can render its buttons after the tile opens.
+      await waitFor(() => hasControl(list.anchor, 'CREATE ROUTE'), 8000);
       const before = snapshotRouteIds(list.anchor);
       try {
         await clickControl(list.anchor, 'CREATE ROUTE');
@@ -72,10 +97,32 @@ export const RT_BUILD = act.addActionStep<Data>({
     if (tile === undefined) {
       return;
     }
+    // The RT list tile turns into the new route by itself, and its tile entry can
+    // still hold the list's content for a while. Use the entry that shows the editor.
+    const command = `RT ${routeId}`;
+    let editor: PrunTile | undefined;
+    await waitFor(() => {
+      editor = tiles
+        .find(command, true)
+        .find(x => x.anchor.isConnected && hasControl(x.anchor, 'ADD WAYPOINT'));
+      return editor !== undefined;
+    }, 8000);
+    if (editor === undefined) {
+      fail(`Could not find the ${command} editor`);
+      return;
+    }
+    tile = editor;
+    await applyRtStageLayout(tile);
 
     for (const stop of data.stops) {
       const ok = await addStop(ctx, tile, stop);
       if (!ok) {
+        return;
+      }
+    }
+    if (data.loop !== undefined) {
+      const looped = await setRouteLoop(ctx, tile, data.loop);
+      if (!looped) {
         return;
       }
     }
@@ -90,6 +137,17 @@ export const RT_BUILD = act.addActionStep<Data>({
     complete();
   },
 });
+
+async function applyRtStageLayout(tile: PrunTile) {
+  const windowEl = tile.frame.closest(`.${C.Window.window}`) as HTMLElement | null;
+  const ownerId = splitOwnerId(windowEl);
+  if (ownerId === undefined) {
+    return;
+  }
+  const bodyEl = _$(windowEl!, C.Window.body) as HTMLElement | null;
+  const layout = rtStageWindowSize(parseInt(bodyEl?.style.height ?? '', 10));
+  await resizeSplitWindow(ownerId, layout.actWidth, layout.rtWidth, layout.height);
+}
 
 async function addStop(
   ctx: {
@@ -109,10 +167,23 @@ async function addStop(
   const picked = await pickLocation(tile.anchor, stop.query);
   const armed = addWaypointArmed(tile.anchor);
   if (!shouldClickAddWaypoint({ suggestionPicked: picked, armed })) {
-    fail(
-      `ADD WAYPOINT is not armed for ${stop.query}. Raw text does not count until a suggestion is picked.`,
-    );
-    return false;
+    // The field can keep stale text such as an earlier ZV-307. Let the player
+    // pick the suggestion, then require that pick to name this stop.
+    await waitAct(`Pick ${stop.query} in Enter location, then press ACT`);
+    // A picked station reads as its system id, e.g. ZV-307 for Antares Station.
+    const raw = locationValue(tile.anchor);
+    const query = stop.query.toLowerCase();
+    const named = [raw, stationName(raw, raw) ?? ''].some(x => x.toLowerCase().includes(query));
+    if (!addWaypointArmed(tile.anchor)) {
+      fail(
+        `ADD WAYPOINT is not armed for ${stop.query}. Raw text does not count until a suggestion is picked.`,
+      );
+      return false;
+    }
+    if (!named) {
+      fail(`Enter location reads "${raw}", not ${stop.query}.`);
+      return false;
+    }
   }
   try {
     await clickControl(tile.anchor, 'ADD WAYPOINT', { requireArmed: true });
@@ -133,7 +204,132 @@ async function addStop(
       return false;
     }
   }
+  if (!hasWaypointFlight(stop)) {
+    return true;
+  }
+  return await saveWaypointFlight(ctx, tile, needles, stop);
+}
+
+function hasWaypointFlight(stop: RouteStop): boolean {
+  return (
+    stop.fuelUsage !== undefined || stop.reactorUsage !== undefined || stop.gateway !== undefined
+  );
+}
+
+async function saveWaypointFlight(
+  ctx: {
+    waitAct: (status?: string) => Promise<void>;
+    fail: (message?: string) => void;
+    log: { info: (message: string) => void };
+  },
+  tile: PrunTile,
+  needles: string[],
+  stop: RouteStop,
+): Promise<boolean> {
+  const { waitAct, fail, log } = ctx;
+  const scope = findWaypointScope(tile.anchor, needles);
+  if (scope === undefined) {
+    fail(`Could not find the waypoint for ${stop.query}`);
+    return false;
+  }
+  const block = waypointBlock(scope);
+  revealHover(block);
+  try {
+    await clickControl(block, WAYPOINT_EDITOR_TITLE);
+  } catch (err) {
+    fail(err instanceof Error ? err.message : 'Could not open Edit waypoint');
+    return false;
+  }
+  const title = WAYPOINT_EDITOR_TITLE;
+  let editor: Element | undefined;
+  await waitFor(() => {
+    editor = findEditor(tile.anchor, title);
+    return editor !== undefined;
+  }, 8000);
+  if (editor === undefined) {
+    fail(`Could not find ${title}`);
+    return false;
+  }
+  let filled: string;
+  try {
+    filled = await fillWaypointFlight(editor, stop, waitAct);
+  } catch (err) {
+    fail(err instanceof Error ? err.message : `Could not fill ${title}`);
+    return false;
+  }
+  log.info(`Filled ${title} for ${stop.query}: ${filled}`);
+  await waitAct(`Save ${title}?`);
+  const current = findEditor(tile.anchor, title);
+  if (current === undefined) {
+    fail(`${title} closed before SAVE`);
+    return false;
+  }
+  try {
+    await clickEditorSave(current);
+  } catch (err) {
+    fail(err instanceof Error ? err.message : `Could not click SAVE on ${title}`);
+    return false;
+  }
+  const closed = await waitFor(() => findEditor(tile.anchor, title) === undefined, 8000);
+  if (!closed) {
+    fail(`${title} is still open after SAVE`);
+    return false;
+  }
+  await dismissSaveFeedback(tile);
   return true;
+}
+
+async function setRouteLoop(
+  ctx: {
+    waitAct: (status?: string) => Promise<void>;
+    fail: (message?: string) => void;
+    log: { info: (message: string) => void };
+  },
+  tile: PrunTile,
+  on: boolean,
+): Promise<boolean> {
+  const { waitAct, fail, log } = ctx;
+  const current = routeLoopToggle(tile.frame);
+  if (current === undefined) {
+    fail('Could not find the Loop toggle');
+    return false;
+  }
+  if (routeLoopOn(current) === on) {
+    log.info(on ? 'Loop is already on' : 'Loop is already off');
+    return true;
+  }
+  await waitAct(on ? 'Turn route loop on?' : 'Turn route loop off?');
+  const toggle = routeLoopToggle(tile.frame);
+  if (toggle === undefined) {
+    fail('Could not find the Loop toggle');
+    return false;
+  }
+  if (routeLoopOn(toggle) === on) {
+    return true;
+  }
+  try {
+    await pressLoopSwitch(toggle);
+  } catch (err) {
+    fail(err instanceof Error ? err.message : 'Could not click the Loop toggle');
+    return false;
+  }
+  const flipped = await waitFor(() => loopIs(tile.frame, on), 1500);
+  if (!flipped) {
+    await waitAct(on ? 'Turn Loop on, then press ACT' : 'Turn Loop off, then press ACT');
+  }
+  const done = await waitFor(() => loopIs(tile.frame, on), 1500);
+  if (!done) {
+    fail(on ? 'Loop stayed off' : 'Loop stayed on');
+    return false;
+  }
+  await dismissSaveFeedback(tile);
+  log.info(on ? 'Loop is on' : 'Loop is off');
+  return true;
+}
+
+function loopIs(root: Element, on: boolean): boolean {
+  const next = routeLoopToggle(root);
+  return next !== undefined && routeLoopOn(next) === on;
 }
 
 async function addStep(
@@ -149,7 +345,8 @@ async function addStep(
 ): Promise<boolean> {
   const { waitAct, fail, log } = ctx;
   const command = commandLabel(step);
-  await waitAct(`Add ${command} at ${stop.query}?`);
+  const summary = stepSummary(step);
+  await waitAct(`Add ${summary} at ${stop.query}?`);
   const scope = findWaypointScope(tile.anchor, needles);
   if (scope === undefined) {
     fail(`Could not find the waypoint for ${stop.query}`);
@@ -202,7 +399,7 @@ async function addStep(
     return false;
   }
   const title = editorTitle(step);
-  log.info(`Filled ${title}`);
+  log.info(`Filled ${title} at ${stop.query}: ${summary}`);
   await waitAct(`Save ${title}?`);
   const current = findEditor(tile.anchor, title);
   if (current === undefined) {
@@ -240,13 +437,22 @@ async function assignShip(
   ctx: {
     waitAct: (status?: string) => Promise<void>;
     fail: (message?: string) => void;
-    log: { success: (message: string) => void };
+    log: { success: (message: string) => void; warning: (message: string) => void };
   },
   tile: PrunTile,
   ship: string,
   routeId: string,
 ): Promise<boolean> {
-  const { waitAct, fail, log } = ctx;
+  const { waitAct, log } = ctx;
+  // The route itself is built by now. Stop on the RT view's Assignments list so the
+  // player can assign another ship there.
+  const fail = (reason: string) => {
+    log.warning(
+      `${reason}. ${routeId} is built without ${ship}. Assign a ship in the Assignments list on the right.`,
+    );
+    revealAssignments(tile.anchor);
+    ctx.fail();
+  };
   await waitFor(
     () => readShipAssignment(tile.anchor, ship, routeId).state.kind !== 'missing',
     5000,

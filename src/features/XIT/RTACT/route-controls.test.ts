@@ -3,6 +3,9 @@ import {
   assertEditorClick,
   blockIndex,
   isAddWaypointArmed,
+  isRouteLoopText,
+  loopSwitchLit,
+  waypointFieldIndex,
   isStepEditLabel,
   amountRowIndex,
   limitClick,
@@ -16,6 +19,34 @@ import {
   waypointNeedles,
   type LimitNode,
 } from './route-controls';
+
+describe('isRouteLoopText', () => {
+  it('accepts the settings row that repeats Loop', () => {
+    expect(isRouteLoopText('Loop')).toBe(true);
+    expect(isRouteLoopText('Loop Loop')).toBe(true);
+    expect(isRouteLoopText('Loop waypoint')).toBe(false);
+  });
+});
+
+describe('loopSwitchLit', () => {
+  it('reads the staging switch colors', () => {
+    expect(loopSwitchLit('rgb(221, 221, 221)')).toBe(true);
+    expect(loopSwitchLit('rgb(153, 153, 153)')).toBe(false);
+    expect(loopSwitchLit('rgb(39, 39, 39)')).toBe(false);
+  });
+});
+
+describe('waypointFieldIndex', () => {
+  it('picks the Enter location field next to ADD WAYPOINT', () => {
+    const fields = [
+      { x: 48, y: -4, width: 179, height: 16 },
+      { x: 515, y: 150, width: 125, height: 18 },
+    ];
+    const buttons = [{ x: 543, y: 170, width: 100, height: 17 }];
+    expect(waypointFieldIndex(fields, buttons)).toBe(1);
+    expect(waypointFieldIndex([fields[0]!], buttons)).toBeUndefined();
+  });
+});
 
 describe('selectControlLabel', () => {
   const controls = [

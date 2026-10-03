@@ -217,6 +217,39 @@ export async function clickElement(element?: HTMLElement | null) {
   );
 }
 
+// A dispatched click defaults to detail 0 and is targeted at the element it is
+// called on. Address suggestions need the element actually under the pointer.
+export async function clickAtCenter(element?: HTMLElement | null) {
+  if (!element) {
+    return;
+  }
+  const rect = element.getBoundingClientRect();
+  const clientX = rect.left + rect.width / 2;
+  const clientY = rect.top + rect.height / 2;
+  const hit = document.elementFromPoint(clientX, clientY);
+  const target = hit instanceof HTMLElement && element.contains(hit) ? hit : element;
+  const point = {
+    bubbles: true,
+    cancelable: true,
+    view: window,
+    clientX,
+    clientY,
+    screenX: window.screenX + clientX,
+    screenY: window.screenY + clientY,
+    button: 0,
+    detail: 1,
+    pointerId: 1,
+    pointerType: 'mouse' as const,
+    isPrimary: true,
+  };
+  target.dispatchEvent(new PointerEvent('pointerdown', { ...point, buttons: 1 }));
+  target.dispatchEvent(new MouseEvent('mousedown', { ...point, buttons: 1 }));
+  await sleep(0);
+  target.dispatchEvent(new PointerEvent('pointerup', { ...point, buttons: 0 }));
+  target.dispatchEvent(new MouseEvent('mouseup', { ...point, buttons: 0 }));
+  target.dispatchEvent(new MouseEvent('click', { ...point, buttons: 0 }));
+}
+
 export function mouseOverElement(from: HTMLElement, to: HTMLElement) {
   const mouseEvent = new MouseEvent('mouseout', {
     bubbles: true,

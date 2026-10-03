@@ -1,3 +1,4 @@
+import { routeUsagePercent } from '@src/features/XIT/RTACT/route-usage';
 import {
   editorTitle,
   sourceLabel,
@@ -14,14 +15,17 @@ import {
   blockIndex,
   controlLabelOf,
   isAddWaypointArmed,
+  isRouteLoopText,
   isStepEditLabel,
   limitClick,
+  loopSwitchLit,
   modeRowIndex,
   newRouteId,
   pickSuggestion,
   routeIdsInCells,
   selectControlLabel,
   shipAssignment,
+  waypointFieldIndex,
   type ShipAssignment,
   type LimitNode,
   type NamedControl,
@@ -29,15 +33,18 @@ import {
 import { shipsStore } from '@src/infrastructure/prun-api/data/ships';
 import { stationsStore } from '@src/infrastructure/prun-api/data/stations';
 import {
+  addressQuery,
   findStationBySystemId,
   selectAddress,
 } from '@src/infrastructure/prun-ui/utils/select-address';
 import {
   changeSelectIndex,
+  clickAtCenter,
   clickElement,
   selectAndChangeInputValue,
   selectMaterialInMaterialSelector,
 } from '@src/util';
+import { sleep } from '@src/utils/sleep';
 import { waitFor } from '@src/utils/wait-for';
 
 function controlElements(root: Element): HTMLElement[] {
@@ -73,6 +80,18 @@ function namedControls(root: Element): { el: HTMLElement; control: NamedControl 
   }));
 }
 
+export function hasControl(root: Element, label: string): boolean {
+  try {
+    selectControlLabel(
+      namedControls(root).map(row => row.control),
+      label,
+    );
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export async function clickControl(
   root: Element,
   label: string,
@@ -96,10 +115,39 @@ export async function clickControl(
   await clickElement(match.el);
 }
 
-export function locationContainer(anchor: Element): Element | undefined {
-  const input = (_$$(anchor, C.AddressSelector.input) as HTMLInputElement[]).find(
-    field => field.placeholder.trim().toLowerCase() === 'enter location',
+function screenBox(el: HTMLElement): { x: number; y: number; width: number; height: number } {
+  const rect = el.getBoundingClientRect();
+  return { x: rect.x, y: rect.y, width: rect.width, height: rect.height };
+}
+
+function onScreen(el: HTMLElement): boolean {
+  const box = screenBox(el);
+  return (
+    box.width > 0 &&
+    box.height > 0 &&
+    box.y + box.height > 0 &&
+    box.x + box.width > 0 &&
+    box.y < window.innerHeight &&
+    box.x < window.innerWidth
   );
+}
+
+// Another window can hold an Enter location field. Only the one sitting on
+// ADD WAYPOINT opens the route suggestion list.
+function locationInput(root: Element): HTMLInputElement | undefined {
+  const inputs = (_$$(root, C.AddressSelector.input) as HTMLInputElement[]).filter(
+    field => field.placeholder.trim().toLowerCase() === 'enter location' && onScreen(field),
+  );
+  const buttons = Array.from(root.querySelectorAll('button')).filter(button => {
+    const label = (button.textContent ?? '').replace(/\s+/g, ' ').trim().toLowerCase();
+    return label === 'add waypoint' && onScreen(button);
+  });
+  const index = waypointFieldIndex(inputs.map(screenBox), buttons.map(screenBox));
+  return index === undefined ? undefined : inputs[index];
+}
+
+export function locationContainer(anchor: Element): Element | undefined {
+  const input = locationInput(anchor);
   if (input === undefined) {
     return undefined;
   }
@@ -107,10 +155,7 @@ export function locationContainer(anchor: Element): Element | undefined {
 }
 
 export function locationValue(anchor: Element): string {
-  const input = (_$$(anchor, C.AddressSelector.input) as HTMLInputElement[]).find(
-    field => field.placeholder.trim().toLowerCase() === 'enter location',
-  );
-  return input?.value.trim() ?? '';
+  return locationInput(anchor)?.value.trim() ?? '';
 }
 
 export function addWaypointArmed(anchor: Element): boolean {
@@ -126,12 +171,108 @@ export function addWaypointArmed(anchor: Element): boolean {
   });
 }
 
-export async function pickLocation(anchor: Element, query: string): Promise<boolean> {
-  const container = locationContainer(anchor);
+async function pickLocationOnce(anchor: Element, query: string): Promise<boolean> {
+  const container = locationContainer(anchor) ?? locationContainer(document.body);
   if (container === undefined) {
     return false;
   }
-  return await selectAddress(container, query);
+  const picked = await selectAddress(container, query, { waypoint: true });
+  if (!picked) {
+    return false;
+  }
+  // The shared helper only confirms the row. This screen's click is the React handler.
+  return pressWaypointSuggestion(anchor, addressQuery(query));
+}
+
+function suggestionNodes(input: HTMLElement): HTMLElement[] {
+  const nodes: HTMLElement[] = [];
+  const portal = document.getElementById('autosuggest-portal');
+  if (portal !== null) {
+    const options = Array.from(portal.querySelectorAll('[role="option"]')) as HTMLElement[];
+    nodes.push(
+      ...(options.length > 0
+        ? options
+        : (_$$(portal, C.AddressSelector.suggestionContent) as HTMLElement[])),
+    );
+  }
+  const list = input.closest('[role="combobox"]')?.querySelector('[role="listbox"]');
+  if (list !== null && list !== undefined) {
+    nodes.push(...(Array.from(list.querySelectorAll('[role="option"]')) as HTMLElement[]));
+  }
+  return nodes;
+}
+
+async function pressWaypointSuggestion(anchor: Element, query: string): Promise<boolean> {
+  const input = locationInput(anchor) ?? locationInput(document.body);
+  if (input === undefined) {
+    return false;
+  }
+  const labels = suggestionNodes(input).map(node =>
+    (node.textContent ?? '').replace(/\s+/g, ' ').trim(),
+  );
+  const chosen = pickSuggestion(labels, query);
+  if (chosen === undefined) {
+    return false;
+  }
+  const match = suggestionNodes(input).find(
+    node => (node.textContent ?? '').replace(/\s+/g, ' ').trim() === chosen,
+  );
+  if (match === undefined) {
+    return false;
+  }
+  const onClick = suggestionOnClick(match);
+  if (onClick !== undefined) {
+    onClick({
+      target: match,
+      currentTarget: match,
+      preventDefault() {},
+      stopPropagation() {},
+      persist() {},
+      nativeEvent: { isTrusted: true, button: 0, detail: 1 },
+    });
+    return true;
+  }
+  await clickAtCenter(match);
+  return true;
+}
+
+function suggestionOnClick(start: HTMLElement): ((event: object) => void) | undefined {
+  const record = start as unknown as Record<string, unknown>;
+  const fiberKey = Object.getOwnPropertyNames(record).find(name =>
+    name.startsWith('__reactFiber$'),
+  );
+  let fiber = fiberKey === undefined ? undefined : record[fiberKey];
+  for (let depth = 0; depth < 8 && fiber !== null && typeof fiber === 'object'; depth += 1) {
+    const props = (fiber as { memoizedProps?: unknown; return?: unknown }).memoizedProps;
+    if (
+      props !== null &&
+      typeof props === 'object' &&
+      typeof (props as { onClick?: unknown }).onClick === 'function'
+    ) {
+      return (props as { onClick: (event: object) => void }).onClick;
+    }
+    fiber = (fiber as { return?: unknown }).return;
+  }
+  return undefined;
+}
+
+export async function pickLocation(anchor: Element, query: string): Promise<boolean> {
+  // The new route tile lays out after the create click. Wait until its own
+  // field is on screen beside ADD WAYPOINT. Another window's field does not count.
+  await waitFor(
+    () => locationContainer(anchor) !== undefined || locationContainer(document.body) !== undefined,
+    5000,
+  );
+  for (let attempt = 0; attempt < 3; attempt++) {
+    if (await pickLocationOnce(anchor, query)) {
+      const armed = await waitFor(() => addWaypointArmed(anchor), 10000);
+      if (armed) {
+        return true;
+      }
+    }
+    await sleep(200);
+  }
+  return false;
 }
 
 function textIncludes(el: Element, needle: string): boolean {
@@ -445,6 +586,12 @@ function assignmentRows(anchor: Element): HTMLTableRowElement[] {
   return Array.from(table.querySelectorAll('tr')).filter(row => row.querySelector('td') !== null);
 }
 
+// Scroll the Assignments table into view so the player can ASSIGN another ship by hand.
+export function revealAssignments(anchor: Element): void {
+  const row = assignmentRows(anchor)[0];
+  row?.closest('table')?.scrollIntoView({ block: 'center' });
+}
+
 // The table may show a ship's name or its registration, so accept both. Unnamed ships carry a
 // null name, which crashes shipsStore.getByName, so scan the list directly.
 export function shipNames(ship: string): string[] {
@@ -482,4 +629,381 @@ export async function clickAssign(row: HTMLTableRowElement): Promise<void> {
     throw new Error('Could not find ASSIGN in the ship row');
   }
   await clickElement(target);
+}
+
+export const WAYPOINT_EDITOR_TITLE = 'Edit waypoint';
+
+function frameLoopToggle(root: Element): HTMLElement | undefined {
+  const toggles = _$$(root, C.Frame.toggle).filter(el => {
+    if (_$(el, C.Frame.toggleIndicator) === undefined) {
+      return false;
+    }
+    const label = _$(el, C.Frame.toggleLabel);
+    const text = (label ?? el).textContent ?? '';
+    return isRouteLoopText(text);
+  });
+  return toggles[0];
+}
+
+// The route settings switch is a small div whose own text is Loop. It is not
+// the sidebar Frame.toggle, and the row also has a separate Loop label.
+function loopSwitch(root: Element): HTMLElement | undefined {
+  const divs = Array.from(root.querySelectorAll('div')).filter(el => {
+    const text = (el.textContent ?? '').replace(/\s+/g, ' ').trim();
+    return text === 'Loop' && el.getClientRects().length > 0;
+  });
+  divs.sort((a, b) => a.getBoundingClientRect().width - b.getBoundingClientRect().width);
+  return divs[0];
+}
+
+export function routeLoopToggle(root: Element): HTMLElement | undefined {
+  return frameLoopToggle(root) ?? loopSwitch(root) ?? loopSwitch(document.body);
+}
+
+function showsActive(el: Element): boolean {
+  return Array.from(el.classList).some(
+    name => name.includes('Active') && !name.includes('Disabled'),
+  );
+}
+
+export function routeLoopOn(toggle: HTMLElement): boolean {
+  const indicator = _$(toggle, C.Frame.toggleIndicator);
+  if (indicator !== undefined) {
+    return showsActive(indicator);
+  }
+  // The RT Loop switch is a RadioItem. Its indicator beside the label carries
+  // the active class. The label color changes on hover, so it is a last resort.
+  const radio = toggle.closest(`.${C.RadioItem.container}`) ?? toggle.parentElement;
+  const radioIndicator = radio === null ? undefined : _$(radio, C.RadioItem.indicator);
+  if (radioIndicator !== undefined) {
+    return radioIndicator.classList.contains(C.RadioItem.active);
+  }
+  return loopSwitchLit(getComputedStyle(toggle).color);
+}
+
+// A content-script mouse event does not flip this switch. The slider path
+// already calls the component's React handler; this does the same for onClick.
+export async function pressLoopSwitch(toggle: HTMLElement): Promise<void> {
+  const onClick = reactOnClick(toggle);
+  if (onClick !== undefined) {
+    onClick({
+      isTrusted: true,
+      button: 0,
+      detail: 1,
+      target: toggle,
+      currentTarget: toggle,
+      preventDefault() {},
+      stopPropagation() {},
+      persist() {},
+      nativeEvent: { isTrusted: true, button: 0, detail: 1 },
+    });
+    return;
+  }
+  await clickAtCenter(toggle);
+}
+
+function reactOnClick(start: HTMLElement): ((event: object) => void) | undefined {
+  const record = start as unknown as Record<string, unknown>;
+  const fiberKey = Object.getOwnPropertyNames(record).find(name =>
+    name.startsWith('__reactFiber$'),
+  );
+  let fiber = fiberKey === undefined ? undefined : record[fiberKey];
+  for (let depth = 0; depth < 8 && fiber !== null && typeof fiber === 'object'; depth += 1) {
+    const node = fiber as { memoizedProps?: unknown; stateNode?: unknown; return?: unknown };
+    const stateNode = node.stateNode;
+    const onSwitch =
+      stateNode === start ||
+      (stateNode instanceof HTMLElement &&
+        (start.contains(stateNode) ||
+          (stateNode.contains(start) && isRouteLoopText(stateNode.textContent ?? ''))));
+    const props = node.memoizedProps;
+    if (
+      onSwitch &&
+      props !== null &&
+      typeof props === 'object' &&
+      typeof (props as { onClick?: unknown }).onClick === 'function'
+    ) {
+      return (props as { onClick: (event: object) => void }).onClick;
+    }
+    fiber = node.return;
+  }
+  return undefined;
+}
+
+export async function fillWaypointFlight(
+  editor: Element,
+  stop: { fuelUsage?: number; reactorUsage?: number; gateway?: boolean },
+  waitAct?: (status: string) => Promise<void>,
+): Promise<string> {
+  const filled: string[] = [];
+  if (stop.fuelUsage !== undefined) {
+    const label = flightLabel('fuel');
+    const target = usageTarget(editor, label, stop.fuelUsage);
+    await setLabeledSlider(editor, label, target);
+    filled.push(`fuel ${target}%`);
+  }
+  if (stop.reactorUsage !== undefined) {
+    const label = flightLabel('reactor');
+    const target = usageTarget(editor, label, stop.reactorUsage);
+    await setReactorUsage(editor, target, waitAct);
+    filled.push(`reactor ${target}%`);
+  }
+  if (stop.gateway !== undefined) {
+    await setGateway(editor, stop.gateway);
+    filled.push(stop.gateway ? 'gateways on' : 'gateways off');
+  }
+  return filled.join(', ');
+}
+
+function flightLabel(which: 'fuel' | 'reactor') {
+  const fromShip =
+    which === 'fuel'
+      ? L.ShipFlightControl.label.fuelUsage()
+      : L.ShipFlightControl.label.reactorUsage();
+  if (fromShip !== undefined && fromShip.length > 0) {
+    return fromShip;
+  }
+  return which === 'fuel' ? 'Fuel usage' : 'Reactor usage';
+}
+
+function sliderFor(editor: Element, label: string): Element | undefined {
+  let best: Element | undefined;
+  let bestLength = Infinity;
+  const wanted = label.toLowerCase();
+  for (const slider of _$$(editor, 'rc-slider')) {
+    let node: Element | null = slider;
+    for (let depth = 0; depth < 8 && node !== null; depth += 1) {
+      const text = node.textContent ?? '';
+      if (text.toLowerCase().includes(wanted) && text.length < bestLength) {
+        best = slider;
+        bestLength = text.length;
+      }
+      node = node.parentElement;
+    }
+  }
+  return best;
+}
+
+function sliderHandle(slider: Element): HTMLElement | undefined {
+  const handle = _$(slider, 'rc-slider-handle');
+  if (handle instanceof HTMLElement) {
+    return handle;
+  }
+  return undefined;
+}
+
+function readNow(handle: HTMLElement): number | undefined {
+  const value = Number(handle.getAttribute('aria-valuenow'));
+  if (!Number.isFinite(value)) {
+    return undefined;
+  }
+  return value;
+}
+
+function usageTarget(editor: Element, label: string, flightFraction: number): number {
+  const handle = labeledHandle(editor, label);
+  const min = Number(handle.getAttribute('aria-valuemin'));
+  const max = Number(handle.getAttribute('aria-valuemax'));
+  return routeUsagePercent(flightFraction, { min, max, step: sliderStep(handle) });
+}
+
+function sliderStep(handle: HTMLElement): number {
+  const step = sliderProps(handle)?.step;
+  if (typeof step === 'number' && Number.isFinite(step) && step > 0) {
+    return step;
+  }
+  // Route usage handles move by 1 when they do not expose a step.
+  return 1;
+}
+
+function sliderProps(handle: HTMLElement): { step?: unknown; onChange?: unknown } | undefined {
+  const record = handle as unknown as Record<string, unknown>;
+  const fiberKey = Object.getOwnPropertyNames(record).find(name =>
+    name.startsWith('__reactFiber$'),
+  );
+  let fiber = fiberKey === undefined ? undefined : record[fiberKey];
+  for (let depth = 0; depth < 12 && fiber !== null && typeof fiber === 'object'; depth += 1) {
+    const props = (fiber as { memoizedProps?: unknown }).memoizedProps;
+    if (
+      props !== null &&
+      typeof props === 'object' &&
+      'min' in props &&
+      'max' in props &&
+      typeof (props as { onChange?: unknown }).onChange === 'function'
+    ) {
+      return props as { step?: unknown; onChange?: unknown };
+    }
+    fiber = (fiber as { return?: unknown }).return;
+  }
+  return undefined;
+}
+
+// The waypoint form keeps each usage in a field wrapped around the rc-slider. Only
+// that field's value is sent on SAVE. The slider's own onChange, arrow keys, and a
+// rail press all move the handle without reaching the field, so SAVE kept 25/50.
+// Hand the value to the field itself, then blur it the way a player leaves it.
+async function stepSliderTo(editor: Element, label: string, target: number): Promise<boolean> {
+  const field = sliderFieldProps(labeledHandle(editor, label));
+  if (field === undefined) {
+    return false;
+  }
+  field.onChange(target);
+  field.onBlur?.();
+  // Nothing here touches the slider, so the handle moving means the field passed it down.
+  return await waitFor(() => readNow(labeledHandle(editor, label)) === target, 1000);
+}
+
+interface SliderField {
+  value?: unknown;
+  onChange: (value: number) => void;
+  onBlur?: () => void;
+}
+
+// Fiber chain from the handle (RT Edit waypoint, staging): handle div, rc-slider
+// Handle and Slider (value, min, max, onChange, onChangeComplete), then the form
+// field (value, min, max, onChange, onBlur). The field is the first with onBlur.
+function sliderFieldProps(handle: HTMLElement): SliderField | undefined {
+  const record = handle as unknown as Record<string, unknown>;
+  const fiberKey = Object.getOwnPropertyNames(record).find(name =>
+    name.startsWith('__reactFiber$'),
+  );
+  let fiber = fiberKey === undefined ? undefined : record[fiberKey];
+  for (let depth = 0; depth < 16 && fiber !== null && typeof fiber === 'object'; depth += 1) {
+    const props = (fiber as { memoizedProps?: unknown }).memoizedProps as
+      | Record<string, unknown>
+      | null
+      | undefined;
+    if (
+      props !== null &&
+      typeof props === 'object' &&
+      'min' in props &&
+      'max' in props &&
+      'value' in props &&
+      typeof props.onChange === 'function' &&
+      typeof props.onBlur === 'function'
+    ) {
+      return props as unknown as SliderField;
+    }
+    fiber = (fiber as { return?: unknown }).return;
+  }
+  return undefined;
+}
+
+async function setLabeledSlider(editor: Element, label: string, target: number): Promise<void> {
+  const handle = labeledHandle(editor, label);
+  const min = Number(handle.getAttribute('aria-valuemin'));
+  const max = Number(handle.getAttribute('aria-valuemax'));
+  if (!Number.isFinite(min) || !Number.isFinite(max) || target < min || target > max) {
+    throw new Error(`${label} cannot take ${target}`);
+  }
+  if (readNow(handle) === target) {
+    return;
+  }
+  const landed = await stepSliderTo(editor, label, target);
+  if (!landed) {
+    const now = readNow(labeledHandle(editor, label));
+    throw new Error(`${label} stayed at ${now === undefined ? 'empty' : String(now)}`);
+  }
+}
+
+async function setReactorUsage(
+  editor: Element,
+  target: number,
+  waitAct?: (status: string) => Promise<void>,
+): Promise<void> {
+  const label = flightLabel('reactor');
+  const handle = labeledHandle(editor, label);
+  if (readNow(handle) !== target) {
+    const min = Number(handle.getAttribute('aria-valuemin'));
+    const max = Number(handle.getAttribute('aria-valuemax'));
+    if (Number.isFinite(min) && Number.isFinite(max) && target >= min && target <= max) {
+      await stepSliderTo(editor, label, target);
+    }
+  }
+  if (readNow(labeledHandle(editor, label)) === target) {
+    return;
+  }
+  if (waitAct !== undefined) {
+    await waitAct(`Set Reactor usage to ${target}, then press ACT`);
+  }
+  if (readNow(labeledHandle(editor, label)) !== target) {
+    const now = readNow(labeledHandle(editor, label));
+    throw new Error(`${label} stayed at ${now === undefined ? 'empty' : String(now)}`);
+  }
+}
+
+function labeledHandle(editor: Element, label: string): HTMLElement {
+  const slider = sliderFor(editor, label);
+  if (slider === undefined) {
+    throw new Error(`${label} slider is not on the waypoint`);
+  }
+  const handle = sliderHandle(slider);
+  if (handle === undefined) {
+    throw new Error(`Could not find the ${label} handle`);
+  }
+  return handle;
+}
+
+async function setGateway(editor: Element, on: boolean): Promise<void> {
+  const select = editor.querySelector('select');
+  if (select === null) {
+    throw new Error('Route preferences are not on the waypoint');
+  }
+  const toggle = gatewayLeaf(select);
+  if (toggle === undefined) {
+    throw new Error('Use gateways is not on the waypoint');
+  }
+  if (gatewayOn(toggle) === on) {
+    return;
+  }
+  await clickElement(toggle);
+  const flipped = await waitFor(() => gatewayOn(toggle) === on, 1500);
+  if (!flipped) {
+    throw new Error('Use gateways did not change');
+  }
+}
+
+function gatewayLeaf(select: HTMLSelectElement): HTMLElement | undefined {
+  const label = L.RoutePreferencesSelect.label.useGateways();
+  const wanted = label !== undefined && label.length > 0 ? label : 'Use gateways';
+  let node: Element | null = select.parentElement;
+  while (node !== null) {
+    const leaves = Array.from(node.querySelectorAll<HTMLElement>('[class*=Check]')).filter(el => {
+      if (el.contains(select) || select.contains(el)) {
+        return false;
+      }
+      const text = (el.textContent ?? '').trim();
+      if (text.length === 0 || text.length > 48) {
+        return false;
+      }
+      if (!text.toLowerCase().includes(wanted.toLowerCase()) && text !== wanted) {
+        return false;
+      }
+      return !Array.from(el.children).some(child => (child.textContent ?? '').trim() === text);
+    });
+    const leaf = leaves[0];
+    if (leaf !== undefined) {
+      return leaf;
+    }
+    node = node.parentElement;
+  }
+  return undefined;
+}
+
+function gatewayOn(el: HTMLElement): boolean {
+  let node: HTMLElement | null = el;
+  for (let depth = 0; depth < 4 && node !== null; depth += 1) {
+    const aria = node.getAttribute('aria-checked') ?? node.getAttribute('aria-pressed');
+    if (aria === 'true') {
+      return true;
+    }
+    if (aria === 'false') {
+      return false;
+    }
+    if (/active/i.test(node.className) && /check/i.test(node.className)) {
+      return true;
+    }
+    node = node.parentElement;
+  }
+  return false;
 }

@@ -5,7 +5,17 @@ import { grip } from '@src/components/grip';
 import PrunButton from '@src/components/PrunButton.vue';
 import RadioItem from '@src/components/forms/RadioItem.vue';
 import { billTotals } from '@src/features/XIT/DISPATCH/utils';
-import { departureBill, planRouteLoads, routeBaseBills } from '@src/features/XIT/ROUTE/route-load';
+import {
+  departureBill,
+  planRouteLoads,
+  routeBaseBills,
+  ownUseByStop,
+} from '@src/features/XIT/ROUTE/route-load';
+import { buildRouteSpec } from '@src/features/XIT/ROUTE/route-rt';
+import { setRouteBlock } from '@src/features/XIT/ROUTE/set-route-gate';
+import { buildRouteconfigPackage } from '@src/features/XIT/RTACT/route-package';
+import { stagedRtRoute } from '@src/features/XIT/RTACT/staged';
+import { isStagingHost } from '@src/features/XIT/RTACT/staging-host';
 import {
   formatFuelCell,
   fuelCargoLoads,
@@ -28,14 +38,18 @@ import {
 } from '@src/features/XIT/ROUTE/routes';
 import StopPool from '@src/features/XIT/ROUTE/StopPool.vue';
 import { shipOptions } from '@src/features/XIT/TRANSITS/ship-options';
+import { useTile } from '@src/hooks/use-tile';
 import { useXitParameters } from '@src/hooks/use-xit-parameters';
+import { UI_TILES_CHANGE_COMMAND } from '@src/infrastructure/prun-api/client-messages';
+import { dispatchClientPrunMessage } from '@src/infrastructure/prun-api/prun-api-listener';
 import { exchangesStore } from '@src/infrastructure/prun-api/data/exchanges';
 import { sitesStore } from '@src/infrastructure/prun-api/data/sites';
 import {
   getEntityNameFromAddress,
   getEntityNaturalIdFromAddress,
 } from '@src/infrastructure/prun-api/data/addresses';
-import { showBuffer } from '@src/infrastructure/prun-ui/buffers';
+import { setBufferSize, showBuffer } from '@src/infrastructure/prun-ui/buffers';
+import { RT_ACT_PANE_WIDTH, rtStageWindowSize } from '@src/features/XIT/RTACT/rt-stage-layout';
 import { vDraggable } from 'vue-draggable-plus';
 import { fixed0 } from '@src/utils/format';
 
@@ -46,7 +60,10 @@ interface PoolEntry {
   label: string;
 }
 
+const tile = useTile();
 const parameters = useXitParameters();
+const rtError = ref('');
+const staging = isStagingHost(location.hostname);
 const selectedId = ref(parameters[0] ?? shippingRoutes()[0]?.id);
 const draftName = ref('');
 const route = computed(() => findRoute(selectedId.value));
@@ -272,7 +289,7 @@ function inputRecord(stop: UserData.ShippingRouteStop, index: number) {
   if (firstCx !== index) {
     return undefined;
   }
-  return departureBill(planned.billed, planned.plan.sourced);
+  return departureBill(planned.billed, planned.plan.sourced, planned.plan.departureExtra);
 }
 
 function outputRecord(stop: UserData.ShippingRouteStop) {
@@ -299,6 +316,21 @@ function inputOver(stop: UserData.ShippingRouteStop, index: number) {
   const totals = billTotals(record);
   return totals.weight > hold.weightCapacity || totals.volume > hold.volumeCapacity;
 }
+
+const rtTooltip = computed(() =>
+  setRouteBlock({
+    staging,
+    shipChosen: shipChosen.value,
+    stopCount: route.value?.stops.length ?? 0,
+    billReady: loadPlan.value !== undefined && tanks.value !== undefined,
+    legs: route.value?.legs,
+    supplyDays: supplyDays.value,
+    hasOverflow: (loadPlan.value?.plan.overflows.length ?? 0) > 0,
+    inputOverloaded: rowStops().some((stop, index) => inputOver(stop, index)),
+  }),
+);
+
+const canBuildRt = computed(() => rtTooltip.value === undefined);
 
 function outputOver(stop: UserData.ShippingRouteStop) {
   return stop.kind === 'base' && overflowIds.value.has(stop.id);
@@ -415,6 +447,69 @@ function removeStop(key: string) {
   current.legs = undefined;
 }
 
+// Exchange codes (AI1) are not suggestion text. The station name is.
+function waypointQuery(stop: { kind: 'cx' | 'base'; id: string }) {
+  if (stop.kind !== 'cx') {
+    return stop.id;
+  }
+  return getEntityNameFromAddress(exchangesStore.getByCode(stop.id)?.address) ?? stop.id;
+}
+
+function onBuildRt() {
+  const current = route.value;
+  const planned = loadPlan.value;
+  const plannedTanks = tanks.value;
+  if (current === undefined || planned === undefined || plannedTanks === undefined) {
+    return;
+  }
+  if (!canBuildRt.value) {
+    return;
+  }
+  const built = buildRouteSpec({
+    stops: current.stops.map(stop => ({
+      kind: stop.kind,
+      id: stop.id,
+      query: waypointQuery(stop),
+    })),
+    loop: current.loop,
+    legs: current.legs,
+    bills: planned.billed.map(base => ({ id: base.naturalId, bill: base.bill })),
+    sourced: planned.plan.sourced,
+    loadedByStop: planned.plan.loadedByStop,
+    ownUseByStop: ownUseByStop(planned.billed),
+    departureExtra: planned.plan.departureExtra,
+    refuelStl: plannedTanks.stl.map(stop => stop.refuel),
+    refuelFtl: plannedTanks.ftl.map(stop => stop.refuel),
+  });
+  if (!built.ok) {
+    rtError.value = built.error;
+    return;
+  }
+  const pkg = buildRouteconfigPackage(
+    location.hostname,
+    built.spec,
+    current.ship ?? '',
+    current.name,
+  );
+  if (!pkg.ok) {
+    rtError.value = pkg.error;
+    return;
+  }
+  rtError.value = '';
+  stagedRtRoute.value = { pkg: pkg.pkg };
+  if (!dispatchClientPrunMessage(UI_TILES_CHANGE_COMMAND(tile.id, null))) {
+    showBuffer('XIT RTEXEC');
+    return;
+  }
+  // RTEXEC takes over this window, and the runner's split adds a pane to its width.
+  // Start from the log pane's width instead of the much wider ROUTECONFIG table.
+  if (tile.container.classList.contains(C.Window.body)) {
+    const height = rtStageWindowSize(parseInt(tile.container.style.height, 10)).height;
+    setBufferSize(tile.id, RT_ACT_PANE_WIDTH, height);
+  }
+  dispatchClientPrunMessage(UI_TILES_CHANGE_COMMAND(tile.id, 'XIT RTEXEC'));
+}
+
 function openTransits() {
   const current = route.value;
   if (current === undefined || !canTransit.value) {
@@ -519,6 +614,7 @@ function selectShip(event: Event) {
               </tr>
             </tfoot>
           </table>
+          <p v-if="rtError" :class="$style.note">{{ rtError }}</p>
           <div :class="$style.footer">
             <span>Press to Determine Flight Times.</span>
             <span
@@ -527,6 +623,14 @@ function selectShip(event: Event) {
               data-tooltip-position="left">
               <PrunButton :primary="canTransit" :disabled="!canTransit" @click="openTransits">
                 TRANSITS
+              </PrunButton>
+            </span>
+            <span
+              :class="$style.transitsGate"
+              :data-tooltip="rtTooltip"
+              data-tooltip-position="left">
+              <PrunButton :primary="canBuildRt" :disabled="!canBuildRt" @click="onBuildRt">
+                SET ROUTE
               </PrunButton>
             </span>
           </div>

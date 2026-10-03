@@ -1,20 +1,24 @@
 import { computeResupplyBill } from '@src/features/XIT/ACT/material-groups/resupply/bill';
 import {
   addMaterials,
+  expectedOutputQty,
   planMilkRun,
+  sourcedDayBuffer,
   subtractMaterials,
   type MilkRunResult,
 } from '@src/features/XIT/ACT/material-groups/resupply/milk-run';
 import {
   baseDailyAmount,
-  baseStoreQty,
   materialSizeOf,
   type MilkRunBase,
 } from '@src/features/XIT/DISPATCH/utils';
+import { getPlanetBurn } from '@src/core/burn';
 import type { FuelLoad } from '@src/features/XIT/ROUTE/route-calc';
 import { sitesStore } from '@src/infrastructure/prun-api/data/sites';
 
-const resupplyGroup = { type: 'Resupply' as const, useBaseInv: true };
+// A route runs unattended for many cycles, so its bill is pure consumption over
+// the supply days. Stock that happens to be on the base today is not subtracted.
+const resupplyGroup = { type: 'Resupply' as const, useBaseInv: false };
 
 // Undefined means a base is missing burn data, same gate as DISPATCH fit.
 export function routeBaseBills(
@@ -53,18 +57,44 @@ export function routeBaseBills(
   return billed;
 }
 
+// What each base uses of its own net outputs over the supply days, billed the
+// same way as an input: ceil(days x daily use + 1).
+export function ownUseByStop(bases: readonly MilkRunBase[]) {
+  const result = new Map<string, Record<string, number>>();
+  for (const base of bases) {
+    const burn = getPlanetBurn(base.site.siteId)?.burn ?? {};
+    const use: Record<string, number> = {};
+    for (const [ticker, value] of Object.entries(burn)) {
+      const daily = value.input + value.workforce;
+      if (value.dailyAmount > 0 && daily > 0) {
+        use[ticker] = Math.ceil(base.days * daily + 1);
+      }
+    }
+    result.set(base.naturalId, use);
+  }
+  return result;
+}
+
 export function planRouteLoads(bases: MilkRunBase[], cargo: PrunApi.Store): MilkRunResult {
-  return planMilkRun({
-    stops: bases.map(base => {
-      const dailyAmount = baseDailyAmount(base.site.siteId) ?? {};
-      return {
-        id: base.naturalId,
-        days: base.days,
-        bill: base.bill,
-        storeQty: Object.keys(dailyAmount).length > 0 ? baseStoreQty(base.site.siteId) : {},
-        dailyAmount,
-      };
-    }),
+  const stops = bases.map(base => {
+    const dailyAmount = baseDailyAmount(base.site.siteId) ?? {};
+    // Pick-ups come from what the base produces over the route's days, not
+    // from today's stock, so the plan holds for every later cycle. takeableAmount
+    // holds 1 unit back at the source; the route takes the whole output, so add it.
+    const storeQty = expectedOutputQty(dailyAmount, base.days);
+    for (const ticker of Object.keys(storeQty)) {
+      storeQty[ticker] = (storeQty[ticker] ?? 0) + 1;
+    }
+    return {
+      id: base.naturalId,
+      days: base.days,
+      bill: base.bill,
+      storeQty,
+      dailyAmount,
+    };
+  });
+  const input = {
+    stops,
     // A route is a future plan. The cell prints the bill, and the owner
     // compares that number to the ship's capacity. Cargo already in the
     // hold is not part of either, so the check starts from an empty hold.
@@ -75,13 +105,24 @@ export function planRouteLoads(bases: MilkRunBase[], cargo: PrunApi.Store): Milk
       volumeCapacity: cargo.volumeCapacity,
     },
     sizeOf: materialSizeOf,
-  });
+  };
+  // Transfers do not depend on the departure load, so a second pass only adds the buffer.
+  const first = planMilkRun(input);
+  const departureExtra = sourcedDayBuffer(stops, first.transfers);
+  if (Object.keys(departureExtra).length === 0) {
+    return first;
+  }
+  return planMilkRun({ ...input, departureExtra });
 }
 
-export function departureBill(bases: readonly MilkRunBase[], sourced: Record<string, number>) {
+export function departureBill(
+  bases: readonly MilkRunBase[],
+  sourced: Record<string, number>,
+  extra?: Record<string, number>,
+) {
   let bill: Record<string, number> = {};
   for (const base of bases) {
     bill = addMaterials(bill, base.bill);
   }
-  return subtractMaterials(bill, sourced);
+  return addMaterials(subtractMaterials(bill, sourced), extra);
 }

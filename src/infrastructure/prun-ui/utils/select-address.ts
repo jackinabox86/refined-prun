@@ -18,7 +18,23 @@ export function findStationBySystemId(id: string) {
 // tile DOM. Only one portal can be open at a time, so we search it directly.
 // Typing fires a read-only NOMENCLATURE_QUERY_ADDRESSES lookup to the game
 // server; selecting a suggestion is pure local form state.
-export async function selectAddress(container: Element, locationName: string): Promise<boolean> {
+// `waypoint` is the route editor only. Other callers keep the class match.
+export interface SelectAddressOptions {
+  waypoint?: boolean;
+}
+
+export async function selectAddress(
+  container: Element,
+  locationName: string,
+  options?: SelectAddressOptions,
+): Promise<boolean> {
+  if (options?.waypoint === true) {
+    return selectWaypointAddress(container, locationName);
+  }
+  return selectStoredAddress(container, locationName);
+}
+
+async function selectStoredAddress(container: Element, locationName: string): Promise<boolean> {
   const input = _$(container, C.AddressSelector.input) as HTMLInputElement | undefined;
   const portal = document.getElementById('autosuggest-portal');
   if (!input || !portal) {
@@ -64,4 +80,57 @@ export async function selectAddress(container: Element, locationName: string): P
 
   await clickElement(match);
   return true;
+}
+
+function waypointSuggestions(input: HTMLElement): HTMLElement[] {
+  const nodes: HTMLElement[] = [];
+  const portal = document.getElementById('autosuggest-portal');
+  if (portal !== null) {
+    const options = Array.from(portal.querySelectorAll('[role="option"]')) as HTMLElement[];
+    nodes.push(
+      ...(options.length > 0
+        ? options
+        : (_$$(portal, C.AddressSelector.suggestionContent) as HTMLElement[])),
+    );
+  }
+  const list = input.closest('[role="combobox"]')?.querySelector('[role="listbox"]');
+  if (list !== null && list !== undefined) {
+    nodes.push(...(Array.from(list.querySelectorAll('[role="option"]')) as HTMLElement[]));
+  }
+  return nodes;
+}
+
+// Translates a bare station id to the station name a suggestion row shows.
+export function addressQuery(locationName: string): string {
+  return (
+    findStationBySystemId(locationName)?.name ??
+    stationsStore.getByNaturalId(locationName)?.name ??
+    locationName
+  );
+}
+
+// Calling a route field's React handlers by hand leaves it deaf to later
+// typing, which also breaks the manual pick. So this path only focuses the
+// field. An empty focused field lists own bases and CX stations without a
+// server lookup. A stop outside that list is left for the player to pick.
+// The route editor presses the row's React handler.
+async function selectWaypointAddress(container: Element, locationName: string): Promise<boolean> {
+  const input = _$(container, C.AddressSelector.input) as HTMLInputElement | undefined;
+  if (input === undefined) {
+    return false;
+  }
+  const query = addressQuery(locationName);
+  if (input.value !== '') {
+    changeInputValue(input, '');
+  }
+  if (document.activeElement === input) {
+    input.blur();
+  }
+  input.focus();
+
+  const boundary = new RegExp(`(^|\\W)${query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(\\W|$)`, 'i');
+  return await waitFor(
+    () => waypointSuggestions(input).some(s => boundary.test(s.textContent ?? '')),
+    5000,
+  );
 }
