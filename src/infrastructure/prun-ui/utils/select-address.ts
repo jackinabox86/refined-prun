@@ -1,3 +1,4 @@
+import { applyWaypointQuery } from '@src/infrastructure/prun-ui/utils/address-query';
 import { changeInputValue, clickElement, focusElement } from '@src/util';
 import { stationsStore } from '@src/infrastructure/prun-api/data/stations';
 import { getSystemLineFromAddress } from '@src/infrastructure/prun-api/data/addresses';
@@ -100,8 +101,8 @@ function waypointSuggestions(input: HTMLElement): HTMLElement[] {
   return nodes;
 }
 
-// A new route has no suggestion list until the field value changes, so this
-// path types first. The route editor presses the row's React handler itself.
+// A new route field ignores synthetic input events, so this path calls the
+// component's own onChange. The route editor presses the row's React handler.
 async function selectWaypointAddress(container: Element, locationName: string): Promise<boolean> {
   const input = _$(container, C.AddressSelector.input) as HTMLInputElement | undefined;
   if (input === undefined) {
@@ -114,11 +115,11 @@ async function selectWaypointAddress(container: Element, locationName: string): 
 
   input.focus();
   focusElement(input);
-  const tracker = (
-    input as HTMLInputElement & { _valueTracker?: { setValue: (next: string) => void } }
-  )._valueTracker;
-  tracker?.setValue('');
-  changeInputValue(input, query);
+  const applied = applyWaypointQuery(input, query);
+  if (!applied.ok) {
+    console.warn(`Waypoint field has no change handler (${applied.handlers.join(', ') || 'none'})`);
+    return false;
+  }
 
   const boundary = new RegExp(`(^|\\W)${query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(\\W|$)`, 'i');
   const suggestions = () => waypointSuggestions(input);
