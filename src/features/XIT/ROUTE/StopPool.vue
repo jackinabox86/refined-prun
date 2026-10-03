@@ -5,6 +5,7 @@ import { ROUTE_STOP_MIME } from '@src/features/XIT/ROUTE/routes';
 interface PoolEntry {
   key: string;
   label: string;
+  kind?: 'cx' | 'base';
 }
 
 const { available, assigned, exchanges } = defineProps<{
@@ -44,7 +45,9 @@ function onDragStart(event: DragEvent, key: string) {
               :class="$style.shipWrap"
               draggable="true"
               @dragstart="onDragStart($event, entry.key)">
-              <PrunButton primary :class="$style.shipButton">
+              <PrunButton
+                primary
+                :class="[$style.shipButton, entry.kind === 'cx' && $style.exchangeButton]">
                 <span :class="$style.shipLabel">{{ entry.label }}</span>
               </PrunButton>
             </div>
