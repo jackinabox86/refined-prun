@@ -1,3 +1,4 @@
+import { routeUsagePercent } from '@src/features/XIT/RTACT/route-usage';
 import {
   editorTitle,
   sourceLabel,
@@ -725,10 +726,12 @@ export async function fillWaypointFlight(
   waitAct?: (status: string) => Promise<void>,
 ): Promise<void> {
   if (stop.fuelUsage !== undefined) {
-    await setLabeledSlider(editor, flightLabel('fuel'), stop.fuelUsage);
+    const label = flightLabel('fuel');
+    await setLabeledSlider(editor, label, usageTarget(editor, label, stop.fuelUsage));
   }
   if (stop.reactorUsage !== undefined) {
-    await setReactorUsage(editor, stop.reactorUsage, waitAct);
+    const label = flightLabel('reactor');
+    await setReactorUsage(editor, usageTarget(editor, label, stop.reactorUsage), waitAct);
   }
   if (stop.gateway !== undefined) {
     await setGateway(editor, stop.gateway);
@@ -780,7 +783,23 @@ function readNow(handle: HTMLElement): number | undefined {
   return value;
 }
 
-function sliderOnChange(handle: HTMLElement): ((value: number) => void) | undefined {
+function usageTarget(editor: Element, label: string, flightFraction: number): number {
+  const handle = labeledHandle(editor, label);
+  const min = Number(handle.getAttribute('aria-valuemin'));
+  const max = Number(handle.getAttribute('aria-valuemax'));
+  return routeUsagePercent(flightFraction, { min, max, step: sliderStep(handle) });
+}
+
+function sliderStep(handle: HTMLElement): number {
+  const step = sliderProps(handle)?.step;
+  if (typeof step === 'number' && Number.isFinite(step) && step > 0) {
+    return step;
+  }
+  // Route usage handles move by 1 when they do not expose a step.
+  return 1;
+}
+
+function sliderProps(handle: HTMLElement): { step?: unknown; onChange?: unknown } | undefined {
   const record = handle as unknown as Record<string, unknown>;
   const fiberKey = Object.getOwnPropertyNames(record).find(name =>
     name.startsWith('__reactFiber$'),
@@ -795,9 +814,17 @@ function sliderOnChange(handle: HTMLElement): ((value: number) => void) | undefi
       'max' in props &&
       typeof (props as { onChange?: unknown }).onChange === 'function'
     ) {
-      return (props as unknown as { onChange: (value: number) => void }).onChange;
+      return props as { step?: unknown; onChange?: unknown };
     }
     fiber = (fiber as { return?: unknown }).return;
+  }
+  return undefined;
+}
+
+function sliderOnChange(handle: HTMLElement): ((value: number) => void) | undefined {
+  const onChange = sliderProps(handle)?.onChange;
+  if (typeof onChange === 'function') {
+    return onChange as (value: number) => void;
   }
   return undefined;
 }
