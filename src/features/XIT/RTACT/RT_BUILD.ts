@@ -81,6 +81,21 @@ export const RT_BUILD = act.addActionStep<Data>({
     if (tile === undefined) {
       return;
     }
+    // The RT list tile turns into the new route by itself, and its tile entry can
+    // still hold the list's content for a while. Use the entry that shows the editor.
+    const command = `RT ${routeId}`;
+    let editor: PrunTile | undefined;
+    await waitFor(() => {
+      editor = tiles
+        .find(command, true)
+        .find(x => x.anchor.isConnected && hasControl(x.anchor, 'ADD WAYPOINT'));
+      return editor !== undefined;
+    }, 8000);
+    if (editor === undefined) {
+      fail(`Could not find the ${command} editor`);
+      return;
+    }
+    tile = editor;
 
     for (const stop of data.stops) {
       const ok = await addStop(ctx, tile, stop);
@@ -127,11 +142,18 @@ async function addStop(
     // The field can keep stale text such as an earlier ZV-307. Let the player
     // pick the suggestion, then require that pick to name this stop.
     await waitAct(`Pick ${stop.query} in Enter location, then press ACT`);
-    const value = locationValue(tile.anchor).toLowerCase();
-    if (!addWaypointArmed(tile.anchor) || !value.includes(stop.query.toLowerCase())) {
+    // A picked station reads as its system id, e.g. ZV-307 for Antares Station.
+    const raw = locationValue(tile.anchor);
+    const query = stop.query.toLowerCase();
+    const named = [raw, stationName(raw, raw) ?? ''].some(x => x.toLowerCase().includes(query));
+    if (!addWaypointArmed(tile.anchor)) {
       fail(
         `ADD WAYPOINT is not armed for ${stop.query}. Raw text does not count until a suggestion is picked.`,
       );
+      return false;
+    }
+    if (!named) {
+      fail(`Enter location reads "${raw}", not ${stop.query}.`);
       return false;
     }
   }

@@ -1,4 +1,3 @@
-import { applyWaypointQuery } from '@src/infrastructure/prun-ui/utils/address-query';
 import { changeInputValue, clickElement, focusElement } from '@src/util';
 import { stationsStore } from '@src/infrastructure/prun-api/data/stations';
 import { getSystemLineFromAddress } from '@src/infrastructure/prun-api/data/addresses';
@@ -101,32 +100,37 @@ function waypointSuggestions(input: HTMLElement): HTMLElement[] {
   return nodes;
 }
 
-// A new route field ignores synthetic input events, so this path calls the
-// component's own onChange. The route editor presses the row's React handler.
+// Translates a bare station id to the station name a suggestion row shows.
+export function addressQuery(locationName: string): string {
+  return (
+    findStationBySystemId(locationName)?.name ??
+    stationsStore.getByNaturalId(locationName)?.name ??
+    locationName
+  );
+}
+
+// Calling a route field's React handlers by hand leaves it deaf to later
+// typing, which also breaks the manual pick. So this path only focuses the
+// field. An empty focused field lists own bases and CX stations without a
+// server lookup. A stop outside that list is left for the player to pick.
+// The route editor presses the row's React handler.
 async function selectWaypointAddress(container: Element, locationName: string): Promise<boolean> {
   const input = _$(container, C.AddressSelector.input) as HTMLInputElement | undefined;
   if (input === undefined) {
     return false;
   }
-  const query =
-    findStationBySystemId(locationName)?.name ??
-    stationsStore.getByNaturalId(locationName)?.name ??
-    locationName;
-
-  input.focus();
-  focusElement(input);
-  const applied = applyWaypointQuery(input, query);
-  if (!applied.ok) {
-    console.warn(`Waypoint field has no change handler (${applied.handlers.join(', ') || 'none'})`);
-    return false;
+  const query = addressQuery(locationName);
+  if (input.value !== '') {
+    changeInputValue(input, '');
   }
+  if (document.activeElement === input) {
+    input.blur();
+  }
+  input.focus();
 
   const boundary = new RegExp(`(^|\\W)${query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(\\W|$)`, 'i');
-  const suggestions = () => waypointSuggestions(input);
-  const findBoundaryMatch = () => suggestions().find(s => boundary.test(s.textContent ?? ''));
-  await waitFor(() => !!findBoundaryMatch(), 8000);
-  const match =
-    findBoundaryMatch() ??
-    suggestions().find(s => s.textContent?.trim().toLowerCase().includes(query.toLowerCase()));
-  return match !== undefined;
+  return await waitFor(
+    () => waypointSuggestions(input).some(s => boundary.test(s.textContent ?? '')),
+    5000,
+  );
 }

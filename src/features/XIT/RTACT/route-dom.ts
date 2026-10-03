@@ -33,6 +33,7 @@ import {
 import { shipsStore } from '@src/infrastructure/prun-api/data/ships';
 import { stationsStore } from '@src/infrastructure/prun-api/data/stations';
 import {
+  addressQuery,
   findStationBySystemId,
   selectAddress,
 } from '@src/infrastructure/prun-ui/utils/select-address';
@@ -180,7 +181,7 @@ async function pickLocationOnce(anchor: Element, query: string): Promise<boolean
     return false;
   }
   // The shared helper only confirms the row. This screen's click is the React handler.
-  return pressWaypointSuggestion(anchor);
+  return pressWaypointSuggestion(anchor, addressQuery(query));
 }
 
 function suggestionNodes(input: HTMLElement): HTMLElement[] {
@@ -201,13 +202,9 @@ function suggestionNodes(input: HTMLElement): HTMLElement[] {
   return nodes;
 }
 
-async function pressWaypointSuggestion(anchor: Element): Promise<boolean> {
+async function pressWaypointSuggestion(anchor: Element, query: string): Promise<boolean> {
   const input = locationInput(anchor) ?? locationInput(document.body);
   if (input === undefined) {
-    return false;
-  }
-  const query = input.value.trim();
-  if (query.length === 0) {
     return false;
   }
   const labels = suggestionNodes(input).map(node =>
@@ -268,7 +265,7 @@ export async function pickLocation(anchor: Element, query: string): Promise<bool
   );
   for (let attempt = 0; attempt < 3; attempt++) {
     if (await pickLocationOnce(anchor, query)) {
-      const armed = await waitFor(() => addWaypointArmed(anchor), 3000);
+      const armed = await waitFor(() => addWaypointArmed(anchor), 10000);
       if (armed) {
         return true;
       }
@@ -667,6 +664,13 @@ export function routeLoopOn(toggle: HTMLElement): boolean {
   const indicator = _$(toggle, C.Frame.toggleIndicator);
   if (indicator !== undefined) {
     return showsActive(indicator);
+  }
+  // The RT Loop switch is a RadioItem. Its indicator beside the label carries
+  // the active class. The label color changes on hover, so it is a last resort.
+  const radio = toggle.closest(`.${C.RadioItem.container}`) ?? toggle.parentElement;
+  const radioIndicator = radio === null ? undefined : _$(radio, C.RadioItem.indicator);
+  if (radioIndicator !== undefined) {
+    return radioIndicator.classList.contains(C.RadioItem.active);
   }
   return loopSwitchLit(getComputedStyle(toggle).color);
 }
