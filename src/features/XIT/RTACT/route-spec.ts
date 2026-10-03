@@ -50,7 +50,7 @@ export type RouteStep = LoadStep | UnloadStep | WaitStep | RefuelStep;
 export interface RouteStop {
   query: string;
   steps: RouteStep[];
-  // Leg that departs this waypoint. Absent when the text runner has no flight data.
+  // Leg that flies to this waypoint. Absent when the text runner has no flight data.
   fuelUsage?: number;
   reactorUsage?: number;
   gateway?: boolean;

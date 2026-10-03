@@ -29,6 +29,8 @@ import {
 import { editorTitle, type RouteStep, type RouteStop } from '@src/features/XIT/RTACT/route-spec';
 import { shouldClickAddWaypoint, waypointNeedles } from '@src/features/XIT/RTACT/route-controls';
 import { stagingRunBlock } from '@src/features/XIT/RTACT/staging-host';
+import { rtStageWindowSize } from '@src/features/XIT/RTACT/rt-stage-layout';
+import { resizeSplitWindow, splitOwnerId } from '@src/infrastructure/prun-ui/companion-buffer';
 import { AssertFn } from '@src/features/XIT/ACT/shared-types';
 import { clickElement } from '@src/util';
 import { waitFor } from '@src/utils/wait-for';
@@ -96,6 +98,7 @@ export const RT_BUILD = act.addActionStep<Data>({
       return;
     }
     tile = editor;
+    await applyRtStageLayout(tile);
 
     for (const stop of data.stops) {
       const ok = await addStop(ctx, tile, stop);
@@ -120,6 +123,17 @@ export const RT_BUILD = act.addActionStep<Data>({
     complete();
   },
 });
+
+async function applyRtStageLayout(tile: PrunTile) {
+  const windowEl = tile.frame.closest(`.${C.Window.window}`) as HTMLElement | null;
+  const ownerId = splitOwnerId(windowEl);
+  if (ownerId === undefined) {
+    return;
+  }
+  const bodyEl = _$(windowEl!, C.Window.body) as HTMLElement | null;
+  const layout = rtStageWindowSize(parseInt(bodyEl?.style.height ?? '', 10));
+  await resizeSplitWindow(ownerId, layout.actWidth, layout.rtWidth, layout.height);
+}
 
 async function addStop(
   ctx: {
@@ -222,13 +236,14 @@ async function saveWaypointFlight(
     fail(`Could not find ${title}`);
     return false;
   }
+  let filled: string;
   try {
-    await fillWaypointFlight(editor, stop, waitAct);
+    filled = await fillWaypointFlight(editor, stop, waitAct);
   } catch (err) {
     fail(err instanceof Error ? err.message : `Could not fill ${title}`);
     return false;
   }
-  log.info(`Filled ${title}`);
+  log.info(`Filled ${title} for ${stop.query}: ${filled}`);
   await waitAct(`Save ${title}?`);
   const current = findEditor(tile.anchor, title);
   if (current === undefined) {

@@ -24,6 +24,7 @@ function input(loop: boolean | undefined): RouteBuildInput {
       { fuelUsage: 80, gateway: true },
       { fuelUsage: 40, reactorUsage: 50, gateway: false },
       { fuelUsage: 20 },
+      { fuelUsage: 10, reactorUsage: 30, gateway: true },
     ],
     bills: [
       { id: 'ZV-307d', bill: { RAT: 2, DW: 4 } },
@@ -88,24 +89,24 @@ describe('buildRouteSpec', () => {
         max: { mode: 'units', amount: departure.RAT },
       },
     ]);
-    expect(built.spec.stops[0]).toMatchObject({ fuelUsage: 80, gateway: true });
-    expect(built.spec.stops[0]?.reactorUsage).toBeUndefined();
+    // Waypoints hold the leg that flies to them; the origin holds the return leg.
+    expect(built.spec.stops[0]).toMatchObject({ fuelUsage: 10, reactorUsage: 30, gateway: true });
     expect(built.spec.stops[1]?.steps).toEqual([
-      { kind: 'load', ticker: 'DW', min: { mode: 'capacity' }, max: { mode: 'capacity' } },
+      { kind: 'load', ticker: 'DW', min: { mode: 'units', amount: 0 }, max: { mode: 'capacity' } },
       {
         kind: 'unload',
         ticker: 'DW',
         min: { mode: 'units', amount: 4 },
         max: { mode: 'units', amount: 4 },
       },
-      { kind: 'load', ticker: 'RAT', min: { mode: 'capacity' }, max: { mode: 'capacity' } },
+      { kind: 'load', ticker: 'RAT', min: { mode: 'units', amount: 0 }, max: { mode: 'capacity' } },
       {
         kind: 'unload',
         ticker: 'RAT',
         min: { mode: 'units', amount: 2 },
         max: { mode: 'units', amount: 2 },
       },
-      { kind: 'load', ticker: 'FE', min: { mode: 'capacity' }, max: { mode: 'capacity' } },
+      { kind: 'load', ticker: 'FE', min: { mode: 'units', amount: 0 }, max: { mode: 'capacity' } },
       {
         kind: 'refuel',
         tank: 'STL',
@@ -114,13 +115,15 @@ describe('buildRouteSpec', () => {
         max: { mode: 'capacity' },
       },
     ]);
-    expect(built.spec.stops[1]).toMatchObject({
+    expect(built.spec.stops[1]).toMatchObject({ fuelUsage: 80, gateway: true });
+    expect(built.spec.stops[1]?.reactorUsage).toBeUndefined();
+    expect(built.spec.stops[2]?.steps).toEqual([]);
+    expect(built.spec.stops[2]).toMatchObject({
       fuelUsage: 40,
       reactorUsage: 50,
       gateway: false,
     });
-    expect(built.spec.stops[2]?.steps).toEqual([]);
-    expect(built.spec.stops[2]).toMatchObject({ fuelUsage: 20 });
+    expect(built.spec.stops[3]).toMatchObject({ fuelUsage: 20 });
     expect(built.spec.stops[3]?.steps.map(step => step.kind)).toEqual(['load', 'unload', 'refuel']);
     expect(built.spec.stops[3]?.steps[2]).toMatchObject({ kind: 'refuel', tank: 'FTL' });
   });
@@ -133,6 +136,13 @@ describe('buildRouteSpec', () => {
     }
     expect(built.spec.loop).toBe(false);
     expect(built.spec.stops.map(stop => stop.query)).toEqual(['ANT', 'ZV-307d', 'BEN', 'ZV-759c']);
+    // Nothing flies to the first stop of a one-way route.
+    const first = built.spec.stops[0];
+    expect([first?.fuelUsage, first?.reactorUsage, first?.gateway]).toEqual([
+      undefined,
+      undefined,
+      undefined,
+    ]);
     const last = built.spec.stops[3]?.steps ?? [];
     expect(last[last.length - 1]).toEqual({
       kind: 'unload',

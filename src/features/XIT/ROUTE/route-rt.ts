@@ -37,6 +37,8 @@ export interface RouteBuildInput {
 
 const capacity = { mode: 'capacity' as const };
 const carried = { mode: 'all' as const };
+// Pick up whatever is there: no minimum to wait for, up to what the hold takes.
+const nothing = { mode: 'units' as const, amount: 0 };
 
 // Same reduction as departureBill: sum the base bills, then drop what the route sources.
 function departureAmounts(
@@ -114,6 +116,25 @@ function applyLeg(stop: RouteStop, leg: RouteBuildLeg | undefined) {
   }
 }
 
+// The game stores flight settings on the waypoint a leg flies to. legs[i] flies from
+// stop i to stop i + 1, and a looping route's last leg flies home, so the first
+// waypoint takes that return leg. A route that does not loop never flies to its first stop.
+function arrivingLeg(
+  legs: readonly RouteBuildLeg[] | undefined,
+  index: number,
+  stopCount: number,
+  looping: boolean,
+) {
+  if (legs === undefined) {
+    return undefined;
+  }
+  if (index > 0) {
+    return legs[index - 1];
+  }
+  // Only the TRANSITS run of a looping route records the return leg as legs[stopCount - 1].
+  return looping && legs.length === stopCount ? legs[stopCount - 1] : undefined;
+}
+
 // One ShippingRoute, already billed, becomes the stop list RT_BUILD drives.
 // A looping route uses the game Loop toggle. RT-SNXV-3853 has that toggle on
 // and does not list its origin again, so the return stop from transitStopIds
@@ -150,12 +171,12 @@ export function buildRouteSpec(
       for (const ticker of positiveTickers(bill)) {
         const amount = bill?.[ticker] ?? 0;
         steps.push(
-          { kind: 'load', ticker, min: capacity, max: capacity },
+          { kind: 'load', ticker, min: nothing, max: capacity },
           { kind: 'unload', ticker, min: units(amount), max: units(amount) },
         );
       }
       for (const ticker of positiveTickers(input.loadedByStop.get(id))) {
-        steps.push({ kind: 'load', ticker, min: capacity, max: capacity });
+        steps.push({ kind: 'load', ticker, min: nothing, max: capacity });
       }
     }
     if (!first && input.refuelStl[i] === true) {
@@ -171,7 +192,7 @@ export function buildRouteSpec(
       }
     }
     const stop: RouteStop = { query: searchQuery(input.stops, id), steps };
-    applyLeg(stop, input.legs?.[i]);
+    applyLeg(stop, arrivingLeg(input.legs, i, ids.length, looping));
     stops.push(stop);
   }
   return { ok: true, spec: { stops, loop: looping } };

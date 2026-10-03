@@ -728,18 +728,25 @@ export async function fillWaypointFlight(
   editor: Element,
   stop: { fuelUsage?: number; reactorUsage?: number; gateway?: boolean },
   waitAct?: (status: string) => Promise<void>,
-): Promise<void> {
+): Promise<string> {
+  const filled: string[] = [];
   if (stop.fuelUsage !== undefined) {
     const label = flightLabel('fuel');
-    await setLabeledSlider(editor, label, usageTarget(editor, label, stop.fuelUsage));
+    const target = usageTarget(editor, label, stop.fuelUsage);
+    await setLabeledSlider(editor, label, target);
+    filled.push(`fuel ${target}%`);
   }
   if (stop.reactorUsage !== undefined) {
     const label = flightLabel('reactor');
-    await setReactorUsage(editor, usageTarget(editor, label, stop.reactorUsage), waitAct);
+    const target = usageTarget(editor, label, stop.reactorUsage);
+    await setReactorUsage(editor, target, waitAct);
+    filled.push(`reactor ${target}%`);
   }
   if (stop.gateway !== undefined) {
     await setGateway(editor, stop.gateway);
+    filled.push(stop.gateway ? 'gateways on' : 'gateways off');
   }
+  return filled.join(', ');
 }
 
 function flightLabel(which: 'fuel' | 'reactor') {
@@ -825,10 +832,53 @@ function sliderProps(handle: HTMLElement): { step?: unknown; onChange?: unknown 
   return undefined;
 }
 
-function sliderOnChange(handle: HTMLElement): ((value: number) => void) | undefined {
-  const onChange = sliderProps(handle)?.onChange;
-  if (typeof onChange === 'function') {
-    return onChange as (value: number) => void;
+// The waypoint form keeps each usage in a field wrapped around the rc-slider. Only
+// that field's value is sent on SAVE. The slider's own onChange, arrow keys, and a
+// rail press all move the handle without reaching the field, so SAVE kept 25/50.
+// Hand the value to the field itself, then blur it the way a player leaves it.
+async function stepSliderTo(editor: Element, label: string, target: number): Promise<boolean> {
+  const field = sliderFieldProps(labeledHandle(editor, label));
+  if (field === undefined) {
+    return false;
+  }
+  field.onChange(target);
+  field.onBlur?.();
+  // Nothing here touches the slider, so the handle moving means the field passed it down.
+  return await waitFor(() => readNow(labeledHandle(editor, label)) === target, 1000);
+}
+
+interface SliderField {
+  value?: unknown;
+  onChange: (value: number) => void;
+  onBlur?: () => void;
+}
+
+// Fiber chain from the handle (RT Edit waypoint, staging): handle div, rc-slider
+// Handle and Slider (value, min, max, onChange, onChangeComplete), then the form
+// field (value, min, max, onChange, onBlur). The field is the first with onBlur.
+function sliderFieldProps(handle: HTMLElement): SliderField | undefined {
+  const record = handle as unknown as Record<string, unknown>;
+  const fiberKey = Object.getOwnPropertyNames(record).find(name =>
+    name.startsWith('__reactFiber$'),
+  );
+  let fiber = fiberKey === undefined ? undefined : record[fiberKey];
+  for (let depth = 0; depth < 16 && fiber !== null && typeof fiber === 'object'; depth += 1) {
+    const props = (fiber as { memoizedProps?: unknown }).memoizedProps as
+      | Record<string, unknown>
+      | null
+      | undefined;
+    if (
+      props !== null &&
+      typeof props === 'object' &&
+      'min' in props &&
+      'max' in props &&
+      'value' in props &&
+      typeof props.onChange === 'function' &&
+      typeof props.onBlur === 'function'
+    ) {
+      return props as unknown as SliderField;
+    }
+    fiber = (fiber as { return?: unknown }).return;
   }
   return undefined;
 }
@@ -843,14 +893,9 @@ async function setLabeledSlider(editor: Element, label: string, target: number):
   if (readNow(handle) === target) {
     return;
   }
-  const onChange = sliderOnChange(handle);
-  if (onChange === undefined) {
-    throw new Error(`${label} slider has no change handler`);
-  }
-  onChange(target);
-  const landed = await waitFor(() => readNow(handle) === target, 1000);
+  const landed = await stepSliderTo(editor, label, target);
   if (!landed) {
-    const now = readNow(handle);
+    const now = readNow(labeledHandle(editor, label));
     throw new Error(`${label} stayed at ${now === undefined ? 'empty' : String(now)}`);
   }
 }
@@ -865,26 +910,18 @@ async function setReactorUsage(
   if (readNow(handle) !== target) {
     const min = Number(handle.getAttribute('aria-valuemin'));
     const max = Number(handle.getAttribute('aria-valuemax'));
-    const onChange = sliderOnChange(handle);
-    if (
-      onChange !== undefined &&
-      Number.isFinite(min) &&
-      Number.isFinite(max) &&
-      target >= min &&
-      target <= max
-    ) {
-      onChange(target);
-      await waitFor(() => readNow(handle) === target, 1000);
+    if (Number.isFinite(min) && Number.isFinite(max) && target >= min && target <= max) {
+      await stepSliderTo(editor, label, target);
     }
   }
-  if (readNow(handle) === target) {
+  if (readNow(labeledHandle(editor, label)) === target) {
     return;
   }
   if (waitAct !== undefined) {
     await waitAct(`Set Reactor usage to ${target}, then press ACT`);
   }
-  if (readNow(handle) !== target) {
-    const now = readNow(handle);
+  if (readNow(labeledHandle(editor, label)) !== target) {
+    const now = readNow(labeledHandle(editor, label));
     throw new Error(`${label} stayed at ${now === undefined ? 'empty' : String(now)}`);
   }
 }
