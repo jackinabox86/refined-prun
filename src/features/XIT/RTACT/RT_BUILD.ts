@@ -124,13 +124,16 @@ async function addStop(
   const picked = await pickLocation(tile.anchor, stop.query);
   const armed = addWaypointArmed(tile.anchor);
   if (!shouldClickAddWaypoint({ suggestionPicked: picked, armed })) {
-    const options = document.querySelectorAll(
-      '#autosuggest-portal [role="option"], [role="listbox"] [role="option"]',
-    ).length;
-    fail(
-      `ADD WAYPOINT is not armed for ${stop.query}. Raw text does not count until a suggestion is picked. Options visible: ${options}.`,
-    );
-    return false;
+    // The field can keep stale text such as an earlier ZV-307. Let the player
+    // pick the suggestion, then require that pick to name this stop.
+    await waitAct(`Pick ${stop.query} in Enter location, then press ACT`);
+    const value = locationValue(tile.anchor).toLowerCase();
+    if (!addWaypointArmed(tile.anchor) || !value.includes(stop.query.toLowerCase())) {
+      fail(
+        `ADD WAYPOINT is not armed for ${stop.query}. Raw text does not count until a suggestion is picked.`,
+      );
+      return false;
+    }
   }
   try {
     await clickControl(tile.anchor, 'ADD WAYPOINT', { requireArmed: true });
