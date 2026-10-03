@@ -152,6 +152,33 @@ describe('buildRouteSpec', () => {
     });
   });
 
+  it('caps an output pick-up at the planned amount when the base also consumes it', () => {
+    const built = buildRouteSpec({
+      ...input(true),
+      loadedByStop: new Map<string, Record<string, number>>([
+        ['ZV-307d', { FE: 10.6, AL: 4 }],
+        ['ZV-759c', {}],
+      ]),
+      selfConsumedByStop: new Map([['ZV-307d', new Set(['FE'])]]),
+    });
+    expect(built.ok).toBe(true);
+    if (!built.ok) {
+      return;
+    }
+    const loads = built.spec.stops[1]?.steps.filter(
+      step => step.kind === 'load' && (step.ticker === 'FE' || step.ticker === 'AL'),
+    );
+    expect(loads).toEqual([
+      { kind: 'load', ticker: 'AL', min: { mode: 'units', amount: 0 }, max: { mode: 'capacity' } },
+      {
+        kind: 'load',
+        ticker: 'FE',
+        min: { mode: 'units', amount: 0 },
+        max: { mode: 'units', amount: 10 },
+      },
+    ]);
+  });
+
   it('types a station name when the stored stop is an exchange code', () => {
     const built = buildRouteSpec({
       ...input(true),

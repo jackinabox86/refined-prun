@@ -31,6 +31,9 @@ export interface RouteBuildInput {
   bills: readonly { id: string; bill: Record<string, number> }[];
   sourced: Record<string, number>;
   loadedByStop: ReadonlyMap<string, Record<string, number>>;
+  // Outputs a base also consumes. Their pick-up stops at the planned amount so the
+  // base keeps what its own production needs.
+  selfConsumedByStop?: ReadonlyMap<string, ReadonlySet<string>>;
   refuelStl: readonly boolean[];
   refuelFtl: readonly boolean[];
 }
@@ -175,8 +178,11 @@ export function buildRouteSpec(
           { kind: 'unload', ticker, min: units(amount), max: units(amount) },
         );
       }
-      for (const ticker of positiveTickers(input.loadedByStop.get(id))) {
-        steps.push({ kind: 'load', ticker, min: nothing, max: capacity });
+      const loaded = input.loadedByStop.get(id);
+      const selfConsumed = input.selfConsumedByStop?.get(id);
+      for (const ticker of positiveTickers(loaded)) {
+        const max = selfConsumed?.has(ticker) ? units(Math.floor(loaded?.[ticker] ?? 0)) : capacity;
+        steps.push({ kind: 'load', ticker, min: nothing, max });
       }
     }
     if (!first && input.refuelStl[i] === true) {

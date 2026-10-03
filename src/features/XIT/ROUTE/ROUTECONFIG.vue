@@ -5,7 +5,12 @@ import { grip } from '@src/components/grip';
 import PrunButton from '@src/components/PrunButton.vue';
 import RadioItem from '@src/components/forms/RadioItem.vue';
 import { billTotals } from '@src/features/XIT/DISPATCH/utils';
-import { departureBill, planRouteLoads, routeBaseBills } from '@src/features/XIT/ROUTE/route-load';
+import {
+  departureBill,
+  planRouteLoads,
+  routeBaseBills,
+  selfConsumedByStop,
+} from '@src/features/XIT/ROUTE/route-load';
 import { buildRouteSpec } from '@src/features/XIT/ROUTE/route-rt';
 import { setRouteBlock } from '@src/features/XIT/ROUTE/set-route-gate';
 import { buildRouteconfigPackage } from '@src/features/XIT/RTACT/route-package';
@@ -471,6 +476,7 @@ function onBuildRt() {
     bills: planned.billed.map(base => ({ id: base.naturalId, bill: base.bill })),
     sourced: planned.plan.sourced,
     loadedByStop: planned.plan.loadedByStop,
+    selfConsumedByStop: selfConsumedByStop(planned.billed),
     refuelStl: plannedTanks.stl.map(stop => stop.refuel),
     refuelFtl: plannedTanks.ftl.map(stop => stop.refuel),
   });

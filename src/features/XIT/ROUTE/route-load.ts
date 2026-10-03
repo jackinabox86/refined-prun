@@ -11,6 +11,7 @@ import {
   materialSizeOf,
   type MilkRunBase,
 } from '@src/features/XIT/DISPATCH/utils';
+import { getPlanetBurn } from '@src/core/burn';
 import type { FuelLoad } from '@src/features/XIT/ROUTE/route-calc';
 import { sitesStore } from '@src/infrastructure/prun-api/data/sites';
 
@@ -53,6 +54,22 @@ export function routeBaseBills(
     });
   }
   return billed;
+}
+
+// Tickers each base consumes itself, whether or not it nets them as output.
+export function selfConsumedByStop(bases: readonly MilkRunBase[]) {
+  const result = new Map<string, Set<string>>();
+  for (const base of bases) {
+    const burn = getPlanetBurn(base.site.siteId)?.burn ?? {};
+    const consumed = new Set<string>();
+    for (const [ticker, value] of Object.entries(burn)) {
+      if (value.input > 0 || value.workforce > 0) {
+        consumed.add(ticker);
+      }
+    }
+    result.set(base.naturalId, consumed);
+  }
+  return result;
 }
 
 export function planRouteLoads(bases: MilkRunBase[], cargo: PrunApi.Store): MilkRunResult {
