@@ -41,9 +41,12 @@ export interface MilkRunInput {
   stops: MilkRunStop[];
   cargo: MilkRunCargo;
   sizeOf: (ticker: string) => MaterialSize | undefined;
+  // Loaded at the CX on top of the bill and kept aboard; counts toward peak load.
+  departureExtra?: Record<string, number>;
 }
 
 export interface MilkRunResult {
+  departureExtra: Record<string, number>;
   transfers: MilkRunTransfer[];
   // CX-leg reduction, summed across every transfer.
   sourced: Record<string, number>;
@@ -60,6 +63,31 @@ export function pickupGroupName(planetName: string) {
   return `Pickup ${planetName}`;
 }
 
+// One day of each consumer's own burn for every ticker it gets from an earlier
+// stop. Loaded at the CX so a source whose production has not finished yet
+// does not leave the consumer short.
+export function sourcedDayBuffer(
+  stops: readonly MilkRunStop[],
+  transfers: readonly MilkRunTransfer[],
+) {
+  const extra: Record<string, number> = {};
+  const seen = new Set<string>();
+  for (const transfer of transfers) {
+    const key = `${transfer.toId}\0${transfer.ticker}`;
+    if (seen.has(key)) {
+      continue;
+    }
+    seen.add(key);
+    const consumer = stops.find(stop => stop.id === transfer.toId);
+    const daily = consumer?.dailyAmount[transfer.ticker] ?? 0;
+    const amount = Math.ceil(Math.max(0, -daily));
+    if (amount > 0) {
+      addToRecord(extra, transfer.ticker, amount);
+    }
+  }
+  return extra;
+}
+
 // Adequacy: never take so much that the source runs short over its own horizon.
 // A ticker already on the source's bill is never takeable.
 export function takeableAmount(stop: MilkRunStop, ticker: string) {
@@ -69,6 +97,18 @@ export function takeableAmount(stop: MilkRunStop, ticker: string) {
   const daily = stop.dailyAmount[ticker] ?? 0;
   const ownNeed = stop.days * Math.max(0, -daily) + 1;
   return Math.max(0, Math.floor((stop.storeQty[ticker] ?? 0) - ownNeed));
+}
+
+// What a base will have produced over `days`, for plans that must not depend on
+// stock that happens to be on the base today. Only net output counts.
+export function expectedOutputQty(dailyAmount: Record<string, number>, days: number) {
+  const qty: Record<string, number> = {};
+  for (const [ticker, daily] of Object.entries(dailyAmount)) {
+    if (daily > 0) {
+      qty[ticker] = days * daily;
+    }
+  }
+  return qty;
 }
 
 export function subtractMaterials(
@@ -231,6 +271,8 @@ export function planMilkRun(input: MilkRunInput): MilkRunResult {
     cxBill = addMaterials(cxBill, stop.bill);
   }
   cxBill = subtractMaterials(cxBill, sourced);
+  const departureExtra = input.departureExtra ?? {};
+  cxBill = addMaterials(cxBill, departureExtra);
 
   const departureTotals = totalsOf(cxBill, input.sizeOf);
   let weightLoad = input.cargo.weightLoad + departureTotals.weight;
@@ -265,6 +307,7 @@ export function planMilkRun(input: MilkRunInput): MilkRunResult {
   }
 
   return {
+    departureExtra,
     transfers,
     sourced,
     sourcedByConsumer,

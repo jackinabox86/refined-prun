@@ -24,11 +24,12 @@ describe('padLegSeconds', () => {
 });
 
 describe('minAdjustedBurn', () => {
-  it('subtracts cumulative padded flight time and keeps the lowest base', () => {
-    const padded = [86400, 86400];
+  it('subtracts padded flight time after the first leg and keeps the lowest base', () => {
+    const padded = [86400, 43200, 86400];
     expect(cumulativeSecondsBeforeStop(padded, 0)).toBe(0);
-    expect(cumulativeSecondsBeforeStop(padded, 2)).toBe(172800);
-    expect(minAdjustedBurn([10, undefined, 10], padded)).toBe(8);
+    expect(cumulativeSecondsBeforeStop(padded, 1)).toBe(0);
+    expect(cumulativeSecondsBeforeStop(padded, 2)).toBe(43200);
+    expect(minAdjustedBurn([10, undefined, 10], padded)).toBe(9.5);
   });
 
   it('returns undefined when no base has a burn figure', () => {
