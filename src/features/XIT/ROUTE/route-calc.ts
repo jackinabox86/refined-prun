@@ -161,6 +161,25 @@ export function fuelCargoLoads(stl: readonly TankStop[], ftl: readonly TankStop[
   return loads;
 }
 
+// The game stores flight settings on the waypoint a leg flies to. legs[i] flies from
+// stop i to stop i + 1, and a looping route's last leg flies home, so the first
+// waypoint takes that return leg. A route that does not loop never flies to its first stop.
+export function arrivingLeg<T>(
+  legs: readonly T[] | undefined,
+  index: number,
+  stopCount: number,
+  looping: boolean,
+) {
+  if (legs === undefined) {
+    return undefined;
+  }
+  if (index > 0) {
+    return legs[index - 1];
+  }
+  // Only the TRANSITS run of a looping route records the return leg as legs[stopCount - 1].
+  return looping && legs.length === stopCount ? legs[stopCount - 1] : undefined;
+}
+
 // TRANSITS stop list. A loop adds the origin once more so the return leg
 // is part of the flight time. The saved route stops stay as the player ordered them.
 export function transitStopIds(stops: readonly { id: string }[], loop: boolean | undefined) {

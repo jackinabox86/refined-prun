@@ -2,7 +2,7 @@ import {
   addMaterials,
   subtractMaterials,
 } from '@src/features/XIT/ACT/material-groups/resupply/milk-run';
-import { transitStopIds } from '@src/features/XIT/ROUTE/route-calc';
+import { arrivingLeg, transitStopIds } from '@src/features/XIT/ROUTE/route-calc';
 import type {
   RefuelStep,
   RouteSpec,
@@ -120,25 +120,6 @@ function applyLeg(stop: RouteStop, leg: RouteBuildLeg | undefined) {
   if (leg.gateway !== undefined) {
     stop.gateway = leg.gateway;
   }
-}
-
-// The game stores flight settings on the waypoint a leg flies to. legs[i] flies from
-// stop i to stop i + 1, and a looping route's last leg flies home, so the first
-// waypoint takes that return leg. A route that does not loop never flies to its first stop.
-function arrivingLeg(
-  legs: readonly RouteBuildLeg[] | undefined,
-  index: number,
-  stopCount: number,
-  looping: boolean,
-) {
-  if (legs === undefined) {
-    return undefined;
-  }
-  if (index > 0) {
-    return legs[index - 1];
-  }
-  // Only the TRANSITS run of a looping route records the return leg as legs[stopCount - 1].
-  return looping && legs.length === stopCount ? legs[stopCount - 1] : undefined;
 }
 
 // One ShippingRoute, already billed, becomes the stop list RT_BUILD drives.
