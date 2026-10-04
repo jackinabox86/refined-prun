@@ -14,6 +14,8 @@ import {
   SECONDS_PER_DAY,
 } from '@src/features/XIT/ROUTE/route-calc';
 import { removeRoute } from '@src/features/XIT/ROUTE/routes';
+import { store as planetContextMenu } from '@src/features/XIT/planet-context-menu';
+import { exchangesStore } from '@src/infrastructure/prun-api/data/exchanges';
 import { getEntityNameFromAddress } from '@src/infrastructure/prun-api/data/addresses';
 import { sitesStore } from '@src/infrastructure/prun-api/data/sites';
 import { showBuffer } from '@src/infrastructure/prun-ui/buffers';
@@ -29,6 +31,18 @@ const rows = computed(() => {
 
 function siteFor(id: string) {
   return sitesStore.getByPlanetNaturalId(id);
+}
+
+// Exchanges show their station id (ANT), bases their planet name.
+function originLabel(stop: UserData.ShippingRouteStop | undefined) {
+  if (stop === undefined) {
+    return undefined;
+  }
+  if (stop.kind === 'cx') {
+    return exchangesStore.getNaturalIdFromCode(stop.id) ?? stop.id;
+  }
+  const site = siteFor(stop.id);
+  return site === undefined ? stop.id : (getEntityNameFromAddress(site.address) ?? stop.id);
 }
 
 function summarize(route: UserData.ShippingRoute, now: number) {
@@ -117,6 +131,7 @@ function summarize(route: UserData.ShippingRoute, now: number) {
   return {
     id: route.id,
     name: route.name,
+    origin: originLabel(route.stops[0]),
     burn,
     burnId,
     prodSeen,
@@ -183,28 +198,28 @@ function openConfig(id?: string) {
     <table v-else :class="$style.table">
       <thead>
         <tr>
-          <th>Route</th>
-          <th :class="$style.metric">Burn</th>
-          <th :class="$style.metric">Prod</th>
-          <th :class="$style.metric">Rep</th>
+          <th :class="$style.nameCol">Route</th>
+          <th :class="$style.statusCell">Burn</th>
+          <th :class="$style.statusCell">Prod</th>
+          <th :class="$style.statusCell">Rep</th>
           <th />
         </tr>
       </thead>
       <tbody>
         <template v-for="row in rows" :key="row.id">
-          <tr>
-            <td :class="$style.title" @click="toggle(row.id)">
+          <tr :class="$style.row">
+            <td :class="[$style.title, $style.toggle]" @click="toggle(row.id)">
               <span :class="$style.plus">{{ expanded.includes(row.id) ? '-' : '+' }}</span>
-              <span>{{ row.name }}</span>
+              <span>{{ row.origin === undefined ? row.name : `${row.name} (${row.origin})` }}</span>
             </td>
-            <td :class="$style.metric">
+            <td :class="$style.statusCell">
               <div
                 :class="[$style.statusContent, row.burn !== undefined && burnDaysClass(row.burn)]"
                 @click="row.burnId && showBuffer(`XIT BURN ${row.burnId}`)">
                 <span :class="$style.statusNum">{{ burnText(row.burn) }}</span>
               </div>
             </td>
-            <td :class="$style.metric">
+            <td :class="$style.statusCell">
               <div
                 :class="[
                   $style.statusContent,
@@ -219,7 +234,7 @@ function openConfig(id?: string) {
                 }}</span>
               </div>
             </td>
-            <td :class="$style.metric">
+            <td :class="$style.statusCell">
               <div
                 :class="[
                   $style.statusContent,
@@ -246,16 +261,22 @@ function openConfig(id?: string) {
           </tr>
           <tr
             v-for="(base, index) in expanded.includes(row.id) ? row.bases : []"
-            :key="`${row.id}:${index}`">
-            <td :class="$style.baseTitle">{{ base.name }}</td>
-            <td :class="$style.metric">
+            :key="`${row.id}:${index}`"
+            :class="$style.row">
+            <td
+              :class="$style.title"
+              @contextmenu.prevent="planetContextMenu.showMenu($event, base.id)">
+              <span :class="$style.plus" />
+              <span>{{ base.name }}</span>
+            </td>
+            <td :class="$style.statusCell">
               <div
                 :class="[$style.statusContent, base.burn !== undefined && burnDaysClass(base.burn)]"
                 @click="showBuffer(`XIT BURN ${base.id}`)">
                 <span :class="$style.statusNum">{{ burnText(base.burn) }}</span>
               </div>
             </td>
-            <td :class="$style.metric">
+            <td :class="$style.statusCell">
               <div
                 :class="[
                   $style.statusContent,
@@ -270,7 +291,7 @@ function openConfig(id?: string) {
                 }}</span>
               </div>
             </td>
-            <td :class="$style.metric">
+            <td :class="$style.statusCell">
               <div
                 :class="[
                   $style.statusContent,
@@ -301,16 +322,22 @@ function openConfig(id?: string) {
   border-collapse: collapse;
 }
 
-.table th,
-.table td {
-  padding: 2px 4px;
+.row {
   border-bottom: 1px solid #2b485a;
-  white-space: nowrap;
 }
 
 .title {
   font-weight: bold;
   font-size: 12px;
+  white-space: nowrap;
+}
+
+.nameCol {
+  width: 0;
+  white-space: nowrap;
+}
+
+.toggle {
   cursor: pointer;
 }
 
@@ -320,16 +347,10 @@ function openConfig(id?: string) {
   text-align: center;
 }
 
-.baseTitle {
-  font-weight: bold;
-  font-size: 12px;
-  padding-left: 26px;
-}
-
-.metric {
-  width: 52px;
-  max-width: 52px;
-  padding: 1px 2px;
+.statusCell {
+  width: 0;
+  white-space: nowrap;
+  padding: 2px;
   text-align: center;
 }
 
@@ -342,7 +363,10 @@ function openConfig(id?: string) {
 .statusContent {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
+  min-width: 4ch;
   cursor: pointer;
+  vertical-align: middle;
   padding: 2px 4px;
 }
 
