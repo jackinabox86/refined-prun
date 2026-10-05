@@ -6,7 +6,7 @@ import {
 } from '@src/core/balance/contract-conditions';
 import { contractsStore } from '@src/infrastructure/prun-api/data/contracts';
 import LoadingSpinner from '@src/components/LoadingSpinner.vue';
-import ConditionRow from '@src/features/XIT/CONTC/ConditionRow.vue';
+import ConditionRows from '@src/features/XIT/CONTC/ConditionRows.vue';
 import { isEmpty } from 'ts-extras';
 
 const partnerViolated = computed(() =>
@@ -49,12 +49,7 @@ const nonCurrent = computed(() =>
         </tr>
       </thead>
       <tbody>
-        <ConditionRow
-          v-for="x in partnerViolated"
-          :key="x.condition.id"
-          :contract="x.contract"
-          :condition="x.condition"
-          :deadline="x.deadline" />
+        <ConditionRows :rows="partnerViolated" />
       </tbody>
     </template>
     <template v-if="currentViolated.length > 0">
@@ -64,12 +59,7 @@ const nonCurrent = computed(() =>
         </tr>
       </thead>
       <tbody>
-        <ConditionRow
-          v-for="x in currentViolated"
-          :key="x.condition.id"
-          :contract="x.contract"
-          :condition="x.condition"
-          :deadline="x.deadline" />
+        <ConditionRows :rows="currentViolated" />
       </tbody>
     </template>
     <thead>
@@ -82,12 +72,7 @@ const nonCurrent = computed(() =>
         <td colspan="3">No pending conditions</td>
       </tr>
       <template v-else>
-        <ConditionRow
-          v-for="x in currentNonViolated"
-          :key="x.condition.id"
-          :contract="x.contract"
-          :condition="x.condition"
-          :deadline="x.deadline" />
+        <ConditionRows :rows="currentNonViolated" />
       </template>
     </tbody>
     <thead>
@@ -100,12 +85,7 @@ const nonCurrent = computed(() =>
         <td colspan="3">No pending conditions</td>
       </tr>
       <template v-else>
-        <ConditionRow
-          v-for="x in nonCurrent"
-          :key="x.condition.id"
-          :contract="x.contract"
-          :condition="x.condition"
-          :deadline="x.deadline" />
+        <ConditionRows :rows="nonCurrent" />
       </template>
     </tbody>
   </table>
