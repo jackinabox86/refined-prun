@@ -1,3 +1,7 @@
+// Named so the ACT runner can let this package, alone, count the route
+// reserve as CX stock: it is the buy that fills the reserve.
+export const ROUTE_RESTOCK_PACKAGE = 'Route Restock';
+
 // One Manual group and one CX Buy per exchange origin. The group holds every
 // lap's departure load within the resupply days, and CX Buy takes out what the
 // CX warehouse already holds, so the warehouse ends up stocked for those laps.
@@ -20,5 +24,5 @@ export function restockPackage(
       useCXInv: true,
     });
   }
-  return { global: { name: 'Route Restock' }, groups, actions };
+  return { global: { name: ROUTE_RESTOCK_PACKAGE }, groups, actions };
 }
