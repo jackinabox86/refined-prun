@@ -13,6 +13,7 @@ import {
   paddedLegSeconds,
   SECONDS_PER_DAY,
 } from '@src/features/XIT/ROUTE/route-calc';
+import { originRows } from '@src/features/XIT/ROUTE/route-origins';
 import { removeRoute } from '@src/features/XIT/ROUTE/routes';
 import { store as planetContextMenu } from '@src/features/XIT/planet-context-menu';
 import { exchangesStore } from '@src/infrastructure/prun-api/data/exchanges';
@@ -28,6 +29,35 @@ const rows = computed(() => {
   const now = timestampEachMinute.value;
   return userData.routes.map(route => summarize(route, now));
 });
+
+const origins = computed(() => originRows(timestampEachMinute.value));
+const canRestock = computed(() =>
+  origins.value.some(x => x.kind === 'cx' && Object.keys(x.restock).length > 0),
+);
+
+function countdownText(origin: (typeof origins.value)[number]) {
+  if (origin.running === 0) {
+    return '-';
+  }
+  if (origin.countdown === undefined) {
+    return `${origin.horizonDays}+`;
+  }
+  const text = burnText(origin.countdown);
+  return origin.partial ? `≤${text}` : text;
+}
+
+function countdownClass(origin: (typeof origins.value)[number]) {
+  if (origin.running === 0) {
+    return undefined;
+  }
+  const days = Math.floor(origin.countdown ?? Infinity);
+  const { red, yellow } = userData.settings.routeSupply;
+  return {
+    [C.Workforces.daysMissing]: days <= red,
+    [C.Workforces.daysWarning]: days <= yellow,
+    [C.Workforces.daysSupplied]: days > yellow,
+  };
+}
 
 function siteFor(id: string) {
   return sitesStore.getByPlanetNaturalId(id);
@@ -191,6 +221,41 @@ function openConfig(id?: string) {
 
 <template>
   <div>
+    <table v-if="origins.length > 0" :class="$style.table">
+      <thead>
+        <tr>
+          <th :class="$style.nameCol">Origins</th>
+          <th :class="$style.statusCell">Days</th>
+          <th>
+            <div :class="$style.actions">
+              <PrunButton
+                primary
+                inline
+                :disabled="!canRestock"
+                @click="showBuffer('XIT ROUTESUPPLY')">
+                RESTOCK
+              </PrunButton>
+            </div>
+          </th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr v-for="origin in origins" :key="origin.key" :class="$style.row">
+          <td :class="$style.title">
+            <span :class="$style.plus" />
+            <span>{{ origin.label }}</span>
+          </td>
+          <td :class="$style.statusCell">
+            <div
+              :class="[$style.statusContent, countdownClass(origin)]"
+              @click="showBuffer('XIT ROUTETRACK')">
+              <span :class="$style.statusNum">{{ countdownText(origin) }}</span>
+            </div>
+          </td>
+          <td :class="$style.statusCell">{{ origin.running }}/{{ origin.routes }} running</td>
+        </tr>
+      </tbody>
+    </table>
     <div :class="C.ComExOrdersPanel.filter">
       <PrunButton primary @click="openConfig()">NEW</PrunButton>
     </div>

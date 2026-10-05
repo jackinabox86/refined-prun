@@ -48,6 +48,12 @@ export const initialUserData = deepFreeze({
       countdown: false,
       planetOverrides: {} as Record<string, { threshold?: number }>,
     },
+    // XIT ROUTEBURN Origins: days of route laps RESTOCK buys for, and the countdown colors.
+    routeSupply: {
+      days: 14,
+      red: 3,
+      yellow: 7,
+    },
     noBuy: [] as string[],
     noBuyAll: false,
     noBuyThresholds: {
