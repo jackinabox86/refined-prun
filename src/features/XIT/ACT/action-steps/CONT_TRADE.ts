@@ -1,4 +1,5 @@
 import { act } from '@src/features/XIT/ACT/act-registry';
+import { cxWarehouseStoreAt, guardRouteStock } from '@src/features/XIT/ROUTE/route-stock-guard';
 import { fixed0 } from '@src/utils/format';
 import { selectAndChangeInputValue } from '@src/util';
 import { selectAddress } from '@src/infrastructure/prun-ui/utils/select-address';
@@ -41,6 +42,16 @@ export const CONT_TRADE = act.addActionStep<Data>({
     const assert: AssertFn = ctx.assert;
 
     const typeLabel = data.tradeType === 'BUYING' ? 'Buy' : 'Sell';
+
+    // A sell contract is fulfilled from the store at its location.
+    if (data.tradeType === 'SELLING') {
+      await guardRouteStock(
+        ctx.actTile.anchor,
+        cxWarehouseStoreAt(data.location),
+        data.materials,
+        log,
+      );
+    }
 
     // Step 1: Create new draft. The open is gated by this step's own ACT click,
     // so it must not cost a second one.

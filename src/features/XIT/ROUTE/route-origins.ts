@@ -53,6 +53,8 @@ export interface OriginRow {
   partial: boolean;
   // Everything the laps within the resupply days load here, before stock.
   restock: Record<string, number>;
+  // Every running lap's load here, up to horizonDays.
+  draws: OriginDraw[];
 }
 
 // A saved stop's location id: an exchange's station (ANT), a base's planet (ZV-759c).
@@ -182,10 +184,7 @@ export function originRows(now: number): OriginRow[] {
   const restockUntil = now + daysToMs(settings.days);
   const running = runningRoutes(now, until);
 
-  const rows = new Map<
-    string,
-    OriginRow & { draws: OriginDraw[]; stop: UserData.ShippingRouteStop }
-  >();
+  const rows = new Map<string, OriginRow & { stop: UserData.ShippingRouteStop }>();
   for (const route of userData.routes) {
     const stop = route.stops[0];
     if (stop === undefined) {
@@ -229,9 +228,9 @@ export function originRows(now: number): OriginRow[] {
     }
   }
 
-  return [...rows.values()].map(({ draws, stop, ...row }) => ({
+  return [...rows.values()].map(({ stop, ...row }) => ({
     ...row,
-    countdown: countdownDays(now, firstShortDraw(draws, originStock(stop))),
-    restock: drawTotal(draws, restockUntil),
+    countdown: countdownDays(now, firstShortDraw(row.draws, originStock(stop))),
+    restock: drawTotal(row.draws, restockUntil),
   }));
 }

@@ -7,6 +7,7 @@ import { watchWhile } from '@src/utils/watch';
 import { storagesStore } from '@src/infrastructure/prun-api/data/storage';
 import { AssertFn } from '@src/features/XIT/ACT/shared-types';
 import { selectMaterial } from '@src/features/XIT/ACT/action-steps/cont-utils';
+import { guardRouteStock } from '@src/features/XIT/ROUTE/route-stock-guard';
 
 interface Data {
   from: string;
@@ -126,6 +127,9 @@ export const MTRA_TRANSFER = act.addActionStep<Data>({
     }
 
     const transferButton = await $(tile.anchor, C.Button.btn);
+
+    // Taking from a CX warehouse below what its routes hold asks first.
+    await guardRouteStock(ctx.actTile.anchor, from, { [ticker]: Number(amountInput.value) }, log);
 
     if (playerReview) {
       await waitAct(`Adjust ${ticker} amount in MTRA, then ACT (or SKIP)`, { actDelayMs: 2000 });

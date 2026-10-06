@@ -53,6 +53,9 @@ export const initialUserData = deepFreeze({
       days: 14,
       red: 3,
       yellow: 7,
+      // Per exchange code, when its last Route Restock run finished. The route
+      // reserve only holds stock for laps due before that time + days.
+      restockedAt: {} as Record<string, number>,
     },
     noBuy: [] as string[],
     noBuyAll: false,

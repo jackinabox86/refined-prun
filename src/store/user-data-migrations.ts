@@ -17,6 +17,12 @@ function isCheckpoint(entry: MigrationEntry): entry is Checkpoint {
 // The date is for reference only, and it does not affect migration order.
 const migrations: MigrationEntry[] = [
   [
+    '06.10.2026 Add route restock times',
+    userData => {
+      userData.settings.routeSupply.restockedAt = {};
+    },
+  ],
+  [
     '05.10.2026 Add route supply settings',
     userData => {
       userData.settings.routeSupply = { days: 14, red: 3, yellow: 7 };
