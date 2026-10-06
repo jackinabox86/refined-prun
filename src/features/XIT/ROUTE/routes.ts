@@ -31,6 +31,19 @@ export function removeRoute(id: string) {
   userData.routes.splice(index, 1);
 }
 
+export function saveRouteRtId(configRouteId: string | undefined, rtId: string) {
+  const id = configRouteId?.trim() ?? '';
+  const gameId = rtId.trim();
+  if (id.length === 0 || gameId.length === 0) {
+    return;
+  }
+  const route = findRoute(id);
+  if (route === undefined) {
+    return;
+  }
+  route.rtId = gameId;
+}
+
 export function saveRouteLegs(
   routeId: string | undefined,
   legs: readonly {

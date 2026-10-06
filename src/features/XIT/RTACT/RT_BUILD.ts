@@ -1,7 +1,7 @@
 import { act } from '@src/features/XIT/ACT/act-registry';
+import { saveRouteRtId } from '@src/features/XIT/ROUTE/routes';
 import {
   addWaypointArmed,
-  clickAssign,
   clickControl,
   clickEditorSave,
   commandLabel,
@@ -13,7 +13,6 @@ import {
   hasControl,
   locationValue,
   pickLocation,
-  readShipAssignment,
   revealAssignments,
   revealHover,
   pressLoopSwitch,
@@ -22,6 +21,7 @@ import {
   snapshotRouteIds,
   stationName,
   stepEdits,
+  tryAssignShip,
   waitForEditor,
   waitForNewRouteId,
   WAYPOINT_EDITOR_TITLE,
@@ -47,6 +47,7 @@ interface Data {
   shipId?: string;
   stops: RouteStop[];
   loop?: boolean;
+  configRouteId?: string;
 }
 
 export const RT_BUILD = act.addActionStep<Data>({
@@ -113,6 +114,7 @@ export const RT_BUILD = act.addActionStep<Data>({
     }
     tile = editor;
     await applyRtStageLayout(tile);
+    saveRouteRtId(data.configRouteId, routeId);
 
     for (const stop of data.stops) {
       const ok = await addStop(ctx, tile, stop);
@@ -446,52 +448,27 @@ async function assignShip(
   const { waitAct, log } = ctx;
   // The route itself is built by now. Stop on the RT view's Assignments list so the
   // player can assign another ship there.
-  const fail = (reason: string) => {
-    log.warning(
-      `${reason}. ${routeId} is built without ${ship}. Assign a ship in the Assignments list on the right.`,
+  const result = await tryAssignShip({
+    anchor: tile.anchor,
+    frame: tile.frame,
+    ship,
+    routeId,
+    waitAct,
+  });
+  if (result.ok) {
+    log.success(
+      result.already
+        ? `${ship} is already assigned to ${routeId}`
+        : `Assigned ${ship} to ${routeId}`,
     );
-    revealAssignments(tile.anchor);
-    ctx.fail();
-  };
-  await waitFor(
-    () => readShipAssignment(tile.anchor, ship, routeId).state.kind !== 'missing',
-    5000,
+    return true;
+  }
+  log.warning(
+    `${result.reason}. ${routeId} is built without ${ship}. Assign a ship in the Assignments list on the right.`,
   );
-  const before = readShipAssignment(tile.anchor, ship, routeId);
-  switch (before.state.kind) {
-    case 'missing':
-      fail(`${ship} is not in the route's Assignments list`);
-      return false;
-    case 'here':
-      log.success(`${ship} is already assigned to ${routeId}`);
-      return true;
-    case 'busy':
-      fail(`${ship} is on ${before.state.route} (${before.state.cmds}); not reassigning it`);
-      return false;
-  }
-  await waitAct(`Assign ${ship} to ${routeId}?`);
-  const current = readShipAssignment(tile.anchor, ship, routeId);
-  if (current.state.kind !== 'free') {
-    fail(`${ship} is no longer free to assign`);
-    return false;
-  }
-  try {
-    await clickAssign(current.rows[current.state.row]);
-  } catch (err) {
-    fail(err instanceof Error ? err.message : `Could not click ASSIGN for ${ship}`);
-    return false;
-  }
-  const assigned = await waitFor(
-    () => readShipAssignment(tile.anchor, ship, routeId).state.kind === 'here',
-    8000,
-  );
-  if (!assigned) {
-    fail(`${ship} does not show ${routeId} after ASSIGN`);
-    return false;
-  }
-  await dismissSaveFeedback(tile);
-  log.success(`Assigned ${ship} to ${routeId}`);
-  return true;
+  revealAssignments(tile.anchor);
+  ctx.fail();
+  return false;
 }
 
 function findLabeled(root: Element, label: string): boolean {

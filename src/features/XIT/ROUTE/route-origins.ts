@@ -101,7 +101,7 @@ export function originLapNeed(route: UserData.ShippingRoute) {
   return need;
 }
 
-function originStock(stop: UserData.ShippingRouteStop) {
+export function originStoreStock(stop: UserData.ShippingRouteStop) {
   let store: PrunApi.Store | undefined;
   if (stop.kind === 'cx') {
     const warehouse = warehousesStore.getByEntityNaturalId(
@@ -230,7 +230,7 @@ export function originRows(now: number): OriginRow[] {
 
   return [...rows.values()].map(({ stop, ...row }) => ({
     ...row,
-    countdown: countdownDays(now, firstShortDraw(row.draws, originStock(stop))),
+    countdown: countdownDays(now, firstShortDraw(row.draws, originStoreStock(stop))),
     restock: drawTotal(row.draws, restockUntil),
   }));
 }

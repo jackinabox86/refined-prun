@@ -8,6 +8,7 @@ export function buildRouteconfigPackage(
   spec: RouteSpec,
   shipId: string,
   routeName: string,
+  configRouteId?: string,
 ): StagingPackageResult {
   const blocked = stagingRunBlock(hostname);
   if (blocked !== undefined) {
@@ -29,6 +30,7 @@ export function buildRouteconfigPackage(
           name: 'Build route',
           routePayload: JSON.stringify(spec),
           shipId: ship.length > 0 ? ship : undefined,
+          configRouteId,
         },
       ],
     },

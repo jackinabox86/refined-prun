@@ -112,6 +112,8 @@ declare namespace UserData {
     routeSpec?: string;
     routePayload?: string;
     shipId?: string;
+    // ROUTECONFIG route id, so a built game route can be assigned later.
+    configRouteId?: string;
 
     origin?: string;
     dest?: string;
@@ -298,5 +300,7 @@ declare namespace UserData {
     // Absent means the route loops back to its first stop for flight time.
     loop?: boolean;
     legs?: ShippingRouteLeg[];
+    // Game route id (RT-…) recorded when ROUTECONFIG builds the route.
+    rtId?: string;
   }
 }

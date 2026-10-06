@@ -8,6 +8,7 @@ import {
   waypointFieldIndex,
   isStepEditLabel,
   amountRowIndex,
+  freeShipLabels,
   limitClick,
   modeRowIndex,
   newRouteId,
@@ -250,5 +251,17 @@ describe('shipAssignment', () => {
 
   it('matches the ship name cell exactly, not by substring', () => {
     expect(shipAssignment(rows, ['AVI-0009'], 'RT-RUJT-2222')).toEqual({ kind: 'missing' });
+  });
+});
+
+describe('freeShipLabels', () => {
+  it('lists only rows whose command is ASSIGN', () => {
+    expect(
+      freeShipLabels([
+        ['AVI-00090', '--', 'ASSIGN'],
+        ['AVI-0008Z', 'RT-SNXV-3853', 'execution'],
+        ['--', '--', 'ASSIGN'],
+      ]),
+    ).toEqual(['AVI-00090']);
   });
 });
