@@ -8,6 +8,9 @@ import { warehousesStore } from '@src/infrastructure/prun-api/data/warehouses';
 import { exchangesStore } from '@src/infrastructure/prun-api/data/exchanges';
 import { storagesStore } from '@src/infrastructure/prun-api/data/storage';
 import { act } from '@src/features/XIT/ACT/act-registry';
+import { cxRouteReserve } from '@src/features/XIT/ROUTE/cx-route-reserve';
+import { heldStock, withoutReserve } from '@src/features/XIT/ROUTE/route-reserve';
+import { ROUTE_RESTOCK_PACKAGE } from '@src/features/XIT/ROUTE/restock-package';
 
 interface StepGeneratorOptions {
   log: Logger;
@@ -31,7 +34,7 @@ export class StepGenerator {
     preview: boolean,
   ) {
     this.groupPrices.clear();
-    const state = generateState();
+    const state = generateState(pkg.global.name !== ROUTE_RESTOCK_PACKAGE);
     const steps = [] as ActionStep[];
     let fail = false;
     for (const action of pkg.actions) {
@@ -158,10 +161,14 @@ export class StepGenerator {
   }
 }
 
-function generateState() {
+// With holdRouteStock, CX stock the running routes will load within the
+// resupply days is left out of WAR and listed in routeHeld instead.
+function generateState(holdRouteStock: boolean) {
+  const reserve = holdRouteStock ? cxRouteReserve(Date.now()) : {};
   const war = {} as Record<string, Record<string, number>>;
+  const routeHeld = {} as Record<string, Record<string, number>>;
   for (const ticker of ['AI1', 'CI1', 'CI2', 'IC1', 'NC1', 'NC2']) {
-    war[ticker] = {};
+    const stock: Record<string, number> = {};
     const naturalId = exchangesStore.getNaturalIdFromCode(ticker);
     const warehouse = warehousesStore.getByEntityNaturalId(naturalId);
     const inv = storagesStore.getById(warehouse?.storeId);
@@ -170,13 +177,16 @@ function generateState() {
       for (const mat of inv.items) {
         const quantity = mat.quantity;
         if (quantity) {
-          war[ticker][quantity.material.ticker] = quantity.amount;
+          stock[quantity.material.ticker] = quantity.amount;
         }
       }
     }
+    war[ticker] = withoutReserve(stock, reserve[ticker]);
+    routeHeld[ticker] = heldStock(stock, reserve[ticker]);
   }
   return {
     WAR: war,
+    routeHeld,
     reservedAgentIds: new Set<string>(),
   };
 }

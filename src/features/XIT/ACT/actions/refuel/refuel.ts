@@ -39,7 +39,7 @@ act.addAction<Config>({
     return data.origin !== configurableValue || config.origin !== undefined;
   },
   generateSteps: async ctx => {
-    const { data, config, log, emitStep } = ctx;
+    const { data, config, log, emitStep, state } = ctx;
     const assert: AssertFn = ctx.assert;
 
     const stlMaterial = materialsStore.getByTicker('SF');
@@ -55,7 +55,7 @@ act.addAction<Config>({
         return;
       }
       for (const origin of origins) {
-        refuelFromOrigin(origin, data, stlMaterial, ftlMaterial, log, emitStep);
+        refuelFromOrigin(origin, data, stlMaterial, ftlMaterial, log, emitStep, state.routeHeld);
       }
       return;
     }
@@ -64,7 +64,7 @@ act.addAction<Config>({
     const origin = deserializeStorage(serializedOrigin);
     assert(origin, 'Invalid origin');
 
-    refuelFromOrigin(origin, data, stlMaterial, ftlMaterial, log, emitStep);
+    refuelFromOrigin(origin, data, stlMaterial, ftlMaterial, log, emitStep, state.routeHeld);
   },
 });
 
@@ -75,10 +75,13 @@ function refuelFromOrigin(
   ftlMaterial: PrunApi.Material,
   log: Logger,
   emitStep: (step: ActionStep) => void,
+  routeHeld: Record<string, Record<string, number>>,
 ) {
   const originName = serializeStorage(origin);
   const exchangeCode = getExchangeCode(origin);
   const isCX = exchangeCode !== undefined;
+  // Fuel the running routes will load at this exchange is not ours to hand out.
+  const held = isCX ? (routeHeld[exchangeCode] ?? {}) : {};
 
   const dockedStl =
     storagesStore.getByType('STL_FUEL_STORE')?.filter(x => atSameLocation(x, origin)) ?? [];
@@ -99,9 +102,11 @@ function refuelFromOrigin(
     return;
   }
 
-  let presentStlFuel =
-    origin.items.find(x => x.quantity?.material.ticker === stlMaterial.ticker)?.quantity?.amount ??
-    0;
+  let presentStlFuel = Math.max(
+    0,
+    (origin.items.find(x => x.quantity?.material.ticker === stlMaterial.ticker)?.quantity?.amount ??
+      0) - (held[stlMaterial.ticker] ?? 0),
+  );
 
   if (presentStlFuel < totalStlRefuel) {
     if (isCX && data.buyMissingFuel) {
@@ -117,9 +122,11 @@ function refuelFromOrigin(
     }
   }
 
-  let presentFtlFuel =
-    origin.items.find(x => x.quantity?.material.ticker === ftlMaterial.ticker)?.quantity?.amount ??
-    0;
+  let presentFtlFuel = Math.max(
+    0,
+    (origin.items.find(x => x.quantity?.material.ticker === ftlMaterial.ticker)?.quantity?.amount ??
+      0) - (held[ftlMaterial.ticker] ?? 0),
+  );
 
   if (presentFtlFuel < totalFtlRefuel) {
     if (isCX && data.buyMissingFuel) {
