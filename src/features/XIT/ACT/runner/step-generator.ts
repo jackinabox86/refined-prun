@@ -11,7 +11,6 @@ import { act } from '@src/features/XIT/ACT/act-registry';
 import { cxRouteReserve } from '@src/features/XIT/ROUTE/cx-route-reserve';
 import { heldStock, withoutReserve } from '@src/features/XIT/ROUTE/route-reserve';
 import { ROUTE_RESTOCK_PACKAGE } from '@src/features/XIT/ROUTE/restock-package';
-import { setRunHeld } from '@src/features/XIT/ROUTE/route-stock-guard';
 
 interface StepGeneratorOptions {
   log: Logger;
@@ -185,7 +184,6 @@ function generateState(holdRouteStock: boolean) {
     war[ticker] = withoutReserve(stock, reserve[ticker]);
     routeHeld[ticker] = heldStock(stock, reserve[ticker]);
   }
-  setRunHeld(holdRouteStock ? routeHeld : undefined);
   return {
     WAR: war,
     routeHeld,

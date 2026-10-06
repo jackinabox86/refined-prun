@@ -1,6 +1,4 @@
 import { act } from '@src/features/XIT/ACT/act-registry';
-import { cxWarehouseStoreAt, guardRouteStock } from '@src/features/XIT/ROUTE/route-stock-guard';
-import { storagesStore } from '@src/infrastructure/prun-api/data/storage';
 import { fixed0, fixed2 } from '@src/utils/format';
 import { changeSelectIndex, selectAndChangeInputValue } from '@src/util';
 import { materialsStore } from '@src/infrastructure/prun-api/data/materials';
@@ -83,19 +81,6 @@ export const CONT_SEND = act.addActionStep<Data>({
         `Total: ${fixed2(totalTonnage)}t, ${fixed0(data.payment)} ${data.currency} (${fixed0(data.payment / totalTonnage)} ${data.currency}/t)`,
       );
     }
-
-    // The shipment is provisioned from the auto-provision store, or else from the origin.
-    const provision =
-      data.autoProvisionStoreId !== undefined
-        ? (storagesStore.getById(data.autoProvisionStoreId) ??
-          storagesStore.getById(data.autoProvisionStoreId.replaceAll('-', '')))
-        : cxWarehouseStoreAt(data.contOrigin);
-    await guardRouteStock(
-      ctx.actTile.anchor,
-      provision,
-      Object.fromEntries(materialDetails.map(x => [x.ticker, x.amount])),
-      log,
-    );
 
     // Step 1: Create new draft. The open is gated by this step's own ACT click,
     // so it must not cost a second one.

@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
 import {
-  floorReserve,
   heldStock,
   restockWindowEnd,
   routeStockDraws,
@@ -51,13 +50,5 @@ describe('routeStockDraws', () => {
 
   it('ignores tickers the routes do not load', () => {
     expect(routeStockDraws({ OVE: 5 }, { OVE: 5 }, { RAT: 60 })).toEqual([]);
-  });
-});
-
-describe('floorReserve', () => {
-  it('floors at what the reserve held when the package was generated', () => {
-    // 20 RAT were on hand for a 60 RAT reserve, so moving what the package bought on top never warns.
-    expect(floorReserve({ RAT: 60, DW: 30 }, { RAT: 20 })).toEqual({ RAT: 20, DW: 0 });
-    expect(floorReserve({ RAT: 60 }, undefined)).toEqual({ RAT: 60 });
   });
 });

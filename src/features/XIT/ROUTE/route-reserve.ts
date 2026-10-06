@@ -72,18 +72,3 @@ export function routeStockDraws(
   }
   return draws;
 }
-
-// The live reserve, lowered to what it held when the package was generated.
-export function floorReserve(
-  live: Readonly<Record<string, number>>,
-  atStart: Readonly<Record<string, number>> | undefined,
-) {
-  if (atStart === undefined) {
-    return { ...live };
-  }
-  const floor: Record<string, number> = {};
-  for (const [ticker, amount] of Object.entries(live)) {
-    floor[ticker] = Math.min(amount, atStart[ticker] ?? 0);
-  }
-  return floor;
-}
