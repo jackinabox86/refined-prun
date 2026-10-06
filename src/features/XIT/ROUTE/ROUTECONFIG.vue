@@ -512,7 +512,13 @@ function onBuildRt() {
   if (spec === undefined) {
     return;
   }
-  const pkg = buildRouteconfigPackage(location.hostname, spec, current.ship ?? '', current.name);
+  const pkg = buildRouteconfigPackage(
+    location.hostname,
+    spec,
+    current.ship ?? '',
+    current.name,
+    current.id,
+  );
   if (!pkg.ok) {
     rtError.value = pkg.error;
     return;

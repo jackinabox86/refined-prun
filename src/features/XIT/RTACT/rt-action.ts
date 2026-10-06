@@ -40,6 +40,7 @@ act.addAction({
           shipId: shipId.length > 0 ? shipId : undefined,
           stops: built.spec.stops,
           loop: built.spec.loop,
+          configRouteId: data.configRouteId,
         }),
       );
       return;
@@ -51,6 +52,7 @@ act.addAction({
         routeId: routeId.id,
         shipId: shipId.length > 0 ? shipId : undefined,
         stops: spec.spec.stops,
+        configRouteId: data.configRouteId,
       }),
     );
   },

@@ -13,8 +13,9 @@ import {
   paddedLegSeconds,
   SECONDS_PER_DAY,
 } from '@src/features/XIT/ROUTE/route-calc';
+import { assignReadiness, stageRouteAssign } from '@src/features/XIT/ROUTE/route-assign-run';
 import { originRows } from '@src/features/XIT/ROUTE/route-origins';
-import { removeRoute } from '@src/features/XIT/ROUTE/routes';
+import { findRoute, removeRoute } from '@src/features/XIT/ROUTE/routes';
 import { store as planetContextMenu } from '@src/features/XIT/planet-context-menu';
 import { exchangesStore } from '@src/infrastructure/prun-api/data/exchanges';
 import { getEntityNameFromAddress } from '@src/infrastructure/prun-api/data/addresses';
@@ -27,8 +28,11 @@ const expanded = ref<string[]>([]);
 
 const rows = computed(() => {
   const now = timestampEachMinute.value;
-  return userData.routes.map(route => summarize(route, now));
+  const mapped = userData.routes.map(route => summarize(route, now));
+  return [...mapped.filter(x => x.nonLooping), ...mapped.filter(x => !x.nonLooping)];
 });
+
+const hasNonLooping = computed(() => rows.value.some(x => x.nonLooping));
 
 const origins = computed(() => originRows(timestampEachMinute.value));
 const canRestock = computed(() =>
@@ -158,9 +162,13 @@ function summarize(route: UserData.ShippingRoute, now: number) {
     }
   }
 
+  const assign = assignReadiness(route);
   return {
     id: route.id,
     name: route.name,
+    nonLooping: assign.show,
+    canAssign: assign.enabled,
+    assignTip: assign.tip,
     origin: originLabel(route.stops[0]),
     burn,
     burnId,
@@ -217,6 +225,18 @@ function burnText(days: number | undefined) {
 function openConfig(id?: string) {
   showBuffer(id === undefined ? 'XIT ROUTECONFIG' : `XIT ROUTECONFIG ${id}`);
 }
+
+function onAssign(id: string) {
+  const route = findRoute(id);
+  if (route === undefined || !assignReadiness(route).enabled) {
+    return;
+  }
+  const row = rows.value.find(x => x.id === id);
+  if (!stageRouteAssign(route, Date.now(), row?.origin ?? route.name)) {
+    return;
+  }
+  showBuffer('XIT ROUTEBUY');
+}
 </script>
 
 <template>
@@ -268,9 +288,13 @@ function openConfig(id?: string) {
           <th :class="$style.statusCell">Prod</th>
           <th :class="$style.statusCell">Rep</th>
           <th />
+          <th v-if="hasNonLooping" />
         </tr>
       </thead>
       <tbody>
+        <tr v-if="hasNonLooping">
+          <td :colspan="6" :class="$style.section">Non-Looping Routes</td>
+        </tr>
         <template v-for="row in rows" :key="row.id">
           <tr :class="$style.row">
             <td :class="[$style.title, $style.toggle]" @click="toggle(row.id)">
@@ -321,6 +345,16 @@ function openConfig(id?: string) {
               <div :class="$style.actions">
                 <PrunButton dark inline @click="onRemove(row.id)">REMOVE</PrunButton>
                 <PrunButton dark inline @click="openConfig(row.id)">CONFIG</PrunButton>
+              </div>
+            </td>
+            <td v-if="hasNonLooping">
+              <div
+                v-if="row.nonLooping"
+                :class="[$style.actions, $style.assignHit]"
+                :title="row.assignTip">
+                <PrunButton primary inline :disabled="!row.canAssign" @click="onAssign(row.id)">
+                  ASSIGN
+                </PrunButton>
               </div>
             </td>
           </tr>
@@ -375,6 +409,7 @@ function openConfig(id?: string) {
               </div>
             </td>
             <td />
+            <td v-if="hasNonLooping" />
           </tr>
         </template>
       </tbody>
@@ -442,5 +477,14 @@ function openConfig(id?: string) {
 
 .note {
   margin: 8px;
+}
+
+.section {
+  font-weight: bold;
+  padding: 8px 4px 4px;
+}
+
+.assignHit button:disabled {
+  pointer-events: none;
 }
 </style>

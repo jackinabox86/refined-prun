@@ -313,3 +313,19 @@ export function shipAssignment(rows: string[][], names: string[], routeId: strin
   }
   return { kind: 'busy', route, cmds };
 }
+
+// Names of ships whose Cmds cell is ASSIGN. The route view lists one row per ship.
+export function freeShipLabels(rows: readonly (readonly string[])[]): string[] {
+  const labels: string[] = [];
+  for (const cells of rows) {
+    if ((cells[2] ?? '').trim().toUpperCase() !== 'ASSIGN') {
+      continue;
+    }
+    const label = (cells[0] ?? '').trim();
+    if (label.length === 0 || label === '--') {
+      continue;
+    }
+    labels.push(label);
+  }
+  return labels;
+}

@@ -631,6 +631,88 @@ export async function clickAssign(row: HTMLTableRowElement): Promise<void> {
   await clickElement(target);
 }
 
+export function readAssignmentRows(anchor: Element): string[][] {
+  return assignmentRows(anchor).map(row =>
+    Array.from(row.querySelectorAll('td'), td => (td.textContent ?? '').trim()),
+  );
+}
+
+export type AssignAttempt =
+  | { ok: true; already: boolean }
+  | {
+      ok: false;
+      kind: 'missing' | 'busy' | 'unavailable' | 'click' | 'unconfirmed';
+      reason: string;
+    };
+
+// Clicks ASSIGN on a free ship row. The caller decides what a miss means.
+export async function tryAssignShip(input: {
+  anchor: Element;
+  frame: Element;
+  ship: string;
+  routeId: string;
+  waitAct: (status?: string) => Promise<void>;
+}): Promise<AssignAttempt> {
+  await waitFor(
+    () => readShipAssignment(input.anchor, input.ship, input.routeId).state.kind !== 'missing',
+    5000,
+  );
+  const before = readShipAssignment(input.anchor, input.ship, input.routeId);
+  if (before.state.kind === 'missing') {
+    return {
+      ok: false,
+      kind: 'missing',
+      reason: `${input.ship} is not in the route's Assignments list`,
+    };
+  }
+  if (before.state.kind === 'here') {
+    return { ok: true, already: true };
+  }
+  if (before.state.kind === 'busy') {
+    return {
+      ok: false,
+      kind: 'busy',
+      reason: `${input.ship} is on ${before.state.route} (${before.state.cmds}); not reassigning it`,
+    };
+  }
+  await input.waitAct(`Assign ${input.ship} to ${input.routeId}?`);
+  const current = readShipAssignment(input.anchor, input.ship, input.routeId);
+  if (current.state.kind !== 'free') {
+    return { ok: false, kind: 'unavailable', reason: `${input.ship} is no longer free to assign` };
+  }
+  try {
+    await clickAssign(current.rows[current.state.row]);
+  } catch (err) {
+    return {
+      ok: false,
+      kind: 'click',
+      reason: err instanceof Error ? err.message : `Could not click ASSIGN for ${input.ship}`,
+    };
+  }
+  const assigned = await waitFor(
+    () => readShipAssignment(input.anchor, input.ship, input.routeId).state.kind === 'here',
+    8000,
+  );
+  if (!assigned) {
+    return {
+      ok: false,
+      kind: 'unconfirmed',
+      reason: `${input.ship} does not show ${input.routeId} after ASSIGN`,
+    };
+  }
+  await dismissAssignFeedback(input.frame);
+  return { ok: true, already: false };
+}
+
+async function dismissAssignFeedback(frame: Element): Promise<void> {
+  const find = () => _$(frame, C.ActionFeedback.success) as HTMLElement | undefined;
+  await waitFor(() => find() !== undefined, 2000);
+  const success = find();
+  if (success !== undefined) {
+    await clickElement(success);
+  }
+}
+
 export const WAYPOINT_EDITOR_TITLE = 'Edit waypoint';
 
 function frameLoopToggle(root: Element): HTMLElement | undefined {
