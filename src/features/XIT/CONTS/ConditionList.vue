@@ -30,8 +30,6 @@ const visible = computed(() => capContractEntries(filtered.value));
     :key="condition.id"
     :condition="condition"
     :contract="contract" />
-  <div v-if="visible.hidden" :style="{ textAlign: 'center' }">{{
-    hiddenContractEntriesMarker
-  }}</div>
+  <div v-if="visible.hidden">{{ hiddenContractEntriesMarker }}</div>
   <div v-if="loanTotal !== 0">{{ loanFilled }}/{{ loanTotal }} Loan Installment</div>
 </template>
