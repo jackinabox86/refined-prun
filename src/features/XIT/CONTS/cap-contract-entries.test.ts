@@ -11,7 +11,7 @@ describe('capContractEntries', () => {
       entries: ['a', 'b', 'c'],
       hidden: false,
     });
-    expect(hiddenContractEntriesMarker).toBe('…');
+    expect(hiddenContractEntriesMarker).toBe('(…)');
     expect(visibleContractEntries).toBe(3);
   });
 

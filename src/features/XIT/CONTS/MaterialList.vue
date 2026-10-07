@@ -63,7 +63,7 @@ const visible = computed(() => capContractEntries(icons.value));
         <MaterialIcon size="medium" :ticker="icon.ticker" :amount="icon.amount" />
       </div>
     </template>
-    <div v-if="visible.hidden" :style="{ marginBottom: '4px' }">{{
+    <div v-if="visible.hidden" :style="{ marginBottom: '4px', textAlign: 'center' }">{{
       hiddenContractEntriesMarker
     }}</div>
   </div>
