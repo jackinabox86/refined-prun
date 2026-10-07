@@ -6,7 +6,7 @@ import {
 } from '@src/core/balance/contract-conditions';
 import { contractsStore } from '@src/infrastructure/prun-api/data/contracts';
 import LoadingSpinner from '@src/components/LoadingSpinner.vue';
-import ConditionRows from '@src/features/XIT/CONTC/ConditionRows.vue';
+import ConditionRow from '@src/features/XIT/CONTC/ConditionRow.vue';
 import { isEmpty } from 'ts-extras';
 
 const partnerViolated = computed(() =>
@@ -49,7 +49,12 @@ const nonCurrent = computed(() =>
         </tr>
       </thead>
       <tbody>
-        <ConditionRows :rows="partnerViolated" />
+        <ConditionRow
+          v-for="x in partnerViolated"
+          :key="x.condition.id"
+          :contract="x.contract"
+          :condition="x.condition"
+          :deadline="x.deadline" />
       </tbody>
     </template>
     <template v-if="currentViolated.length > 0">
@@ -59,7 +64,12 @@ const nonCurrent = computed(() =>
         </tr>
       </thead>
       <tbody>
-        <ConditionRows :rows="currentViolated" />
+        <ConditionRow
+          v-for="x in currentViolated"
+          :key="x.condition.id"
+          :contract="x.contract"
+          :condition="x.condition"
+          :deadline="x.deadline" />
       </tbody>
     </template>
     <thead>
@@ -72,7 +82,12 @@ const nonCurrent = computed(() =>
         <td colspan="3">No pending conditions</td>
       </tr>
       <template v-else>
-        <ConditionRows :rows="currentNonViolated" />
+        <ConditionRow
+          v-for="x in currentNonViolated"
+          :key="x.condition.id"
+          :contract="x.contract"
+          :condition="x.condition"
+          :deadline="x.deadline" />
       </template>
     </tbody>
     <thead>
@@ -85,7 +100,12 @@ const nonCurrent = computed(() =>
         <td colspan="3">No pending conditions</td>
       </tr>
       <template v-else>
-        <ConditionRows :rows="nonCurrent" />
+        <ConditionRow
+          v-for="x in nonCurrent"
+          :key="x.condition.id"
+          :contract="x.contract"
+          :condition="x.condition"
+          :deadline="x.deadline" />
       </template>
     </tbody>
   </table>
