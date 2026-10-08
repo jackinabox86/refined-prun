@@ -3,6 +3,10 @@ import { isSelfCondition } from '@src/features/XIT/CONTS/utils';
 import ShipmentIcon from '@src/components/ShipmentIcon.vue';
 import MaterialIcon from '@src/components/MaterialIcon.vue';
 import { objectId } from '@src/utils/object-id';
+import {
+  applyContractEntryCap,
+  hiddenContractEntriesMarker,
+} from '@src/features/XIT/CONTS/cap-contract-entries';
 
 const { contract } = defineProps<{ contract: PrunApi.Contract }>();
 
@@ -45,11 +49,13 @@ const icons = computed(() => {
   }
   return result;
 });
+
+const visible = computed(() => applyContractEntryCap(icons.value));
 </script>
 
 <template>
   <div>
-    <template v-for="icon in icons" :key="objectId(icon)">
+    <template v-for="icon in visible.entries" :key="objectId(icon)">
       <div v-if="icon.type === 'SHIPMENT'" :style="{ marginBottom: '4px' }">
         <ShipmentIcon size="medium" :shipment-id="icon.shipmentId" />
       </div>
@@ -57,6 +63,9 @@ const icons = computed(() => {
         <MaterialIcon size="medium" :ticker="icon.ticker" :amount="icon.amount" />
       </div>
     </template>
+    <div v-if="visible.hidden" :style="{ marginBottom: '4px', textAlign: 'center' }">{{
+      hiddenContractEntriesMarker
+    }}</div>
   </div>
 </template>
 

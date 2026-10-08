@@ -1,5 +1,9 @@
 <script setup lang="ts">
 import ConditionItem from '@src/features/XIT/CONTS/ConditionItem.vue';
+import {
+  applyContractEntryCap,
+  hiddenContractEntriesMarker,
+} from '@src/features/XIT/CONTS/cap-contract-entries';
 
 const { conditions, contract } = defineProps<{
   conditions: PrunApi.ContractCondition[];
@@ -17,13 +21,15 @@ const loanTotal = computed(() => loanInstallments.value.length);
 const loanFilled = computed(
   () => loanInstallments.value.filter(x => x.status === 'FULFILLED').length,
 );
+const visible = computed(() => applyContractEntryCap(filtered.value));
 </script>
 
 <template>
   <ConditionItem
-    v-for="condition in filtered"
+    v-for="condition in visible.entries"
     :key="condition.id"
     :condition="condition"
     :contract="contract" />
+  <div v-if="visible.hidden">{{ hiddenContractEntriesMarker }}</div>
   <div v-if="loanTotal !== 0">{{ loanFilled }}/{{ loanTotal }} Loan Installment</div>
 </template>
