@@ -4,7 +4,7 @@ import ShipmentIcon from '@src/components/ShipmentIcon.vue';
 import MaterialIcon from '@src/components/MaterialIcon.vue';
 import { objectId } from '@src/utils/object-id';
 import {
-  capContractEntries,
+  applyContractEntryCap,
   hiddenContractEntriesMarker,
 } from '@src/features/XIT/CONTS/cap-contract-entries';
 
@@ -50,7 +50,7 @@ const icons = computed(() => {
   return result;
 });
 
-const visible = computed(() => capContractEntries(icons.value));
+const visible = computed(() => applyContractEntryCap(icons.value));
 </script>
 
 <template>

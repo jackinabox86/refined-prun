@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import ConditionItem from '@src/features/XIT/CONTS/ConditionItem.vue';
 import {
-  capContractEntries,
+  applyContractEntryCap,
   hiddenContractEntriesMarker,
 } from '@src/features/XIT/CONTS/cap-contract-entries';
 
@@ -21,7 +21,7 @@ const loanTotal = computed(() => loanInstallments.value.length);
 const loanFilled = computed(
   () => loanInstallments.value.filter(x => x.status === 'FULFILLED').length,
 );
-const visible = computed(() => capContractEntries(filtered.value));
+const visible = computed(() => applyContractEntryCap(filtered.value));
 </script>
 
 <template>
