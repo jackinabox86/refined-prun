@@ -1120,10 +1120,14 @@ through to the game's own parser. Keep real command names out of the shortcut ta
 For a panel that should open itself once, based on a condition, without the player typing
 the command — not a bespoke overlay — pair a `setTimeout(() => showBuffer('XIT CMD'), delayMs)`
 in `initializeXitCommands()` (`src/features/XIT/xit-commands.ts`) with a `userData` flag that
-flips once shown, so it never re-fires. `XIT START` (feature-set picker, fires when
-`userData.settings.mode === undefined`) and `XIT WHATSNEW` (release notes, fires when
+flips once shown, so it never re-fires. `XIT START` (welcome, fires once on the load that
+found no stored feature mode) and `XIT WHATSNEW` (release notes, fires when
 `userData.lastSeenChangelogVersion` is behind the latest changelog version) are the two
 reference implementations — stagger their delays if a startup sequence could trigger both.
+A missing `userData.settings.mode` is set to `'FULL'` and saved in `main` before
+`features.init()`, so advanced features load on that first start. The fresh-install
+signal is captured before that default (`src/store/fresh-install.ts`); a stored `BASIC`
+or `FULL` value is left alone. `XIT START` no longer asks the player to choose a mode.
 
 ### Repeatable Hidden-Buffer Fetches
 

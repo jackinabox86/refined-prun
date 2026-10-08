@@ -1,6 +1,8 @@
 import { finishApiInitialization, initializeApi } from '@src/infrastructure/prun-api';
 import { initializeUI } from '@src/infrastructure/prun-ui';
+import { saveUserData } from '@src/infrastructure/storage/user-data-serializer';
 import { initializeUserData } from '@src/store';
+import { defaultFreshInstallToFullMode } from '@src/store/fresh-install';
 import { initAudioInterceptor } from '@src/infrastructure/prun-ui/audio-interceptor';
 import PmmgMigrationGuide from '@src/components/PmmgMigrationGuide.vue';
 
@@ -18,6 +20,11 @@ async function main() {
 
     console.log(`Refined PrUn ${config.version}`);
     initializeUserData();
+    // Mode must be FULL before features.init so advanced features load on the
+    // first start. The save has to finish first; a later reload is too late.
+    if (defaultFreshInstallToFullMode()) {
+      await saveUserData();
+    }
     features.init();
     xit.init();
   } finally {
