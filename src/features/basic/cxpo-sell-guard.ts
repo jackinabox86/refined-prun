@@ -42,7 +42,7 @@ function onSellClick(tile: PrunTile, confirmed: WeakSet<Element>, event: Event) 
   const parsed = parseCxpo(tile.parameter);
   const form = tile.anchor.querySelector(`.${C.ComExPlaceOrderForm.form}`);
   const amount = readQuantity(form);
-  if (!parsed || amount === undefined) {
+  if (!parsed || amount === undefined || !warehouseSelected(form)) {
     return;
   }
   const shortfall = routeStockShortfall(cxStoreForExchange(parsed.exchange), {
@@ -163,6 +163,15 @@ function inventoryRow(form: HTMLElement) {
 
 function selectedStorage(select: HTMLSelectElement) {
   return select.selectedOptions[0]?.text ?? '';
+}
+
+// A sell from a ship cargo hold leaves the CX warehouse untouched.
+function warehouseSelected(form: Element | null) {
+  const select = form?.querySelector('select');
+  return (
+    select instanceof HTMLSelectElement &&
+    selectedStorage(select).trim().toLowerCase() === CX_WAREHOUSE_OPTION
+  );
 }
 
 function parseCxpo(parameter: string | undefined) {
