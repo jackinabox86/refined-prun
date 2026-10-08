@@ -92,13 +92,16 @@ export interface LapStartInput {
 }
 
 // Lap starts from now up to `until`. Without a known lap length only the next
-// lap is counted.
+// lap is counted. A one-way route has none: it buys for itself when sent out.
 export function lapStarts(input: LapStartInput) {
   const times: number[] = [];
+  if (!input.repeats) {
+    return times;
+  }
   if (input.loadingNow) {
     times.push(input.now);
   }
-  if (!input.repeats || input.nextLap === undefined) {
+  if (input.nextLap === undefined) {
     return times;
   }
   let time = Math.max(input.now, input.nextLap);
@@ -111,6 +114,59 @@ export function lapStarts(input: LapStartInput) {
     time += step;
   }
   return times;
+}
+
+// Departure times for a saved looping route no ship is running. The first
+// departure is now. Later ones step by the legs at the same 85% factor lapStarts
+// uses, and never shorter than MIN_LAP_MS. An unknown leg is one departure at now.
+export function plannedDepartureTimes(
+  now: number,
+  until: number,
+  legSeconds: readonly (number | undefined)[],
+) {
+  if (legSeconds.length === 0) {
+    return [now];
+  }
+  let ms = 0;
+  for (const leg of legSeconds) {
+    if (leg === undefined) {
+      return [now];
+    }
+    ms += leg * LEG_ESTIMATE_FACTOR * 1000;
+  }
+  const step = Math.max(MIN_LAP_MS, ms);
+  const times: number[] = [];
+  let time = now;
+  while (time <= until && times.length < MAX_LAPS) {
+    times.push(time);
+    time += step;
+  }
+  return times;
+}
+
+// A saved CX route no ship is running. A loop departs now and every lap after
+// that, and those draws are the countdown, the restock, and the reserve. A
+// one-way route is never bought for here: its own buy runs when it is sent
+// out. A base origin is left untouched.
+export function unassignedCxLoads(input: {
+  now: number;
+  until: number;
+  looping: boolean;
+  cx: boolean;
+  need: Record<string, number> | undefined;
+  legSeconds: readonly (number | undefined)[];
+}) {
+  const draws: OriginDraw[] = [];
+  if (!input.cx || !input.looping) {
+    return { draws, partial: false };
+  }
+  if (input.need === undefined) {
+    return { draws, partial: true };
+  }
+  for (const time of plannedDepartureTimes(input.now, input.until, input.legSeconds)) {
+    draws.push({ time, need: input.need });
+  }
+  return { draws, partial: false };
 }
 
 function sortedDraws(draws: readonly OriginDraw[]) {

@@ -15,6 +15,7 @@ import {
   lapStarts,
   loadingAtOrigin,
   nextLapStart,
+  unassignedCxLoads,
   type OriginDraw,
 } from '@src/features/XIT/ROUTE/route-supply';
 import {
@@ -212,6 +213,16 @@ export function originRows(now: number): OriginRow[] {
     row.routes++;
     const mine = running.filter(x => x.route === route);
     if (mine.length === 0) {
+      const plan = unassignedCxLoads({
+        now,
+        until,
+        looping: route.loop !== false,
+        cx: stop.kind === 'cx',
+        need: stop.kind === 'cx' ? originLapNeed(route) : undefined,
+        legSeconds: configLegSeconds(route, true),
+      });
+      row.partial ||= plan.partial;
+      row.draws.push(...plan.draws);
       continue;
     }
     row.running += mine.length;
