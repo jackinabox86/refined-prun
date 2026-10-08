@@ -113,6 +113,64 @@ export function lapStarts(input: LapStartInput) {
   return times;
 }
 
+// Departure times for a saved looping route no ship is running. The first
+// departure is now. Later ones step by the legs at the same 85% factor lapStarts
+// uses, and never shorter than MIN_LAP_MS. An unknown leg is one departure at now.
+export function plannedDepartureTimes(
+  now: number,
+  until: number,
+  legSeconds: readonly (number | undefined)[],
+) {
+  if (legSeconds.length === 0) {
+    return [now];
+  }
+  let ms = 0;
+  for (const leg of legSeconds) {
+    if (leg === undefined) {
+      return [now];
+    }
+    ms += leg * LEG_ESTIMATE_FACTOR * 1000;
+  }
+  const step = Math.max(MIN_LAP_MS, ms);
+  const times: number[] = [];
+  let time = now;
+  while (time <= until && times.length < MAX_LAPS) {
+    times.push(time);
+    time += step;
+  }
+  return times;
+}
+
+// A saved CX route no ship is running. A loop departs now and every lap after
+// that, and those draws are the countdown, the restock, and the reserve. A
+// one-way route adds its single departure to restock only, so the reserve does
+// not hold it against its own ASSIGN. A base origin is left untouched.
+export function unassignedCxLoads(input: {
+  now: number;
+  until: number;
+  looping: boolean;
+  cx: boolean;
+  need: Record<string, number> | undefined;
+  legSeconds: readonly (number | undefined)[];
+}) {
+  const draws: OriginDraw[] = [];
+  const restockOnly: OriginDraw[] = [];
+  if (!input.cx) {
+    return { draws, restockOnly, partial: false };
+  }
+  if (input.need === undefined) {
+    return { draws, restockOnly, partial: true };
+  }
+  if (!input.looping) {
+    restockOnly.push({ time: input.now, need: input.need });
+    return { draws, restockOnly, partial: false };
+  }
+  for (const time of plannedDepartureTimes(input.now, input.until, input.legSeconds)) {
+    draws.push({ time, need: input.need });
+  }
+  return { draws, restockOnly, partial: false };
+}
+
 function sortedDraws(draws: readonly OriginDraw[]) {
   return [...draws].sort((a, b) => a.time - b.time);
 }

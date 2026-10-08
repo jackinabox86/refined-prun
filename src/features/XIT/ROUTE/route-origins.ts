@@ -15,6 +15,7 @@ import {
   lapStarts,
   loadingAtOrigin,
   nextLapStart,
+  unassignedCxLoads,
   type OriginDraw,
 } from '@src/features/XIT/ROUTE/route-supply';
 import {
@@ -184,7 +185,10 @@ export function originRows(now: number): OriginRow[] {
   const restockUntil = now + daysToMs(settings.days);
   const running = runningRoutes(now, until);
 
-  const rows = new Map<string, OriginRow & { stop: UserData.ShippingRouteStop }>();
+  const rows = new Map<
+    string,
+    OriginRow & { stop: UserData.ShippingRouteStop; restockOnly: OriginDraw[] }
+  >();
   for (const route of userData.routes) {
     const stop = route.stops[0];
     if (stop === undefined) {
@@ -205,6 +209,7 @@ export function originRows(now: number): OriginRow[] {
         partial: false,
         restock: {},
         draws: [],
+        restockOnly: [],
         stop,
       };
       rows.set(key, row);
@@ -212,6 +217,17 @@ export function originRows(now: number): OriginRow[] {
     row.routes++;
     const mine = running.filter(x => x.route === route);
     if (mine.length === 0) {
+      const plan = unassignedCxLoads({
+        now,
+        until,
+        looping: route.loop !== false,
+        cx: stop.kind === 'cx',
+        need: stop.kind === 'cx' ? originLapNeed(route) : undefined,
+        legSeconds: configLegSeconds(route, true),
+      });
+      row.partial ||= plan.partial;
+      row.draws.push(...plan.draws);
+      row.restockOnly.push(...plan.restockOnly);
       continue;
     }
     row.running += mine.length;
@@ -228,9 +244,9 @@ export function originRows(now: number): OriginRow[] {
     }
   }
 
-  return [...rows.values()].map(({ stop, ...row }) => ({
+  return [...rows.values()].map(({ stop, restockOnly, ...row }) => ({
     ...row,
     countdown: countdownDays(now, firstShortDraw(row.draws, originStoreStock(stop))),
-    restock: drawTotal(row.draws, restockUntil),
+    restock: drawTotal([...row.draws, ...restockOnly], restockUntil),
   }));
 }

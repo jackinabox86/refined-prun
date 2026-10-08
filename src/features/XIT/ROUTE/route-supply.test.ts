@@ -8,6 +8,8 @@ import {
   lapStarts,
   loadingAtOrigin,
   nextLapStart,
+  plannedDepartureTimes,
+  unassignedCxLoads,
   type OriginDraw,
 } from '@src/features/XIT/ROUTE/route-supply';
 
@@ -147,6 +149,78 @@ describe('firstShortDraw', () => {
   it('is the first lap when stock is already short, and nothing when covered', () => {
     expect(countdownDays(NOW, firstShortDraw(draws, { RAT: 10, DW: 100 }))).toBe(1);
     expect(firstShortDraw(draws, { RAT: 120, DW: 20 })).toBeUndefined();
+  });
+});
+
+describe('plannedDepartureTimes', () => {
+  it('departs now and again each lap, at the 85% leg factor', () => {
+    const step = (3600 + 3600) * LEG_ESTIMATE_FACTOR * 1000;
+    expect(plannedDepartureTimes(NOW, NOW + step, [3600, 3600])).toEqual([NOW, NOW + step]);
+  });
+
+  it('does not step shorter than a minute', () => {
+    expect(plannedDepartureTimes(NOW, NOW + 60_000, [1, 1])).toEqual([NOW, NOW + 60_000]);
+  });
+
+  it('is a single departure now when a leg has no known time', () => {
+    expect(plannedDepartureTimes(NOW, NOW + 10 * DAY_MS, [3600, undefined])).toEqual([NOW]);
+  });
+});
+
+describe('unassignedCxLoads', () => {
+  it('draws a planned looping route at now and each later lap', () => {
+    const step = 7200 * LEG_ESTIMATE_FACTOR * 1000;
+    const plan = unassignedCxLoads({
+      now: NOW,
+      until: NOW + step,
+      looping: true,
+      cx: true,
+      need: { RAT: 6 },
+      legSeconds: [3600, 3600],
+    });
+    expect(plan.draws.map(draw => draw.time)).toEqual([NOW, NOW + step]);
+    expect(plan.restockOnly).toEqual([]);
+  });
+
+  it('restocks a planned non-looping route once and does not reserve it', () => {
+    const plan = unassignedCxLoads({
+      now: NOW,
+      until: NOW + 14 * DAY_MS,
+      looping: false,
+      cx: true,
+      need: { RAT: 6 },
+      legSeconds: [3600, 3600],
+    });
+    expect(plan.draws).toEqual([]);
+    expect(plan.restockOnly).toEqual([{ time: NOW, need: { RAT: 6 } }]);
+    // The reserve sums draws. The restock sums draws plus this one departure.
+    expect(drawTotal(plan.draws, NOW + 14 * DAY_MS)).toEqual({});
+    expect(drawTotal([...plan.draws, ...plan.restockOnly], NOW + 14 * DAY_MS)).toEqual({
+      RAT: 6,
+    });
+  });
+
+  it('leaves a base origin alone and marks an unknown CX lap partial', () => {
+    expect(
+      unassignedCxLoads({
+        now: NOW,
+        until: NOW + DAY_MS,
+        looping: true,
+        cx: false,
+        need: { RAT: 6 },
+        legSeconds: [3600],
+      }),
+    ).toEqual({ draws: [], restockOnly: [], partial: false });
+    expect(
+      unassignedCxLoads({
+        now: NOW,
+        until: NOW + DAY_MS,
+        looping: true,
+        cx: true,
+        need: undefined,
+        legSeconds: [3600],
+      }).partial,
+    ).toBe(true);
   });
 });
 
