@@ -185,10 +185,7 @@ export function originRows(now: number): OriginRow[] {
   const restockUntil = now + daysToMs(settings.days);
   const running = runningRoutes(now, until);
 
-  const rows = new Map<
-    string,
-    OriginRow & { stop: UserData.ShippingRouteStop; restockOnly: OriginDraw[] }
-  >();
+  const rows = new Map<string, OriginRow & { stop: UserData.ShippingRouteStop }>();
   for (const route of userData.routes) {
     const stop = route.stops[0];
     if (stop === undefined) {
@@ -209,7 +206,6 @@ export function originRows(now: number): OriginRow[] {
         partial: false,
         restock: {},
         draws: [],
-        restockOnly: [],
         stop,
       };
       rows.set(key, row);
@@ -227,7 +223,6 @@ export function originRows(now: number): OriginRow[] {
       });
       row.partial ||= plan.partial;
       row.draws.push(...plan.draws);
-      row.restockOnly.push(...plan.restockOnly);
       continue;
     }
     row.running += mine.length;
@@ -244,9 +239,9 @@ export function originRows(now: number): OriginRow[] {
     }
   }
 
-  return [...rows.values()].map(({ stop, restockOnly, ...row }) => ({
+  return [...rows.values()].map(({ stop, ...row }) => ({
     ...row,
     countdown: countdownDays(now, firstShortDraw(row.draws, originStoreStock(stop))),
-    restock: drawTotal([...row.draws, ...restockOnly], restockUntil),
+    restock: drawTotal(row.draws, restockUntil),
   }));
 }

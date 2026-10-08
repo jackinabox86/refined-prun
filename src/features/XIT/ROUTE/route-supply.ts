@@ -143,8 +143,8 @@ export function plannedDepartureTimes(
 
 // A saved CX route no ship is running. A loop departs now and every lap after
 // that, and those draws are the countdown, the restock, and the reserve. A
-// one-way route adds its single departure to restock only, so the reserve does
-// not hold it against its own ASSIGN. A base origin is left untouched.
+// one-way route is never bought for here: its own buy runs when it is sent
+// out. A base origin is left untouched.
 export function unassignedCxLoads(input: {
   now: number;
   until: number;
@@ -154,21 +154,16 @@ export function unassignedCxLoads(input: {
   legSeconds: readonly (number | undefined)[];
 }) {
   const draws: OriginDraw[] = [];
-  const restockOnly: OriginDraw[] = [];
-  if (!input.cx) {
-    return { draws, restockOnly, partial: false };
+  if (!input.cx || !input.looping) {
+    return { draws, partial: false };
   }
   if (input.need === undefined) {
-    return { draws, restockOnly, partial: true };
-  }
-  if (!input.looping) {
-    restockOnly.push({ time: input.now, need: input.need });
-    return { draws, restockOnly, partial: false };
+    return { draws, partial: true };
   }
   for (const time of plannedDepartureTimes(input.now, input.until, input.legSeconds)) {
     draws.push({ time, need: input.need });
   }
-  return { draws, restockOnly, partial: false };
+  return { draws, partial: false };
 }
 
 function sortedDraws(draws: readonly OriginDraw[]) {

@@ -179,25 +179,19 @@ describe('unassignedCxLoads', () => {
       legSeconds: [3600, 3600],
     });
     expect(plan.draws.map(draw => draw.time)).toEqual([NOW, NOW + step]);
-    expect(plan.restockOnly).toEqual([]);
   });
 
-  it('restocks a planned non-looping route once and does not reserve it', () => {
-    const plan = unassignedCxLoads({
-      now: NOW,
-      until: NOW + 14 * DAY_MS,
-      looping: false,
-      cx: true,
-      need: { RAT: 6 },
-      legSeconds: [3600, 3600],
-    });
-    expect(plan.draws).toEqual([]);
-    expect(plan.restockOnly).toEqual([{ time: NOW, need: { RAT: 6 } }]);
-    // The reserve sums draws. The restock sums draws plus this one departure.
-    expect(drawTotal(plan.draws, NOW + 14 * DAY_MS)).toEqual({});
-    expect(drawTotal([...plan.draws, ...plan.restockOnly], NOW + 14 * DAY_MS)).toEqual({
-      RAT: 6,
-    });
+  it('does not restock or reserve a planned non-looping route', () => {
+    expect(
+      unassignedCxLoads({
+        now: NOW,
+        until: NOW + 14 * DAY_MS,
+        looping: false,
+        cx: true,
+        need: { RAT: 6 },
+        legSeconds: [3600, 3600],
+      }),
+    ).toEqual({ draws: [], partial: false });
   });
 
   it('leaves a base origin alone and marks an unknown CX lap partial', () => {
@@ -210,7 +204,7 @@ describe('unassignedCxLoads', () => {
         need: { RAT: 6 },
         legSeconds: [3600],
       }),
-    ).toEqual({ draws: [], restockOnly: [], partial: false });
+    ).toEqual({ draws: [], partial: false });
     expect(
       unassignedCxLoads({
         now: NOW,
