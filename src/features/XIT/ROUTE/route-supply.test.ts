@@ -126,10 +126,10 @@ describe('lapStarts', () => {
     expect(lapStarts({ ...base, nextLap: NOW + DAY_MS, lapMs: undefined })).toEqual([NOW + DAY_MS]);
   });
 
-  it('counts a one-way route only while it is loading at the origin', () => {
+  it('never counts a one-way route, even while it is loading at the origin', () => {
     const oneWay = { ...base, repeats: false, nextLap: undefined, lapMs: DAY_MS };
     expect(lapStarts(oneWay)).toEqual([]);
-    expect(lapStarts({ ...oneWay, loadingNow: true })).toEqual([NOW]);
+    expect(lapStarts({ ...oneWay, loadingNow: true })).toEqual([]);
   });
 });
 

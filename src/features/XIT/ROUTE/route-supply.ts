@@ -92,13 +92,16 @@ export interface LapStartInput {
 }
 
 // Lap starts from now up to `until`. Without a known lap length only the next
-// lap is counted.
+// lap is counted. A one-way route has none: it buys for itself when sent out.
 export function lapStarts(input: LapStartInput) {
   const times: number[] = [];
+  if (!input.repeats) {
+    return times;
+  }
   if (input.loadingNow) {
     times.push(input.now);
   }
-  if (!input.repeats || input.nextLap === undefined) {
+  if (input.nextLap === undefined) {
     return times;
   }
   let time = Math.max(input.now, input.nextLap);
