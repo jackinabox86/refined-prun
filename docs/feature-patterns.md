@@ -244,23 +244,24 @@ during the pause is handled.
 
 **Put a pause that spaces two steps in front of the second one, not behind the first.**
 A pause that exists only to separate a step from the previous step of its kind — the gap
-between agent-channel posts (`POST_AGENT`, flood protection), the window to submit one
-ship's flight before the next ship's SFC opens (`OPEN_SFC`) — is a pre-ACT delay on the
+between agent-channel posts (`POST_AGENT`, flood protection) — is a pre-ACT delay on the
 step that follows. Trailing it off the earlier step instead makes the player wait after
 the *last* one for nothing. Guard it with `ctx.isFirstOfType`, which the step machine sets
-false once an earlier step of the same type has started in this run: the first post/SFC
+false once an earlier step of the same type has started in this run: the first post
 has nothing to be spaced from, so it arms ACT immediately. `isFirstOfType` is per run and
 per step type, so it survives extra steps appended after generation (`extraSteps`) and
 in-step retry loops — `POST_AGENT` re-arms the gap on retries by `&&`-ing in `attempt === 1`.
+`OPEN_SFC` does not use this pause. Its departure hold already keeps the next stage from
+starting, so the following SFC arms ACT immediately.
 
 **Every `OPEN_SFC` waits for the player to submit or skip after the buffer opens.**
 After the destination is filled, status becomes `Submit flight on the right or skip`,
 ACT stays gray, and SKIP / CANCEL stay live (`waitSkipOr`). The step completes —
-logging `Open SFC for n...` and releasing the next queued SFC's pre-ACT delay — only
-when that ship's `flightId` appears in fleet status, or the player skips. The last SFC
-of a run therefore withholds `Action Package execution completed` until departure or
-skip. Emission is still gated by `shouldEmitAutoSfc` / `noSfc`; only the hold is
-universal. The JAC-23 spacing delay on the following `OPEN_SFC` is unchanged.
+logging `Open SFC for n...` — only when that ship's `flightId` appears in fleet status,
+or the player skips. The next stage starts on that completion, with no extra spacing
+delay. The last SFC of a run therefore withholds `Action Package execution completed`
+until departure or skip. Emission is still gated by `shouldEmitAutoSfc` / `noSfc`; only
+the hold is universal.
 
 ### ACT Step Behaviors Worth Knowing
 

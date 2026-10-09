@@ -17,13 +17,10 @@ interface Data {
   destination?: string;
 }
 
-// Spacing between consecutive SFC opens. One ACT click opens the buffer and fills the
-// destination; the player submits that flight themselves while the next ship's SFC keeps
-// ACT grayed for this long. The run's first SFC has no preceding flight to wait on.
-// After every open, the step holds until fleet status shows a flight (or skip), so the
-// last SFC of any host withholds package completion.
-const flightSubmitGapMs = 2000;
-
+// One ACT click opens the buffer and fills the destination. After every open, the
+// step holds until fleet status shows a flight (or skip), so the next stage — and
+// the last SFC of any host — starts only after departure. ACT arms immediately;
+// the departure hold is the gate, so there is no extra spacing delay.
 export const OPEN_SFC = act.addActionStep<Data>({
   type: 'OPEN_SFC',
   description: data => {
@@ -44,7 +41,7 @@ export const OPEN_SFC = act.addActionStep<Data>({
     // own per-open gate is suppressed so the open doesn't cost a second click, and gating
     // here rather than there also keeps selectAddress's server lookup behind a player click
     // when the ship's SFC tile happens to be open already.
-    await waitAct(undefined, { actDelayMs: isFirstOfType ? 0 : flightSubmitGapMs });
+    await waitAct();
 
     const tile = await requestTile(`SFC ${ship.registration}`, { actGate: false });
     if (!tile) {

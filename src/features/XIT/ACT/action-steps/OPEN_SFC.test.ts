@@ -50,4 +50,12 @@ describe('OPEN_SFC submit gate', () => {
     expect(source).toContain('complete();');
     expect(source).not.toMatch(/await waitSkipOr\([^;]+\);\s*complete\(\)/);
   });
+
+  it('does not delay the next stage after departure', () => {
+    const source = productSource('OPEN_SFC.ts');
+    expect(source).not.toContain('flightSubmitGapMs');
+    expect(source).not.toContain('actDelayMs');
+    expect(source).toContain('await waitAct();');
+    expect(source).toContain('hasShipStartedFlight');
+  });
 });
