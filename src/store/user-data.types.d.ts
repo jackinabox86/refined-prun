@@ -273,6 +273,8 @@ declare namespace UserData {
   interface ShippingRouteStop {
     kind: 'cx' | 'base';
     id: string;
+    // Set only on a repeated origin, so two visits of the same stop stay distinct.
+    key?: string;
   }
 
   interface ShippingRouteLeg {
@@ -302,5 +304,10 @@ declare namespace UserData {
     legs?: ShippingRouteLeg[];
     // Game route id (RT-…) recorded when ROUTECONFIG builds the route.
     rtId?: string;
+    // Optional pause after the last waypoint. Absent means the route does not wait.
+    wait?: {
+      amount: number;
+      unit: 'seconds' | 'minutes' | 'hours' | 'days';
+    };
   }
 }

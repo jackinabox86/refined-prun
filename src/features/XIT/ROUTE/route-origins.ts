@@ -1,10 +1,13 @@
-import { departureBill, planRouteLoads, routeBaseBills } from '@src/features/XIT/ROUTE/route-load';
+import { addMaterials } from '@src/features/XIT/ACT/material-groups/resupply/milk-run';
+import { departureBill, planOriginSegments } from '@src/features/XIT/ROUTE/route-load';
 import {
   fuelCargoLoads,
   paddedLegSeconds,
-  planRouteTanks,
+  planSegmentTanks,
   routeSupplyDays,
+  waitSeconds,
 } from '@src/features/XIT/ROUTE/route-calc';
+import { originVisitIndexes } from '@src/features/XIT/ROUTE/route-stops';
 import { configLegSeconds, matchConfigRoute, routeEta } from '@src/features/XIT/ROUTE/route-eta';
 import {
   countdownDays,
@@ -79,19 +82,43 @@ export function originLapNeed(route: UserData.ShippingRoute) {
   if (hold === undefined) {
     return undefined;
   }
-  const padded = sumBy(paddedLegSeconds(route.legs ?? []), seconds => seconds);
+  const padded =
+    sumBy(paddedLegSeconds(route.legs ?? []), seconds => seconds) + waitSeconds(route.wait);
   const days = routeSupplyDays(route.days, padded);
   const caps = fuelCapacities(shipForRoute(route));
-  const tanks = planRouteTanks(caps.stl, caps.ftl, route.legs ?? []);
-  const billed = routeBaseBills(route.stops, days, fuelCargoLoads(tanks.stl, tanks.ftl));
-  if (billed === undefined) {
+  const origins = originVisitIndexes(route.stops);
+  const tanks = planSegmentTanks(caps.stl, caps.ftl, route.legs ?? [], origins);
+  const fuel = fuelCargoLoads(tanks.stl, tanks.ftl, origins.length > 0 ? origins : [0]);
+  const segments = planOriginSegments(route.stops, days, fuel, hold);
+  if (segments === undefined || segments.length === 0) {
     return undefined;
   }
-  const plan = planRouteLoads(billed, hold);
-  const need = departureBill(billed, plan.sourced, plan.departureExtra);
+  const first = segments[0];
+  if (first === undefined) {
+    return undefined;
+  }
+  let need = departureBill(first.bases, first.plan.sourced, first.plan.departureExtra);
+  for (let i = 1; i < segments.length; i++) {
+    const segment = segments[i];
+    if (segment === undefined) {
+      continue;
+    }
+    need = addMaterials(
+      need,
+      departureBill(segment.bases, segment.plan.sourced, segment.plan.departureExtra),
+    );
+  }
   if (route.loop !== false) {
-    const stl = caps.stl - (tanks.stl.at(-1)?.level ?? caps.stl);
-    const ftl = caps.ftl - (tanks.ftl.at(-1)?.level ?? caps.ftl);
+    let stl = caps.stl - (tanks.stl.at(-1)?.level ?? caps.stl);
+    let ftl = caps.ftl - (tanks.ftl.at(-1)?.level ?? caps.ftl);
+    if (tanks.arrivals.length > 1) {
+      stl = 0;
+      ftl = 0;
+      for (const arrival of tanks.arrivals) {
+        stl += caps.stl - arrival.stl;
+        ftl += caps.ftl - arrival.ftl;
+      }
+    }
     if (stl > 0) {
       need.SF = (need.SF ?? 0) + Math.ceil(stl);
     }

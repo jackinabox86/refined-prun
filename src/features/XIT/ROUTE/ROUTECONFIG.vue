@@ -7,25 +7,31 @@ import RadioItem from '@src/components/forms/RadioItem.vue';
 import { billTotals } from '@src/features/XIT/DISPATCH/utils';
 import {
   departureBill,
-  planRouteLoads,
-  routeBaseBills,
+  planOriginSegments,
   ownUseByStop,
 } from '@src/features/XIT/ROUTE/route-load';
 import { buildRouteSpec } from '@src/features/XIT/ROUTE/route-rt';
 import { setRouteBlock } from '@src/features/XIT/ROUTE/set-route-gate';
 import { buildRouteconfigPackage } from '@src/features/XIT/RTACT/route-package';
 import { previewedRtRoute, stagedRtRoute } from '@src/features/XIT/RTACT/staged';
-import { routeSummaryLines } from '@src/features/XIT/RTACT/route-spec';
+import { routeSummaryLines, type WaitUnit } from '@src/features/XIT/RTACT/route-spec';
 import { isStagingHost } from '@src/features/XIT/RTACT/staging-host';
 import {
   formatFuelCell,
   fuelCargoLoads,
   maxDaysAtStep,
   paddedLegSeconds,
-  planRouteTanks,
+  planSegmentTanks,
   routeSupplyDays,
   snapDays,
+  waitSeconds,
 } from '@src/features/XIT/ROUTE/route-calc';
+import {
+  acceptDroppedStop,
+  isLaterOriginVisit,
+  originVisitIndexes,
+  stopInstanceKey,
+} from '@src/features/XIT/ROUTE/route-stops';
 import {
   cargoForRouteShip,
   fuelCapacities,
@@ -78,11 +84,23 @@ watch(
   { immediate: true },
 );
 const ordered = ref<string[]>([]);
+const waitAmount = ref('');
+const waitUnit = ref<WaitUnit>('days');
 
 watch(
-  () => route.value?.stops.map(stopKey).join('\n') ?? '',
+  () => route.value?.id,
   () => {
-    ordered.value = route.value?.stops.map(stopKey) ?? [];
+    const wait = route.value?.wait;
+    waitAmount.value = wait !== undefined && wait.amount > 0 ? String(wait.amount) : '';
+    waitUnit.value = wait?.unit ?? 'days';
+  },
+  { immediate: true },
+);
+
+watch(
+  () => route.value?.stops.map(stopInstanceKey).join('\n') ?? '',
+  () => {
+    ordered.value = route.value?.stops.map(stopInstanceKey) ?? [];
   },
   { immediate: true },
 );
@@ -96,14 +114,15 @@ const dragOptions = {
     if (current === undefined) {
       return;
     }
+    const byKey = new Map(current.stops.map(stop => [stopInstanceKey(stop), stop]));
     const next: UserData.ShippingRouteStop[] = [];
     for (const key of ordered.value) {
-      const parsed = parseStopKey(key);
-      if (parsed !== undefined) {
-        next.push(parsed);
+      const stop = byKey.get(key);
+      if (stop !== undefined) {
+        next.push(stop);
       }
     }
-    if (current.stops.map(stopKey).join('\n') !== ordered.value.join('\n')) {
+    if (current.stops.map(stopInstanceKey).join('\n') !== ordered.value.join('\n')) {
       current.legs = undefined;
     }
     current.stops = next;
@@ -171,8 +190,10 @@ const canTransit = computed(() => shipChosen.value && (route.value?.stops.length
 const paddedSeconds = computed(() =>
   sumBy(paddedLegSeconds(route.value?.legs ?? []), seconds => seconds),
 );
-const supplyDays = computed(() => routeSupplyDays(route.value?.days, paddedSeconds.value));
-const routeDaysLabel = computed(() => snapDays(paddedSeconds.value / 86400).toFixed(1));
+const durationSeconds = computed(() => paddedSeconds.value + waitSeconds(route.value?.wait));
+const supplyDays = computed(() => routeSupplyDays(route.value?.days, durationSeconds.value));
+const routeDaysLabel = computed(() => snapDays(durationSeconds.value / 86400).toFixed(1));
+const originIndexes = computed(() => originVisitIndexes(route.value?.stops ?? []));
 
 const tanks = computed(() => {
   const current = route.value;
@@ -184,7 +205,7 @@ const tanks = computed(() => {
     return undefined;
   }
   const caps = fuelCapacities(ship);
-  return planRouteTanks(caps.stl, caps.ftl, current.legs ?? []);
+  return planSegmentTanks(caps.stl, caps.ftl, current.legs ?? [], originIndexes.value);
 });
 
 const fuelLoads = computed(() => {
@@ -192,7 +213,8 @@ const fuelLoads = computed(() => {
   if (planned === undefined) {
     return [];
   }
-  return fuelCargoLoads(planned.stl, planned.ftl);
+  const parked = originIndexes.value.length > 0 ? originIndexes.value : [0];
+  return fuelCargoLoads(planned.stl, planned.ftl, parked);
 });
 
 const loadPlan = computed(() => {
@@ -204,23 +226,25 @@ const loadPlan = computed(() => {
   if (hold === undefined) {
     return undefined;
   }
-  const billed = routeBaseBills(current.stops, supplyDays.value, fuelLoads.value);
-  if (billed === undefined) {
+  const segments = planOriginSegments(current.stops, supplyDays.value, fuelLoads.value, hold);
+  if (segments === undefined) {
     return undefined;
   }
   return {
-    billed,
-    plan: planRouteLoads(billed, hold),
+    segments,
+    billed: segments.flatMap(segment => segment.bases),
   };
 });
 
 const overflowIds = computed(() => {
   const ids = new Set<string>();
-  for (const overflow of loadPlan.value?.plan.overflows ?? []) {
-    if (overflow.stopId === undefined) {
-      ids.add('cx-departure');
-    } else {
-      ids.add(overflow.stopId);
+  for (const segment of loadPlan.value?.segments ?? []) {
+    for (const overflow of segment.plan.overflows) {
+      if (overflow.stopId === undefined) {
+        ids.add('cx-departure');
+      } else {
+        ids.add(overflow.stopId);
+      }
     }
   }
   return ids;
@@ -273,31 +297,60 @@ function rowStops() {
   if (current === undefined) {
     return [];
   }
+  const byKey = new Map(current.stops.map(stop => [stopInstanceKey(stop), stop]));
   return ordered.value
-    .map(parseStopKey)
+    .map(key => byKey.get(key))
     .filter((stop): stop is UserData.ShippingRouteStop => stop !== undefined);
+}
+
+function segmentAt(index: number) {
+  let found = loadPlan.value?.segments[0];
+  for (const segment of loadPlan.value?.segments ?? []) {
+    if (segment.originIndex <= index) {
+      found = segment;
+    }
+  }
+  return found;
 }
 
 function inputRecord(stop: UserData.ShippingRouteStop, index: number) {
   const planned = loadPlan.value;
+  const stops = route.value?.stops ?? [];
   if (planned === undefined) {
     return undefined;
+  }
+  if (isLaterOriginVisit(stops, index)) {
+    const segment = segmentAt(index);
+    if (segment === undefined) {
+      return undefined;
+    }
+    return departureBill(segment.bases, segment.plan.sourced, segment.plan.departureExtra);
   }
   if (stop.kind === 'base') {
     return planned.billed.find(x => x.naturalId === stop.id)?.bill;
   }
-  const firstCx = route.value?.stops.findIndex(x => x.kind === 'cx') ?? -1;
+  const firstCx = stops.findIndex(x => x.kind === 'cx');
   if (firstCx !== index) {
     return undefined;
   }
-  return departureBill(planned.billed, planned.plan.sourced, planned.plan.departureExtra);
+  const segment = segmentAt(index);
+  if (segment === undefined) {
+    return undefined;
+  }
+  return departureBill(segment.bases, segment.plan.sourced, segment.plan.departureExtra);
 }
 
 function outputRecord(stop: UserData.ShippingRouteStop) {
   if (stop.kind !== 'base') {
     return undefined;
   }
-  return loadPlan.value?.plan.loadedByStop.get(stop.id);
+  for (const segment of loadPlan.value?.segments ?? []) {
+    const record = segment.plan.loadedByStop.get(stop.id);
+    if (record !== undefined) {
+      return record;
+    }
+  }
+  return undefined;
 }
 
 function loadText(record: Record<string, number> | undefined) {
@@ -326,7 +379,9 @@ const rtTooltip = computed(() =>
     billReady: loadPlan.value !== undefined && tanks.value !== undefined,
     legs: route.value?.legs,
     supplyDays: supplyDays.value,
-    hasOverflow: (loadPlan.value?.plan.overflows.length ?? 0) > 0,
+    hasOverflow: (loadPlan.value?.segments ?? []).some(
+      segment => segment.plan.overflows.length > 0,
+    ),
     inputOverloaded: rowStops().some((stop, index) => inputOver(stop, index)),
   }),
 );
@@ -342,7 +397,9 @@ const previewTooltip = computed(() => {
     billReady: loadPlan.value !== undefined && tanks.value !== undefined,
     legs: route.value?.legs,
     supplyDays: supplyDays.value,
-    hasOverflow: (loadPlan.value?.plan.overflows.length ?? 0) > 0,
+    hasOverflow: (loadPlan.value?.segments ?? []).some(
+      segment => segment.plan.overflows.length > 0,
+    ),
     inputOverloaded: rowStops().some((stop, index) => inputOver(stop, index)),
   });
   return block?.replace('build the route', 'preview the route');
@@ -414,15 +471,15 @@ function onFit() {
   if (current === undefined || hold === undefined) {
     return;
   }
-  if (routeBaseBills(current.stops, supplyDays.value, fuelLoads.value) === undefined) {
+  if (planOriginSegments(current.stops, supplyDays.value, fuelLoads.value, hold) === undefined) {
     return;
   }
   current.days = maxDaysAtStep(days => {
-    const billed = routeBaseBills(current.stops, days, fuelLoads.value);
-    if (billed === undefined) {
+    const segments = planOriginSegments(current.stops, days, fuelLoads.value, hold);
+    if (segments === undefined) {
       return false;
     }
-    return planRouteLoads(billed, hold).fits;
+    return segments.every(segment => segment.plan.fits);
   });
 }
 
@@ -447,11 +504,12 @@ function onDrop(event: DragEvent) {
   if (parsed === undefined || current === undefined) {
     return;
   }
-  if (current.stops.some(x => stopKey(x) === key)) {
+  const accepted = acceptDroppedStop(current.stops, parsed);
+  if (accepted === undefined) {
     return;
   }
   setTimeout(() => {
-    current.stops.push(parsed);
+    current.stops.push(accepted);
     current.legs = undefined;
   }, 0);
 }
@@ -461,8 +519,33 @@ function removeStop(key: string) {
   if (current === undefined) {
     return;
   }
-  current.stops = current.stops.filter(x => stopKey(x) !== key);
+  current.stops = current.stops.filter(x => stopInstanceKey(x) !== key);
   current.legs = undefined;
+}
+
+function onWaitDraft(event: Event) {
+  waitAmount.value = (event.target as HTMLInputElement).value;
+}
+
+function onWaitUnit(event: Event) {
+  const unit = (event.target as HTMLSelectElement).value;
+  if (unit === 'seconds' || unit === 'minutes' || unit === 'hours' || unit === 'days') {
+    waitUnit.value = unit;
+  }
+}
+
+function onWait() {
+  const current = route.value;
+  if (current === undefined) {
+    return;
+  }
+  const amount = Number(waitAmount.value);
+  if (!Number.isFinite(amount) || amount <= 0) {
+    current.wait = undefined;
+    waitAmount.value = '';
+    return;
+  }
+  current.wait = { amount, unit: waitUnit.value };
 }
 
 // Exchange codes (AI1) are not suggestion text. The station name is.
@@ -480,6 +563,11 @@ function routeSpecForRt() {
   if (current === undefined || planned === undefined || plannedTanks === undefined) {
     return undefined;
   }
+  const first = planned.segments[0];
+  if (first === undefined) {
+    return undefined;
+  }
+  const multi = planned.segments.length > 1;
   const built = buildRouteSpec({
     stops: current.stops.map(stop => ({
       kind: stop.kind,
@@ -488,13 +576,24 @@ function routeSpecForRt() {
     })),
     loop: current.loop,
     legs: current.legs,
-    bills: planned.billed.map(base => ({ id: base.naturalId, bill: base.bill })),
-    sourced: planned.plan.sourced,
-    loadedByStop: planned.plan.loadedByStop,
-    ownUseByStop: ownUseByStop(planned.billed),
-    departureExtra: planned.plan.departureExtra,
+    bills: first.bases.map(base => ({ id: base.naturalId, bill: base.bill })),
+    sourced: first.plan.sourced,
+    loadedByStop: first.plan.loadedByStop,
+    ownUseByStop: ownUseByStop(first.bases),
+    departureExtra: first.plan.departureExtra,
     refuelStl: plannedTanks.stl.map(stop => stop.refuel),
     refuelFtl: plannedTanks.ftl.map(stop => stop.refuel),
+    segments: multi
+      ? planned.segments.map(segment => ({
+          originIndex: segment.originIndex,
+          bills: segment.bases.map(base => ({ id: base.naturalId, bill: base.bill })),
+          sourced: segment.plan.sourced,
+          loadedByStop: segment.plan.loadedByStop,
+          ownUseByStop: ownUseByStop(segment.bases),
+          departureExtra: segment.plan.departureExtra,
+        }))
+      : undefined,
+    wait: current.wait,
   });
   if (!built.ok) {
     rtError.value = built.error;
@@ -633,12 +732,12 @@ function selectShip(event: Event) {
                 <th>Fuel</th>
               </tr>
             </thead>
-            <tbody v-for="(stop, index) in rowStops()" :key="stopKey(stop)">
+            <tbody v-for="(stop, index) in rowStops()" :key="stopInstanceKey(stop)">
               <tr>
                 <GripCell />
                 <td>{{ labelFor(stop) }}</td>
                 <td>
-                  <PrunButton dark inline @click="removeStop(stopKey(stop))">×</PrunButton>
+                  <PrunButton dark inline @click="removeStop(stopInstanceKey(stop))">×</PrunButton>
                 </td>
                 <td>
                   <span :class="[inputOver(stop, index) && C.Workforces.daysMissing, $style.load]">
@@ -664,6 +763,22 @@ function selectShip(event: Event) {
               </tr>
             </tfoot>
           </table>
+          <div :class="$style.wait">
+            <PrunButton dark @click="onWait">WAIT</PrunButton>
+            <input
+              :class="$style.days"
+              type="number"
+              min="0"
+              step="any"
+              :value="waitAmount"
+              @change="onWaitDraft" />
+            <select :class="$style.select" :value="waitUnit" @change="onWaitUnit">
+              <option value="days">days</option>
+              <option value="hours">hours</option>
+              <option value="minutes">minutes</option>
+              <option value="seconds">seconds</option>
+            </select>
+          </div>
           <p v-if="rtError" :class="$style.note">{{ rtError }}</p>
           <div :class="$style.footer">
             <span>Press to Determine Flight Times.</span>
@@ -775,6 +890,13 @@ function selectShip(event: Event) {
 /* A disabled button swallows hover, so let the tooltip wrapper receive it. */
 .transitsGate button:disabled {
   pointer-events: none;
+}
+
+.wait {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 6px 0;
 }
 
 .footer {
