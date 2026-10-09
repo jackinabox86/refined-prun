@@ -152,4 +152,17 @@ describe('calculatePlanetBurn', () => {
     expect(burn.DW.dailyAmount).toBe(-12.5);
     expect(burn.DW.daysLeft).toBe(20);
   });
+
+  it('adds remaining workforce allocation across tiers of the same material', () => {
+    const burn = calculatePlanetBurn(
+      undefined,
+      [workforce('PIONEER', [need('RAT', 1, 10)]), workforce('SETTLER', [need('RAT', 2, 15)])],
+      undefined,
+    );
+
+    // The last tier used to overwrite the first, so days left ignored 10 units still allocated.
+    expect(burn.RAT.workforce).toBe(3);
+    expect(burn.RAT.remainingAllocation).toBe(25);
+    expect(burn.RAT.daysLeft).toBe(25 / 3);
+  });
 });
