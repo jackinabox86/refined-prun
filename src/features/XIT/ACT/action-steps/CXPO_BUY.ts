@@ -105,6 +105,7 @@ export const CXPO_BUY = act.addActionStep<Data>({
     assert(priceInput !== undefined, 'Missing price input');
 
     let shouldUnwatch = false;
+    let missingOrderBook = false;
     let lastShortageWarning: string | undefined;
     const unwatch = watchEffect(() => {
       if (shouldUnwatch) {
@@ -116,7 +117,7 @@ export const CXPO_BUY = act.addActionStep<Data>({
 
       if (!filled) {
         shouldUnwatch = true;
-        fail(`Missing ${cxTicker} order book data`);
+        missingOrderBook = true;
         return;
       }
 
@@ -154,6 +155,10 @@ export const CXPO_BUY = act.addActionStep<Data>({
       // order book data will change after that.
       ctx.cacheDescription();
     });
+    // watchEffect swallows a throw, so fail from the step body once the book is missing.
+    if (missingOrderBook) {
+      fail(`Missing ${cxTicker} order book data`);
+    }
 
     function onManualInput(event: Event) {
       // Synthetic events from changeInputValue() have isTrusted === false.
