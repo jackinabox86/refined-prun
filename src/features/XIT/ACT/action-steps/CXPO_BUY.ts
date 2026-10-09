@@ -155,7 +155,7 @@ export const CXPO_BUY = act.addActionStep<Data>({
       // order book data will change after that.
       ctx.cacheDescription();
     });
-    // watchEffect swallows a throw, so fail from the step body once the book is missing.
+    // Vue's watchEffect swallows a throw, so fail from the step body once the book is missing.
     if (missingOrderBook) {
       fail(`Missing ${cxTicker} order book data`);
     }
