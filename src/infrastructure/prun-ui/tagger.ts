@@ -3,6 +3,7 @@ export enum ElementTag {
   FXPO_CURRENT_PRICE_FIELD = 'rp-fxpo-current-price-field',
   FXPO_MAXIMUM_PRICE_FIELD = 'rp-fxpo-maximum-price-field',
   FXPO_MINIMUM_PRICE_FIELD = 'rp-fxpo-minimum-price-field',
+  POPID_RESERVE_CELL = 'rp-popid-reserve-cell',
 }
 
 export function tagUI() {
@@ -12,6 +13,7 @@ export function tagUI() {
     [L.ForExPlaceOrderForm.limit.maximum(), ElementTag.FXPO_MAXIMUM_PRICE_FIELD],
     [L.ForExPlaceOrderForm.limit.minimum(), ElementTag.FXPO_MINIMUM_PRICE_FIELD],
   ]);
+  tagPopidColumns();
 }
 
 function tagTileFormFields(command: string, mapItems: MapItems) {
@@ -33,6 +35,38 @@ function tagFormFields(parent: Element, tagMap: Map<string, ElementTag>) {
     if (tag !== undefined) {
       formComponent.classList.add(tag);
     }
+  });
+}
+
+function tagPopidColumns() {
+  const columnTags = buildMap([[L.Contribution.table.reserve(), ElementTag.POPID_RESERVE_CELL]]);
+
+  tiles.observe('POPID', tile => {
+    subscribe($$(tile.anchor, 'table'), table => tagTable(table, columnTags));
+  });
+}
+
+function tagTable(table: HTMLTableElement, tagMap: Map<string, ElementTag>) {
+  subscribe($$(table, 'thead'), thead => {
+    const headerRow = thead.children[0];
+    if (headerRow === undefined) {
+      return;
+    }
+    const cells = Array.from(headerRow.children);
+    const tags = cells.map(x => tagMap.get(x.textContent ?? ''));
+    if (tags.every(x => x === undefined)) {
+      return;
+    }
+    subscribe($$(table, 'tbody'), tbody => {
+      subscribe($$(tbody, 'tr'), tr => {
+        for (let i = 0; i < tags.length; i++) {
+          const tag = tags[i];
+          if (tag !== undefined) {
+            tr.children.item(i)?.classList.add(tag);
+          }
+        }
+      });
+    });
   });
 }
 
