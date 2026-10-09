@@ -1,8 +1,10 @@
+import { castArray } from '@src/utils/cast-array';
+
 const upperCase = (value: string) => value.toUpperCase();
 
 export function createMapGetter<T>(
   items: Ref<T[] | undefined>,
-  selector: (item: T) => string,
+  selector: (item: T) => string | null | undefined | (string | null | undefined)[],
   valueTransformer?: (value: string) => string,
 ) {
   valueTransformer ??= upperCase;
@@ -12,7 +14,13 @@ export function createMapGetter<T>(
     }
     const map = new Map<string, T>();
     for (const item of items.value) {
-      map.set(valueTransformer(selector(item)), item);
+      const values = castArray(selector(item));
+      for (const value of values) {
+        if (value === null || value === undefined) {
+          continue;
+        }
+        map.set(valueTransformer(value), item);
+      }
     }
     return map;
   });
@@ -22,7 +30,7 @@ export function createMapGetter<T>(
 
 export function createGroupMapGetter<T>(
   items: Ref<T[] | undefined>,
-  selector: (item: T) => string,
+  selector: (item: T) => string | null | undefined,
   valueTransformer?: (value: string) => string,
 ) {
   valueTransformer ??= upperCase;
@@ -32,7 +40,11 @@ export function createGroupMapGetter<T>(
     }
     const map = new Map<string, T[]>();
     for (const item of items.value) {
-      const key = valueTransformer(selector(item));
+      const value = selector(item);
+      if (value === null || value === undefined) {
+        continue;
+      }
+      const key = valueTransformer(value);
       let group = map.get(key);
       if (!group) {
         group = [];

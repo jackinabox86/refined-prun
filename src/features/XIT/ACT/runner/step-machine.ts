@@ -20,7 +20,7 @@ interface StepMachineOptions {
   onSkipReady: () => void;
 }
 
-const AssertionError = new Error('Assertion failed');
+const CancellationError = new Error('The action was cancelled');
 const ExecutionStopped = new Error('Execution stopped');
 const actionFeedbackTimeoutMs = 30_000;
 
@@ -158,13 +158,12 @@ export class StepMachine {
             log.error(message);
           }
           log.error('Action Package execution failed');
-          this.stop();
-          return;
+          throw CancellationError;
         },
         assert: (condition, message) => {
           if (!condition) {
             log.error(message);
-            throw AssertionError;
+            throw CancellationError;
           }
         },
         requestTile: async (command, opts) => await this.requestTile(command, opts),
@@ -174,7 +173,7 @@ export class StepMachine {
       if (e === ExecutionStopped) {
         return;
       }
-      if (e !== AssertionError) {
+      if (e !== CancellationError) {
         log.runtimeError(e);
       }
       this.stop();
@@ -195,7 +194,7 @@ export class StepMachine {
     tile = await this.options.tileAllocator.requestTile(command);
     if (tile === undefined) {
       this.log.error(`Failed to open ${command}`);
-      this.stop();
+      throw CancellationError;
     }
     return tile;
   }

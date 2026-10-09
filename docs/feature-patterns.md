@@ -225,8 +225,11 @@ The feedback overlay is inserted before its state class is guaranteed to be pres
 wait for the terminal `ActionFeedback.success` / `ActionFeedback.error` selectors; never
 sample `progress` / `success` / `error` once and treat no match as a terminal result.
 
-**`ctx.skip()` and `ctx.fail()` do not unwind `execute()`** — unlike `waitActionFeedback`,
-they just advance/stop the machine and return, so the caller must `return` right after one.
+**`ctx.fail()` and `ctx.assert()` unwind `execute()`.** They throw a cancellation
+sentinel. The step machine's catch stops the run and does not log it as a runtime
+error, so code after `fail()` does not run. Don't call `fail()` from inside
+`watchEffect`: Vue swallows that throw. `ctx.skip()` does not unwind — it advances
+the machine and returns, so the caller must `return` right after it.
 The reverse also holds: a step parked in `await waitAct()` when the machine moves on (user
 SKIP, or a self-skip from a reactive watcher) never resumes, and everything after that await
 — listener cleanup included — is dropped. Do teardown before the skip, not after the await.

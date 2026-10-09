@@ -61,7 +61,7 @@ export interface ActionStepExecuteContext<T> extends ActionRunnerContext<T> {
   cacheDescription: () => void;
   complete: () => void;
   skip: (opts?: { silent?: boolean }) => void;
-  fail: (message?: string) => void;
+  fail: (message?: string) => never;
   assert: AssertFn;
   // Opening a buffer costs the player an ACT click (actGate defaults to true). Pass false
   // when the step has already gated itself and the open must not cost a second one.
