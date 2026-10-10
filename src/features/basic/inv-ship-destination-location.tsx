@@ -9,8 +9,8 @@ import {
 } from '@src/infrastructure/prun-api/data/addresses';
 import { shipsStore } from '@src/infrastructure/prun-api/data/ships';
 import { ElementTag } from '@src/infrastructure/prun-ui/tagger';
-import { observeDescendantListChanged } from '@src/utils/mutation-observer';
 import { watchEffectWhileNodeAlive } from '@src/utils/watch';
+import { createContentReplacement } from '@src/utils/content-replacement';
 
 function onTileReady(tile: PrunTile) {
   subscribe($$(tile.anchor, 'tr'), row => {
@@ -26,21 +26,7 @@ function onTileReady(tile: PrunTile) {
       }
 
       mounted = true;
-      const container = document.createElement('span');
-      observeDescendantListChanged(row, () => {
-        const locationCell = _$(row, ElementTag.INV_LOCATION_CELL);
-        if (!locationCell) {
-          return;
-        }
-        if (
-          destinationInfo.value &&
-          (locationCell.childNodes.length !== 1 || locationCell.firstChild !== container)
-        ) {
-          locationCell.replaceChildren(container);
-        } else if (locationCell.lastChild !== container) {
-          locationCell.append(container);
-        }
-      });
+      const container = createContentReplacement(row, () => _$(row, ElementTag.INV_LOCATION_CELL));
       createFragmentApp(() => {
         const info = destinationInfo.value;
         if (!info) {
