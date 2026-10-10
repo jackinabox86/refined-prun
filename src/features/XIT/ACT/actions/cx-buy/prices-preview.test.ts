@@ -191,6 +191,32 @@ describe('rankPreviewPurchases', () => {
     ]);
     expect(ranked.map(x => x.ticker)).toEqual(['C', 'D', 'B', 'A']);
   });
+
+  it('ranks a below-average price after every overage, not by magnitude', () => {
+    const ranked = rankPreviewPurchases([
+      {
+        ticker: 'LOW',
+        amount: 1,
+        cost: 1,
+        projectedCost: 0,
+        unitPrice: 1,
+        excessPercent: -50,
+        tone: 'none',
+        shortfall: 0,
+      },
+      {
+        ticker: 'HIGH',
+        amount: 1,
+        cost: 1,
+        projectedCost: 0,
+        unitPrice: 1,
+        excessPercent: 5,
+        tone: 'none',
+        shortfall: 0,
+      },
+    ]);
+    expect(ranked.map(x => x.ticker)).toEqual(['HIGH', 'LOW']);
+  });
 });
 
 describe('preview log formatting', () => {
@@ -230,6 +256,38 @@ describe('preview log formatting', () => {
     const yellowLine = formatPreviewPurchase(purchases[1]);
     expect(yellowLine.some(part => part.yellow && part.text.includes('% over'))).toBe(true);
     expect(yellowLine.some(part => part.red)).toBe(false);
+  });
+
+  it('labels a below-average price as under, with no minus and no warning color', () => {
+    const line = formatPreviewPurchase({
+      ticker: 'A',
+      amount: 1,
+      cost: 8,
+      projectedCost: 0,
+      unitPrice: 8,
+      excessPercent: -12.5,
+      tone: 'yellow',
+      shortfall: 0,
+    });
+    const excess = line.find(part => part.text.includes('%'));
+    expect(excess?.text).toBe('12.50% under');
+    expect(excess?.yellow).not.toBe(true);
+    expect(excess?.red).not.toBe(true);
+  });
+
+  it('keeps a zero excess labeled over', () => {
+    const line = formatPreviewPurchase({
+      ticker: 'A',
+      amount: 1,
+      cost: 10,
+      projectedCost: 0,
+      unitPrice: 10,
+      excessPercent: 0,
+      tone: 'none',
+      shortfall: 0,
+    });
+    expect(line.some(part => part.text === '0.00% over')).toBe(true);
+    expect(line.some(part => part.text.includes('% under'))).toBe(false);
   });
 
   it('does not report a failed price load as unavailable depth', () => {

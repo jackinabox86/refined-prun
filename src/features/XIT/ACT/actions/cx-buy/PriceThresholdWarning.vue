@@ -5,6 +5,7 @@ import Passive from '@src/components/forms/Passive.vue';
 import Commands from '@src/components/forms/Commands.vue';
 import { fixed02, percent1 } from '@src/utils/format';
 import { priceExcessPercent, type PriceThresholdLevel } from './price-threshold';
+import { applyDismissSelectionBlock } from './dismiss-selection';
 
 const { ticker, price, refinedValue, level } = defineProps<{
   ticker: string;
@@ -14,6 +15,16 @@ const { ticker, price, refinedValue, level } = defineProps<{
 }>();
 
 const emit = defineEmits<{ (e: 'close'): void }>();
+
+function onDismissMouseDown(event: MouseEvent) {
+  const target = event.target;
+  const element =
+    target instanceof Element ? target : target instanceof Node ? target.parentElement : null;
+  const editable =
+    element !== null &&
+    element.closest('input, textarea, select, [contenteditable="true"]') !== null;
+  applyDismissSelectionBlock(event, editable, document.getSelection());
+}
 
 const excessRatio = computed(() => {
   const excess = priceExcessPercent(price, refinedValue);
@@ -36,7 +47,9 @@ const toneClass = computed(() =>
       >
     </Passive>
     <Commands>
-      <PrunButton primary @click="emit('close')">DISMISS</PrunButton>
+      <PrunButton primary @mousedown="onDismissMouseDown" @click="emit('close')"
+        >DISMISS</PrunButton
+      >
     </Commands>
   </div>
 </template>

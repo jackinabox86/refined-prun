@@ -125,7 +125,7 @@ The file is auto-imported via `import.meta.glob` in `src/features/index.ts` — 
 
 The command should be short. Refer to `docs/game/commands.csv` for an example of game commands. Alias is usually added for backwards compatibility or if the community REALLY wants it.
 
-`XIT` splits the tile parameter on spaces/underscores (`XIT FLT ANT` → command `FLT`, parameters `['ANT']`). Join remaining parts when a name can contain spaces (`Hortus a`). Location modifiers on `XIT FLT` resolve planet first (natural id, name, or `Hortus a`), then system (natural id or name), then a CX station ticker to that station's system — the same mapping `FLTS` correction uses after the planet-first step. Match is case-insensitive exact, not substring. In-flight ships use destination, matching the Status column.
+`XIT` splits the tile parameter on spaces/underscores (`XIT FLT ANT` → command `FLT`, parameters `['ANT']`). Join remaining parts when a name can contain spaces (`Hortus a`). Location modifiers on `XIT FLT` resolve planet first (natural id, name, or `Hortus a`), then system (natural id or name), then a CX station ticker to that station's system — the same mapping `FLTS` correction uses after the planet-first step. Match is case-insensitive exact, not substring. In-flight ships use destination, matching the Status column. The name cell and the Repair cell open `SHP <registration>`, the same command as the base-game fleet name link. Class, status, and ETA stay on `SFC`; size and cargo stay on `SHPI`; fuel stays on `SHPF`.
 
 ### One-Click Preconfigured Action Packages
 
@@ -308,6 +308,10 @@ the hold is universal.
   percent itself is shaded with `C.Workforces.daysMissing` / `daysWarning`, matching how
   `BS` / `BURN` / `GOVBURN` render their red/yellow thresholds.
   The shaded span covers the whole overage phrase (`42.0% over`), not just the number.
+  DISMISS cancels the browser's text-selection default on primary mousedown
+  (`preventDefault` only — the click still closes the overlay and the run continues)
+  and clears a range a rapid ACT click already started. The handler sits on that
+  button, and an editable target is ignored, so inputs stay selectable.
   At or below threshold the existing `waitAct()` path is unchanged — no overlay, no delay.
   Missing or non-positive refined-PrUn values skip the warning (no denominator).
 - **The no-buy list has an all-materials switch.** `settings.noBuyAll` (XIT SET Act tab) stands in
@@ -346,7 +350,9 @@ the hold is universal.
   DISPATCH (next to REFUEL) and in the CX Buy configure form — one persisted setting,
   default off. Shading uses `settings.noBuyThresholds` and `resolveCxBuyPrice` from
   `price-threshold.ts`, the same comparison `CXPO_BUY`'s overlay makes, so a red preview
-  line is a red overlay on that buy. Cost is order-book fills only (plus an
+  line is a red overlay on that buy. A negative excess is `n% under` with no minus and
+  no yellow/red shade; zero and positive stay `n% over`. Ranking stays signed excess,
+  worst overage first, so an under-priced line stays below every overage. Cost is order-book fills only (plus an
   `allowUnfilled` remainder at the player's own price limit); unfillable quantity is
   logged as unavailable depth, not priced at the refined-PrUn value. A ticker with no
   `cxobStore` book at all is a *failed price load*, not an empty market: it logs
@@ -425,6 +431,12 @@ the window component's setup — at mount it grows the floating window body by t
 largest content overflow (`scrollHeight − clientHeight` over all descendants), so table
 rows and the action bar are never hidden behind a scrollbar. Origin: BURNACT; also used
 by GOVBURN's planner and runner windows.
+
+A matching XIT SET Buffers rule is the size, height included. DISPATCH's one-shot
+width watch must hand that rule to `setBufferSize` instead of the measured width;
+otherwise the measurement replaces the rule, and a height that has not landed in
+`style.height` yet falls back to 500. With no matching rule the measurement above
+is unchanged.
 
 ### Matching the ACT runner window look
 

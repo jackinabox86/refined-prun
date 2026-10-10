@@ -17,6 +17,8 @@ import { countDays } from '@src/features/XIT/BURN/utils';
 import { serializeStorage } from '@src/features/XIT/ACT/actions/utils';
 import { allExchangesValue } from '@src/features/XIT/ACT/actions/refuel/utils';
 import { setBufferSize, showBuffer } from '@src/infrastructure/prun-ui/buffers';
+import { matchUserBufferSize } from '@src/infrastructure/prun-ui/buffer-sizes';
+import { resolveDispatchAutoSize } from '@src/features/XIT/DISPATCH/dispatch-buffer-size';
 import { stagedDispatch } from '@src/features/XIT/DISPATCH/staged';
 import { userData } from '@src/store/user-data';
 import { vDraggable } from 'vue-draggable-plus';
@@ -184,9 +186,15 @@ const stopWidthWatch = watch([() => rows.value.length, panesEl], async ([length,
     contentWidth = panes.scrollWidth;
   }
   const chrome = bodyEl.offsetWidth - panes.clientWidth;
-  const width = Math.min(contentWidth + chrome, window.innerWidth - 60);
+  const fittedWidth = Math.min(contentWidth + chrome, window.innerWidth - 60);
   const parsedHeight = parseInt(bodyEl.style.height, 10);
-  const height = isNaN(parsedHeight) ? 500 : parsedHeight;
+  // A XIT SET Buffers rule replaces this measurement, height included.
+  // With no rule, fittedWidth and the parsed height are the size, as before.
+  const [width, height] = resolveDispatchAutoSize(
+    matchUserBufferSize(tile.fullCommand),
+    fittedWidth,
+    parsedHeight,
+  );
   setBufferSize(tile.id, width, height);
 });
 
