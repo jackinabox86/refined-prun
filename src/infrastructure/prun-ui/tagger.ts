@@ -3,6 +3,8 @@ export enum ElementTag {
   FXPO_CURRENT_PRICE_FIELD = 'rp-fxpo-current-price-field',
   FXPO_MAXIMUM_PRICE_FIELD = 'rp-fxpo-maximum-price-field',
   FXPO_MINIMUM_PRICE_FIELD = 'rp-fxpo-minimum-price-field',
+  INV_LOCATION_CELL = 'rp-inv-location-cell',
+  INV_NAME_CELL = 'rp-inv-name-cell',
   POPID_RESERVE_CELL = 'rp-popid-reserve-cell',
 }
 
@@ -12,6 +14,10 @@ export function tagUI() {
     [L.ForExPlaceOrderForm.label.price(), ElementTag.FXPO_CURRENT_PRICE_FIELD],
     [L.ForExPlaceOrderForm.limit.maximum(), ElementTag.FXPO_MAXIMUM_PRICE_FIELD],
     [L.ForExPlaceOrderForm.limit.minimum(), ElementTag.FXPO_MINIMUM_PRICE_FIELD],
+  ]);
+  tagTileTable('INV', [
+    [L.InventoriesPanel.table.address(), ElementTag.INV_LOCATION_CELL],
+    [L.InventoriesPanel.table.name(), ElementTag.INV_NAME_CELL],
   ]);
   tagPopidColumns();
 }
@@ -35,6 +41,13 @@ function tagFormFields(parent: Element, tagMap: Map<string, ElementTag>) {
     if (tag !== undefined) {
       formComponent.classList.add(tag);
     }
+  });
+}
+
+function tagTileTable(command: string, mapItems: MapItems) {
+  const tagMap = buildMap(mapItems);
+  tiles.observe(command, tile => {
+    subscribe($$(tile.anchor, 'table'), table => tagTable(table, tagMap));
   });
 }
 
