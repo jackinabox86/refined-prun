@@ -3,10 +3,12 @@ import { LEG_ESTIMATE_FACTOR, type RouteEta } from '@src/features/XIT/ROUTE/rout
 import {
   countdownDays,
   drawTotal,
+  drawsCovered,
   firstShortDraw,
   lapMs,
   lapStarts,
   loadingAtOrigin,
+  maxMaterials,
   nextLapStart,
   plannedDepartureTimes,
   restockSpan,
@@ -281,5 +283,52 @@ describe('routeRestock', () => {
 
   it('buys one whole lap when the lap is longer than the restock days', () => {
     expect(routeRestock(topUp, need, false, 5, 8 * DAY_MS)).toEqual({ RAT: 81, SF: 50 });
+  });
+});
+
+describe('fresh restock countdown', () => {
+  // Bases use 10 RAT a day plus 1 spare; each lap burns 50 SF. A 2.4-day lap
+  // already out, next departure in 0.1 days: three departures land inside 5 days.
+  const topUp = (gapMs: number) => ({ RAT: (10 * gapMs) / DAY_MS + 1, SF: 50 });
+  const need = { RAT: 121, SF: 50 };
+  const lap = 2.4 * DAY_MS;
+  const draws: OriginDraw[] = [0.1, 2.5, 4.9, 7.3].map(day => ({
+    time: NOW + day * DAY_MS,
+    need: topUp(lap),
+  }));
+
+  it('reads under the restock days on the period amount alone', () => {
+    const stock = routeRestock(topUp, need, false, 5, lap);
+    expect(countdownDays(NOW, firstShortDraw(draws, stock))).toBeLessThan(5);
+  });
+
+  it('reads at least the restock days once the departures inside them are covered', () => {
+    const stock = maxMaterials(
+      routeRestock(topUp, need, false, 5, lap),
+      drawTotal(draws, NOW + 5 * DAY_MS),
+    );
+    expect(countdownDays(NOW, firstShortDraw(draws, stock))).toBeGreaterThanOrEqual(5);
+    expect(drawsCovered(draws, stock)).toBe(3);
+  });
+});
+
+describe('maxMaterials', () => {
+  it('keeps the larger amount of each ticker', () => {
+    expect(maxMaterials({ RAT: 5, SF: 10 }, { RAT: 8, DW: 2 })).toEqual({ RAT: 8, SF: 10, DW: 2 });
+  });
+});
+
+describe('drawsCovered', () => {
+  const draws: OriginDraw[] = [
+    { time: NOW + 2 * DAY_MS, need: { RAT: 10 } },
+    { time: NOW + DAY_MS, need: { RAT: 10 } },
+  ];
+
+  it('counts the draws before the first short one', () => {
+    expect(drawsCovered(draws, { RAT: 15 })).toBe(1);
+  });
+
+  it('counts every draw when none is short', () => {
+    expect(drawsCovered(draws, { RAT: 20 })).toBe(2);
   });
 });

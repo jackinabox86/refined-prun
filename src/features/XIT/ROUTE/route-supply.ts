@@ -217,6 +217,13 @@ export function firstShortDraw(draws: readonly OriginDraw[], stock: Record<strin
   return undefined;
 }
 
+// How many draws the stock covers, in time order, before the first it cannot.
+export function drawsCovered(draws: readonly OriginDraw[], stock: Record<string, number>) {
+  const short = firstShortDraw(draws, stock);
+  const sorted = sortedDraws(draws);
+  return short === undefined ? sorted.length : sorted.indexOf(short);
+}
+
 // Days until the first draw the stock cannot cover. 0 when it is already short.
 export function countdownDays(now: number, draw: OriginDraw | undefined) {
   if (draw === undefined) {
@@ -293,6 +300,17 @@ export function routeRestock(
     total = addMaterials(total, lapFuel);
   }
   return total;
+}
+
+// The larger amount of each ticker.
+export function maxMaterials(a: Record<string, number>, b: Record<string, number>) {
+  const result = { ...a };
+  for (const [ticker, amount] of Object.entries(b)) {
+    if (!(amount <= (result[ticker] ?? 0))) {
+      result[ticker] = amount;
+    }
+  }
+  return result;
 }
 
 export function daysToMs(days: number) {

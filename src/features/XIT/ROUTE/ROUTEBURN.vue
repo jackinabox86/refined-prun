@@ -50,6 +50,26 @@ function countdownText(origin: (typeof origins.value)[number]) {
   return origin.partial ? `≤${text}` : text;
 }
 
+// What the countdown date means: the origin runs short in lap-sized steps, and
+// the bases still hold their own supply days past it.
+function countdownTitle(origin: (typeof origins.value)[number]) {
+  if (origin.running === 0) {
+    return undefined;
+  }
+  const plural = (n: number) => `${n} departure${n === 1 ? '' : 's'}`;
+  if (origin.countdown === undefined) {
+    return `Stock covers every departure in the next ${origin.horizonDays} days.`;
+  }
+  const lines = [
+    `Stock covers ${plural(origin.covered)}. The next one can't be fully loaded.`,
+    'Bases still hold their supply days after that.',
+  ];
+  if (origin.partial) {
+    lines.push('Some lap times are unknown, so this may be later.');
+  }
+  return lines.join(' ');
+}
+
 function countdownClass(origin: (typeof origins.value)[number]) {
   if (origin.running === 0) {
     return undefined;
@@ -268,6 +288,7 @@ function onAssign(id: string) {
           <td :class="$style.statusCell">
             <div
               :class="[$style.statusContent, countdownClass(origin)]"
+              :title="countdownTitle(origin)"
               @click="showBuffer('XIT ROUTETRACK')">
               <span :class="$style.statusNum">{{ countdownText(origin) }}</span>
             </div>
