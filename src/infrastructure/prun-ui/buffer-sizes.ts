@@ -1,27 +1,19 @@
 import { userData } from '@src/store/user-data';
-
-let matchers: [RegExp, number, number][] | null = null;
-
-watch(userData, () => (matchers = null), { immediate: true, deep: true });
+import { firstBufferRuleSize } from '@src/infrastructure/prun-ui/buffer-rule';
 
 const defaultSize = [450, 300];
 
+export function matchUserBufferSize(command: string): [number, number] | undefined {
+  return firstBufferRuleSize(command, userData.settings.buffers);
+}
+
 export function matchBufferSize(command: string): [number, number] | undefined {
-  matchers ??= userData.settings.buffers
-    .filter(x => !!x[0] && typeof x[1] === 'number' && typeof x[2] === 'number')
-    .map(x => {
-      // '*' is not a valid regex.
-      const rule = x[0] === '*' ? '.*' : x[0];
-      return [new RegExp(rule.toUpperCase()), x[1], x[2]];
-    });
-  const commandUpper = command.toUpperCase().trim();
-  for (const matcher of matchers) {
-    const match = commandUpper.match(matcher[0]);
-    if (match) {
-      return [matcher[1], matcher[2]];
-    }
+  const userSize = matchUserBufferSize(command);
+  if (userSize !== undefined) {
+    return userSize;
   }
 
+  const commandUpper = command.toUpperCase().trim();
   if (commandUpper === 'PLI' || commandUpper === 'SYSI') {
     // PLI and SYSI without parameters have the default buffer size.
     return defaultSize.slice() as [number, number];

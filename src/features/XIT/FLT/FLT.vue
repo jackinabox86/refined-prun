@@ -35,6 +35,7 @@ import {
   resolveFltLocationFilter,
   shipMatchesLocationFilter,
 } from './location-filter';
+import { fltRepairCommand, fltShipNameCommand } from './ship-commands';
 
 type FlightRow = {
   ship: PrunApi.Ship;
@@ -1137,7 +1138,7 @@ function getCargoState(cargoRatio: number) {
       <!-- Body rows -->
       <component :is="rowTag" v-for="x in rows" :key="x.ship.id" :class="$style.row">
         <component :is="cellTag" v-if="showColName" :class="[$style.bodyCell]">
-          <span :class="C.Link.link" @click="showBuffer(`SFC ${x.ship.registration}`)">
+          <span :class="C.Link.link" @click="showBuffer(fltShipNameCommand(x.ship.registration))">
             {{ x.ship.name || x.ship.registration }}
           </span>
         </component>
@@ -1183,7 +1184,11 @@ function getCargoState(cargoRatio: number) {
           <TimeCell :ship-id="x.ship.id" />
         </component>
 
-        <component :is="cellTag" v-if="showColRepair" :class="[$style.bodyCell, $style.colRepair]">
+        <component
+          :is="cellTag"
+          v-if="showColRepair"
+          :class="[$style.bodyCell, $style.colRepair, C.ShipStore.pointer]"
+          @click.stop="showBuffer(fltRepairCommand(x.ship.registration))">
           <span :class="x.conditionClass">{{ x.conditionText }}</span>
         </component>
 

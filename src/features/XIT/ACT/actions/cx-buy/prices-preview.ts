@@ -155,10 +155,19 @@ export function formatPreviewPurchase(purchase: PreviewPurchase): LogPart[] {
     return parts;
   }
   parts.push({ text: ' ' });
-  parts.push({
-    text: `${fixed02(purchase.excessPercent)}% over`,
-    yellow: purchase.tone === 'yellow',
-    red: purchase.tone === 'red',
-  });
+  parts.push(formatPreviewExcess(purchase.excessPercent, purchase.tone));
   return parts;
+}
+
+function formatPreviewExcess(excessPercent: number, tone: PreviewPurchase['tone']): LogPart {
+  // A price under the refined-PrUn value is not a warning. Keep the minus out of
+  // the label and leave the threshold colors for a real overage.
+  if (excessPercent < 0) {
+    return { text: `${fixed02(Math.abs(excessPercent))}% under` };
+  }
+  return {
+    text: `${fixed02(excessPercent)}% over`,
+    yellow: tone === 'yellow',
+    red: tone === 'red',
+  };
 }
