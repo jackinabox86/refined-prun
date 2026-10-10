@@ -89,7 +89,7 @@ export function originLapNeed(route: UserData.ShippingRoute) {
   const origins = originVisitIndexes(route.stops);
   const tanks = planSegmentTanks(caps.stl, caps.ftl, route.legs ?? [], origins);
   const fuel = fuelCargoLoads(tanks.stl, tanks.ftl, origins.length > 0 ? origins : [0]);
-  const segments = planOriginSegments(route.stops, days, fuel, hold);
+  const segments = planOriginSegments(route.stops, days, fuel, hold, route.loop);
   if (segments === undefined || segments.length === 0) {
     return undefined;
   }

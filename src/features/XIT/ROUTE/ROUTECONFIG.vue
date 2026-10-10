@@ -10,6 +10,7 @@ import {
   planOriginSegments,
   ownUseByStop,
 } from '@src/features/XIT/ROUTE/route-load';
+import { fitLimitText } from '@src/features/XIT/ROUTE/route-fit-limit';
 import { buildRouteSpec } from '@src/features/XIT/ROUTE/route-rt';
 import { setRouteBlock } from '@src/features/XIT/ROUTE/set-route-gate';
 import { buildRouteconfigPackage } from '@src/features/XIT/RTACT/route-package';
@@ -22,6 +23,8 @@ import {
   maxDaysAtStep,
   paddedLegSeconds,
   planSegmentTanks,
+  ROUTE_DAY_MAX,
+  ROUTE_DAY_STEP,
   routeSupplyDays,
   snapDays,
   waitSeconds,
@@ -226,7 +229,13 @@ const loadPlan = computed(() => {
   if (hold === undefined) {
     return undefined;
   }
-  const segments = planOriginSegments(current.stops, supplyDays.value, fuelLoads.value, hold);
+  const segments = planOriginSegments(
+    current.stops,
+    supplyDays.value,
+    fuelLoads.value,
+    hold,
+    current.loop,
+  );
   if (segments === undefined) {
     return undefined;
   }
@@ -471,17 +480,48 @@ function onFit() {
   if (current === undefined || hold === undefined) {
     return;
   }
-  if (planOriginSegments(current.stops, supplyDays.value, fuelLoads.value, hold) === undefined) {
+  if (loadPlan.value === undefined) {
     return;
   }
-  current.days = maxDaysAtStep(days => {
-    const segments = planOriginSegments(current.stops, days, fuelLoads.value, hold);
-    if (segments === undefined) {
-      return false;
-    }
-    return segments.every(segment => segment.plan.fits);
-  });
+  current.days = maxDaysAtStep(days => routeFits(current, hold, days));
 }
+
+function routeFits(current: UserData.ShippingRoute, hold: PrunApi.Store, days: number) {
+  const segments = planOriginSegments(current.stops, days, fuelLoads.value, hold, current.loop);
+  return segments?.every(segment => segment.plan.fits) ?? false;
+}
+
+// The load that stops FIT one step higher.
+const fitTooltip = computed(() => {
+  const current = route.value;
+  const hold = cargo.value;
+  if (current === undefined || hold === undefined || loadPlan.value === undefined) {
+    return undefined;
+  }
+  const fit = maxDaysAtStep(days => routeFits(current, hold, days));
+  if (fit >= ROUTE_DAY_MAX) {
+    return undefined;
+  }
+  const over = snapDays(fit + ROUTE_DAY_STEP);
+  const segments = planOriginSegments(current.stops, over, fuelLoads.value, hold, current.loop);
+  for (const segment of segments ?? []) {
+    const overflow = segment.plan.firstOverflow;
+    if (overflow === undefined) {
+      continue;
+    }
+    const origin = current.stops[segment.originIndex];
+    const stop =
+      overflow.stopId === undefined ? undefined : { kind: 'base' as const, id: overflow.stopId };
+    return fitLimitText(
+      fit,
+      overflow,
+      origin === undefined ? 'the origin' : labelFor(origin),
+      stop === undefined ? undefined : labelFor(stop),
+      fixed0,
+    );
+  }
+  return undefined;
+});
 
 function onDragOver(event: DragEvent) {
   if (!event.dataTransfer?.types.includes(ROUTE_STOP_MIME)) {
@@ -705,7 +745,9 @@ function selectShip(event: Event) {
           max="999"
           :value="supplyDays.toFixed(1)"
           @change="onDaysChange" />
-        <PrunButton dark :disabled="selectedShip === undefined" @click="onFit">FIT</PrunButton>
+        <span :data-tooltip="fitTooltip" data-tooltip-position="bottom">
+          <PrunButton dark :disabled="selectedShip === undefined" @click="onFit">FIT</PrunButton>
+        </span>
         <span :class="$style.daysLabel">Route {{ routeDaysLabel }}d</span>
         <RadioItem
           :class="$style.loop"

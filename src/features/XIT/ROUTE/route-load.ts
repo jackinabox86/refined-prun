@@ -89,6 +89,7 @@ export function planOriginSegments(
   days: number,
   fuel: readonly FuelLoad[],
   cargo: PrunApi.Store,
+  loop: boolean | undefined,
 ): OriginSegmentPlan[] | undefined {
   const segments = routeSegments(stops);
   const groups = segments.length > 0 ? segments : [stops];
@@ -104,17 +105,23 @@ export function planOriginSegments(
     if (bases === undefined) {
       return undefined;
     }
+    // Every stretch but a one-way route's last ends back at the origin.
+    const returnsHome = loop !== false || i < groups.length - 1;
     planned.push({
       originIndex: offset,
       bases,
-      plan: planRouteLoads(bases, cargo),
+      plan: planRouteLoads(bases, cargo, returnsHome),
     });
     offset += segment.length;
   }
   return planned;
 }
 
-export function planRouteLoads(bases: MilkRunBase[], cargo: PrunApi.Store): MilkRunResult {
+export function planRouteLoads(
+  bases: MilkRunBase[],
+  cargo: PrunApi.Store,
+  returnsHome = false,
+): MilkRunResult {
   const stops = bases.map(base => {
     const dailyAmount = baseDailyAmount(base.site.siteId) ?? {};
     // Pick-ups come from what the base produces over the route's days, not
@@ -144,6 +151,7 @@ export function planRouteLoads(bases: MilkRunBase[], cargo: PrunApi.Store): Milk
       volumeCapacity: cargo.volumeCapacity,
     },
     sizeOf: materialSizeOf,
+    returnsHome,
   };
   // Transfers do not depend on the departure load, so a second pass only adds the buffer.
   const first = planMilkRun(input);
