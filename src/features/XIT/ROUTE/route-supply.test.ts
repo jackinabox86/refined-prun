@@ -9,7 +9,8 @@ import {
   loadingAtOrigin,
   nextLapStart,
   plannedDepartureTimes,
-  restockShortDays,
+  restockSpan,
+  routeRestock,
   unassignedCxLoads,
   type OriginDraw,
 } from '@src/features/XIT/ROUTE/route-supply';
@@ -249,23 +250,36 @@ describe('drawTotal', () => {
   });
 });
 
-describe('restockShortDays', () => {
-  const DAY = 24 * 60 * 60 * 1000;
-
-  it('covers the whole window when the only departure in it replaces one lap', () => {
-    // A ship already out departs at 2.5d after a 2.55d lap; the next lap is past 5d.
-    const covers = [
-      { time: NOW + 2.5 * DAY, days: 2.55 },
-      { time: NOW + 5.05 * DAY, days: 2.55 },
-    ];
-    expect(restockShortDays(covers, NOW + 5 * DAY, 5)).toBeCloseTo(2.45);
+describe('restockSpan', () => {
+  it('covers the restock days and fuels every lap in them when the lap is shorter', () => {
+    expect(restockSpan(5, 3)).toEqual({ days: 5, laps: 2 });
+    expect(restockSpan(6, 3)).toEqual({ days: 6, laps: 2 });
   });
 
-  it('adds nothing when the departures already replace the window', () => {
-    const covers = [
-      { time: NOW, days: 12 },
-      { time: NOW + 3 * DAY, days: 3 },
-    ];
-    expect(restockShortDays(covers, NOW + 5 * DAY, 5)).toBe(0);
+  it('covers one whole lap when the lap is longer than the restock days', () => {
+    expect(restockSpan(5, 8)).toEqual({ days: 8, laps: 1 });
+  });
+
+  it('covers the restock days with one lap of fuel when the lap is unknown', () => {
+    expect(restockSpan(5, undefined)).toEqual({ days: 5, laps: 1 });
+  });
+});
+
+describe('routeRestock', () => {
+  // Bases use 10 RAT a day plus 1 spare; each lap burns 50 SF.
+  const topUp = (gapMs: number) => ({ RAT: (10 * gapMs) / DAY_MS + 1, SF: 50 });
+  // The working set: 12 supply days.
+  const need = { RAT: 121, SF: 50 };
+
+  it('buys only the restock days of use and each lap of fuel for a route already out', () => {
+    expect(routeRestock(topUp, need, false, 5, 3 * DAY_MS)).toEqual({ RAT: 51, SF: 100 });
+  });
+
+  it('adds the working set when the route has none out yet', () => {
+    expect(routeRestock(topUp, need, true, 5, 3 * DAY_MS)).toEqual({ RAT: 171, SF: 100 });
+  });
+
+  it('buys one whole lap when the lap is longer than the restock days', () => {
+    expect(routeRestock(topUp, need, false, 5, 8 * DAY_MS)).toEqual({ RAT: 81, SF: 50 });
   });
 });

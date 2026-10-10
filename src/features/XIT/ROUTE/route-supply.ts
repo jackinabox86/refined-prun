@@ -1,3 +1,7 @@
+import {
+  addMaterials,
+  subtractMaterials,
+} from '@src/features/XIT/ACT/material-groups/resupply/milk-run';
 import { LEG_ESTIMATE_FACTOR, stepSeconds, type RouteEta } from '@src/features/XIT/ROUTE/route-eta';
 
 // When each running route next draws its departure load from its origin, and
@@ -116,25 +120,35 @@ export function lapStarts(input: LapStartInput) {
   return times;
 }
 
+// The lap length of a saved route no ship is running: the legs at the same 85%
+// factor lapStarts uses, never shorter than MIN_LAP_MS. Undefined when a leg has
+// no known time.
+export function plannedLapMs(legSeconds: readonly (number | undefined)[]) {
+  if (legSeconds.length === 0) {
+    return undefined;
+  }
+  let ms = 0;
+  for (const leg of legSeconds) {
+    if (leg === undefined) {
+      return undefined;
+    }
+    ms += leg * LEG_ESTIMATE_FACTOR * 1000;
+  }
+  return Math.max(MIN_LAP_MS, ms);
+}
+
 // Departure times for a saved looping route no ship is running. The first
-// departure is now. Later ones step by the legs at the same 85% factor lapStarts
-// uses, and never shorter than MIN_LAP_MS. An unknown leg is one departure at now.
+// departure is now, and later ones step by plannedLapMs. An unknown leg is one
+// departure at now.
 export function plannedDepartureTimes(
   now: number,
   until: number,
   legSeconds: readonly (number | undefined)[],
 ) {
-  if (legSeconds.length === 0) {
+  const step = plannedLapMs(legSeconds);
+  if (step === undefined) {
     return [now];
   }
-  let ms = 0;
-  for (const leg of legSeconds) {
-    if (leg === undefined) {
-      return [now];
-    }
-    ms += leg * LEG_ESTIMATE_FACTOR * 1000;
-  }
-  const step = Math.max(MIN_LAP_MS, ms);
   const times: number[] = [];
   let time = now;
   while (time <= until && times.length < MAX_LAPS) {
@@ -231,24 +245,54 @@ export function drawTotal(draws: readonly OriginDraw[], until: number) {
   return total;
 }
 
-// One draw's share of base use: the supply days for a working set, the gap since
-// the previous departure for a top-up.
-export interface DrawCover {
-  time: number;
-  days: number;
+// What one route's restock covers: base use over the restock days, or over one
+// lap when the lap is longer, and fuel for every lap in that span. A lap that
+// does not depart within the restock days waits in the CX warehouse, and the
+// next restock subtracts it. Departure times are estimates, so they never
+// change the span. An unknown lap is fuelled once.
+export function restockSpan(restockDays: number, lapDays: number | undefined) {
+  if (lapDays === undefined || !(lapDays > 0)) {
+    return { days: restockDays, laps: 1 };
+  }
+  const days = Math.max(restockDays, lapDays);
+  return { days, laps: Math.max(1, Math.ceil(days / lapDays - 1e-9)) };
 }
 
-// Days of base use a route's draws up to `until` leave short of the restock
-// days. Lap times are estimates, so restock never covers less than the whole
-// window, however the departures fall in it.
-export function restockShortDays(covers: readonly DrawCover[], until: number, days: number) {
-  let covered = 0;
-  for (const cover of covers) {
-    if (cover.time <= until) {
-      covered += cover.days;
+// The bases' use alone over `days`: two top-ups a day apart carry the same fuel
+// and +1, so their difference is the use.
+export function useOver(topUp: (gapMs: number) => Record<string, number>, days: number) {
+  return subtractMaterials(topUp(daysToMs(1 + days)), topUp(daysToMs(1)));
+}
+
+// One route's restock: the bases' use over restockSpan's days plus fuel for its
+// laps, with one lap's +1 and fuel. A route without a working set out yet (a
+// saved loop no ship runs, or a ship loading now) also buys that working set.
+export function routeRestock(
+  topUp: (gapMs: number) => Record<string, number>,
+  need: Record<string, number>,
+  workingSet: boolean,
+  restockDays: number,
+  lapMsValue: number | undefined,
+) {
+  const span = restockSpan(
+    restockDays,
+    lapMsValue === undefined ? undefined : lapMsValue / daysToMs(1),
+  );
+  let total = workingSet
+    ? addMaterials(need, useOver(topUp, span.days))
+    : topUp(daysToMs(span.days));
+  // A lap's fixed part is its fuel and the +1 spares; only the fuel repeats.
+  const fixed = subtractMaterials(topUp(daysToMs(1)), useOver(topUp, 1));
+  const lapFuel: Record<string, number> = {};
+  for (const ticker of ['SF', 'FF']) {
+    if (fixed[ticker] !== undefined) {
+      lapFuel[ticker] = fixed[ticker];
     }
   }
-  return Math.max(0, days - covered);
+  for (let i = 1; i < span.laps; i++) {
+    total = addMaterials(total, lapFuel);
+  }
+  return total;
 }
 
 export function daysToMs(days: number) {
