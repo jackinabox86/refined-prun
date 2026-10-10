@@ -77,14 +77,17 @@ function originLabel(stop: UserData.ShippingRouteStop) {
 // What one lap takes out of the origin store: the departure load ROUTECONFIG
 // plans for the RT, plus, on a loop, refilling the tanks that lap burned. Same
 // inputs as ROUTECONFIG. Undefined when ROUTECONFIG could not plan the load either.
-export function originLapNeed(route: UserData.ShippingRoute) {
+// `supplyDays` replaces the route's supply days: a top-up lap only replaces what
+// the bases used since the last departure, because each base visit sends the
+// unused rest home to the origin.
+export function originLapNeed(route: UserData.ShippingRoute, supplyDays?: number) {
   const hold = cargoForRouteShip(route);
   if (hold === undefined) {
     return undefined;
   }
   const padded =
     sumBy(paddedLegSeconds(route.legs ?? []), seconds => seconds) + waitSeconds(route.wait);
-  const days = routeSupplyDays(route.days, padded);
+  const days = supplyDays ?? routeSupplyDays(route.days, padded);
   const caps = fuelCapacities(shipForRoute(route));
   const origins = originVisitIndexes(route.stops);
   const tanks = planSegmentTanks(caps.stl, caps.ftl, route.legs ?? [], origins);
@@ -155,6 +158,9 @@ export function originStoreStock(stop: UserData.ShippingRouteStop) {
 interface Running {
   route: UserData.ShippingRoute;
   laps: number[];
+  // The first lap is now and its working set still comes out of the origin.
+  loadingNow: boolean;
+  lapMs: number | undefined;
   partial: boolean;
 }
 
@@ -189,20 +195,37 @@ function runningRoutes(now: number, until: number) {
     });
     const lap = lapMs(waypoints, legSeconds);
     const next = nextLapStart(execution, eta, legSeconds);
+    const loadingNow = loadingAtOrigin(execution, atWaypoint);
     running.push({
       route: saved,
       laps: lapStarts({
         now,
         until,
-        loadingNow: loadingAtOrigin(execution, atWaypoint),
+        loadingNow,
         repeats: execution.route.repeats,
         nextLap: next.time,
         lapMs: lap,
       }),
+      loadingNow: loadingNow && execution.route.repeats,
+      lapMs: lap,
       partial: next.partial || (execution.route.repeats && lap === undefined),
     });
   }
   return running;
+}
+
+// A later lap's draw: the bases' use over the gap since the previous departure,
+// plus that lap's fuel. Falls back to the full load when it cannot be planned.
+function topUpNeeds(route: UserData.ShippingRoute, need: Record<string, number>) {
+  const cache = new Map<number, Record<string, number>>();
+  return (gapMs: number) => {
+    let topUp = cache.get(gapMs);
+    if (topUp === undefined) {
+      topUp = originLapNeed(route, gapMs / daysToMs(1)) ?? need;
+      cache.set(gapMs, topUp);
+    }
+    return topUp;
+  };
 }
 
 export function originRows(now: number): OriginRow[] {
@@ -240,12 +263,14 @@ export function originRows(now: number): OriginRow[] {
     row.routes++;
     const mine = running.filter(x => x.route === route);
     if (mine.length === 0) {
+      const need = stop.kind === 'cx' ? originLapNeed(route) : undefined;
       const plan = unassignedCxLoads({
         now,
         until,
         looping: route.loop !== false,
         cx: stop.kind === 'cx',
-        need: stop.kind === 'cx' ? originLapNeed(route) : undefined,
+        need,
+        topUp: need === undefined ? undefined : topUpNeeds(route, need),
         legSeconds: configLegSeconds(route, true),
       });
       row.partial ||= plan.partial;
@@ -258,10 +283,19 @@ export function originRows(now: number): OriginRow[] {
       row.partial = true;
       continue;
     }
+    const topUp = topUpNeeds(route, need);
     for (const run of mine) {
       row.partial ||= run.partial;
-      for (const time of run.laps) {
-        row.draws.push({ time, need });
+      for (let i = 0; i < run.laps.length; i++) {
+        const time = run.laps[i]!;
+        // A ship loading now still takes its working set. One already out has
+        // it on the route, so its first draw only replaces the lap before.
+        if (i === 0 && run.loadingNow) {
+          row.draws.push({ time, need });
+          continue;
+        }
+        const gap = i === 0 ? run.lapMs : time - run.laps[i - 1]!;
+        row.draws.push({ time, need: gap === undefined ? need : topUp(gap) });
       }
     }
   }

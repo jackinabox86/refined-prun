@@ -181,6 +181,25 @@ describe('unassignedCxLoads', () => {
     expect(plan.draws.map(draw => draw.time)).toEqual([NOW, NOW + step]);
   });
 
+  it('takes the working set once and only a top-up of the gap on later laps', () => {
+    const step = 7200 * LEG_ESTIMATE_FACTOR * 1000;
+    const gaps: number[] = [];
+    const plan = unassignedCxLoads({
+      now: NOW,
+      until: NOW + 2 * step,
+      looping: true,
+      cx: true,
+      need: { RAT: 60 },
+      topUp: gap => {
+        gaps.push(gap);
+        return { RAT: 6 };
+      },
+      legSeconds: [3600, 3600],
+    });
+    expect(plan.draws.map(draw => draw.need.RAT)).toEqual([60, 6, 6]);
+    expect(gaps).toEqual([step, step]);
+  });
+
   it('does not restock or reserve a planned non-looping route', () => {
     expect(
       unassignedCxLoads({

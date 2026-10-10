@@ -145,8 +145,10 @@ export function plannedDepartureTimes(
 }
 
 // A saved CX route no ship is running. A loop departs now and every lap after
-// that, and those draws are the countdown, the restock, and the reserve. A
-// one-way route is never bought for here: its own buy runs when it is sent
+// that, and those draws are the countdown, the restock, and the reserve. The
+// first departure takes the full working set. Each later one takes `topUp` of
+// the gap since the one before, since the bases send their unused rest home.
+// A one-way route is never bought for here: its own buy runs when it is sent
 // out. A base origin is left untouched.
 export function unassignedCxLoads(input: {
   now: number;
@@ -154,6 +156,7 @@ export function unassignedCxLoads(input: {
   looping: boolean;
   cx: boolean;
   need: Record<string, number> | undefined;
+  topUp?: (gapMs: number) => Record<string, number>;
   legSeconds: readonly (number | undefined)[];
 }) {
   const draws: OriginDraw[] = [];
@@ -163,8 +166,12 @@ export function unassignedCxLoads(input: {
   if (input.need === undefined) {
     return { draws, partial: true };
   }
-  for (const time of plannedDepartureTimes(input.now, input.until, input.legSeconds)) {
-    draws.push({ time, need: input.need });
+  const times = plannedDepartureTimes(input.now, input.until, input.legSeconds);
+  for (let i = 0; i < times.length; i++) {
+    const time = times[i]!;
+    const need =
+      i === 0 || input.topUp === undefined ? input.need : input.topUp(time - times[i - 1]!);
+    draws.push({ time, need });
   }
   return { draws, partial: false };
 }
