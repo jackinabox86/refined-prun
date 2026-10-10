@@ -231,6 +231,26 @@ export function drawTotal(draws: readonly OriginDraw[], until: number) {
   return total;
 }
 
+// One draw's share of base use: the supply days for a working set, the gap since
+// the previous departure for a top-up.
+export interface DrawCover {
+  time: number;
+  days: number;
+}
+
+// Days of base use a route's draws up to `until` leave short of the restock
+// days. Lap times are estimates, so restock never covers less than the whole
+// window, however the departures fall in it.
+export function restockShortDays(covers: readonly DrawCover[], until: number, days: number) {
+  let covered = 0;
+  for (const cover of covers) {
+    if (cover.time <= until) {
+      covered += cover.days;
+    }
+  }
+  return Math.max(0, days - covered);
+}
+
 export function daysToMs(days: number) {
   return days * DAY_MS;
 }

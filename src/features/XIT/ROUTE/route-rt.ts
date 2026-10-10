@@ -209,17 +209,28 @@ function pushDepartureLoads(steps: RouteStep[], departure: Record<string, number
   }
 }
 
-function pushBaseSteps(steps: RouteStep[], segment: RouteBuildSegment, id: string) {
-  const bill = segment.bills.find(base => base.id === id)?.bill;
-  for (const ticker of positiveTickers(bill)) {
+// A base visit leaves exactly one bill of each input on the base. Every bill is
+// dropped first, so the hold has room when each input's sweep loads all of it
+// off the base; the unused rest rides home. Outputs are loaded last.
+function pushBaseSteps(
+  steps: RouteStep[],
+  bill: Record<string, number> | undefined,
+  loaded: Record<string, number> | undefined,
+  ownUse: Record<string, number> | undefined,
+) {
+  const inputs = positiveTickers(bill);
+  for (const ticker of inputs) {
+    const amount = bill?.[ticker] ?? 0;
+    steps.push({ kind: 'unload', ticker, min: units(amount), max: units(amount) });
+  }
+  for (const ticker of inputs) {
     const amount = bill?.[ticker] ?? 0;
     steps.push(
       { kind: 'load', ticker, min: nothing, max: capacity },
       { kind: 'unload', ticker, min: units(amount), max: units(amount) },
     );
   }
-  const ownUse = segment.ownUseByStop?.get(id);
-  for (const ticker of positiveTickers(segment.loadedByStop.get(id))) {
+  for (const ticker of positiveTickers(loaded)) {
     steps.push({ kind: 'load', ticker, min: nothing, max: capacity });
     const amount = ownUse?.[ticker] ?? 0;
     if (amount > 0) {
@@ -263,7 +274,12 @@ function buildSegmentedRouteSpec(
         departureAmounts(segment.bills, segment.sourced, segment.departureExtra),
       );
     } else if (segment !== undefined && kindOf(input.stops, id) === 'base') {
-      pushBaseSteps(steps, segment, id);
+      pushBaseSteps(
+        steps,
+        segment.bills.find(base => base.id === id)?.bill,
+        segment.loadedByStop.get(id),
+        segment.ownUseByStop?.get(id),
+      );
     }
     if (!origin && input.refuelStl[i] === true) {
       steps.push(refuel('STL'));
@@ -318,22 +334,12 @@ export function buildRouteSpec(
         steps.push({ kind: 'load', ticker, min: units(amount), max: units(amount) });
       }
     } else if (kindOf(input.stops, id) === 'base') {
-      const bill = billFor(input, id);
-      for (const ticker of positiveTickers(bill)) {
-        const amount = bill?.[ticker] ?? 0;
-        steps.push(
-          { kind: 'load', ticker, min: nothing, max: capacity },
-          { kind: 'unload', ticker, min: units(amount), max: units(amount) },
-        );
-      }
-      const ownUse = input.ownUseByStop?.get(id);
-      for (const ticker of positiveTickers(input.loadedByStop.get(id))) {
-        steps.push({ kind: 'load', ticker, min: nothing, max: capacity });
-        const amount = ownUse?.[ticker] ?? 0;
-        if (amount > 0) {
-          steps.push({ kind: 'unload', ticker, min: units(amount), max: units(amount) });
-        }
-      }
+      pushBaseSteps(
+        steps,
+        billFor(input, id),
+        input.loadedByStop.get(id),
+        input.ownUseByStop?.get(id),
+      );
     }
     if (!first && input.refuelStl[i] === true) {
       steps.push(refuel('STL'));

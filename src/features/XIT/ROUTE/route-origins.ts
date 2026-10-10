@@ -1,4 +1,7 @@
-import { addMaterials } from '@src/features/XIT/ACT/material-groups/resupply/milk-run';
+import {
+  addMaterials,
+  subtractMaterials,
+} from '@src/features/XIT/ACT/material-groups/resupply/milk-run';
 import { departureBill, planOriginSegments } from '@src/features/XIT/ROUTE/route-load';
 import {
   fuelCargoLoads,
@@ -18,7 +21,9 @@ import {
   lapStarts,
   loadingAtOrigin,
   nextLapStart,
+  restockShortDays,
   unassignedCxLoads,
+  type DrawCover,
   type OriginDraw,
 } from '@src/features/XIT/ROUTE/route-supply';
 import {
@@ -55,7 +60,8 @@ export interface OriginRow {
   horizonDays: number;
   // A running route's lap could not be priced or timed, so the countdown may be late.
   partial: boolean;
-  // Everything the laps within the resupply days load here, before stock.
+  // Everything the laps within the resupply days load here, before stock, and
+  // never less than the bases' use over the whole resupply days.
   restock: Record<string, number>;
   // Every running lap's load here, up to horizonDays.
   draws: OriginDraw[];
@@ -85,9 +91,7 @@ export function originLapNeed(route: UserData.ShippingRoute, supplyDays?: number
   if (hold === undefined) {
     return undefined;
   }
-  const padded =
-    sumBy(paddedLegSeconds(route.legs ?? []), seconds => seconds) + waitSeconds(route.wait);
-  const days = supplyDays ?? routeSupplyDays(route.days, padded);
+  const days = supplyDays ?? lapSupplyDays(route);
   const caps = fuelCapacities(shipForRoute(route));
   const origins = originVisitIndexes(route.stops);
   const tanks = planSegmentTanks(caps.stl, caps.ftl, route.legs ?? [], origins);
@@ -130,6 +134,13 @@ export function originLapNeed(route: UserData.ShippingRoute, supplyDays?: number
     }
   }
   return need;
+}
+
+// The supply days one working set carries.
+function lapSupplyDays(route: UserData.ShippingRoute) {
+  const padded =
+    sumBy(paddedLegSeconds(route.legs ?? []), seconds => seconds) + waitSeconds(route.wait);
+  return routeSupplyDays(route.days, padded);
 }
 
 export function originStoreStock(stop: UserData.ShippingRouteStop) {
@@ -228,6 +239,26 @@ function topUpNeeds(route: UserData.ShippingRoute, need: Record<string, number>)
   };
 }
 
+// The bases' use alone over `days`: two top-ups a day apart carry the same fuel
+// and +1, so their difference is the use.
+function useOver(topUp: (gapMs: number) => Record<string, number>, days: number) {
+  return subtractMaterials(topUp(daysToMs(1 + days)), topUp(daysToMs(1)));
+}
+
+// Adds the use a route's draws leave short of the restock days.
+function fillShort(
+  fill: Record<string, number>,
+  topUp: (gapMs: number) => Record<string, number>,
+  covers: readonly DrawCover[],
+  until: number,
+  days: number,
+) {
+  const short = restockShortDays(covers, until, days);
+  if (short > 0) {
+    Object.assign(fill, addMaterials(fill, useOver(topUp, short)));
+  }
+}
+
 export function originRows(now: number): OriginRow[] {
   const settings = userData.settings.routeSupply;
   const horizonDays = Math.max(MIN_HORIZON_DAYS, settings.days * 2, settings.yellow);
@@ -235,7 +266,10 @@ export function originRows(now: number): OriginRow[] {
   const restockUntil = now + daysToMs(settings.days);
   const running = runningRoutes(now, until);
 
-  const rows = new Map<string, OriginRow & { stop: UserData.ShippingRouteStop }>();
+  const rows = new Map<
+    string,
+    OriginRow & { stop: UserData.ShippingRouteStop; fill: Record<string, number> }
+  >();
   for (const route of userData.routes) {
     const stop = route.stops[0];
     if (stop === undefined) {
@@ -257,6 +291,7 @@ export function originRows(now: number): OriginRow[] {
         restock: {},
         draws: [],
         stop,
+        fill: {},
       };
       rows.set(key, row);
     }
@@ -275,6 +310,14 @@ export function originRows(now: number): OriginRow[] {
       });
       row.partial ||= plan.partial;
       row.draws.push(...plan.draws);
+      if (need !== undefined && plan.draws.length > 0) {
+        const covers = plan.draws.map((draw, i) => ({
+          time: draw.time,
+          days:
+            i === 0 ? lapSupplyDays(route) : (draw.time - plan.draws[i - 1]!.time) / daysToMs(1),
+        }));
+        fillShort(row.fill, topUpNeeds(route, need), covers, restockUntil, settings.days);
+      }
       continue;
     }
     row.running += mine.length;
@@ -286,23 +329,29 @@ export function originRows(now: number): OriginRow[] {
     const topUp = topUpNeeds(route, need);
     for (const run of mine) {
       row.partial ||= run.partial;
+      const covers: DrawCover[] = [];
       for (let i = 0; i < run.laps.length; i++) {
         const time = run.laps[i]!;
         // A ship loading now still takes its working set. One already out has
         // it on the route, so its first draw only replaces the lap before.
-        if (i === 0 && run.loadingNow) {
+        const gap = i === 0 ? run.lapMs : time - run.laps[i - 1]!;
+        if ((i === 0 && run.loadingNow) || gap === undefined) {
           row.draws.push({ time, need });
+          covers.push({ time, days: lapSupplyDays(route) });
           continue;
         }
-        const gap = i === 0 ? run.lapMs : time - run.laps[i - 1]!;
-        row.draws.push({ time, need: gap === undefined ? need : topUp(gap) });
+        row.draws.push({ time, need: topUp(gap) });
+        covers.push({ time, days: gap / daysToMs(1) });
+      }
+      if (run.laps.length > 0) {
+        fillShort(row.fill, topUp, covers, restockUntil, settings.days);
       }
     }
   }
 
-  return [...rows.values()].map(({ stop, ...row }) => ({
+  return [...rows.values()].map(({ stop, fill, ...row }) => ({
     ...row,
     countdown: countdownDays(now, firstShortDraw(row.draws, originStoreStock(stop))),
-    restock: drawTotal(row.draws, restockUntil),
+    restock: addMaterials(drawTotal(row.draws, restockUntil), fill),
   }));
 }

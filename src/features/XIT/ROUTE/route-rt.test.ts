@@ -91,7 +91,20 @@ describe('buildRouteSpec', () => {
     ]);
     // Waypoints hold the leg that flies to them; the origin holds the return leg.
     expect(built.spec.stops[0]).toMatchObject({ fuelUsage: 10, reactorUsage: 30, gateway: true });
+    // Every bill comes off first, so each sweep has room to take the leftover home.
     expect(built.spec.stops[1]?.steps).toEqual([
+      {
+        kind: 'unload',
+        ticker: 'DW',
+        min: { mode: 'units', amount: 4 },
+        max: { mode: 'units', amount: 4 },
+      },
+      {
+        kind: 'unload',
+        ticker: 'RAT',
+        min: { mode: 'units', amount: 2 },
+        max: { mode: 'units', amount: 2 },
+      },
       { kind: 'load', ticker: 'DW', min: { mode: 'units', amount: 0 }, max: { mode: 'capacity' } },
       {
         kind: 'unload',
@@ -124,8 +137,13 @@ describe('buildRouteSpec', () => {
       gateway: false,
     });
     expect(built.spec.stops[3]).toMatchObject({ fuelUsage: 20 });
-    expect(built.spec.stops[3]?.steps.map(step => step.kind)).toEqual(['load', 'unload', 'refuel']);
-    expect(built.spec.stops[3]?.steps[2]).toMatchObject({ kind: 'refuel', tank: 'FTL' });
+    expect(built.spec.stops[3]?.steps.map(step => step.kind)).toEqual([
+      'unload',
+      'load',
+      'unload',
+      'refuel',
+    ]);
+    expect(built.spec.stops[3]?.steps[3]).toMatchObject({ kind: 'refuel', tank: 'FTL' });
   });
 
   it('unloads picked-up outputs at the final stop when the route does not loop', () => {

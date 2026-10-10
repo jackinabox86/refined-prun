@@ -9,6 +9,7 @@ import {
   loadingAtOrigin,
   nextLapStart,
   plannedDepartureTimes,
+  restockShortDays,
   unassignedCxLoads,
   type OriginDraw,
 } from '@src/features/XIT/ROUTE/route-supply';
@@ -245,5 +246,26 @@ describe('drawTotal', () => {
       { time: NOW + 20 * DAY_MS, need: { RAT: 99 } },
     ];
     expect(drawTotal(draws, NOW + 14 * DAY_MS)).toEqual({ RAT: 21, DW: 3 });
+  });
+});
+
+describe('restockShortDays', () => {
+  const DAY = 24 * 60 * 60 * 1000;
+
+  it('covers the whole window when the only departure in it replaces one lap', () => {
+    // A ship already out departs at 2.5d after a 2.55d lap; the next lap is past 5d.
+    const covers = [
+      { time: NOW + 2.5 * DAY, days: 2.55 },
+      { time: NOW + 5.05 * DAY, days: 2.55 },
+    ];
+    expect(restockShortDays(covers, NOW + 5 * DAY, 5)).toBeCloseTo(2.45);
+  });
+
+  it('adds nothing when the departures already replace the window', () => {
+    const covers = [
+      { time: NOW, days: 12 },
+      { time: NOW + 3 * DAY, days: 3 },
+    ];
+    expect(restockShortDays(covers, NOW + 5 * DAY, 5)).toBe(0);
   });
 });
