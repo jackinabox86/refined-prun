@@ -1,0 +1,31 @@
+import PrunLink from '@src/components/PrunLink.vue';
+import { refPrunId } from '@src/infrastructure/prun-ui/attributes';
+import { shipsStore } from '@src/infrastructure/prun-api/data/ships';
+import { ElementTag } from '@src/infrastructure/prun-ui/tagger';
+import { createContentReplacement } from '@src/utils/content-replacement';
+
+function onTileReady(tile: PrunTile) {
+  subscribe($$(tile.anchor, 'tr'), row => {
+    const id = refPrunId(row);
+    const ship = computed(() => shipsStore.getByStoreId(id.value));
+    const container = createContentReplacement(row, () => _$(row, ElementTag.INV_NAME_CELL));
+
+    createFragmentApp(() => {
+      const currentShip = ship.value;
+      if (!currentShip?.name) {
+        return null;
+      }
+      return (
+        <PrunLink inline command={`SHP ${currentShip.registration}`}>
+          {currentShip.name}
+        </PrunLink>
+      );
+    }).appendTo(container);
+  });
+}
+
+function init() {
+  tiles.observe('INV', onTileReady);
+}
+
+features.add(import.meta.url, init, 'INV: Shows ship names in ship-owned inventory rows.');
