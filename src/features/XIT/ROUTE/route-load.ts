@@ -14,6 +14,7 @@ import {
 } from '@src/features/XIT/DISPATCH/utils';
 import { getPlanetBurn } from '@src/core/burn';
 import type { FuelLoad } from '@src/features/XIT/ROUTE/route-calc';
+import { routeSegments } from '@src/features/XIT/ROUTE/route-stops';
 import { sitesStore } from '@src/infrastructure/prun-api/data/sites';
 
 // A route runs unattended for many cycles, so its bill is pure consumption over
@@ -75,7 +76,52 @@ export function ownUseByStop(bases: readonly MilkRunBase[]) {
   return result;
 }
 
-export function planRouteLoads(bases: MilkRunBase[], cargo: PrunApi.Store): MilkRunResult {
+export interface OriginSegmentPlan {
+  originIndex: number;
+  bases: MilkRunBase[];
+  plan: MilkRunResult;
+}
+
+// Each stretch between origin visits is its own load. A single visit is one plan
+// over every base, which is the whole route.
+export function planOriginSegments(
+  stops: readonly { kind: 'cx' | 'base'; id: string }[],
+  days: number,
+  fuel: readonly FuelLoad[],
+  cargo: PrunApi.Store,
+  loop: boolean | undefined,
+): OriginSegmentPlan[] | undefined {
+  const segments = routeSegments(stops);
+  const groups = segments.length > 0 ? segments : [stops];
+  let offset = 0;
+  const planned: OriginSegmentPlan[] = [];
+  for (let i = 0; i < groups.length; i++) {
+    const segment = groups[i] ?? [];
+    const slice = fuel.slice(offset, offset + segment.length);
+    // A later origin visit reloads for the stops after it. It is not a second delivery.
+    const billStops = i === 0 ? segment : segment.slice(1);
+    const billFuel = i === 0 ? slice : slice.slice(1);
+    const bases = routeBaseBills(billStops, days, billFuel);
+    if (bases === undefined) {
+      return undefined;
+    }
+    // Every stretch but a one-way route's last ends back at the origin.
+    const returnsHome = loop !== false || i < groups.length - 1;
+    planned.push({
+      originIndex: offset,
+      bases,
+      plan: planRouteLoads(bases, cargo, returnsHome),
+    });
+    offset += segment.length;
+  }
+  return planned;
+}
+
+export function planRouteLoads(
+  bases: MilkRunBase[],
+  cargo: PrunApi.Store,
+  returnsHome = false,
+): MilkRunResult {
   const stops = bases.map(base => {
     const dailyAmount = baseDailyAmount(base.site.siteId) ?? {};
     // Pick-ups come from what the base produces over the route's days, not
@@ -105,6 +151,7 @@ export function planRouteLoads(bases: MilkRunBase[], cargo: PrunApi.Store): Milk
       volumeCapacity: cargo.volumeCapacity,
     },
     sizeOf: materialSizeOf,
+    returnsHome,
   };
   // Transfers do not depend on the departure load, so a second pass only adds the buffer.
   const first = planMilkRun(input);

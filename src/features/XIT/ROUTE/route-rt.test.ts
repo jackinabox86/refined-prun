@@ -91,7 +91,20 @@ describe('buildRouteSpec', () => {
     ]);
     // Waypoints hold the leg that flies to them; the origin holds the return leg.
     expect(built.spec.stops[0]).toMatchObject({ fuelUsage: 10, reactorUsage: 30, gateway: true });
+    // Every bill comes off first, so each sweep has room to take the leftover home.
     expect(built.spec.stops[1]?.steps).toEqual([
+      {
+        kind: 'unload',
+        ticker: 'DW',
+        min: { mode: 'units', amount: 4 },
+        max: { mode: 'units', amount: 4 },
+      },
+      {
+        kind: 'unload',
+        ticker: 'RAT',
+        min: { mode: 'units', amount: 2 },
+        max: { mode: 'units', amount: 2 },
+      },
       { kind: 'load', ticker: 'DW', min: { mode: 'units', amount: 0 }, max: { mode: 'capacity' } },
       {
         kind: 'unload',
@@ -124,8 +137,13 @@ describe('buildRouteSpec', () => {
       gateway: false,
     });
     expect(built.spec.stops[3]).toMatchObject({ fuelUsage: 20 });
-    expect(built.spec.stops[3]?.steps.map(step => step.kind)).toEqual(['load', 'unload', 'refuel']);
-    expect(built.spec.stops[3]?.steps[2]).toMatchObject({ kind: 'refuel', tank: 'FTL' });
+    expect(built.spec.stops[3]?.steps.map(step => step.kind)).toEqual([
+      'unload',
+      'load',
+      'unload',
+      'refuel',
+    ]);
+    expect(built.spec.stops[3]?.steps[3]).toMatchObject({ kind: 'refuel', tank: 'FTL' });
   });
 
   it('unloads picked-up outputs at the final stop when the route does not loop', () => {
@@ -211,6 +229,84 @@ describe('buildRouteSpec', () => {
       return;
     }
     expect(built.spec.stops.map(stop => stop.query)).toEqual(['Antares Station', 'ZV-759c']);
+  });
+
+  it('does not add a wait when the route has none', () => {
+    const built = buildRouteSpec(input(true));
+    expect(built.ok).toBe(true);
+    if (!built.ok) {
+      return;
+    }
+    expect(built.spec.stops.some(stop => stop.steps.some(step => step.kind === 'wait'))).toBe(
+      false,
+    );
+  });
+
+  it('appends a wait to the last waypoint', () => {
+    const plain = buildRouteSpec(input(false));
+    const built = buildRouteSpec({ ...input(false), wait: { amount: 2, unit: 'hours' } });
+    expect(plain.ok && built.ok).toBe(true);
+    if (!plain.ok || !built.ok) {
+      return;
+    }
+    const last = built.spec.stops.at(-1);
+    expect(last?.steps.at(-1)).toEqual({ kind: 'wait', amount: 2, unit: 'hours' });
+    expect(last?.steps.slice(0, -1)).toEqual(plain.spec.stops.at(-1)?.steps);
+  });
+
+  it('reloads at a later origin for the next stretch only', () => {
+    const built = buildRouteSpec({
+      ...input(false),
+      stops: [
+        { kind: 'cx', id: 'ANT', query: 'Antares Station' },
+        { kind: 'base', id: 'ZV-307d' },
+        { kind: 'cx', id: 'ANT', query: 'Antares Station' },
+        { kind: 'base', id: 'ZV-759c' },
+      ],
+      refuelStl: [false, false, false, false],
+      refuelFtl: [false, false, false, false],
+      segments: [
+        {
+          originIndex: 0,
+          bills: [{ id: 'ZV-307d', bill: { RAT: 2 } }],
+          sourced: {},
+          loadedByStop: new Map([['ZV-307d', { FE: 10 }]]),
+        },
+        {
+          originIndex: 2,
+          bills: [{ id: 'ZV-759c', bill: { DW: 1 } }],
+          sourced: {},
+          loadedByStop: new Map([['ZV-759c', {}]]),
+        },
+      ],
+    });
+    expect(built.ok).toBe(true);
+    if (!built.ok) {
+      return;
+    }
+    const loads = built.spec.stops.map(stop =>
+      stop.steps.filter(step => step.kind === 'load').map(step => step.ticker),
+    );
+    expect(loads[0]).toEqual(['RAT']);
+    expect(loads[2]).toEqual(['DW']);
+    expect(built.spec.stops[2]?.steps.slice(0, 4)).toEqual([
+      { kind: 'unload', ticker: 'DW', min: { mode: 'all' }, max: { mode: 'all' } },
+      { kind: 'unload', ticker: 'FE', min: { mode: 'all' }, max: { mode: 'all' } },
+      {
+        kind: 'refuel',
+        tank: 'STL',
+        source: 'local',
+        min: { mode: 'capacity' },
+        max: { mode: 'capacity' },
+      },
+      {
+        kind: 'refuel',
+        tank: 'FTL',
+        source: 'local',
+        min: { mode: 'capacity' },
+        max: { mode: 'capacity' },
+      },
+    ]);
   });
 
   it('rejects a route with one stop', () => {
