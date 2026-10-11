@@ -162,9 +162,9 @@ export function lapStarts(input: LapStartInput) {
 }
 
 // The lap length of a saved route no ship is running: the legs at the same 85%
-// factor lapStarts uses, never shorter than MIN_LAP_MS. Undefined when a leg has
-// no known time.
-export function plannedLapMs(legSeconds: readonly (number | undefined)[]) {
+// factor lapStarts uses, plus the route's end wait, never shorter than
+// MIN_LAP_MS. Undefined when a leg has no known time.
+export function plannedLapMs(legSeconds: readonly (number | undefined)[], waitMs = 0) {
   if (legSeconds.length === 0) {
     return undefined;
   }
@@ -175,7 +175,7 @@ export function plannedLapMs(legSeconds: readonly (number | undefined)[]) {
     }
     ms += leg * LEG_ESTIMATE_FACTOR * 1000;
   }
-  return Math.max(MIN_LAP_MS, ms);
+  return Math.max(MIN_LAP_MS, ms + waitMs);
 }
 
 // Departure times for a saved looping route no ship is running. The first
@@ -185,8 +185,9 @@ export function plannedDepartureTimes(
   now: number,
   until: number,
   legSeconds: readonly (number | undefined)[],
+  waitMs = 0,
 ) {
-  const step = plannedLapMs(legSeconds);
+  const step = plannedLapMs(legSeconds, waitMs);
   if (step === undefined) {
     return [now];
   }
@@ -213,6 +214,7 @@ export function unassignedCxLoads(input: {
   need: Record<string, number> | undefined;
   topUp?: (gapMs: number) => Record<string, number>;
   legSeconds: readonly (number | undefined)[];
+  waitMs?: number;
 }) {
   const draws: OriginDraw[] = [];
   if (!input.cx || !input.looping) {
@@ -221,7 +223,7 @@ export function unassignedCxLoads(input: {
   if (input.need === undefined) {
     return { draws, partial: true };
   }
-  const times = plannedDepartureTimes(input.now, input.until, input.legSeconds);
+  const times = plannedDepartureTimes(input.now, input.until, input.legSeconds, input.waitMs);
   for (let i = 0; i < times.length; i++) {
     const time = times[i]!;
     const need =

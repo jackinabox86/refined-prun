@@ -222,6 +222,11 @@ describe('plannedDepartureTimes', () => {
     expect(plannedDepartureTimes(NOW, NOW + step, [3600, 3600])).toEqual([NOW, NOW + step]);
   });
 
+  it('adds the route wait to each lap', () => {
+    const step = (3600 + 3600) * LEG_ESTIMATE_FACTOR * 1000 + DAY_MS;
+    expect(plannedDepartureTimes(NOW, NOW + step, [3600, 3600], DAY_MS)).toEqual([NOW, NOW + step]);
+  });
+
   it('does not step shorter than a minute', () => {
     expect(plannedDepartureTimes(NOW, NOW + 60_000, [1, 1])).toEqual([NOW, NOW + 60_000]);
   });

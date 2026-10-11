@@ -304,6 +304,9 @@ declare namespace UserData {
     legs?: ShippingRouteLeg[];
     // Game route id (RT-…) recorded when ROUTECONFIG builds the route.
     rtId?: string;
+    // TRANSITS saved new legs after that build, so the game route still has the
+    // old timing and fuel settings until SET ROUTE runs again.
+    legsAfterRt?: boolean;
     // Optional pause after the last waypoint. Absent means the route does not wait.
     wait?: {
       amount: number;

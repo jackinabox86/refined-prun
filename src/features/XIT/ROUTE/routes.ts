@@ -42,6 +42,7 @@ export function saveRouteRtId(configRouteId: string | undefined, rtId: string) {
     return;
   }
   route.rtId = gameId;
+  route.legsAfterRt = undefined;
 }
 
 export function saveRouteLegs(
@@ -59,6 +60,9 @@ export function saveRouteLegs(
   const route = findRoute(routeId);
   if (route === undefined) {
     return;
+  }
+  if (route.rtId !== undefined) {
+    route.legsAfterRt = true;
   }
   route.legs = legs.map(x => ({
     ok: x.ok,

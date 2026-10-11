@@ -349,11 +349,12 @@ export function originRows(now: number): OriginRow[] {
         need,
         topUp: need === undefined ? undefined : topUpNeeds(route, need),
         legSeconds: configLegSeconds(route, true),
+        waitMs: waitSeconds(route.wait) * 1000,
       });
       row.partial ||= plan.partial;
       row.draws.push(...plan.draws);
       if (need !== undefined && plan.draws.length > 0) {
-        const lap = plannedLapMs(configLegSeconds(route, true));
+        const lap = plannedLapMs(configLegSeconds(route, true), waitSeconds(route.wait) * 1000);
         const restock = routeRestock(topUpNeeds(route, need), need, true, settings.days, lap);
         row.restock = addMaterials(
           row.restock,
