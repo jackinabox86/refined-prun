@@ -284,6 +284,10 @@ describe('routeRestock', () => {
   it('buys one whole lap when the lap is longer than the restock days', () => {
     expect(routeRestock(topUp, need, false, 5, 8 * DAY_MS)).toEqual({ RAT: 81, SF: 50 });
   });
+
+  it('buys only the working set for a new loop whose lap is longer than the restock days', () => {
+    expect(routeRestock(topUp, need, true, 5, 8 * DAY_MS)).toEqual(need);
+  });
 });
 
 describe('fresh restock countdown', () => {
