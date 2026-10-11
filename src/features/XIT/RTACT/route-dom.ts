@@ -38,11 +38,12 @@ import {
   selectAddress,
 } from '@src/infrastructure/prun-ui/utils/select-address';
 import {
+  changeInputValue,
   changeSelectIndex,
   clickAtCenter,
   clickElement,
+  focusElement,
   selectAndChangeInputValue,
-  selectMaterialInMaterialSelector,
 } from '@src/util';
 import { sleep } from '@src/utils/sleep';
 import { waitFor } from '@src/utils/wait-for';
@@ -405,11 +406,14 @@ export async function waitForNewRouteId(
   return created;
 }
 
+// Staging RT keeps a limit's amount field in the DOM, unrendered, while the limit is
+// on capacity or all carried. Only a rendered field means the amount row is showing.
 function amountInputs(root: Element): HTMLInputElement[] {
   return Array.from(root.querySelectorAll('input')).filter((el): el is HTMLInputElement => {
     const input = el as HTMLInputElement;
     const mode = input.getAttribute('inputmode');
-    return mode === 'decimal' || mode === 'numeric' || input.type === 'number';
+    const numeric = mode === 'decimal' || mode === 'numeric' || input.type === 'number';
+    return numeric && input.getClientRects().length > 0;
   });
 }
 
@@ -502,29 +506,54 @@ async function applyLimit(
   selectAndChangeInputValue(input, String(limit.amount));
 }
 
-async function fillMaterial(editor: Element, ticker: string): Promise<void> {
-  const selected = await selectMaterialInMaterialSelector(editor, ticker);
-  if (selected) {
-    return;
-  }
+// Production renders the material list inside the selector. Staging renders it in
+// the shared autosuggest portal, as the location field already does.
+function materialEntries(container: Element): HTMLElement[] {
+  const roots: Element[] = [container];
   const portal = document.getElementById('autosuggest-portal');
-  if (portal === null) {
-    throw new Error(`Could not pick material ${ticker}`);
+  if (portal !== null) {
+    roots.push(portal);
   }
-  const labels = _$$(portal, C.AddressSelector.suggestionContent).map(
-    el => el.textContent?.trim() ?? '',
+  for (const root of roots) {
+    const entries = _$$(root, C.MaterialSelector.suggestionEntry) as HTMLElement[];
+    if (entries.length > 0) {
+      return entries;
+    }
+  }
+  return [];
+}
+
+function materialEntry(container: Element, ticker: string): HTMLElement | undefined {
+  return materialEntries(container).find(
+    entry => (_$(entry, C.ColoredIcon.label)?.textContent ?? '').trim() === ticker,
   );
-  const chosen = pickSuggestion(labels, ticker);
-  if (chosen === undefined) {
+}
+
+// The shared selector helper waits, with no timeout, for a list inside the selector,
+// so it hangs on staging. This one looks in both places and gives up.
+async function fillMaterial(editor: Element, ticker: string): Promise<void> {
+  const container = _$(editor, C.MaterialSelector.container);
+  const input = container === undefined ? undefined : _$(container, 'input');
+  if (container === undefined || !(input instanceof HTMLInputElement)) {
+    throw new Error('Could not find the material field');
+  }
+  input.focus();
+  focusElement(input);
+  input.select();
+  changeInputValue(input, ticker);
+  let entry: HTMLElement | undefined;
+  await waitFor(() => {
+    entry = materialEntry(container, ticker);
+    return entry !== undefined;
+  }, 3000);
+  if (entry === undefined) {
+    throw new Error(`Could not find material ${ticker} in the list`);
+  }
+  await clickElement(entry);
+  const picked = await waitFor(() => materialEntry(container, ticker) === undefined, 2000);
+  if (!picked) {
     throw new Error(`Could not pick material ${ticker}`);
   }
-  const match = _$$(portal, C.AddressSelector.suggestionContent).find(
-    el => (el.textContent ?? '').trim() === chosen,
-  );
-  if (match === undefined) {
-    throw new Error(`Could not pick material ${ticker}`);
-  }
-  await clickElement(match as HTMLElement);
 }
 
 export async function fillStepEditor(editor: Element, step: RouteStep): Promise<void> {
