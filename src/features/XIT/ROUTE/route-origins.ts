@@ -53,7 +53,8 @@ export interface OriginRow {
   kind: 'cx' | 'base';
   id: string;
   label: string;
-  // Saved routes that start here, and how many of them have a ship running them.
+  // Looping routes that start here, and how many of them have a ship running them.
+  // A one-way route still draws on the store below, but it is not counted here.
   routes: number;
   running: number;
   // Days to the first lap the store cannot load. Undefined when covered up to horizonDays.
@@ -337,7 +338,10 @@ export function originRows(now: number): OriginRow[] {
       };
       rows.set(key, row);
     }
-    row.routes++;
+    const looping = route.loop !== false;
+    if (looping) {
+      row.routes++;
+    }
     const mine = running.filter(x => x.route === route);
     if (mine.length === 0) {
       const need = stop.kind === 'cx' ? stockpileLapNeed(route) : undefined;
@@ -363,7 +367,9 @@ export function originRows(now: number): OriginRow[] {
       }
       continue;
     }
-    row.running += mine.length;
+    if (looping) {
+      row.running += mine.length;
+    }
     const need = stockpileLapNeed(route);
     if (need === undefined) {
       row.partial = true;

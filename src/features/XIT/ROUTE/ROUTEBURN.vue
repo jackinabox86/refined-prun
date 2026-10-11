@@ -15,7 +15,7 @@ import {
 } from '@src/features/XIT/ROUTE/route-calc';
 import { assignReadiness, stageRouteAssign } from '@src/features/XIT/ROUTE/route-assign-run';
 import { originRows } from '@src/features/XIT/ROUTE/route-origins';
-import { findRoute, removeRoute } from '@src/features/XIT/ROUTE/routes';
+import { createRoute, findRoute, removeRoute } from '@src/features/XIT/ROUTE/routes';
 import { store as planetContextMenu } from '@src/features/XIT/planet-context-menu';
 import { exchangesStore } from '@src/infrastructure/prun-api/data/exchanges';
 import { getEntityNameFromAddress } from '@src/infrastructure/prun-api/data/addresses';
@@ -41,13 +41,16 @@ const sections = computed(() => {
   ].filter(x => x.rows.length > 0 || (x.key === 'looping' && origins.value.length > 0));
 });
 
-const origins = computed(() => originRows(timestampEachMinute.value));
+// Origins belong to the looping section, so an origin only non-looping routes use is left out.
+const origins = computed(() => originRows(timestampEachMinute.value).filter(x => x.routes > 0));
 const canRestock = computed(() =>
   origins.value.some(x => x.kind === 'cx' && Object.keys(x.restock).length > 0),
 );
 
+// An origin with nothing planned to load has no countdown. An unassigned loop
+// still plans its departures, so an empty store reads as a red 0.
 function countdownText(origin: (typeof origins.value)[number]) {
-  if (origin.running === 0) {
+  if (origin.draws.length === 0) {
     return '-';
   }
   if (origin.countdown === undefined) {
@@ -60,7 +63,7 @@ function countdownText(origin: (typeof origins.value)[number]) {
 // What the countdown date means: the origin runs short in lap-sized steps, and
 // the bases still hold their own supply days past it.
 function countdownTitle(origin: (typeof origins.value)[number]) {
-  if (origin.running === 0) {
+  if (origin.draws.length === 0) {
     return undefined;
   }
   const plural = (n: number) => `${n} departure${n === 1 ? '' : 's'}`;
@@ -78,7 +81,7 @@ function countdownTitle(origin: (typeof origins.value)[number]) {
 }
 
 function countdownClass(origin: (typeof origins.value)[number]) {
-  if (origin.running === 0) {
+  if (origin.draws.length === 0) {
     return undefined;
   }
   const days = Math.floor(origin.countdown ?? Infinity);
@@ -249,8 +252,12 @@ function burnText(days: number | undefined) {
   return formatBsBurnDays(days, userData.settings.burn.decimalDays === true);
 }
 
-function openConfig(id?: string) {
-  showBuffer(id === undefined ? 'XIT ROUTECONFIG' : `XIT ROUTECONFIG ${id}`);
+function openConfig(id: string) {
+  showBuffer(`XIT ROUTECONFIG ${id}`);
+}
+
+function onNew() {
+  openConfig(createRoute().id);
 }
 
 function onAssign(id: string) {
@@ -268,8 +275,8 @@ function onAssign(id: string) {
 
 <template>
   <div>
-    <div :class="C.ComExOrdersPanel.filter">
-      <PrunButton primary @click="openConfig()">NEW</PrunButton>
+    <div :class="[C.ComExOrdersPanel.filter, $style.newBar]">
+      <PrunButton primary @click="onNew">NEW</PrunButton>
     </div>
     <p v-if="rows.length === 0" :class="$style.note">No routes yet.</p>
     <template v-for="section in sections" :key="section.key">
@@ -511,7 +518,14 @@ function onAssign(id: string) {
 
 .section {
   font-weight: bold;
+  font-size: 12px;
+  text-align: center;
+  color: #f7a600;
   padding: 8px 4px 4px;
+}
+
+.newBar {
+  justify-content: flex-end;
 }
 
 .assignHit button:disabled {

@@ -1,3 +1,4 @@
+import ActionConfirmationOverlay from '@src/components/ActionConfirmationOverlay.vue';
 import { act } from '@src/features/XIT/ACT/act-registry';
 import { saveRouteRtId } from '@src/features/XIT/ROUTE/routes';
 import {
@@ -39,6 +40,7 @@ import { stagingRunBlock } from '@src/features/XIT/RTACT/staging-host';
 import { rtStageWindowSize } from '@src/features/XIT/RTACT/rt-stage-layout';
 import { resizeSplitWindow, splitOwnerId } from '@src/infrastructure/prun-ui/companion-buffer';
 import { AssertFn } from '@src/features/XIT/ACT/shared-types';
+import { showTileOverlay } from '@src/infrastructure/prun-ui/tile-overlay';
 import { clickElement } from '@src/util';
 import { waitFor } from '@src/utils/wait-for';
 
@@ -130,6 +132,13 @@ export const RT_BUILD = act.addActionStep<Data>({
     }
     log.success('Route stops are in.');
     const ship = data.shipId?.trim() ?? '';
+    if (ship.length > 0 && !(await confirmAssign(ctx.actTile, ship, routeId))) {
+      log.info(
+        `${routeId} is built without a ship. Assign ${ship} when you want the route to start.`,
+      );
+      complete();
+      return;
+    }
     if (ship.length > 0) {
       const ok = await assignShip(ctx, tile, ship, routeId);
       if (!ok) {
@@ -433,6 +442,28 @@ async function dismissSaveFeedback(tile: PrunTile): Promise<void> {
   if (success !== undefined) {
     await clickElement(success);
   }
+}
+
+// Assigning the ship starts the route, so the player chooses now or later.
+// Only the overlay's own buttons answer: it covers ACT, which may be mid-spam.
+function confirmAssign(actTile: PrunTile, ship: string, routeId: string) {
+  return new Promise<boolean>(resolve => {
+    let assign = false;
+    const close = showTileOverlay(
+      actTile.anchor,
+      ActionConfirmationOverlay,
+      {
+        message: `Assign ${ship} to ${routeId} now? Assigning starts the route. Cancel leaves the route built, so you can assign the ship later when you want it to start.`,
+        confirmLabel: 'ASSIGN NOW',
+        onConfirm: () => {
+          assign = true;
+          close?.();
+        },
+        onClose: () => close?.(),
+      },
+      { onClosed: () => resolve(assign), dismissOnBackdrop: false },
+    );
+  });
 }
 
 async function assignShip(

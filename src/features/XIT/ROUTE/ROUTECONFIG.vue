@@ -87,6 +87,7 @@ watch(
   { immediate: true },
 );
 const ordered = ref<string[]>([]);
+const originWarning = ref(false);
 const waitAmount = ref('');
 const waitUnit = ref<WaitUnit>('days');
 
@@ -176,8 +177,12 @@ const available = computed(() => {
 const assignedBases = computed(() => catalog.value.bases.filter(x => assigned.value.has(x.key)));
 const sunkExchanges = computed(() => (cxOnRoute.value ? catalog.value.exchanges : []));
 
+// The nickname alone. A ship without one shows its registration.
 const shipChoices = computed(() => {
-  const list = shipOptions();
+  const list = shipOptions().map(x => ({
+    value: x.value,
+    label: x.label.endsWith(` (${x.value})`) ? x.label.slice(0, -(x.value.length + 3)) : x.label,
+  }));
   const current = route.value?.ship;
   if (current !== undefined && current.length > 0 && !list.some(x => x.value === current)) {
     return [{ value: current, label: current }, ...list];
@@ -548,6 +553,7 @@ function onDrop(event: DragEvent) {
   if (accepted === undefined) {
     return;
   }
+  originWarning.value = current.stops.length === 0 && accepted.kind !== 'cx';
   setTimeout(() => {
     current.stops.push(accepted);
     current.legs = undefined;
@@ -824,6 +830,13 @@ function selectShip(event: Event) {
               <option value="seconds">seconds</option>
             </select>
           </div>
+          <div v-if="originWarning" :class="$style.warning">
+            <span>
+              Routes work best when the origin is a commodity exchange. Restock and ROUTEBUY buy
+              what the route loads on that exchange.
+            </span>
+            <PrunButton dark inline @click="originWarning = false">DISMISS</PrunButton>
+          </div>
           <p v-if="rtError" :class="$style.note">{{ rtError }}</p>
           <p v-if="route.legsAfterRt" :class="$style.note">
             TRANSITS updated this route's flight times and fuel after SET ROUTE built
@@ -872,18 +885,30 @@ function selectShip(event: Event) {
 
 .bar {
   flex-wrap: wrap;
+  align-items: center;
   gap: 4px;
 }
 
-.select,
 .name,
 .days {
   color: inherit;
   font-family: inherit;
   font-size: inherit;
+  line-height: inherit;
   background: transparent;
   border: none;
   border-bottom: 1px solid #8d6411;
+}
+
+/* Dark like the extension's other dropdowns. A transparent select opens a white list. */
+.select {
+  color: #ddd;
+  font-family: inherit;
+  font-size: inherit;
+  line-height: inherit;
+  background: #26353e;
+  border: 1px solid #3a4a54;
+  padding: 1px 4px;
 }
 
 .name {
@@ -963,5 +988,14 @@ function selectShip(event: Event) {
 
 .note {
   margin: 8px;
+}
+
+.warning {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 8px;
+  color: #f7a600;
+  white-space: normal;
 }
 </style>
