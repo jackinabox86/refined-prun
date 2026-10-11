@@ -38,12 +38,11 @@ import {
   selectAddress,
 } from '@src/infrastructure/prun-ui/utils/select-address';
 import {
-  changeInputValue,
   changeSelectIndex,
   clickAtCenter,
   clickElement,
-  focusElement,
   selectAndChangeInputValue,
+  selectMaterialInMaterialSelector,
 } from '@src/util';
 import { sleep } from '@src/utils/sleep';
 import { waitFor } from '@src/utils/wait-for';
@@ -506,53 +505,13 @@ async function applyLimit(
   selectAndChangeInputValue(input, String(limit.amount));
 }
 
-// Production renders the material list inside the selector. Staging renders it in
-// the shared autosuggest portal, as the location field already does.
-function materialEntries(container: Element): HTMLElement[] {
-  const roots: Element[] = [container];
-  const portal = document.getElementById('autosuggest-portal');
-  if (portal !== null) {
-    roots.push(portal);
-  }
-  for (const root of roots) {
-    const entries = _$$(root, C.MaterialSelector.suggestionEntry) as HTMLElement[];
-    if (entries.length > 0) {
-      return entries;
-    }
-  }
-  return [];
-}
-
-function materialEntry(container: Element, ticker: string): HTMLElement | undefined {
-  return materialEntries(container).find(
-    entry => (_$(entry, C.ColoredIcon.label)?.textContent ?? '').trim() === ticker,
-  );
-}
-
-// The shared selector helper waits, with no timeout, for a list inside the selector,
-// so it hangs on staging. This one looks in both places and gives up.
 async function fillMaterial(editor: Element, ticker: string): Promise<void> {
   const container = _$(editor, C.MaterialSelector.container);
-  const input = container === undefined ? undefined : _$(container, 'input');
-  if (container === undefined || !(input instanceof HTMLInputElement)) {
+  if (container === undefined) {
     throw new Error('Could not find the material field');
   }
-  input.focus();
-  focusElement(input);
-  input.select();
-  changeInputValue(input, ticker);
-  let entry: HTMLElement | undefined;
-  await waitFor(() => {
-    entry = materialEntry(container, ticker);
-    return entry !== undefined;
-  }, 3000);
-  if (entry === undefined) {
+  if (!(await selectMaterialInMaterialSelector(container, ticker))) {
     throw new Error(`Could not find material ${ticker} in the list`);
-  }
-  await clickElement(entry);
-  const picked = await waitFor(() => materialEntry(container, ticker) === undefined, 2000);
-  if (!picked) {
-    throw new Error(`Could not pick material ${ticker}`);
   }
 }
 
