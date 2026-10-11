@@ -242,6 +242,19 @@ describe('buildRouteSpec', () => {
     );
   });
 
+  it('sends a fractional day wait as whole minutes', () => {
+    const built = buildRouteSpec({ ...input(false), wait: { amount: 1.5, unit: 'days' } });
+    expect(built.ok).toBe(true);
+    if (!built.ok) {
+      return;
+    }
+    expect(built.spec.stops.at(-1)?.steps.at(-1)).toEqual({
+      kind: 'wait',
+      amount: 2160,
+      unit: 'minutes',
+    });
+  });
+
   it('appends a wait to the last waypoint', () => {
     const plain = buildRouteSpec(input(false));
     const built = buildRouteSpec({ ...input(false), wait: { amount: 2, unit: 'hours' } });
@@ -250,7 +263,7 @@ describe('buildRouteSpec', () => {
       return;
     }
     const last = built.spec.stops.at(-1);
-    expect(last?.steps.at(-1)).toEqual({ kind: 'wait', amount: 2, unit: 'hours' });
+    expect(last?.steps.at(-1)).toEqual({ kind: 'wait', amount: 120, unit: 'minutes' });
     expect(last?.steps.slice(0, -1)).toEqual(plain.spec.stops.at(-1)?.steps);
   });
 

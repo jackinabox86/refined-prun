@@ -2,7 +2,7 @@ import {
   addMaterials,
   subtractMaterials,
 } from '@src/features/XIT/ACT/material-groups/resupply/milk-run';
-import { arrivingLeg, transitStopIds } from '@src/features/XIT/ROUTE/route-calc';
+import { arrivingLeg, transitStopIds, waitSeconds } from '@src/features/XIT/ROUTE/route-calc';
 import type {
   RefuelStep,
   RouteSpec,
@@ -142,19 +142,21 @@ function segmentOutputs(segment: RouteBuildSegment) {
   return routeMaterials({ bills: [], loadedByStop: segment.loadedByStop });
 }
 
+// The RT editor takes whole wait amounts only, up to 40000. Minutes keep a
+// fractional day (1.5 days = 2160 minutes) exact to the minute.
+const RT_WAIT_MAX_MINUTES = 40000;
+
 function appendRouteWait(stops: RouteStop[], wait: RouteBuildInput['wait']) {
-  if (wait === undefined || !Number.isFinite(wait.amount) || wait.amount <= 0) {
-    return;
-  }
-  const unit = wait.unit;
-  if (unit !== 'seconds' && unit !== 'minutes' && unit !== 'hours' && unit !== 'days') {
+  const seconds = waitSeconds(wait);
+  if (seconds <= 0) {
     return;
   }
   const last = stops.at(-1);
   if (last === undefined) {
     return;
   }
-  last.steps.push({ kind: 'wait', amount: wait.amount, unit });
+  const minutes = Math.min(RT_WAIT_MAX_MINUTES, Math.max(1, Math.round(seconds / 60)));
+  last.steps.push({ kind: 'wait', amount: minutes, unit: 'minutes' });
 }
 
 function applyLeg(stop: RouteStop, leg: RouteBuildLeg | undefined) {
