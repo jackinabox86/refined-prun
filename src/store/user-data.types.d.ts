@@ -301,6 +301,9 @@ declare namespace UserData {
     days?: number;
     // Absent means the route loops back to its first stop for flight time.
     loop?: boolean;
+    // A one-way route's answer to TRANSITS asking whether it ends back at the
+    // origin. True added that final origin visit to stops. Absent means not asked.
+    returnToOrigin?: boolean;
     legs?: ShippingRouteLeg[];
     // Game route id (RT-…) recorded when ROUTECONFIG builds the route.
     rtId?: string;
