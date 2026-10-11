@@ -14,6 +14,7 @@ import {
   restockSpan,
   routeRestock,
   unassignedCxLoads,
+  withFuelBuffer,
   type OriginDraw,
 } from '@src/features/XIT/ROUTE/route-supply';
 
@@ -319,6 +320,16 @@ describe('fresh restock countdown', () => {
 describe('maxMaterials', () => {
   it('keeps the larger amount of each ticker', () => {
     expect(maxMaterials({ RAT: 5, SF: 10 }, { RAT: 8, DW: 2 })).toEqual({ RAT: 8, SF: 10, DW: 2 });
+  });
+});
+
+describe('withFuelBuffer', () => {
+  it('adds 10% to SF and FF, rounded up, and leaves other tickers alone', () => {
+    expect(withFuelBuffer({ SF: 95, FF: 40, RAT: 12 })).toEqual({ SF: 105, FF: 44, RAT: 12 });
+  });
+
+  it('adds no fuel the lap does not need', () => {
+    expect(withFuelBuffer({ RAT: 12 })).toEqual({ RAT: 12 });
   });
 });
 

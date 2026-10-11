@@ -307,6 +307,21 @@ export function routeRestock(
   return total;
 }
 
+// Fuel burn varies more than base use, so the stockpile plans 10% more of it.
+export const FUEL_BUFFER = 1.1;
+
+// The same need with SF and FF raised by FUEL_BUFFER, rounded up.
+export function withFuelBuffer(need: Record<string, number>) {
+  const result = { ...need };
+  for (const ticker of ['SF', 'FF']) {
+    const amount = result[ticker];
+    if (amount !== undefined && amount > 0) {
+      result[ticker] = Math.ceil(amount * FUEL_BUFFER);
+    }
+  }
+  return result;
+}
+
 // The larger amount of each ticker.
 export function maxMaterials(a: Record<string, number>, b: Record<string, number>) {
   const result = { ...a };

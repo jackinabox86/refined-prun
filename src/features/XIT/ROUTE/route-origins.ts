@@ -23,6 +23,7 @@ import {
   plannedLapMs,
   routeRestock,
   unassignedCxLoads,
+  withFuelBuffer,
   type OriginDraw,
 } from '@src/features/XIT/ROUTE/route-supply';
 import {
@@ -137,6 +138,14 @@ export function originLapNeed(route: UserData.ShippingRoute, supplyDays?: number
   return need;
 }
 
+// What one lap draws from the origin stockpile: originLapNeed with the fuel
+// buffer. The countdown, the CX reserve and restock all plan with this, so the
+// buffer is bought and held, while the RT itself still loads the exact amount.
+function stockpileLapNeed(route: UserData.ShippingRoute, supplyDays?: number) {
+  const need = originLapNeed(route, supplyDays);
+  return need === undefined ? undefined : withFuelBuffer(need);
+}
+
 // The supply days one working set carries.
 function lapSupplyDays(route: UserData.ShippingRoute) {
   const padded =
@@ -235,7 +244,7 @@ function topUpNeeds(route: UserData.ShippingRoute, need: Record<string, number>)
   return (gapMs: number) => {
     let topUp = cache.get(gapMs);
     if (topUp === undefined) {
-      topUp = originLapNeed(route, gapMs / daysToMs(1)) ?? need;
+      topUp = stockpileLapNeed(route, gapMs / daysToMs(1)) ?? need;
       cache.set(gapMs, topUp);
     }
     return topUp;
@@ -290,7 +299,7 @@ export function originRows(now: number): OriginRow[] {
     row.routes++;
     const mine = running.filter(x => x.route === route);
     if (mine.length === 0) {
-      const need = stop.kind === 'cx' ? originLapNeed(route) : undefined;
+      const need = stop.kind === 'cx' ? stockpileLapNeed(route) : undefined;
       const plan = unassignedCxLoads({
         now,
         until,
@@ -313,7 +322,7 @@ export function originRows(now: number): OriginRow[] {
       continue;
     }
     row.running += mine.length;
-    const need = originLapNeed(route);
+    const need = stockpileLapNeed(route);
     if (need === undefined) {
       row.partial = true;
       continue;
