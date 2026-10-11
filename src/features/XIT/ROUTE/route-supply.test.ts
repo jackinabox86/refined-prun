@@ -282,8 +282,18 @@ describe('routeRestock', () => {
     expect(routeRestock(topUp, need, true, 5, 3 * DAY_MS)).toEqual({ RAT: 171, SF: 100 });
   });
 
-  it('buys one whole lap when the lap is longer than the restock days', () => {
-    expect(routeRestock(topUp, need, false, 5, 8 * DAY_MS)).toEqual({ RAT: 81, SF: 50 });
+  it('buys nothing for a route already out when the lap is longer than the restock days', () => {
+    expect(routeRestock(topUp, need, false, 5, 8 * DAY_MS)).toEqual({});
+  });
+
+  it('buys a long lap only once its departure falls inside the restock days', () => {
+    const lap = 8 * DAY_MS;
+    const later: OriginDraw[] = [{ time: NOW + 6 * DAY_MS, need: topUp(lap) }];
+    const inside: OriginDraw[] = [{ time: NOW + 4 * DAY_MS, need: topUp(lap) }];
+    const buy = (draws: OriginDraw[]) =>
+      maxMaterials(routeRestock(topUp, need, false, 5, lap), drawTotal(draws, NOW + 5 * DAY_MS));
+    expect(buy(later)).toEqual({});
+    expect(buy(inside)).toEqual({ RAT: 81, SF: 50 });
   });
 
   it('buys only the working set for a new loop whose lap is longer than the restock days', () => {

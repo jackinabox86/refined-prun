@@ -253,10 +253,9 @@ export function drawTotal(draws: readonly OriginDraw[], until: number) {
 }
 
 // What one route's restock covers: base use over the restock days, or over one
-// lap when the lap is longer, and fuel for every lap in that span. A lap that
-// does not depart within the restock days waits in the CX warehouse, and the
-// next restock subtracts it. Departure times are estimates, so they never
-// change the span. An unknown lap is fuelled once.
+// lap when the lap is longer, and fuel for every lap in that span. Departure
+// times are estimates, so they never change the span. An unknown lap is
+// fuelled once.
 export function restockSpan(restockDays: number, lapDays: number | undefined) {
   if (lapDays === undefined || !(lapDays > 0)) {
     return { days: restockDays, laps: 1 };
@@ -274,8 +273,9 @@ export function useOver(topUp: (gapMs: number) => Record<string, number>, days: 
 // One route's restock: the bases' use over restockSpan's days plus fuel for its
 // laps, with one lap's +1 and fuel. A route without a working set out yet (a
 // saved loop no ship runs, or a ship loading now) also buys that working set.
-// When its lap is longer than the restock days, the working set is all it buys:
-// the next lap is bought by the restock that falls before it.
+// When its lap is longer than the restock days, it buys only the working set, or
+// nothing for a route already out: a lap is bought by the restock whose days its
+// estimated departure falls in. The caller adds those departures (drawTotal).
 export function routeRestock(
   topUp: (gapMs: number) => Record<string, number>,
   need: Record<string, number>,
@@ -287,8 +287,8 @@ export function routeRestock(
     restockDays,
     lapMsValue === undefined ? undefined : lapMsValue / daysToMs(1),
   );
-  if (workingSet && span.days > restockDays) {
-    return { ...need };
+  if (span.days > restockDays) {
+    return workingSet ? { ...need } : {};
   }
   let total = workingSet
     ? addMaterials(need, useOver(topUp, span.days))
