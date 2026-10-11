@@ -10,14 +10,16 @@ useMinBufferHeight();
 // Taken once when the buffer opens, so the package does not change under a run.
 const origins = originRows(Date.now())
   .filter(row => row.kind === 'cx')
-  .map(row => ({ exchange: row.id, materials: row.restock }));
+  .map(row => ({ exchange: row.id, materials: row.restock, waiting: row.waiting }));
 const pkg = restockPackage(origins);
 
 // A finished run starts the window the route reserve holds stock for.
 function afterExecute() {
+  const bought = origins.filter(x => Object.keys(x.materials).length > 0);
   markRestocked(
-    origins.filter(x => Object.keys(x.materials).length > 0).map(x => x.exchange),
+    bought.map(x => x.exchange),
     Date.now(),
+    Object.assign({}, ...bought.map(x => x.waiting)),
   );
 }
 </script>

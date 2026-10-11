@@ -22,6 +22,9 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 export interface OriginDraw {
   time: number;
   need: Record<string, number>;
+  // The saved route the draw is for. Lets the reserve hold a bought lap that
+  // leaves after the restock days.
+  route?: string;
 }
 
 // Whole-lap length in ms. Undefined when any leg has no known time.
@@ -300,6 +303,33 @@ export function routeRestock(
     total = addMaterials(total, lapFuel);
   }
   return total;
+}
+
+// When one run's restock buys a lap that leaves after the restock days (a lap
+// longer than them), how long the reserve keeps holding that lap's draw: its
+// estimated departure plus the 15% the lap estimate was cut by, so a lap that
+// runs late stays held. The next lap is a whole lap later, so it never falls
+// inside. A run with a working set to buy pays for two departures, any other
+// for one. Undefined when every bought lap leaves within the restock days.
+export function waitingLapHold(input: {
+  draws: readonly OriginDraw[];
+  restockUntil: number;
+  restockDays: number;
+  workingSet: boolean;
+  lapMs: number | undefined;
+}) {
+  const { draws, restockUntil, lapMs: lap } = input;
+  if (lap === undefined || restockSpan(input.restockDays, lap / DAY_MS).days <= input.restockDays) {
+    return undefined;
+  }
+  const sorted = sortedDraws(draws);
+  const inside = sorted.filter(x => x.time <= restockUntil).length;
+  const bought = input.workingSet ? 2 : 1;
+  const waiting = inside < bought ? sorted[inside] : undefined;
+  if (waiting === undefined) {
+    return undefined;
+  }
+  return waiting.time + lap * (1 / LEG_ESTIMATE_FACTOR - 1);
 }
 
 // The larger amount of each ticker.
