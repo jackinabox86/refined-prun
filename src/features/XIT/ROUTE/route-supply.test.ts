@@ -7,6 +7,7 @@ import {
   firstShortDraw,
   lapMs,
   lapStarts,
+  laterOriginLoads,
   loadingAtOrigin,
   maxMaterials,
   nextLapStart,
@@ -51,7 +52,7 @@ function execution(
 }
 
 function eta(end: number, nextArrival?: number, partial = false): RouteEta {
-  return { end, nextArrival, partial, estimated: true };
+  return { end, nextArrival, partial, estimated: true, arrivals: [] };
 }
 
 describe('lapMs', () => {
@@ -77,6 +78,64 @@ describe('loadingAtOrigin', () => {
     expect(loadingAtOrigin(execution('FLYING', 0), false)).toBe(false);
     expect(loadingAtOrigin(execution('PLANNING', 0), false)).toBe(false);
     expect(loadingAtOrigin(execution('RUNNING_STEPS', 1), false)).toBe(false);
+  });
+});
+
+describe('laterOriginLoads', () => {
+  // Origin, base, origin again, base: the second stretch loads at waypoint 2.
+  const visits = [0, 2];
+  function midRoute(
+    state: PrunApi.ShipRouteExecutionState,
+    waypointIndex: number,
+    stepIndex = 0,
+  ): PrunApi.ShipRouteExecution {
+    return {
+      shipId: 'ship',
+      route: {
+        repeats: true,
+        waypoints: [origin, waypoint([step('UNLOAD')]), origin, waypoint([step('UNLOAD')])],
+      } as PrunApi.ShipRoute,
+      state,
+      waypointIndex,
+      stepIndex,
+      flightId: null,
+      stepStartedAt: null,
+      stepEndsAt: null,
+    };
+  }
+  const arrivals = (at: Record<number, number>): RouteEta => ({
+    ...eta(NOW + 9 * DAY_MS),
+    arrivals: Object.assign([], at),
+  });
+
+  it('dates a later origin visit still ahead at its estimated arrival', () => {
+    const later = laterOriginLoads(
+      midRoute('FLYING', 1),
+      false,
+      visits,
+      arrivals({ 1: NOW + DAY_MS, 2: NOW + 3 * DAY_MS }),
+      NOW,
+    );
+    expect(later).toEqual({ loads: [{ visit: 1, time: NOW + 3 * DAY_MS }], partial: false });
+  });
+
+  it('counts the visit now while the ship is still loading there, and not once it has', () => {
+    expect(laterOriginLoads(midRoute('RUNNING_STEPS', 2, 2), false, visits, eta(0), NOW)).toEqual({
+      loads: [{ visit: 1, time: NOW }],
+      partial: false,
+    });
+    expect(laterOriginLoads(midRoute('RUNNING_STEPS', 2, 4), false, visits, eta(0), NOW)).toEqual({
+      loads: [],
+      partial: false,
+    });
+    expect(laterOriginLoads(midRoute('FLYING', 3), false, visits, eta(0), NOW).loads).toEqual([]);
+  });
+
+  it('reports an unknown arrival as partial', () => {
+    expect(laterOriginLoads(midRoute('FLYING', 1), false, visits, arrivals({}), NOW)).toEqual({
+      loads: [],
+      partial: true,
+    });
   });
 });
 

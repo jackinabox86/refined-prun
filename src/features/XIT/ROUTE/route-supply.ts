@@ -46,7 +46,15 @@ export function lapMs(
 // The ship is at the origin and has not passed its last load step, so this
 // lap's departure load is still to come out of the origin store.
 export function loadingAtOrigin(execution: PrunApi.ShipRouteExecution, atWaypoint: boolean) {
-  if (execution.waypointIndex !== 0 || execution.state === 'FLYING') {
+  return loadingAtWaypoint(execution, atWaypoint, 0);
+}
+
+function loadingAtWaypoint(
+  execution: PrunApi.ShipRouteExecution,
+  atWaypoint: boolean,
+  index: number,
+) {
+  if (execution.waypointIndex !== index || execution.state === 'FLYING') {
     return false;
   }
   const working =
@@ -56,7 +64,7 @@ export function loadingAtOrigin(execution: PrunApi.ShipRouteExecution, atWaypoin
   if (!working && !atWaypoint) {
     return false;
   }
-  const steps = execution.route.waypoints[0]?.steps ?? [];
+  const steps = execution.route.waypoints[index]?.steps ?? [];
   let lastLoad = -1;
   for (let i = 0; i < steps.length; i++) {
     if (steps[i]!.type === 'LOAD') {
@@ -64,6 +72,39 @@ export function loadingAtOrigin(execution: PrunApi.ShipRouteExecution, atWaypoin
     }
   }
   return lastLoad >= 0 && execution.stepIndex <= lastLoad;
+}
+
+// The later origin visits (ordinals into `visits`, which holds waypoint indexes)
+// still ahead in the lap under way, and when each loads: now while the ship is
+// loading there, otherwise its estimated arrival. A visit already loaded is gone.
+// An unknown arrival is left out and reported as partial.
+export function laterOriginLoads(
+  execution: PrunApi.ShipRouteExecution,
+  atWaypoint: boolean,
+  visits: readonly number[],
+  eta: RouteEta,
+  now: number,
+) {
+  const loads: { visit: number; time: number }[] = [];
+  let partial = false;
+  const current = execution.waypointIndex;
+  for (let k = 1; k < visits.length; k++) {
+    const index = visits[k]!;
+    let time: number | undefined;
+    if (index > current || (index === current && execution.state === 'FLYING')) {
+      time = eta.arrivals[index];
+    } else if (index === current && loadingAtWaypoint(execution, atWaypoint, index)) {
+      time = now;
+    } else {
+      continue;
+    }
+    if (time === undefined) {
+      partial = true;
+      continue;
+    }
+    loads.push({ visit: k, time: Math.max(now, time) });
+  }
+  return { loads, partial };
 }
 
 // When a looping route next arrives at its origin. Undefined for a one-way route.

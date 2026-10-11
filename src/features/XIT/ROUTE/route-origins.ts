@@ -15,6 +15,7 @@ import {
   drawTotal,
   drawsCovered,
   firstShortDraw,
+  laterOriginLoads,
   lapMs,
   lapStarts,
   loadingAtOrigin,
@@ -89,19 +90,11 @@ function originLabel(stop: UserData.ShippingRouteStop) {
 // the bases used since the last departure, because each base visit sends the
 // unused rest home to the origin.
 export function originLapNeed(route: UserData.ShippingRoute, supplyDays?: number) {
-  const hold = cargoForRouteShip(route);
-  if (hold === undefined) {
+  const lap = planLap(route, supplyDays);
+  if (lap === undefined) {
     return undefined;
   }
-  const days = supplyDays ?? lapSupplyDays(route);
-  const caps = fuelCapacities(shipForRoute(route));
-  const origins = originVisitIndexes(route.stops);
-  const tanks = planSegmentTanks(caps.stl, caps.ftl, route.legs ?? [], origins);
-  const fuel = fuelCargoLoads(tanks.stl, tanks.ftl, origins.length > 0 ? origins : [0]);
-  const segments = planOriginSegments(route.stops, days, fuel, hold, route.loop);
-  if (segments === undefined || segments.length === 0) {
-    return undefined;
-  }
+  const { caps, tanks, segments } = lap;
   const first = segments[0];
   if (first === undefined) {
     return undefined;
@@ -136,6 +129,47 @@ export function originLapNeed(route: UserData.ShippingRoute, supplyDays?: number
     }
   }
   return need;
+}
+
+function planLap(route: UserData.ShippingRoute, supplyDays?: number) {
+  const hold = cargoForRouteShip(route);
+  if (hold === undefined) {
+    return undefined;
+  }
+  const days = supplyDays ?? lapSupplyDays(route);
+  const caps = fuelCapacities(shipForRoute(route));
+  const origins = originVisitIndexes(route.stops);
+  const tanks = planSegmentTanks(caps.stl, caps.ftl, route.legs ?? [], origins);
+  const fuel = fuelCargoLoads(tanks.stl, tanks.ftl, origins.length > 0 ? origins : [0]);
+  const segments = planOriginSegments(route.stops, days, fuel, hold, route.loop);
+  if (segments === undefined || segments.length === 0) {
+    return undefined;
+  }
+  return { caps, tanks, segments };
+}
+
+// What a later origin visit (ordinal >= 1) takes out of the origin stockpile:
+// the load for the stretch after it, plus refilling the tanks it arrives with,
+// with the fuel buffer. originLapNeed counts the same at the lap's first departure.
+function originStretchNeed(route: UserData.ShippingRoute, visit: number, supplyDays?: number) {
+  const lap = planLap(route, supplyDays);
+  const segment = lap?.segments[visit];
+  if (lap === undefined || segment === undefined) {
+    return undefined;
+  }
+  const need = departureBill(segment.bases, segment.plan.sourced, segment.plan.departureExtra);
+  const arrival = lap.tanks.arrivals[visit - 1];
+  if (arrival !== undefined) {
+    const stl = Math.ceil(lap.caps.stl - arrival.stl);
+    const ftl = Math.ceil(lap.caps.ftl - arrival.ftl);
+    if (stl > 0) {
+      need.SF = (need.SF ?? 0) + stl;
+    }
+    if (ftl > 0) {
+      need.FF = (need.FF ?? 0) + ftl;
+    }
+  }
+  return withFuelBuffer(need);
 }
 
 // What one lap draws from the origin stockpile: originLapNeed with the fuel
@@ -179,6 +213,8 @@ export function originStoreStock(stop: UserData.ShippingRouteStop) {
 interface Running {
   route: UserData.ShippingRoute;
   laps: number[];
+  // Later origin visits of the lap under way that have not loaded yet.
+  laterLoads: { visit: number; time: number }[];
   // The first lap is now and its working set still comes out of the origin.
   loadingNow: boolean;
   repeats: boolean;
@@ -218,6 +254,10 @@ function runningRoutes(now: number, until: number) {
     const lap = lapMs(waypoints, legSeconds);
     const next = nextLapStart(execution, eta, legSeconds);
     const loadingNow = loadingAtOrigin(execution, atWaypoint);
+    // A ship loading at the first stop draws the whole lap there already.
+    const later = loadingNow
+      ? { loads: [], partial: false }
+      : laterOriginLoads(execution, atWaypoint, originVisitIndexes(saved.stops), eta, now);
     running.push({
       route: saved,
       laps: lapStarts({
@@ -228,10 +268,11 @@ function runningRoutes(now: number, until: number) {
         nextLap: next.time,
         lapMs: lap,
       }),
+      laterLoads: later.loads.filter(x => x.time < until),
       loadingNow: loadingNow && execution.route.repeats,
       repeats: execution.route.repeats,
       lapMs: lap,
-      partial: next.partial || (execution.route.repeats && lap === undefined),
+      partial: next.partial || later.partial || (execution.route.repeats && lap === undefined),
     });
   }
   return running;
@@ -331,6 +372,18 @@ export function originRows(now: number): OriginRow[] {
     for (const run of mine) {
       row.partial ||= run.partial;
       const runDraws: OriginDraw[] = [];
+      // The lap under way still loads its later stretches here. A looping ship
+      // replaces one lap of those bases' use; a one-way ship takes the full bill.
+      const stretchDays =
+        run.repeats && run.lapMs !== undefined ? run.lapMs / daysToMs(1) : undefined;
+      for (const load of run.laterLoads) {
+        const stretch = originStretchNeed(route, load.visit, stretchDays);
+        if (stretch === undefined) {
+          row.partial = true;
+          continue;
+        }
+        runDraws.push({ time: load.time, need: stretch });
+      }
       for (let i = 0; i < run.laps.length; i++) {
         const time = run.laps[i]!;
         // A ship loading now still takes its working set. One already out has

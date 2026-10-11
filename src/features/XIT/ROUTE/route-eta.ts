@@ -39,6 +39,8 @@ export interface RouteEta {
   partial: boolean;
   // At least one leg was estimated rather than read from a live flight.
   estimated: boolean;
+  // Arrival at each waypoint still ahead in this lap, by waypoint index.
+  arrivals: (number | undefined)[];
 }
 
 export function stepSeconds(step: PrunApi.ShipRouteStep) {
@@ -82,6 +84,7 @@ export function routeEta(input: RouteEtaInput): RouteEta {
   }
 
   const current = execution.waypointIndex;
+  const arrivals: (number | undefined)[] = [];
   let nextArrival: number | undefined;
   let firstStep = 0;
   const flying = execution.state === 'FLYING';
@@ -98,6 +101,7 @@ export function routeEta(input: RouteEtaInput): RouteEta {
     flyLeg(current);
     nextArrival = time;
   }
+  arrivals[current] = nextArrival;
 
   if (execution.state === 'WAITING' && execution.stepEndsAt) {
     time = Math.max(time, execution.stepEndsAt.timestamp);
@@ -107,10 +111,11 @@ export function routeEta(input: RouteEtaInput): RouteEta {
 
   for (let i = current + 1; i < waypoints.length; i++) {
     flyLeg(i);
+    arrivals[i] = time;
     runSteps(i, 0);
   }
 
-  return { nextArrival, end: time, partial, estimated };
+  return { nextArrival, end: time, partial, estimated, arrivals };
 }
 
 // The ROUTECONFIG route this game route was built from: the same stop sequence,
