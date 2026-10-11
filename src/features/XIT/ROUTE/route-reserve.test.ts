@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
   heldStock,
-  reservedDraws,
   restockWindowEnd,
   routeStockDraws,
   withoutReserve,
@@ -51,21 +50,5 @@ describe('routeStockDraws', () => {
 
   it('ignores tickers the routes do not load', () => {
     expect(routeStockDraws({ OVE: 5 }, { OVE: 5 }, { RAT: 60 })).toEqual([]);
-  });
-});
-
-describe('reservedDraws', () => {
-  const draws = [
-    { time: 2 * DAY, route: 'a' },
-    { time: 6 * DAY, route: 'a' },
-    { time: 6 * DAY, route: 'b' },
-  ];
-
-  it('holds a route past the window only up to its waiting-lap hold', () => {
-    expect(reservedDraws(draws, 5 * DAY, { a: 7 * DAY })).toEqual([draws[0], draws[1]]);
-  });
-
-  it('keeps holding the waiting lap after the window has run out', () => {
-    expect(reservedDraws(draws, undefined, { b: 7 * DAY })).toEqual([draws[2]]);
   });
 });

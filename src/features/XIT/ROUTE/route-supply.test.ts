@@ -14,7 +14,6 @@ import {
   restockSpan,
   routeRestock,
   unassignedCxLoads,
-  waitingLapHold,
   type OriginDraw,
 } from '@src/features/XIT/ROUTE/route-supply';
 
@@ -331,62 +330,5 @@ describe('drawsCovered', () => {
 
   it('counts every draw when none is short', () => {
     expect(drawsCovered(draws, { RAT: 20 })).toBe(2);
-  });
-});
-
-describe('waitingLapHold', () => {
-  const lap = 8 * DAY_MS;
-  const slack = lap * (1 / LEG_ESTIMATE_FACTOR - 1);
-  const until = NOW + 5 * DAY_MS;
-  const draw = (days: number): OriginDraw => ({ time: NOW + days * DAY_MS, need: { RAT: 10 } });
-
-  it('holds the bought lap that leaves after the restock days, with the estimate slack', () => {
-    const draws = [draw(6), draw(14)];
-    const hold = waitingLapHold({
-      draws,
-      restockUntil: until,
-      restockDays: 5,
-      workingSet: false,
-      lapMs: lap,
-    });
-    expect(hold).toBe(NOW + 6 * DAY_MS + slack);
-    // The lap after it is never held.
-    expect(hold!).toBeLessThan(draws[1]!.time);
-  });
-
-  it('holds nothing when the bought lap leaves inside the restock days', () => {
-    expect(
-      waitingLapHold({
-        draws: [draw(2), draw(10)],
-        restockUntil: until,
-        restockDays: 5,
-        workingSet: false,
-        lapMs: lap,
-      }),
-    ).toBeUndefined();
-  });
-
-  it('holds the second departure of a route still buying its working set', () => {
-    expect(
-      waitingLapHold({
-        draws: [draw(0), draw(8)],
-        restockUntil: until,
-        restockDays: 5,
-        workingSet: true,
-        lapMs: lap,
-      }),
-    ).toBe(NOW + 8 * DAY_MS + slack);
-  });
-
-  it('holds nothing when the lap is shorter than the restock days', () => {
-    expect(
-      waitingLapHold({
-        draws: [draw(4), draw(7)],
-        restockUntil: until,
-        restockDays: 5,
-        workingSet: false,
-        lapMs: 3 * DAY_MS,
-      }),
-    ).toBeUndefined();
   });
 });

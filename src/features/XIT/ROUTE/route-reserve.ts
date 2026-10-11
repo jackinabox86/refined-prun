@@ -1,10 +1,9 @@
 // CX stock held back for the routes. A Route Restock run opens a window of
 // resupply days at each exchange it bought for, and every lap a running route
 // loads there before the window ends is a floor the other ACT buys (BURN,
-// REPAIR, GOVBURN, DISPATCH, custom packages) may not draw below. A lap longer
-// than the window that the run bought for is held past it until it loads. Laps
-// that have already loaded drop out, so the floor shrinks as routes cycle and
-// other buys never top it back up.
+// REPAIR, GOVBURN, DISPATCH, custom packages) may not draw below. Laps that have
+// already loaded drop out, so the floor shrinks as routes cycle and other buys
+// never top it back up.
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -16,22 +15,6 @@ export function restockWindowEnd(restockedAt: number | undefined, days: number, 
   }
   const end = restockedAt + days * DAY_MS;
   return end > now ? end : undefined;
-}
-
-// The draws the reserve holds: those before the window ends, and a route's
-// draws up to its waiting-lap hold from the last restock.
-export function reservedDraws<T extends { time: number; route?: string }>(
-  draws: readonly T[],
-  end: number | undefined,
-  holds: Readonly<Record<string, number>>,
-) {
-  return draws.filter(draw => {
-    if (end !== undefined && draw.time <= end) {
-      return true;
-    }
-    const hold = draw.route === undefined ? undefined : holds[draw.route];
-    return hold !== undefined && draw.time <= hold;
-  });
 }
 
 export function withoutReserve(
