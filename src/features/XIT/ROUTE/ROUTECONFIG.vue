@@ -563,14 +563,17 @@ function removeStop(key: string) {
   current.legs = undefined;
 }
 
+// The wait saves as soon as it is edited, so SET ROUTE never builds an old one.
 function onWaitDraft(event: Event) {
   waitAmount.value = (event.target as HTMLInputElement).value;
+  onWait();
 }
 
 function onWaitUnit(event: Event) {
   const unit = (event.target as HTMLSelectElement).value;
   if (unit === 'seconds' || unit === 'minutes' || unit === 'hours' || unit === 'days') {
     waitUnit.value = unit;
+    onWait();
   }
 }
 
@@ -822,6 +825,11 @@ function selectShip(event: Event) {
             </select>
           </div>
           <p v-if="rtError" :class="$style.note">{{ rtError }}</p>
+          <p v-if="route.legsAfterRt" :class="$style.note">
+            TRANSITS updated this route's flight times and fuel after SET ROUTE built
+            {{ route.rtId }}. Run SET ROUTE again to put the new timing and fuel settings on the
+            game route.
+          </p>
           <div :class="$style.footer">
             <span>Press to Determine Flight Times.</span>
             <span
