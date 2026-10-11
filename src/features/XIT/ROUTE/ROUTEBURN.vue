@@ -28,11 +28,18 @@ const expanded = ref<string[]>([]);
 
 const rows = computed(() => {
   const now = timestampEachMinute.value;
-  const mapped = userData.routes.map(route => summarize(route, now));
-  return [...mapped.filter(x => x.nonLooping), ...mapped.filter(x => !x.nonLooping)];
+  return userData.routes.map(route => summarize(route, now));
 });
 
-const hasNonLooping = computed(() => rows.value.some(x => x.nonLooping));
+// Looping routes (with the origins above them) on top, non-looping below.
+const sections = computed(() => {
+  const looping = rows.value.filter(x => !x.nonLooping);
+  const nonLooping = rows.value.filter(x => x.nonLooping);
+  return [
+    { key: 'looping', title: 'Looping Routes', rows: looping, assign: false },
+    { key: 'nonLooping', title: 'Non-Looping Routes', rows: nonLooping, assign: true },
+  ].filter(x => x.rows.length > 0 || (x.key === 'looping' && origins.value.length > 0));
+});
 
 const origins = computed(() => originRows(timestampEachMinute.value));
 const canRestock = computed(() =>
@@ -261,180 +268,182 @@ function onAssign(id: string) {
 
 <template>
   <div>
-    <table v-if="origins.length > 0" :class="$style.table">
-      <thead>
-        <tr>
-          <th :class="$style.nameCol">Origins</th>
-          <th :class="$style.statusCell">Days</th>
-          <th>
-            <div :class="$style.actions">
-              <PrunButton
-                primary
-                inline
-                :disabled="!canRestock"
-                @click="showBuffer('XIT ROUTESUPPLY')">
-                RESTOCK
-              </PrunButton>
-            </div>
-          </th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr v-for="origin in origins" :key="origin.key" :class="$style.row">
-          <td :class="$style.title">
-            <span :class="$style.plus" />
-            <span>{{ origin.label }}</span>
-          </td>
-          <td :class="$style.statusCell">
-            <div
-              :class="[$style.statusContent, countdownClass(origin)]"
-              :title="countdownTitle(origin)"
-              @click="showBuffer('XIT ROUTETRACK')">
-              <span :class="$style.statusNum">{{ countdownText(origin) }}</span>
-            </div>
-          </td>
-          <td :class="$style.statusCell">{{ origin.running }}/{{ origin.routes }} running</td>
-        </tr>
-      </tbody>
-    </table>
     <div :class="C.ComExOrdersPanel.filter">
       <PrunButton primary @click="openConfig()">NEW</PrunButton>
     </div>
     <p v-if="rows.length === 0" :class="$style.note">No routes yet.</p>
-    <table v-else :class="$style.table">
-      <thead>
-        <tr>
-          <th :class="$style.nameCol">Route</th>
-          <th :class="$style.statusCell">Burn</th>
-          <th :class="$style.statusCell">Prod</th>
-          <th :class="$style.statusCell">Rep</th>
-          <th />
-          <th v-if="hasNonLooping" />
-        </tr>
-      </thead>
-      <tbody>
-        <tr v-if="hasNonLooping">
-          <td :colspan="6" :class="$style.section">Non-Looping Routes</td>
-        </tr>
-        <template v-for="row in rows" :key="row.id">
-          <tr :class="$style.row">
-            <td :class="[$style.title, $style.toggle]" @click="toggle(row.id)">
-              <span :class="$style.plus">{{ expanded.includes(row.id) ? '-' : '+' }}</span>
-              <span>{{ row.origin === undefined ? row.name : `${row.name} (${row.origin})` }}</span>
-            </td>
-            <td :class="$style.statusCell">
-              <div
-                :class="[$style.statusContent, row.burn !== undefined && burnDaysClass(row.burn)]"
-                @click="row.burnId && showBuffer(`XIT BURN ${row.burnId}`)">
-                <span :class="$style.statusNum">{{ burnText(row.burn) }}</span>
-              </div>
-            </td>
-            <td :class="$style.statusCell">
-              <div
-                :class="[
-                  $style.statusContent,
-                  row.prodSeen && {
-                    [C.Workforces.daysMissing]: row.prodShort,
-                    [C.Workforces.daysSupplied]: !row.prodShort,
-                  },
-                ]"
-                @click="row.prodId && showBuffer(`XIT PROD ${row.prodId}`)">
-                <span :class="$style.statusNum">{{
-                  row.prodSeen ? (row.prodShort ? '∅' : '✓') : '-'
-                }}</span>
-              </div>
-            </td>
-            <td :class="$style.statusCell">
-              <div
-                :class="[
-                  $style.statusContent,
-                  repairCellClass(
-                    row.repairAge !== undefined && row.repairId !== undefined
-                      ? presentRepairCell(row.repairAge, row.repairId)
-                      : undefined,
-                  ),
-                ]"
-                @click="row.repairId && showBuffer(`XIT REP ${row.repairId}`)">
-                <span :class="$style.statusNum">{{
-                  row.repairAge !== undefined && row.repairId !== undefined
-                    ? presentRepairCell(row.repairAge, row.repairId).text
-                    : '-'
-                }}</span>
-              </div>
-            </td>
-            <td>
+    <template v-for="section in sections" :key="section.key">
+      <div :class="$style.section">{{ section.title }}</div>
+      <table v-if="section.key === 'looping' && origins.length > 0" :class="$style.table">
+        <thead>
+          <tr>
+            <th :class="$style.nameCol">Origins</th>
+            <th :class="$style.statusCell">Days</th>
+            <th>
               <div :class="$style.actions">
-                <PrunButton dark inline @click="onRemove(row.id)">REMOVE</PrunButton>
-                <PrunButton dark inline @click="openConfig(row.id)">CONFIG</PrunButton>
-              </div>
-            </td>
-            <td v-if="hasNonLooping">
-              <div
-                v-if="row.nonLooping"
-                :class="[$style.actions, $style.assignHit]"
-                :title="row.assignTip">
-                <PrunButton primary inline :disabled="!row.canAssign" @click="onAssign(row.id)">
-                  ASSIGN
+                <PrunButton
+                  primary
+                  inline
+                  :disabled="!canRestock"
+                  @click="showBuffer('XIT ROUTESUPPLY')">
+                  RESTOCK
                 </PrunButton>
               </div>
-            </td>
+            </th>
           </tr>
-          <tr
-            v-for="(base, index) in expanded.includes(row.id) ? row.bases : []"
-            :key="`${row.id}:${index}`"
-            :class="$style.row">
-            <td
-              :class="$style.title"
-              @contextmenu.prevent="planetContextMenu.showMenu($event, base.id)">
+        </thead>
+        <tbody>
+          <tr v-for="origin in origins" :key="origin.key" :class="$style.row">
+            <td :class="$style.title">
               <span :class="$style.plus" />
-              <span>{{ base.name }}</span>
+              <span>{{ origin.label }}</span>
             </td>
             <td :class="$style.statusCell">
               <div
-                :class="[$style.statusContent, base.burn !== undefined && burnDaysClass(base.burn)]"
-                @click="showBuffer(`XIT BURN ${base.id}`)">
-                <span :class="$style.statusNum">{{ burnText(base.burn) }}</span>
+                :class="[$style.statusContent, countdownClass(origin)]"
+                :title="countdownTitle(origin)"
+                @click="showBuffer('XIT ROUTETRACK')">
+                <span :class="$style.statusNum">{{ countdownText(origin) }}</span>
               </div>
             </td>
-            <td :class="$style.statusCell">
-              <div
-                :class="[
-                  $style.statusContent,
-                  base.prodSeen && {
-                    [C.Workforces.daysMissing]: base.prodShort,
-                    [C.Workforces.daysSupplied]: !base.prodShort,
-                  },
-                ]"
-                @click="showBuffer(`XIT PROD ${base.id}`)">
-                <span :class="$style.statusNum">{{
-                  base.prodSeen ? (base.prodShort ? '∅' : '✓') : '-'
-                }}</span>
-              </div>
-            </td>
-            <td :class="$style.statusCell">
-              <div
-                :class="[
-                  $style.statusContent,
-                  repairCellClass(
-                    base.repairAge !== undefined
-                      ? presentRepairCell(base.repairAge, base.id)
-                      : undefined,
-                  ),
-                ]"
-                @click="showBuffer(`XIT REP ${base.id}`)">
-                <span :class="$style.statusNum">{{
-                  base.repairAge !== undefined
-                    ? presentRepairCell(base.repairAge, base.id).text
-                    : '-'
-                }}</span>
-              </div>
-            </td>
-            <td />
-            <td v-if="hasNonLooping" />
+            <td :class="$style.statusCell">{{ origin.running }}/{{ origin.routes }} running</td>
           </tr>
-        </template>
-      </tbody>
-    </table>
+        </tbody>
+      </table>
+      <table v-if="section.rows.length > 0" :class="$style.table">
+        <thead>
+          <tr>
+            <th :class="$style.nameCol">Route</th>
+            <th :class="$style.statusCell">Burn</th>
+            <th :class="$style.statusCell">Prod</th>
+            <th :class="$style.statusCell">Rep</th>
+            <th />
+            <th v-if="section.assign" />
+          </tr>
+        </thead>
+        <tbody>
+          <template v-for="row in section.rows" :key="row.id">
+            <tr :class="$style.row">
+              <td :class="[$style.title, $style.toggle]" @click="toggle(row.id)">
+                <span :class="$style.plus">{{ expanded.includes(row.id) ? '-' : '+' }}</span>
+                <span>{{
+                  row.origin === undefined ? row.name : `${row.name} (${row.origin})`
+                }}</span>
+              </td>
+              <td :class="$style.statusCell">
+                <div
+                  :class="[$style.statusContent, row.burn !== undefined && burnDaysClass(row.burn)]"
+                  @click="row.burnId && showBuffer(`XIT BURN ${row.burnId}`)">
+                  <span :class="$style.statusNum">{{ burnText(row.burn) }}</span>
+                </div>
+              </td>
+              <td :class="$style.statusCell">
+                <div
+                  :class="[
+                    $style.statusContent,
+                    row.prodSeen && {
+                      [C.Workforces.daysMissing]: row.prodShort,
+                      [C.Workforces.daysSupplied]: !row.prodShort,
+                    },
+                  ]"
+                  @click="row.prodId && showBuffer(`XIT PROD ${row.prodId}`)">
+                  <span :class="$style.statusNum">{{
+                    row.prodSeen ? (row.prodShort ? '∅' : '✓') : '-'
+                  }}</span>
+                </div>
+              </td>
+              <td :class="$style.statusCell">
+                <div
+                  :class="[
+                    $style.statusContent,
+                    repairCellClass(
+                      row.repairAge !== undefined && row.repairId !== undefined
+                        ? presentRepairCell(row.repairAge, row.repairId)
+                        : undefined,
+                    ),
+                  ]"
+                  @click="row.repairId && showBuffer(`XIT REP ${row.repairId}`)">
+                  <span :class="$style.statusNum">{{
+                    row.repairAge !== undefined && row.repairId !== undefined
+                      ? presentRepairCell(row.repairAge, row.repairId).text
+                      : '-'
+                  }}</span>
+                </div>
+              </td>
+              <td>
+                <div :class="$style.actions">
+                  <PrunButton dark inline @click="onRemove(row.id)">REMOVE</PrunButton>
+                  <PrunButton dark inline @click="openConfig(row.id)">CONFIG</PrunButton>
+                </div>
+              </td>
+              <td v-if="section.assign">
+                <div :class="[$style.actions, $style.assignHit]" :title="row.assignTip">
+                  <PrunButton primary inline :disabled="!row.canAssign" @click="onAssign(row.id)">
+                    ASSIGN
+                  </PrunButton>
+                </div>
+              </td>
+            </tr>
+            <tr
+              v-for="(base, index) in expanded.includes(row.id) ? row.bases : []"
+              :key="`${row.id}:${index}`"
+              :class="$style.row">
+              <td
+                :class="$style.title"
+                @contextmenu.prevent="planetContextMenu.showMenu($event, base.id)">
+                <span :class="$style.plus" />
+                <span>{{ base.name }}</span>
+              </td>
+              <td :class="$style.statusCell">
+                <div
+                  :class="[
+                    $style.statusContent,
+                    base.burn !== undefined && burnDaysClass(base.burn),
+                  ]"
+                  @click="showBuffer(`XIT BURN ${base.id}`)">
+                  <span :class="$style.statusNum">{{ burnText(base.burn) }}</span>
+                </div>
+              </td>
+              <td :class="$style.statusCell">
+                <div
+                  :class="[
+                    $style.statusContent,
+                    base.prodSeen && {
+                      [C.Workforces.daysMissing]: base.prodShort,
+                      [C.Workforces.daysSupplied]: !base.prodShort,
+                    },
+                  ]"
+                  @click="showBuffer(`XIT PROD ${base.id}`)">
+                  <span :class="$style.statusNum">{{
+                    base.prodSeen ? (base.prodShort ? '∅' : '✓') : '-'
+                  }}</span>
+                </div>
+              </td>
+              <td :class="$style.statusCell">
+                <div
+                  :class="[
+                    $style.statusContent,
+                    repairCellClass(
+                      base.repairAge !== undefined
+                        ? presentRepairCell(base.repairAge, base.id)
+                        : undefined,
+                    ),
+                  ]"
+                  @click="showBuffer(`XIT REP ${base.id}`)">
+                  <span :class="$style.statusNum">{{
+                    base.repairAge !== undefined
+                      ? presentRepairCell(base.repairAge, base.id).text
+                      : '-'
+                  }}</span>
+                </div>
+              </td>
+              <td />
+              <td v-if="section.assign" />
+            </tr>
+          </template>
+        </tbody>
+      </table>
+    </template>
   </div>
 </template>
 
