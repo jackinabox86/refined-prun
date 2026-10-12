@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Changed
+
+- `XIT CONTC`: Conditions with no deadline are grouped after dated deadlines, then sorted by type, address, destination, ticker, and amount.
+
 ## 1.1.4
 
 ### Added
