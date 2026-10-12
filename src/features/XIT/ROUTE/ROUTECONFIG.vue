@@ -715,22 +715,30 @@ function selectShip(event: Event) {
 <template>
   <div :class="$style.layout">
     <div :class="[C.ComExOrdersPanel.filter, $style.bar]">
-      <select :class="$style.select" :value="selectedId ?? ''" @change="onSelect">
-        <option value="" disabled>Route</option>
-        <option v-for="item in routes" :key="item.id" :value="item.id">{{ item.name }}</option>
-      </select>
+      <div :class="[C.FormComponent.input, C.forms.input, $style.selectWrap]">
+        <div :class="[C.DynamicInput.dynamic, C.forms.dynamic, $style.selectWrap]">
+          <select :class="$style.select" :value="selectedId ?? ''" @change="onSelect">
+            <option value="" disabled>Route</option>
+            <option v-for="item in routes" :key="item.id" :value="item.id">{{ item.name }}</option>
+          </select>
+        </div>
+      </div>
       <PrunButton dark @click="onCreate">NEW</PrunButton>
       <template v-if="route">
         <input v-model="draftName" :class="$style.name" />
         <PrunButton dark @click="onRename">RENAME</PrunButton>
         <div :class="$style.separator" />
         <span :class="$style.daysLabel">Ship</span>
-        <select :class="$style.select" :value="route.ship ?? ''" @change="selectShip">
-          <option value="" disabled>Ship</option>
-          <option v-for="option in shipChoices" :key="option.value" :value="option.value">
-            {{ option.label }}
-          </option>
-        </select>
+        <div :class="[C.FormComponent.input, C.forms.input, $style.selectWrap]">
+          <div :class="[C.DynamicInput.dynamic, C.forms.dynamic, $style.selectWrap]">
+            <select :class="$style.select" :value="route.ship ?? ''" @change="selectShip">
+              <option value="" disabled>Ship</option>
+              <option v-for="option in shipChoices" :key="option.value" :value="option.value">
+                {{ option.label }}
+              </option>
+            </select>
+          </div>
+        </div>
         <span :class="$style.daysLabel">Supply Days</span>
         <input
           :class="$style.days"
@@ -799,12 +807,16 @@ function selectShip(event: Event) {
               step="any"
               :value="waitAmount"
               @change="onWaitDraft" />
-            <select :class="$style.select" :value="waitUnit" @change="onWaitUnit">
-              <option value="days">days</option>
-              <option value="hours">hours</option>
-              <option value="minutes">minutes</option>
-              <option value="seconds">seconds</option>
-            </select>
+            <div :class="[C.FormComponent.input, C.forms.input, $style.selectWrap]">
+              <div :class="[C.DynamicInput.dynamic, C.forms.dynamic, $style.selectWrap]">
+                <select :class="$style.select" :value="waitUnit" @change="onWaitUnit">
+                  <option value="days">days</option>
+                  <option value="hours">hours</option>
+                  <option value="minutes">minutes</option>
+                  <option value="seconds">seconds</option>
+                </select>
+              </div>
+            </div>
           </div>
           <div v-if="originWarning" :class="$style.warning">
             <span>
@@ -876,7 +888,16 @@ function selectShip(event: Event) {
   border-bottom: 1px solid #8d6411;
 }
 
-/* No color or border here: the game's own select style applies, as on BURNACT's Exchange. */
+/* The game styles a select inside its form input classes, as on BURNACT's Exchange.
+   The wrappers keep that look without the form row's layout. */
+.selectWrap {
+  display: inline-block;
+  width: auto;
+  flex: none;
+  margin: 0;
+  padding: 0;
+}
+
 .select {
   margin: 0;
 }
