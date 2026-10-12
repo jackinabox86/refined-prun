@@ -264,20 +264,6 @@ const overflowIds = computed(() => {
   return ids;
 });
 
-const inputTotal = computed(() => {
-  let weight = 0;
-  let volume = 0;
-  for (const base of loadPlan.value?.billed ?? []) {
-    const totals = billTotals(base.bill);
-    weight += totals.weight;
-    volume += totals.volume;
-  }
-  if (weight === 0 && volume === 0) {
-    return '--';
-  }
-  return `${fixed0(weight)}t / ${fixed0(volume)}m³`;
-});
-
 function stopKey(stop: { kind: 'cx' | 'base'; id: string }) {
   return `${stop.kind}:${stop.id}`;
 }
@@ -803,16 +789,6 @@ function selectShip(event: Event) {
                 <td>{{ fuelText(index) }}</td>
               </tr>
             </tbody>
-            <tfoot>
-              <tr>
-                <td />
-                <td>Total</td>
-                <td />
-                <td>{{ inputTotal }}</td>
-                <td />
-                <td />
-              </tr>
-            </tfoot>
           </table>
           <div :class="$style.wait">
             <PrunButton dark @click="onWait">WAIT</PrunButton>
@@ -900,15 +876,9 @@ function selectShip(event: Event) {
   border-bottom: 1px solid #8d6411;
 }
 
-/* Dark like the extension's other dropdowns. A transparent select opens a white list. */
+/* No color or border here: the game's own select style applies, as on BURNACT's Exchange. */
 .select {
-  color: #ddd;
-  font-family: inherit;
-  font-size: inherit;
-  line-height: inherit;
-  background: #26353e;
-  border: 1px solid #3a4a54;
-  padding: 1px 4px;
+  margin: 0;
 }
 
 .name {
@@ -916,7 +886,8 @@ function selectShip(event: Event) {
 }
 
 .days {
-  width: 6ch;
+  /* nn.n plus the number spinner. */
+  width: 9ch;
 }
 
 .daysLabel {
@@ -943,10 +914,11 @@ function selectShip(event: Event) {
 }
 
 .routeBody {
-  display: inline-block;
+  display: block;
 }
 
 .table {
+  width: 100%;
   border-collapse: collapse;
 }
 

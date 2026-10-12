@@ -260,6 +260,14 @@ function buildSegmentedRouteSpec(
     const steps: RouteStep[] = [];
     const segment = segmentAt(segments, i);
     const origin = segment?.originIndex === i;
+    // A one-way route's return to the origin is only the flight home (and the wait).
+    // The next run's first stop unloads, refuels and loads.
+    if (!looping && i === last && i > 0 && id === ids[0]) {
+      const stop: RouteStop = { query: searchQuery(input.stops, id), steps };
+      applyLeg(stop, arrivingLeg(input.legs, i, ids.length, looping));
+      stops.push(stop);
+      continue;
+    }
     if (origin && segment !== undefined) {
       const previous = previousSegment(segments, i);
       const drop =
@@ -326,7 +334,11 @@ export function buildRouteSpec(
     const steps: RouteStep[] = [];
     const first = i === 0;
     const finalStop = i === last;
-    if (first) {
+    // A one-way route that flies home ends with the flight (and the wait) only.
+    const returnHome = finalStop && !looping && id === ids[0];
+    if (returnHome) {
+      // No steps.
+    } else if (first) {
       for (const ticker of materials) {
         steps.push({ kind: 'unload', ticker, min: carried, max: carried });
       }
@@ -343,14 +355,14 @@ export function buildRouteSpec(
         input.ownUseByStop?.get(id),
       );
     }
-    if (!first && input.refuelStl[i] === true) {
+    if (!first && !returnHome && input.refuelStl[i] === true) {
       steps.push(refuel('STL'));
     }
-    if (!first && input.refuelFtl[i] === true) {
+    if (!first && !returnHome && input.refuelFtl[i] === true) {
       steps.push(refuel('FTL'));
     }
     // The looping return is the first stop's unload-all, not another copy of the origin.
-    if (finalStop && !looping) {
+    if (finalStop && !looping && !returnHome) {
       for (const ticker of outputs) {
         steps.push({ kind: 'unload', ticker, min: carried, max: carried });
       }
