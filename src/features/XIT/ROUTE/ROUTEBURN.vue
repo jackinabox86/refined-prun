@@ -13,7 +13,11 @@ import {
   paddedLegSeconds,
   SECONDS_PER_DAY,
 } from '@src/features/XIT/ROUTE/route-calc';
-import { assignReadiness, stageRouteAssign } from '@src/features/XIT/ROUTE/route-assign-run';
+import {
+  assignReadiness,
+  ensureRouteShip,
+  stageRouteAssign,
+} from '@src/features/XIT/ROUTE/route-assign-run';
 import { originRows } from '@src/features/XIT/ROUTE/route-origins';
 import { createRoute, findRoute, removeRoute } from '@src/features/XIT/ROUTE/routes';
 import { store as planetContextMenu } from '@src/features/XIT/planet-context-menu';
@@ -91,6 +95,14 @@ function countdownClass(origin: (typeof origins.value)[number]) {
     [C.Workforces.daysWarning]: days <= yellow,
     [C.Workforces.daysSupplied]: days > yellow,
   };
+}
+
+// Full names: Antares Station, not ANT.
+function originFullName(origin: (typeof origins.value)[number]) {
+  if (origin.kind === 'cx') {
+    return getEntityNameFromAddress(exchangesStore.getByCode(origin.id)?.address) ?? origin.label;
+  }
+  return origin.label;
 }
 
 function siteFor(id: string) {
@@ -260,9 +272,12 @@ function onNew() {
   openConfig(createRoute().id);
 }
 
-function onAssign(id: string) {
+async function onAssign(id: string) {
   const route = findRoute(id);
   if (route === undefined || !assignReadiness(route).enabled) {
+    return;
+  }
+  if (!(await ensureRouteShip(route))) {
     return;
   }
   const row = rows.value.find(x => x.id === id);
@@ -276,7 +291,7 @@ function onAssign(id: string) {
 <template>
   <div>
     <div :class="[C.ComExOrdersPanel.filter, $style.newBar]">
-      <PrunButton primary @click="onNew">NEW</PrunButton>
+      <PrunButton primary @click="onNew">New Route</PrunButton>
     </div>
     <p v-if="rows.length === 0" :class="$style.note">No routes yet.</p>
     <template v-for="section in sections" :key="section.key">
@@ -286,8 +301,8 @@ function onAssign(id: string) {
           <tr>
             <th :class="$style.nameCol">Origins</th>
             <th :class="$style.statusCell">Days</th>
-            <th>
-              <div :class="$style.actions">
+            <th :class="$style.restockCell">
+              <div :class="[$style.actions, $style.centered]">
                 <PrunButton
                   primary
                   inline
@@ -301,10 +316,7 @@ function onAssign(id: string) {
         </thead>
         <tbody>
           <tr v-for="origin in origins" :key="origin.key" :class="$style.row">
-            <td :class="$style.title">
-              <span :class="$style.plus" />
-              <span>{{ origin.label }}</span>
-            </td>
+            <td :class="[$style.title, $style.originName]">{{ originFullName(origin) }}</td>
             <td :class="$style.statusCell">
               <div
                 :class="[$style.statusContent, countdownClass(origin)]"
@@ -522,6 +534,18 @@ function onAssign(id: string) {
   text-align: center;
   color: #f7a600;
   padding: 8px 4px 4px;
+}
+
+.centered {
+  justify-content: center;
+}
+
+.restockCell {
+  text-align: center;
+}
+
+.originName {
+  padding-left: 4px;
 }
 
 .newBar {
