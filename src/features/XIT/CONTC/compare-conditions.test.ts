@@ -49,8 +49,8 @@ describe('compareConditions', () => {
     const later = condition({
       id: 'later',
       type: 'PAYMENT',
-      address: { id: 'zeta' } as PrunApi.Address,
-      destination: { id: 'zeta' } as PrunApi.Address,
+      address: { id: 'zeta' } as unknown as PrunApi.Address,
+      destination: { id: 'zeta' } as unknown as PrunApi.Address,
       quantity: {
         material: { ticker: 'ZW' } as PrunApi.Material,
         amount: 5,
@@ -59,8 +59,8 @@ describe('compareConditions', () => {
     const earlier = condition({
       id: 'earlier',
       type: 'DELIVERY',
-      address: { id: 'alpha' } as PrunApi.Address,
-      destination: { id: 'alpha' } as PrunApi.Address,
+      address: { id: 'alpha' } as unknown as PrunApi.Address,
+      destination: { id: 'alpha' } as unknown as PrunApi.Address,
       quantity: {
         material: { ticker: 'AA' } as PrunApi.Material,
         amount: 1,
