@@ -5,6 +5,7 @@
 ### Changed
 
 - `XIT CONTC`: Conditions with no deadline are grouped after dated deadlines, then sorted by type, address, destination, ticker, and amount.
+- `XIT ACT`: Renaming a package from the header validates the name first. An invalid name shows an error overlay and leaves the current name unchanged.
 
 ## 1.1.4
 

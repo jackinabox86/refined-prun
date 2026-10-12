@@ -1353,6 +1353,19 @@ The browser's own shift-click default is separate from the game's handler: shift
 
 ---
 
+## Tile Overlays
+
+```ts
+import { showTileOverlay, showConfirmationOverlay, showErrorOverlay } from '@src/infrastructure/prun-ui/tile-overlay';
+
+// Pass the event from the user action so that the show function can find the correct tile.
+showTileOverlay(event, EditorComponent, props);
+showConfirmationOverlay(event, onConfirm, { message: 'Are you sure?' });
+showErrorOverlay(event, 'Illegal arguments.');
+```
+
+---
+
 ## CSS
 
 Each feature needing CSS gets a `.module.css` alongside the `.ts`. `applyCssRule` and `C` are auto-imported.

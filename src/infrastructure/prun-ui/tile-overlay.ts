@@ -1,5 +1,6 @@
 import Overlay from '@src/components/Overlay.vue';
 import ActionConfirmationOverlay from '@src/components/ActionConfirmationOverlay.vue';
+import ActionFeedbackError from '@src/components/ActionFeedbackError.vue';
 
 export function showTileOverlay<T extends Component>(
   baseElementOrEvent: Element | Event,
@@ -80,6 +81,18 @@ export function showConfirmationOverlay(
       fragmentApp.unmount();
       onConfirm();
     },
+    onClose: () => fragmentApp.unmount(),
+  });
+  fragmentApp.appendTo(container);
+}
+
+export function showErrorOverlay(baseElementOrEvent: Element | Event, message: string) {
+  const container = findMountContainer(baseElementOrEvent);
+  if (!container) {
+    return;
+  }
+  const fragmentApp = createFragmentApp(ActionFeedbackError, {
+    message,
     onClose: () => fragmentApp.unmount(),
   });
   fragmentApp.appendTo(container);
