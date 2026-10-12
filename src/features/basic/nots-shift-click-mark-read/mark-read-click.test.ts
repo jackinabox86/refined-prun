@@ -1,8 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import {
   closeOrUnhide,
+  isNotificationCompanionClick,
   isNotificationMarkReadClick,
   newlyOpenedWindows,
+  openedWindowCommand,
+  shouldAdoptOpenedWindowAsCompanion,
   shouldRestorePriorWindow,
   snapshotWindows,
   topmostWindow,
@@ -10,21 +13,85 @@ import {
   windowStackIndex,
 } from './mark-read-click';
 
+const plain = { shiftKey: false, ctrlKey: false, button: 0 };
+const shift = { shiftKey: true, ctrlKey: false, button: 0 };
+const ctrl = { shiftKey: false, ctrlKey: true, button: 0 };
+const chord = { shiftKey: true, ctrlKey: true, button: 0 };
+
 describe('isNotificationMarkReadClick', () => {
   it('does not intercept a plain click', () => {
-    expect(isNotificationMarkReadClick({ shiftKey: false, button: 0 })).toBe(false);
+    expect(isNotificationMarkReadClick(plain)).toBe(false);
+  });
+
+  it('does not intercept a shift-click', () => {
+    expect(isNotificationMarkReadClick(shift)).toBe(false);
+  });
+
+  it('does not intercept a shift+ctrl click', () => {
+    expect(isNotificationMarkReadClick(chord)).toBe(false);
+  });
+
+  it('does not intercept a ctrl auxiliary click', () => {
+    expect(isNotificationMarkReadClick({ ctrlKey: true, button: 1 })).toBe(false);
+  });
+
+  it('intercepts a left ctrl-click', () => {
+    expect(isNotificationMarkReadClick(ctrl)).toBe(true);
+  });
+
+  it('intercepts a ctrl-click when button is omitted', () => {
+    expect(isNotificationMarkReadClick({ ctrlKey: true })).toBe(true);
+  });
+});
+
+describe('isNotificationCompanionClick', () => {
+  it('does not intercept a plain click', () => {
+    expect(isNotificationCompanionClick(plain)).toBe(false);
+  });
+
+  it('does not intercept a ctrl-click', () => {
+    expect(isNotificationCompanionClick(ctrl)).toBe(false);
+  });
+
+  it('does not intercept a shift+ctrl click', () => {
+    expect(isNotificationCompanionClick(chord)).toBe(false);
   });
 
   it('does not intercept a shift auxiliary click', () => {
-    expect(isNotificationMarkReadClick({ shiftKey: true, button: 1 })).toBe(false);
+    expect(isNotificationCompanionClick({ shiftKey: true, button: 1 })).toBe(false);
   });
 
   it('intercepts a left shift-click', () => {
-    expect(isNotificationMarkReadClick({ shiftKey: true, button: 0 })).toBe(true);
+    expect(isNotificationCompanionClick(shift)).toBe(true);
   });
 
   it('intercepts a shift-click when button is omitted', () => {
-    expect(isNotificationMarkReadClick({ shiftKey: true })).toBe(true);
+    expect(isNotificationCompanionClick({ shiftKey: true })).toBe(true);
+  });
+});
+
+describe('opened notification command', () => {
+  it('does not adopt a missing or blank command', () => {
+    expect(openedWindowCommand(undefined)).toBeUndefined();
+    expect(openedWindowCommand(null)).toBeUndefined();
+    expect(openedWindowCommand('')).toBeUndefined();
+    expect(openedWindowCommand('  ')).toBeUndefined();
+  });
+
+  it('trims the command the game wrote on the opened window', () => {
+    expect(openedWindowCommand(' SHPI AB-123 ')).toBe('SHPI AB-123');
+  });
+
+  it('does not adopt when the host cannot open a companion', () => {
+    expect(shouldAdoptOpenedWindowAsCompanion(false, 'SHPI AB-123')).toBe(false);
+  });
+
+  it('does not adopt when the opened window has no command', () => {
+    expect(shouldAdoptOpenedWindowAsCompanion(true, undefined)).toBe(false);
+  });
+
+  it('adopts when the host can open a companion and the command is known', () => {
+    expect(shouldAdoptOpenedWindowAsCompanion(true, 'SHPI AB-123')).toBe(true);
   });
 });
 

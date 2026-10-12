@@ -1,5 +1,38 @@
-export function isNotificationMarkReadClick(event: { shiftKey: boolean; button?: number }) {
-  return event.shiftKey && (event.button === undefined || event.button === 0);
+type NotificationClick = {
+  shiftKey?: boolean;
+  ctrlKey?: boolean;
+  button?: number;
+};
+
+function isPrimaryClick(event: NotificationClick) {
+  return event.button === undefined || event.button === 0;
+}
+
+// Ctrl-click is the hidden mark-read gesture. Shift-click is the companion
+// gesture, so a chord of both is neither.
+export function isNotificationMarkReadClick(event: NotificationClick) {
+  return event.ctrlKey === true && event.shiftKey !== true && isPrimaryClick(event);
+}
+
+export function isNotificationCompanionClick(event: NotificationClick) {
+  return event.shiftKey === true && event.ctrlKey !== true && isPrimaryClick(event);
+}
+
+export function openedWindowCommand(commandText: string | null | undefined) {
+  const command = commandText?.trim() ?? '';
+  if (command === '') {
+    return undefined;
+  }
+  return command;
+}
+
+// Docked NOTS cannot host a split companion. Only adopt when the host can
+// and the game actually labeled the window it opened.
+export function shouldAdoptOpenedWindowAsCompanion(
+  canCompanion: boolean,
+  command: string | undefined,
+) {
+  return canCompanion && command !== undefined;
 }
 
 export function snapshotWindows(windows: ArrayLike<Element>) {

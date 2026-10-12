@@ -1,14 +1,22 @@
 import { getPrunId } from '@src/infrastructure/prun-ui/attributes';
 import { UI_WINDOWS_REQUEST_FOCUS } from '@src/infrastructure/prun-api/client-messages';
 import { dispatchClientPrunMessage } from '@src/infrastructure/prun-api/prun-api-listener';
+import {
+  canOpenCompanion,
+  openCompanionBuffer,
+} from '@src/infrastructure/prun-ui/companion-buffer';
 import { closePrunWindow } from '@src/infrastructure/prun-ui/utils/close-prun-window';
 import { onNodeTreeMutation } from '@src/utils/on-node-tree-mutation';
+import { sleep } from '@src/utils/sleep';
 import { clickElement } from '@src/util';
 import css from '@src/utils/css-utils.module.css';
 import {
   closeOrUnhide,
+  isNotificationCompanionClick,
   isNotificationMarkReadClick,
   newlyOpenedWindows,
+  openedWindowCommand,
+  shouldAdoptOpenedWindowAsCompanion,
   shouldRestorePriorWindow,
   snapshotWindows,
   topmostWindow,
@@ -16,27 +24,33 @@ import {
 } from './mark-read-click';
 
 const SETTLE_MS = 400;
+const COMMAND_WAIT_MS = 1000;
+const COMMAND_POLL_MS = 50;
 
 function onTileReady(tile: PrunTile) {
   subscribe($$(tile.anchor, C.AlertListItem.container), container => {
     container.addEventListener('mousedown', onNotificationMouseDown, true);
-    container.addEventListener('click', onNotificationClick, true);
+    container.addEventListener('click', event => onNotificationClick(event, tile), true);
   });
 }
 
 // Shift-mousedown extends the document text selection from wherever the caret
-// last sat to the notification row, painting most of the page blue on every
-// mark-read gesture. Suppressing the mousedown default cancels only that
-// selection: the click still reaches the game, so the alert is still marked
-// read, and listeners such as focus-buffers-on-click still run.
+// last sat to the notification row, painting most of the page blue. Suppressing
+// the mousedown default cancels only that selection: the click still reaches
+// the game, so the alert is still marked read, and listeners such as
+// focus-buffers-on-click still run. Ctrl-click does not extend the selection.
 function onNotificationMouseDown(event: MouseEvent) {
-  if (!isNotificationMarkReadClick(event)) {
+  if (!isNotificationCompanionClick(event)) {
     return;
   }
   event.preventDefault();
 }
 
-function onNotificationClick(event: MouseEvent) {
+function onNotificationClick(event: MouseEvent, tile: PrunTile) {
+  if (isNotificationCompanionClick(event)) {
+    watchCompanionTarget(tile);
+    return;
+  }
   if (!isNotificationMarkReadClick(event)) {
     return;
   }
@@ -82,6 +96,95 @@ function onNotificationClick(event: MouseEvent) {
   });
 
   setTimeout(() => finish(newlyOpenedWindows(before, windows)), SETTLE_MS);
+}
+
+function watchCompanionTarget(tile: PrunTile) {
+  const windows = document.getElementsByClassName(C.Window.window);
+  const before = snapshotWindows(windows);
+  let settled = false;
+  let stopWatching = () => {};
+
+  const finish = (opened: Element[]) => {
+    if (settled) {
+      return;
+    }
+    settled = true;
+    stopWatching();
+    void adoptOpenedTarget(tile, opened);
+  };
+
+  stopWatching = onNodeTreeMutation(document, () => {
+    if (settled) {
+      return true;
+    }
+    const opened = newlyOpenedWindows(before, windows);
+    if (opened.length === 0) {
+      return false;
+    }
+    for (const windowEl of opened) {
+      hideNotificationTarget(windowEl);
+    }
+    setTimeout(() => finish(opened), 0);
+    return true;
+  });
+
+  setTimeout(() => finish(newlyOpenedWindows(before, windows)), SETTLE_MS);
+}
+
+async function adoptOpenedTarget(tile: PrunTile, opened: Element[]) {
+  // No new window means the game re-focused a buffer that was already open.
+  // Leave that focus visible. Retargeting the companion would hit buffer reuse
+  // and pull the existing window forward instead of filling the split.
+  if (opened.length === 0) {
+    return;
+  }
+
+  const command = await waitForOpenedCommand(opened);
+  if (!shouldAdoptOpenedWindowAsCompanion(canOpenCompanion(tile), command)) {
+    for (const windowEl of opened) {
+      unhideNotificationTarget(windowEl);
+    }
+    return;
+  }
+
+  let closed = true;
+  for (const windowEl of opened) {
+    closeOrUnhide(
+      () => closePrunWindow(windowEl),
+      () => {
+        closed = false;
+        unhideNotificationTarget(windowEl);
+      },
+    );
+  }
+  if (!closed || command === undefined) {
+    return;
+  }
+
+  await waitUntilDetached(opened[0]);
+  await openCompanionBuffer(tile, command);
+}
+
+async function waitForOpenedCommand(opened: Element[]) {
+  for (let elapsed = 0; elapsed < COMMAND_WAIT_MS; elapsed += COMMAND_POLL_MS) {
+    for (const windowEl of opened) {
+      const command = openedWindowCommand(_$(windowEl, C.TileFrame.cmd)?.textContent);
+      if (command !== undefined) {
+        return command;
+      }
+    }
+    await sleep(COMMAND_POLL_MS);
+  }
+  return undefined;
+}
+
+async function waitUntilDetached(windowEl: Element) {
+  for (let elapsed = 0; elapsed < SETTLE_MS; elapsed += COMMAND_POLL_MS) {
+    if (!windowEl.isConnected) {
+      return;
+    }
+    await sleep(COMMAND_POLL_MS);
+  }
 }
 
 function notificationTargetChrome(windowEl: Element) {
@@ -140,5 +243,5 @@ function init() {
 features.add(
   import.meta.url,
   init,
-  'NOTS: Shift-click marks a notification read without opening its target buffer.',
+  'NOTS: Shift-click opens a notification target in a companion buffer. Ctrl-click marks it read without opening that buffer.',
 );

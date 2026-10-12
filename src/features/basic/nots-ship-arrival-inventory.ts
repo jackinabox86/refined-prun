@@ -18,8 +18,9 @@ async function processNotification(container: HTMLElement) {
     return;
   }
   container.addEventListener('click', e => {
-    // Shift-click must reach the game so the alert is marked read.
-    if (e.shiftKey) {
+    // Shift-click companions the game target, and ctrl-click marks the alert
+    // read without opening it. Both must reach the game.
+    if (e.shiftKey || e.ctrlKey) {
       return;
     }
     showBuffer(`SHPI ${registration}`);
