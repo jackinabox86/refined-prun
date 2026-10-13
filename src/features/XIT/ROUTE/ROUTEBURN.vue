@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import PrunButton from '@src/components/PrunButton.vue';
+import Tooltip from '@src/components/Tooltip.vue';
 import { getRepairThreshold } from '@src/core/buildings';
 import { getPlanetBurn } from '@src/core/burn';
 import { getPlanetProduction } from '@src/core/production';
@@ -35,21 +36,34 @@ const rows = computed(() => {
   return userData.routes.map(route => summarize(route, now));
 });
 
-// Looping routes (with the origins above them) on top, non-looping below.
+// Automated (looping) routes, with the origins above them, on top; on-demand below.
 const sections = computed(() => {
   const looping = rows.value.filter(x => !x.nonLooping);
   const nonLooping = rows.value.filter(x => x.nonLooping);
   return [
-    { key: 'looping', title: 'Looping Routes', rows: looping, assign: false },
-    { key: 'nonLooping', title: 'Non-Looping Routes', rows: nonLooping, assign: true },
+    {
+      key: 'looping',
+      title: 'Automated Routes',
+      tip: 'A route with recurring loops.',
+      rows: looping,
+      assign: false,
+    },
+    {
+      key: 'nonLooping',
+      title: 'On-Demand Routes',
+      tip: 'A route that does not recur, whether a loop or one-way.',
+      rows: nonLooping,
+      assign: true,
+    },
   ].filter(x => x.rows.length > 0 || (x.key === 'looping' && origins.value.length > 0));
 });
 
 // Origins belong to the looping section, so an origin only non-looping routes use is left out.
 const origins = computed(() => originRows(timestampEachMinute.value).filter(x => x.routes > 0));
-const canRestock = computed(() =>
-  origins.value.some(x => x.kind === 'cx' && Object.keys(x.restock).length > 0),
-);
+
+function canRestock(origin: (typeof origins.value)[number]) {
+  return origin.kind === 'cx' && Object.keys(origin.restock).length > 0;
+}
 
 // An origin with nothing planned to load has no countdown. An unassigned loop
 // still plans its departures, so an empty store reads as a red 0.
@@ -295,28 +309,26 @@ async function onAssign(id: string) {
     </div>
     <p v-if="rows.length === 0" :class="$style.note">No routes yet.</p>
     <template v-for="section in sections" :key="section.key">
-      <div :class="$style.section">{{ section.title }}</div>
-      <table v-if="section.key === 'looping' && origins.length > 0" :class="$style.table">
+      <div :class="$style.section">
+        {{ section.title }}
+        <Tooltip :tooltip="section.tip" position="bottom" />
+      </div>
+      <table
+        v-if="section.key === 'looping' && origins.length > 0"
+        :class="[$style.table, $style.originTable]">
         <thead>
           <tr>
             <th :class="$style.nameCol">Origins</th>
             <th :class="$style.statusCell">Days</th>
-            <th :class="$style.restockCell">
-              <div :class="[$style.actions, $style.centered]">
-                <PrunButton
-                  primary
-                  inline
-                  :disabled="!canRestock"
-                  @click="showBuffer('XIT ROUTESUPPLY')">
-                  RESTOCK
-                </PrunButton>
-              </div>
-            </th>
+            <th />
+            <th />
           </tr>
         </thead>
         <tbody>
           <tr v-for="origin in origins" :key="origin.key" :class="$style.row">
-            <td :class="[$style.title, $style.originName]">{{ originFullName(origin) }}</td>
+            <td :class="[$style.title, $style.nameCell]" :title="originFullName(origin)">
+              {{ originFullName(origin) }}
+            </td>
             <td :class="$style.statusCell">
               <div
                 :class="[$style.statusContent, countdownClass(origin)]"
@@ -326,6 +338,17 @@ async function onAssign(id: string) {
               </div>
             </td>
             <td :class="$style.statusCell">{{ origin.running }}/{{ origin.routes }} running</td>
+            <td :class="$style.restockCell">
+              <div v-if="origin.kind === 'cx'" :class="[$style.actions, $style.end]">
+                <PrunButton
+                  neutral
+                  inline
+                  :disabled="!canRestock(origin)"
+                  @click="showBuffer(`XIT ROUTESUPPLY ${origin.id}`)">
+                  RESTOCK
+                </PrunButton>
+              </div>
+            </td>
           </tr>
         </tbody>
       </table>
@@ -343,7 +366,7 @@ async function onAssign(id: string) {
         <tbody>
           <template v-for="row in section.rows" :key="row.id">
             <tr :class="$style.row">
-              <td :class="[$style.title, $style.toggle]" @click="toggle(row.id)">
+              <td :class="[$style.title, $style.nameCell, $style.toggle]" @click="toggle(row.id)">
                 <span :class="$style.plus">{{ expanded.includes(row.id) ? '-' : '+' }}</span>
                 <span>{{
                   row.origin === undefined ? row.name : `${row.name} (${row.origin})`
@@ -408,7 +431,7 @@ async function onAssign(id: string) {
               :key="`${row.id}:${index}`"
               :class="$style.row">
               <td
-                :class="$style.title"
+                :class="[$style.title, $style.nameCell]"
                 @contextmenu.prevent="planetContextMenu.showMenu($event, base.id)">
                 <span :class="$style.plus" />
                 <span>{{ base.name }}</span>
@@ -481,9 +504,19 @@ async function onAssign(id: string) {
   white-space: nowrap;
 }
 
-.nameCol {
-  width: 0;
+.originTable {
+  width: 100%;
+}
+
+/* One fixed width for the name column in both tables, so origins and routes line up. */
+.nameCol,
+.nameCell {
+  width: 180px;
+  min-width: 180px;
+  max-width: 180px;
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .toggle {
@@ -536,16 +569,12 @@ async function onAssign(id: string) {
   padding: 8px 4px 4px;
 }
 
-.centered {
-  justify-content: center;
+.end {
+  justify-content: flex-end;
 }
 
 .restockCell {
-  text-align: center;
-}
-
-.originName {
-  padding-left: 4px;
+  padding: 2px;
 }
 
 .newBar {

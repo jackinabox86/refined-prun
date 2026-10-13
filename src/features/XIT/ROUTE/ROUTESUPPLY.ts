@@ -7,5 +7,6 @@ xit.add({
   command: 'ROUTESUPPLY',
   name: 'ROUTE RESTOCK',
   description: 'Buys the departure loads of route laps due within the route resupply days.',
+  optionalParameters: 'Exchange Code',
   component: () => RestockWindow,
 });
