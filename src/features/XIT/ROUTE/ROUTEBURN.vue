@@ -311,7 +311,9 @@ async function onAssign(id: string) {
     <template v-for="section in sections" :key="section.key">
       <div :class="$style.section">
         {{ section.title }}
-        <Tooltip :tooltip="section.tip" position="bottom" />
+        <span :class="$style.sectionTip">
+          <Tooltip :tooltip="section.tip" position="bottom" />
+        </span>
       </div>
       <table
         v-if="section.key === 'looping' && origins.length > 0"
@@ -571,6 +573,13 @@ async function onAssign(id: string) {
 
 .end {
   justify-content: flex-end;
+}
+
+/* The game floats its tooltip icon right; keep it beside the section title. */
+.sectionTip > span {
+  float: none;
+  display: inline-block;
+  margin-left: 4px;
 }
 
 .restockCell {
