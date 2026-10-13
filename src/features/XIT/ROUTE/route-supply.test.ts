@@ -9,11 +9,8 @@ import {
   lapStarts,
   laterOriginLoads,
   loadingAtOrigin,
-  maxMaterials,
   nextLapStart,
   plannedDepartureTimes,
-  restockSpan,
-  routeRestock,
   unassignedCxLoads,
   withFuelBuffer,
   type OriginDraw,
@@ -317,83 +314,29 @@ describe('drawTotal', () => {
   });
 });
 
-describe('restockSpan', () => {
-  it('covers the restock days and fuels every lap in them when the lap is shorter', () => {
-    expect(restockSpan(5, 3)).toEqual({ days: 5, laps: 2 });
-    expect(restockSpan(6, 3)).toEqual({ days: 6, laps: 2 });
-  });
-
-  it('covers one whole lap when the lap is longer than the restock days', () => {
-    expect(restockSpan(5, 8)).toEqual({ days: 8, laps: 1 });
-  });
-
-  it('covers the restock days with one lap of fuel when the lap is unknown', () => {
-    expect(restockSpan(5, undefined)).toEqual({ days: 5, laps: 1 });
-  });
-});
-
-describe('routeRestock', () => {
+describe('restock', () => {
   // Bases use 10 RAT a day plus 1 spare; each lap burns 50 SF.
   const topUp = (gapMs: number) => ({ RAT: (10 * gapMs) / DAY_MS + 1, SF: 50 });
-  // The working set: 12 supply days.
-  const need = { RAT: 121, SF: 50 };
-
-  it('buys only the restock days of use and each lap of fuel for a route already out', () => {
-    expect(routeRestock(topUp, need, false, 5, 3 * DAY_MS)).toEqual({ RAT: 51, SF: 100 });
-  });
-
-  it('adds the working set when the route has none out yet', () => {
-    expect(routeRestock(topUp, need, true, 5, 3 * DAY_MS)).toEqual({ RAT: 171, SF: 100 });
-  });
-
-  it('buys nothing for a route already out when the lap is longer than the restock days', () => {
-    expect(routeRestock(topUp, need, false, 5, 8 * DAY_MS)).toEqual({});
-  });
 
   it('buys a long lap only once its departure falls inside the restock days', () => {
     const lap = 8 * DAY_MS;
     const later: OriginDraw[] = [{ time: NOW + 6 * DAY_MS, need: topUp(lap) }];
     const inside: OriginDraw[] = [{ time: NOW + 4 * DAY_MS, need: topUp(lap) }];
-    const buy = (draws: OriginDraw[]) =>
-      maxMaterials(routeRestock(topUp, need, false, 5, lap), drawTotal(draws, NOW + 5 * DAY_MS));
-    expect(buy(later)).toEqual({});
-    expect(buy(inside)).toEqual({ RAT: 81, SF: 50 });
+    expect(drawTotal(later, NOW + 5 * DAY_MS)).toEqual({});
+    expect(drawTotal(inside, NOW + 5 * DAY_MS)).toEqual({ RAT: 81, SF: 50 });
   });
 
-  it('buys only the working set for a new loop whose lap is longer than the restock days', () => {
-    expect(routeRestock(topUp, need, true, 5, 8 * DAY_MS)).toEqual(need);
-  });
-});
-
-describe('fresh restock countdown', () => {
-  // Bases use 10 RAT a day plus 1 spare; each lap burns 50 SF. A 2.4-day lap
-  // already out, next departure in 0.1 days: three departures land inside 5 days.
-  const topUp = (gapMs: number) => ({ RAT: (10 * gapMs) / DAY_MS + 1, SF: 50 });
-  const need = { RAT: 121, SF: 50 };
-  const lap = 2.4 * DAY_MS;
-  const draws: OriginDraw[] = [0.1, 2.5, 4.9, 7.3].map(day => ({
-    time: NOW + day * DAY_MS,
-    need: topUp(lap),
-  }));
-
-  it('reads under the restock days on the period amount alone', () => {
-    const stock = routeRestock(topUp, need, false, 5, lap);
-    expect(countdownDays(NOW, firstShortDraw(draws, stock))).toBeLessThan(5);
-  });
-
-  it('reads at least the restock days once the departures inside them are covered', () => {
-    const stock = maxMaterials(
-      routeRestock(topUp, need, false, 5, lap),
-      drawTotal(draws, NOW + 5 * DAY_MS),
-    );
+  it('reads at least the restock days on a fresh restock', () => {
+    // A 2.4-day lap already out, next departure in 0.1 days: three departures
+    // land inside 5 days.
+    const lap = 2.4 * DAY_MS;
+    const draws: OriginDraw[] = [0.1, 2.5, 4.9, 7.3].map(day => ({
+      time: NOW + day * DAY_MS,
+      need: topUp(lap),
+    }));
+    const stock = drawTotal(draws, NOW + 5 * DAY_MS);
     expect(countdownDays(NOW, firstShortDraw(draws, stock))).toBeGreaterThanOrEqual(5);
     expect(drawsCovered(draws, stock)).toBe(3);
-  });
-});
-
-describe('maxMaterials', () => {
-  it('keeps the larger amount of each ticker', () => {
-    expect(maxMaterials({ RAT: 5, SF: 10 }, { RAT: 8, DW: 2 })).toEqual({ RAT: 8, SF: 10, DW: 2 });
   });
 });
 

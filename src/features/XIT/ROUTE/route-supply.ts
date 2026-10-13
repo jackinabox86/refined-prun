@@ -1,7 +1,3 @@
-import {
-  addMaterials,
-  subtractMaterials,
-} from '@src/features/XIT/ACT/material-groups/resupply/milk-run';
 import { LEG_ESTIMATE_FACTOR, stepSeconds, type RouteEta } from '@src/features/XIT/ROUTE/route-eta';
 
 // When each running route next draws its departure load from its origin, and
@@ -295,61 +291,6 @@ export function drawTotal(draws: readonly OriginDraw[], until: number) {
   return total;
 }
 
-// What one route's restock covers: base use over the restock days, or over one
-// lap when the lap is longer, and fuel for every lap in that span. Departure
-// times are estimates, so they never change the span. An unknown lap is
-// fuelled once.
-export function restockSpan(restockDays: number, lapDays: number | undefined) {
-  if (lapDays === undefined || !(lapDays > 0)) {
-    return { days: restockDays, laps: 1 };
-  }
-  const days = Math.max(restockDays, lapDays);
-  return { days, laps: Math.max(1, Math.ceil(days / lapDays - 1e-9)) };
-}
-
-// The bases' use alone over `days`: two top-ups a day apart carry the same fuel
-// and +1, so their difference is the use.
-export function useOver(topUp: (gapMs: number) => Record<string, number>, days: number) {
-  return subtractMaterials(topUp(daysToMs(1 + days)), topUp(daysToMs(1)));
-}
-
-// One route's restock: the bases' use over restockSpan's days plus fuel for its
-// laps, with one lap's +1 and fuel. A route without a working set out yet (a
-// saved loop no ship runs, or a ship loading now) also buys that working set.
-// When its lap is longer than the restock days, it buys only the working set, or
-// nothing for a route already out: a lap is bought by the restock whose days its
-// estimated departure falls in. The caller adds those departures (drawTotal).
-export function routeRestock(
-  topUp: (gapMs: number) => Record<string, number>,
-  need: Record<string, number>,
-  workingSet: boolean,
-  restockDays: number,
-  lapMsValue: number | undefined,
-) {
-  const span = restockSpan(
-    restockDays,
-    lapMsValue === undefined ? undefined : lapMsValue / daysToMs(1),
-  );
-  if (span.days > restockDays) {
-    return workingSet ? { ...need } : {};
-  }
-  let total = workingSet
-    ? addMaterials(need, useOver(topUp, span.days))
-    : topUp(daysToMs(span.days));
-  // A lap's fixed part is its fuel and the +1 spares; only the fuel repeats.
-  const fixed = subtractMaterials(topUp(daysToMs(1)), useOver(topUp, 1));
-  const lapFuel: Record<string, number> = {};
-  for (const ticker of ['SF', 'FF']) {
-    if (fixed[ticker] !== undefined) {
-      lapFuel[ticker] = fixed[ticker];
-    }
-  }
-  for (let i = 1; i < span.laps; i++) {
-    total = addMaterials(total, lapFuel);
-  }
-  return total;
-}
-
 // Fuel burn varies more than base use, so the stockpile plans 10% more of it.
 export const FUEL_BUFFER = 1.1;
 
@@ -360,17 +301,6 @@ export function withFuelBuffer(need: Record<string, number>) {
     const amount = result[ticker];
     if (amount !== undefined && amount > 0) {
       result[ticker] = Math.ceil(amount * FUEL_BUFFER);
-    }
-  }
-  return result;
-}
-
-// The larger amount of each ticker.
-export function maxMaterials(a: Record<string, number>, b: Record<string, number>) {
-  const result = { ...a };
-  for (const [ticker, amount] of Object.entries(b)) {
-    if (!(amount <= (result[ticker] ?? 0))) {
-      result[ticker] = amount;
     }
   }
   return result;

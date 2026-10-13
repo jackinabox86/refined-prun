@@ -19,10 +19,7 @@ import {
   lapMs,
   lapStarts,
   loadingAtOrigin,
-  maxMaterials,
   nextLapStart,
-  plannedLapMs,
-  routeRestock,
   unassignedCxLoads,
   withFuelBuffer,
   type OriginDraw,
@@ -62,8 +59,8 @@ export interface OriginRow {
   horizonDays: number;
   // A running route's lap could not be priced or timed, so the countdown may be late.
   partial: boolean;
-  // What the routes need bought here for the resupply days, before stock. See
-  // routeRestock.
+  // What the routes need bought here for the resupply days, before stock: every
+  // departure estimated inside them, at its full load.
   restock: Record<string, number>;
   // Every running lap's load here, up to horizonDays.
   draws: OriginDraw[];
@@ -308,8 +305,8 @@ export function originRows(now: number): OriginRow[] {
   const horizonDays = Math.max(MIN_HORIZON_DAYS, settings.days * 2, settings.yellow);
   const until = now + daysToMs(horizonDays);
   const running = runningRoutes(now, until);
-  // Restock also covers every departure estimated inside the restock days, so a
-  // fresh restock's countdown reads at least that long.
+  // Restock buys every departure estimated inside the restock days, so a fresh
+  // restock's countdown reads at least that long.
   const restockUntil = now + daysToMs(settings.days);
 
   const rows = new Map<string, OriginRow & { stop: UserData.ShippingRouteStop }>();
@@ -357,13 +354,9 @@ export function originRows(now: number): OriginRow[] {
       });
       row.partial ||= plan.partial;
       row.draws.push(...plan.draws);
-      if (need !== undefined && plan.draws.length > 0) {
-        const lap = plannedLapMs(configLegSeconds(route, true), waitSeconds(route.wait) * 1000);
-        const restock = routeRestock(topUpNeeds(route, need), need, true, settings.days, lap);
-        row.restock = addMaterials(
-          row.restock,
-          maxMaterials(restock, drawTotal(plan.draws, restockUntil)),
-        );
+      // Its first draw departs now and carries the full working set.
+      if (need !== undefined) {
+        row.restock = addMaterials(row.restock, drawTotal(plan.draws, restockUntil));
       }
       continue;
     }
@@ -405,11 +398,7 @@ export function originRows(now: number): OriginRow[] {
       row.draws.push(...runDraws);
       // A one-way route is never restocked for: it has no next lap.
       if (run.repeats) {
-        const restock = routeRestock(topUp, need, run.loadingNow, settings.days, run.lapMs);
-        row.restock = addMaterials(
-          row.restock,
-          maxMaterials(restock, drawTotal(runDraws, restockUntil)),
-        );
+        row.restock = addMaterials(row.restock, drawTotal(runDraws, restockUntil));
       }
     }
   }
