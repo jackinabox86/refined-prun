@@ -44,4 +44,23 @@ describe('CXPO_BUY price-threshold gate', () => {
     expect(executeBody).toContain('await waitAct();');
     expect(executeBody).not.toContain('actDelayMs');
   });
+
+  it('returns from execute when the live book cannot fill any units', () => {
+    // Calling skip() starts the next step and does not unwind. A return that only leaves
+    // the watcher still falls through into waitAct and arms ACT for the skipped
+    // ticker, which blocks the next commodity. The return has to sit in execute,
+    // after the watcher is created and before waitAct.
+    const emptyBook = executeBody.slice(
+      executeBody.indexOf('filled.amount === 0'),
+      executeBody.indexOf('if (missingOrderBook)'),
+    );
+    expect(emptyBook.indexOf('skippedEmptyBook = true')).toBeGreaterThan(-1);
+    expect(emptyBook.indexOf('skippedEmptyBook = true')).toBeLessThan(emptyBook.indexOf('skip();'));
+    const afterWatch = executeBody.slice(
+      executeBody.indexOf('if (missingOrderBook)'),
+      executeBody.indexOf('await waitAct('),
+    );
+    expect(afterWatch).toContain('if (skippedEmptyBook)');
+    expect(afterWatch).toContain('return;');
+  });
 });

@@ -326,6 +326,13 @@ the hold is universal.
   no longer decides whether a shortage is fatal — it only decides whether the quantity is
   frozen at generation (on) or re-checked against the live book when the step runs (off).
   `allowUnfilled` is the separate "rest the remainder as a standing bid" flag.
+  The live skip must `return` from `execute`. `ctx.skip()` starts the next step and does
+  not unwind, so falling through into `waitAct()` arms ACT for the skipped ticker and
+  blocks the next commodity. That is a first-run bug: generation has not seen the book
+  yet and still emits the step. Once the book is cached, generation omits it. Stop the
+  order-book watcher before that skip on any run after the first effect, or a later tick
+  skips the commodity the machine just moved to. The first effect run cannot call the
+  stop handle; `execute` stops the watcher after `watchEffect` returns.
 - **Size follow-up steps by what the CX can fill.** An action that emits a purchase and then
   emits steps consuming it must plan against `fillAmount()`, not the requested amount —
   Refuel's `emitFuelPurchase` returns the fillable amount for exactly this reason. The

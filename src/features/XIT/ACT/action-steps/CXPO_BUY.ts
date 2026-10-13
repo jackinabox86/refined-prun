@@ -106,6 +106,10 @@ export const CXPO_BUY = act.addActionStep<Data>({
 
     let shouldUnwatch = false;
     let missingOrderBook = false;
+    let skippedEmptyBook = false;
+    // The first effect run is inside watchEffect's constructor, while `unwatch`
+    // is still initializing. Later runs can stop the watcher before skip().
+    let watcherReady = false;
     let lastShortageWarning: string | undefined;
     const unwatch = watchEffect(() => {
       if (shouldUnwatch) {
@@ -137,7 +141,14 @@ export const CXPO_BUY = act.addActionStep<Data>({
           log.warning(message);
         }
         if (filled.amount === 0) {
+          // Calling skip() starts the next commodity and does not unwind execute.
+          // Stop the watcher first so a later book tick cannot skip that
+          // commodity too. The first run cannot call unwatch yet.
           shouldUnwatch = true;
+          skippedEmptyBook = true;
+          if (watcherReady) {
+            unwatch();
+          }
           skip();
           return;
         }
@@ -155,9 +166,16 @@ export const CXPO_BUY = act.addActionStep<Data>({
       // order book data will change after that.
       ctx.cacheDescription();
     });
+    watcherReady = true;
     // Vue's watchEffect swallows a throw, so fail from the step body once the book is missing.
     if (missingOrderBook) {
       fail(`Missing ${cxTicker} order book data`);
+    }
+    // An empty book is often known on that first effect run, before waitAct.
+    // Returning here keeps this step from arming ACT over the next buy.
+    if (skippedEmptyBook) {
+      unwatch();
+      return;
     }
 
     function onManualInput(event: Event) {
