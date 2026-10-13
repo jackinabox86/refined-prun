@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import PrunButton from '@src/components/PrunButton.vue';
+import Tooltip from '@src/components/Tooltip.vue';
 import { getRepairThreshold } from '@src/core/buildings';
 import { getPlanetBurn } from '@src/core/burn';
 import { getPlanetProduction } from '@src/core/production';
@@ -13,9 +14,13 @@ import {
   paddedLegSeconds,
   SECONDS_PER_DAY,
 } from '@src/features/XIT/ROUTE/route-calc';
-import { assignReadiness, stageRouteAssign } from '@src/features/XIT/ROUTE/route-assign-run';
+import {
+  assignReadiness,
+  ensureRouteShip,
+  stageRouteAssign,
+} from '@src/features/XIT/ROUTE/route-assign-run';
 import { originRows } from '@src/features/XIT/ROUTE/route-origins';
-import { findRoute, removeRoute } from '@src/features/XIT/ROUTE/routes';
+import { createRoute, findRoute, removeRoute } from '@src/features/XIT/ROUTE/routes';
 import { store as planetContextMenu } from '@src/features/XIT/planet-context-menu';
 import { exchangesStore } from '@src/infrastructure/prun-api/data/exchanges';
 import { getEntityNameFromAddress } from '@src/infrastructure/prun-api/data/addresses';
@@ -28,19 +33,42 @@ const expanded = ref<string[]>([]);
 
 const rows = computed(() => {
   const now = timestampEachMinute.value;
-  const mapped = userData.routes.map(route => summarize(route, now));
-  return [...mapped.filter(x => x.nonLooping), ...mapped.filter(x => !x.nonLooping)];
+  return userData.routes.map(route => summarize(route, now));
 });
 
-const hasNonLooping = computed(() => rows.value.some(x => x.nonLooping));
+// Automated (looping) routes, with the origins above them, on top; on-demand below.
+const sections = computed(() => {
+  const looping = rows.value.filter(x => !x.nonLooping);
+  const nonLooping = rows.value.filter(x => x.nonLooping);
+  return [
+    {
+      key: 'looping',
+      title: 'Automated Routes',
+      tip: 'A route with recurring loops.',
+      rows: looping,
+      assign: false,
+    },
+    {
+      key: 'nonLooping',
+      title: 'On-Demand Routes',
+      tip: 'A route that does not recur, whether a loop or one-way.',
+      rows: nonLooping,
+      assign: true,
+    },
+  ].filter(x => x.rows.length > 0 || (x.key === 'looping' && origins.value.length > 0));
+});
 
-const origins = computed(() => originRows(timestampEachMinute.value));
-const canRestock = computed(() =>
-  origins.value.some(x => x.kind === 'cx' && Object.keys(x.restock).length > 0),
-);
+// Origins belong to the looping section, so an origin only non-looping routes use is left out.
+const origins = computed(() => originRows(timestampEachMinute.value).filter(x => x.routes > 0));
 
+function canRestock(origin: (typeof origins.value)[number]) {
+  return origin.kind === 'cx' && Object.keys(origin.restock).length > 0;
+}
+
+// An origin with nothing planned to load has no countdown. An unassigned loop
+// still plans its departures, so an empty store reads as a red 0.
 function countdownText(origin: (typeof origins.value)[number]) {
-  if (origin.running === 0) {
+  if (origin.draws.length === 0) {
     return '-';
   }
   if (origin.countdown === undefined) {
@@ -50,8 +78,28 @@ function countdownText(origin: (typeof origins.value)[number]) {
   return origin.partial ? `≤${text}` : text;
 }
 
+// What the countdown date means: the origin runs short in lap-sized steps, and
+// the bases still hold their own supply days past it.
+function countdownTitle(origin: (typeof origins.value)[number]) {
+  if (origin.draws.length === 0) {
+    return undefined;
+  }
+  const plural = (n: number) => `${n} departure${n === 1 ? '' : 's'}`;
+  if (origin.countdown === undefined) {
+    return `Stock covers every departure in the next ${origin.horizonDays} days.`;
+  }
+  const lines = [
+    `Stock covers ${plural(origin.covered)}. The next one can't be fully loaded.`,
+    'Bases still hold their supply days after that.',
+  ];
+  if (origin.partial) {
+    lines.push('Some lap times are unknown, so this may be later.');
+  }
+  return lines.join(' ');
+}
+
 function countdownClass(origin: (typeof origins.value)[number]) {
-  if (origin.running === 0) {
+  if (origin.draws.length === 0) {
     return undefined;
   }
   const days = Math.floor(origin.countdown ?? Infinity);
@@ -61,6 +109,14 @@ function countdownClass(origin: (typeof origins.value)[number]) {
     [C.Workforces.daysWarning]: days <= yellow,
     [C.Workforces.daysSupplied]: days > yellow,
   };
+}
+
+// Full names: Antares Station, not ANT.
+function originFullName(origin: (typeof origins.value)[number]) {
+  if (origin.kind === 'cx') {
+    return getEntityNameFromAddress(exchangesStore.getByCode(origin.id)?.address) ?? origin.label;
+  }
+  return origin.label;
 }
 
 function siteFor(id: string) {
@@ -222,13 +278,20 @@ function burnText(days: number | undefined) {
   return formatBsBurnDays(days, userData.settings.burn.decimalDays === true);
 }
 
-function openConfig(id?: string) {
-  showBuffer(id === undefined ? 'XIT ROUTECONFIG' : `XIT ROUTECONFIG ${id}`);
+function openConfig(id: string) {
+  showBuffer(`XIT ROUTECONFIG ${id}`);
 }
 
-function onAssign(id: string) {
+function onNew() {
+  openConfig(createRoute().id);
+}
+
+async function onAssign(id: string) {
   const route = findRoute(id);
   if (route === undefined || !assignReadiness(route).enabled) {
+    return;
+  }
+  if (!(await ensureRouteShip(route))) {
     return;
   }
   const row = rows.value.find(x => x.id === id);
@@ -241,179 +304,190 @@ function onAssign(id: string) {
 
 <template>
   <div>
-    <table v-if="origins.length > 0" :class="$style.table">
-      <thead>
-        <tr>
-          <th :class="$style.nameCol">Origins</th>
-          <th :class="$style.statusCell">Days</th>
-          <th>
-            <div :class="$style.actions">
-              <PrunButton
-                primary
-                inline
-                :disabled="!canRestock"
-                @click="showBuffer('XIT ROUTESUPPLY')">
-                RESTOCK
-              </PrunButton>
-            </div>
-          </th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr v-for="origin in origins" :key="origin.key" :class="$style.row">
-          <td :class="$style.title">
-            <span :class="$style.plus" />
-            <span>{{ origin.label }}</span>
-          </td>
-          <td :class="$style.statusCell">
-            <div
-              :class="[$style.statusContent, countdownClass(origin)]"
-              @click="showBuffer('XIT ROUTETRACK')">
-              <span :class="$style.statusNum">{{ countdownText(origin) }}</span>
-            </div>
-          </td>
-          <td :class="$style.statusCell">{{ origin.running }}/{{ origin.routes }} running</td>
-        </tr>
-      </tbody>
-    </table>
-    <div :class="C.ComExOrdersPanel.filter">
-      <PrunButton primary @click="openConfig()">NEW</PrunButton>
+    <div :class="[C.ComExOrdersPanel.filter, $style.newBar]">
+      <PrunButton primary @click="onNew">New Route</PrunButton>
     </div>
     <p v-if="rows.length === 0" :class="$style.note">No routes yet.</p>
-    <table v-else :class="$style.table">
-      <thead>
-        <tr>
-          <th :class="$style.nameCol">Route</th>
-          <th :class="$style.statusCell">Burn</th>
-          <th :class="$style.statusCell">Prod</th>
-          <th :class="$style.statusCell">Rep</th>
-          <th />
-          <th v-if="hasNonLooping" />
-        </tr>
-      </thead>
-      <tbody>
-        <tr v-if="hasNonLooping">
-          <td :colspan="6" :class="$style.section">Non-Looping Routes</td>
-        </tr>
-        <template v-for="row in rows" :key="row.id">
-          <tr :class="$style.row">
-            <td :class="[$style.title, $style.toggle]" @click="toggle(row.id)">
-              <span :class="$style.plus">{{ expanded.includes(row.id) ? '-' : '+' }}</span>
-              <span>{{ row.origin === undefined ? row.name : `${row.name} (${row.origin})` }}</span>
+    <template v-for="section in sections" :key="section.key">
+      <div :class="$style.section">
+        {{ section.title }}
+        <span :class="$style.sectionTip">
+          <Tooltip :tooltip="section.tip" position="bottom" />
+        </span>
+      </div>
+      <table
+        v-if="section.key === 'looping' && origins.length > 0"
+        :class="[$style.table, $style.originTable]">
+        <thead>
+          <tr>
+            <th :class="$style.nameCol">Origins</th>
+            <th :class="$style.statusCell">Days</th>
+            <th />
+            <th />
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-for="origin in origins" :key="origin.key" :class="$style.row">
+            <td :class="[$style.title, $style.nameCell]" :title="originFullName(origin)">
+              {{ originFullName(origin) }}
             </td>
             <td :class="$style.statusCell">
               <div
-                :class="[$style.statusContent, row.burn !== undefined && burnDaysClass(row.burn)]"
-                @click="row.burnId && showBuffer(`XIT BURN ${row.burnId}`)">
-                <span :class="$style.statusNum">{{ burnText(row.burn) }}</span>
+                :class="[$style.statusContent, countdownClass(origin)]"
+                :title="countdownTitle(origin)"
+                @click="showBuffer('XIT ROUTETRACK')">
+                <span :class="$style.statusNum">{{ countdownText(origin) }}</span>
               </div>
             </td>
-            <td :class="$style.statusCell">
-              <div
-                :class="[
-                  $style.statusContent,
-                  row.prodSeen && {
-                    [C.Workforces.daysMissing]: row.prodShort,
-                    [C.Workforces.daysSupplied]: !row.prodShort,
-                  },
-                ]"
-                @click="row.prodId && showBuffer(`XIT PROD ${row.prodId}`)">
-                <span :class="$style.statusNum">{{
-                  row.prodSeen ? (row.prodShort ? '∅' : '✓') : '-'
-                }}</span>
-              </div>
-            </td>
-            <td :class="$style.statusCell">
-              <div
-                :class="[
-                  $style.statusContent,
-                  repairCellClass(
-                    row.repairAge !== undefined && row.repairId !== undefined
-                      ? presentRepairCell(row.repairAge, row.repairId)
-                      : undefined,
-                  ),
-                ]"
-                @click="row.repairId && showBuffer(`XIT REP ${row.repairId}`)">
-                <span :class="$style.statusNum">{{
-                  row.repairAge !== undefined && row.repairId !== undefined
-                    ? presentRepairCell(row.repairAge, row.repairId).text
-                    : '-'
-                }}</span>
-              </div>
-            </td>
-            <td>
-              <div :class="$style.actions">
-                <PrunButton dark inline @click="onRemove(row.id)">REMOVE</PrunButton>
-                <PrunButton dark inline @click="openConfig(row.id)">CONFIG</PrunButton>
-              </div>
-            </td>
-            <td v-if="hasNonLooping">
-              <div
-                v-if="row.nonLooping"
-                :class="[$style.actions, $style.assignHit]"
-                :title="row.assignTip">
-                <PrunButton primary inline :disabled="!row.canAssign" @click="onAssign(row.id)">
-                  ASSIGN
+            <td :class="$style.statusCell">{{ origin.running }}/{{ origin.routes }} running</td>
+            <td :class="$style.restockCell">
+              <div v-if="origin.kind === 'cx'" :class="[$style.actions, $style.end]">
+                <PrunButton
+                  neutral
+                  inline
+                  :disabled="!canRestock(origin)"
+                  @click="showBuffer(`XIT ROUTESUPPLY ${origin.id}`)">
+                  RESTOCK
                 </PrunButton>
               </div>
             </td>
           </tr>
-          <tr
-            v-for="(base, index) in expanded.includes(row.id) ? row.bases : []"
-            :key="`${row.id}:${index}`"
-            :class="$style.row">
-            <td
-              :class="$style.title"
-              @contextmenu.prevent="planetContextMenu.showMenu($event, base.id)">
-              <span :class="$style.plus" />
-              <span>{{ base.name }}</span>
-            </td>
-            <td :class="$style.statusCell">
-              <div
-                :class="[$style.statusContent, base.burn !== undefined && burnDaysClass(base.burn)]"
-                @click="showBuffer(`XIT BURN ${base.id}`)">
-                <span :class="$style.statusNum">{{ burnText(base.burn) }}</span>
-              </div>
-            </td>
-            <td :class="$style.statusCell">
-              <div
-                :class="[
-                  $style.statusContent,
-                  base.prodSeen && {
-                    [C.Workforces.daysMissing]: base.prodShort,
-                    [C.Workforces.daysSupplied]: !base.prodShort,
-                  },
-                ]"
-                @click="showBuffer(`XIT PROD ${base.id}`)">
-                <span :class="$style.statusNum">{{
-                  base.prodSeen ? (base.prodShort ? '∅' : '✓') : '-'
-                }}</span>
-              </div>
-            </td>
-            <td :class="$style.statusCell">
-              <div
-                :class="[
-                  $style.statusContent,
-                  repairCellClass(
-                    base.repairAge !== undefined
-                      ? presentRepairCell(base.repairAge, base.id)
-                      : undefined,
-                  ),
-                ]"
-                @click="showBuffer(`XIT REP ${base.id}`)">
-                <span :class="$style.statusNum">{{
-                  base.repairAge !== undefined
-                    ? presentRepairCell(base.repairAge, base.id).text
-                    : '-'
-                }}</span>
-              </div>
-            </td>
-            <td />
-            <td v-if="hasNonLooping" />
+        </tbody>
+      </table>
+      <table v-if="section.rows.length > 0" :class="$style.table">
+        <thead>
+          <tr>
+            <th :class="$style.nameCol">Route</th>
+            <th :class="$style.statusCell">Burn</th>
+            <th :class="$style.statusCell">Prod</th>
+            <th :class="$style.statusCell">Rep</th>
+            <th />
+            <th v-if="section.assign" />
           </tr>
-        </template>
-      </tbody>
-    </table>
+        </thead>
+        <tbody>
+          <template v-for="row in section.rows" :key="row.id">
+            <tr :class="$style.row">
+              <td :class="[$style.title, $style.nameCell, $style.toggle]" @click="toggle(row.id)">
+                <span :class="$style.plus">{{ expanded.includes(row.id) ? '-' : '+' }}</span>
+                <span>{{
+                  row.origin === undefined ? row.name : `${row.name} (${row.origin})`
+                }}</span>
+              </td>
+              <td :class="$style.statusCell">
+                <div
+                  :class="[$style.statusContent, row.burn !== undefined && burnDaysClass(row.burn)]"
+                  @click="row.burnId && showBuffer(`XIT BURN ${row.burnId}`)">
+                  <span :class="$style.statusNum">{{ burnText(row.burn) }}</span>
+                </div>
+              </td>
+              <td :class="$style.statusCell">
+                <div
+                  :class="[
+                    $style.statusContent,
+                    row.prodSeen && {
+                      [C.Workforces.daysMissing]: row.prodShort,
+                      [C.Workforces.daysSupplied]: !row.prodShort,
+                    },
+                  ]"
+                  @click="row.prodId && showBuffer(`XIT PROD ${row.prodId}`)">
+                  <span :class="$style.statusNum">{{
+                    row.prodSeen ? (row.prodShort ? '∅' : '✓') : '-'
+                  }}</span>
+                </div>
+              </td>
+              <td :class="$style.statusCell">
+                <div
+                  :class="[
+                    $style.statusContent,
+                    repairCellClass(
+                      row.repairAge !== undefined && row.repairId !== undefined
+                        ? presentRepairCell(row.repairAge, row.repairId)
+                        : undefined,
+                    ),
+                  ]"
+                  @click="row.repairId && showBuffer(`XIT REP ${row.repairId}`)">
+                  <span :class="$style.statusNum">{{
+                    row.repairAge !== undefined && row.repairId !== undefined
+                      ? presentRepairCell(row.repairAge, row.repairId).text
+                      : '-'
+                  }}</span>
+                </div>
+              </td>
+              <td>
+                <div :class="$style.actions">
+                  <PrunButton dark inline @click="onRemove(row.id)">REMOVE</PrunButton>
+                  <PrunButton dark inline @click="openConfig(row.id)">CONFIG</PrunButton>
+                </div>
+              </td>
+              <td v-if="section.assign">
+                <div :class="[$style.actions, $style.assignHit]" :title="row.assignTip">
+                  <PrunButton primary inline :disabled="!row.canAssign" @click="onAssign(row.id)">
+                    ASSIGN
+                  </PrunButton>
+                </div>
+              </td>
+            </tr>
+            <tr
+              v-for="(base, index) in expanded.includes(row.id) ? row.bases : []"
+              :key="`${row.id}:${index}`"
+              :class="$style.row">
+              <td
+                :class="[$style.title, $style.nameCell]"
+                @contextmenu.prevent="planetContextMenu.showMenu($event, base.id)">
+                <span :class="$style.plus" />
+                <span>{{ base.name }}</span>
+              </td>
+              <td :class="$style.statusCell">
+                <div
+                  :class="[
+                    $style.statusContent,
+                    base.burn !== undefined && burnDaysClass(base.burn),
+                  ]"
+                  @click="showBuffer(`XIT BURN ${base.id}`)">
+                  <span :class="$style.statusNum">{{ burnText(base.burn) }}</span>
+                </div>
+              </td>
+              <td :class="$style.statusCell">
+                <div
+                  :class="[
+                    $style.statusContent,
+                    base.prodSeen && {
+                      [C.Workforces.daysMissing]: base.prodShort,
+                      [C.Workforces.daysSupplied]: !base.prodShort,
+                    },
+                  ]"
+                  @click="showBuffer(`XIT PROD ${base.id}`)">
+                  <span :class="$style.statusNum">{{
+                    base.prodSeen ? (base.prodShort ? '∅' : '✓') : '-'
+                  }}</span>
+                </div>
+              </td>
+              <td :class="$style.statusCell">
+                <div
+                  :class="[
+                    $style.statusContent,
+                    repairCellClass(
+                      base.repairAge !== undefined
+                        ? presentRepairCell(base.repairAge, base.id)
+                        : undefined,
+                    ),
+                  ]"
+                  @click="showBuffer(`XIT REP ${base.id}`)">
+                  <span :class="$style.statusNum">{{
+                    base.repairAge !== undefined
+                      ? presentRepairCell(base.repairAge, base.id).text
+                      : '-'
+                  }}</span>
+                </div>
+              </td>
+              <td />
+              <td v-if="section.assign" />
+            </tr>
+          </template>
+        </tbody>
+      </table>
+    </template>
   </div>
 </template>
 
@@ -432,9 +506,19 @@ function onAssign(id: string) {
   white-space: nowrap;
 }
 
-.nameCol {
-  width: 0;
+.originTable {
+  width: 100%;
+}
+
+/* One fixed width for the name column in both tables, so origins and routes line up. */
+.nameCol,
+.nameCell {
+  width: 180px;
+  min-width: 180px;
+  max-width: 180px;
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .toggle {
@@ -481,7 +565,29 @@ function onAssign(id: string) {
 
 .section {
   font-weight: bold;
+  font-size: 12px;
+  text-align: center;
+  color: #f7a600;
   padding: 8px 4px 4px;
+}
+
+.end {
+  justify-content: flex-end;
+}
+
+/* The game floats its tooltip icon right; keep it beside the section title. */
+.sectionTip > span {
+  float: none;
+  display: inline-block;
+  margin-left: 4px;
+}
+
+.restockCell {
+  padding: 2px;
+}
+
+.newBar {
+  justify-content: flex-end;
 }
 
 .assignHit button:disabled {

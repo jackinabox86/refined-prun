@@ -1,15 +1,24 @@
 <script setup lang="ts">
 import PrunButton from '@src/components/PrunButton.vue';
-import { finishShipPick, shipPickPending } from '@src/features/XIT/ROUTE/route-ship-pick';
+import {
+  finishShipPick,
+  shipPickPending,
+  shipPickPrompt,
+} from '@src/features/XIT/ROUTE/route-ship-pick';
 
 const ships = shipPickPending();
+const prompt = shipPickPrompt();
 </script>
 
 <template>
   <div :class="$style.root">
-    <p v-if="ships === undefined || ships.length === 0">No ship is waiting to be picked.</p>
+    <template v-if="ships !== undefined && ships.length === 0">
+      <p>None of your ships can carry this route's load.</p>
+      <PrunButton dark @click="finishShipPick(undefined)">Cancel</PrunButton>
+    </template>
+    <p v-else-if="ships === undefined">No ship is waiting to be picked.</p>
     <template v-else>
-      <p>The saved ship is not free. Pick one that fits this route.</p>
+      <p>{{ prompt }}</p>
       <div :class="$style.list">
         <PrunButton
           v-for="ship in ships"

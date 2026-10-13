@@ -4,12 +4,16 @@ import { originRows } from '@src/features/XIT/ROUTE/route-origins';
 import { restockPackage } from '@src/features/XIT/ROUTE/restock-package';
 import { markRestocked } from '@src/features/XIT/ROUTE/cx-route-reserve';
 import { useMinBufferHeight } from '@src/hooks/use-min-buffer-height';
+import { useXitParameters } from '@src/hooks/use-xit-parameters';
 
 useMinBufferHeight();
 
+// ROUTEBURN opens this for one exchange; with no parameter every exchange restocks.
+const exchange = useXitParameters()[0];
+
 // Taken once when the buffer opens, so the package does not change under a run.
 const origins = originRows(Date.now())
-  .filter(row => row.kind === 'cx')
+  .filter(row => row.kind === 'cx' && (exchange === undefined || row.id === exchange))
   .map(row => ({ exchange: row.id, materials: row.restock }));
 const pkg = restockPackage(origins);
 

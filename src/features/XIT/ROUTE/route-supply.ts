@@ -42,7 +42,15 @@ export function lapMs(
 // The ship is at the origin and has not passed its last load step, so this
 // lap's departure load is still to come out of the origin store.
 export function loadingAtOrigin(execution: PrunApi.ShipRouteExecution, atWaypoint: boolean) {
-  if (execution.waypointIndex !== 0 || execution.state === 'FLYING') {
+  return loadingAtWaypoint(execution, atWaypoint, 0);
+}
+
+function loadingAtWaypoint(
+  execution: PrunApi.ShipRouteExecution,
+  atWaypoint: boolean,
+  index: number,
+) {
+  if (execution.waypointIndex !== index || execution.state === 'FLYING') {
     return false;
   }
   const working =
@@ -52,7 +60,7 @@ export function loadingAtOrigin(execution: PrunApi.ShipRouteExecution, atWaypoin
   if (!working && !atWaypoint) {
     return false;
   }
-  const steps = execution.route.waypoints[0]?.steps ?? [];
+  const steps = execution.route.waypoints[index]?.steps ?? [];
   let lastLoad = -1;
   for (let i = 0; i < steps.length; i++) {
     if (steps[i]!.type === 'LOAD') {
@@ -60,6 +68,39 @@ export function loadingAtOrigin(execution: PrunApi.ShipRouteExecution, atWaypoin
     }
   }
   return lastLoad >= 0 && execution.stepIndex <= lastLoad;
+}
+
+// The later origin visits (ordinals into `visits`, which holds waypoint indexes)
+// still ahead in the lap under way, and when each loads: now while the ship is
+// loading there, otherwise its estimated arrival. A visit already loaded is gone.
+// An unknown arrival is left out and reported as partial.
+export function laterOriginLoads(
+  execution: PrunApi.ShipRouteExecution,
+  atWaypoint: boolean,
+  visits: readonly number[],
+  eta: RouteEta,
+  now: number,
+) {
+  const loads: { visit: number; time: number }[] = [];
+  let partial = false;
+  const current = execution.waypointIndex;
+  for (let k = 1; k < visits.length; k++) {
+    const index = visits[k]!;
+    let time: number | undefined;
+    if (index > current || (index === current && execution.state === 'FLYING')) {
+      time = eta.arrivals[index];
+    } else if (index === current && loadingAtWaypoint(execution, atWaypoint, index)) {
+      time = now;
+    } else {
+      continue;
+    }
+    if (time === undefined) {
+      partial = true;
+      continue;
+    }
+    loads.push({ visit: k, time: Math.max(now, time) });
+  }
+  return { loads, partial };
 }
 
 // When a looping route next arrives at its origin. Undefined for a one-way route.
@@ -116,25 +157,36 @@ export function lapStarts(input: LapStartInput) {
   return times;
 }
 
-// Departure times for a saved looping route no ship is running. The first
-// departure is now. Later ones step by the legs at the same 85% factor lapStarts
-// uses, and never shorter than MIN_LAP_MS. An unknown leg is one departure at now.
-export function plannedDepartureTimes(
-  now: number,
-  until: number,
-  legSeconds: readonly (number | undefined)[],
-) {
+// The lap length of a saved route no ship is running: the legs at the same 85%
+// factor lapStarts uses, plus the route's end wait, never shorter than
+// MIN_LAP_MS. Undefined when a leg has no known time.
+export function plannedLapMs(legSeconds: readonly (number | undefined)[], waitMs = 0) {
   if (legSeconds.length === 0) {
-    return [now];
+    return undefined;
   }
   let ms = 0;
   for (const leg of legSeconds) {
     if (leg === undefined) {
-      return [now];
+      return undefined;
     }
     ms += leg * LEG_ESTIMATE_FACTOR * 1000;
   }
-  const step = Math.max(MIN_LAP_MS, ms);
+  return Math.max(MIN_LAP_MS, ms + waitMs);
+}
+
+// Departure times for a saved looping route no ship is running. The first
+// departure is now, and later ones step by plannedLapMs. An unknown leg is one
+// departure at now.
+export function plannedDepartureTimes(
+  now: number,
+  until: number,
+  legSeconds: readonly (number | undefined)[],
+  waitMs = 0,
+) {
+  const step = plannedLapMs(legSeconds, waitMs);
+  if (step === undefined) {
+    return [now];
+  }
   const times: number[] = [];
   let time = now;
   while (time <= until && times.length < MAX_LAPS) {
@@ -145,8 +197,10 @@ export function plannedDepartureTimes(
 }
 
 // A saved CX route no ship is running. A loop departs now and every lap after
-// that, and those draws are the countdown, the restock, and the reserve. A
-// one-way route is never bought for here: its own buy runs when it is sent
+// that, and those draws are the countdown, the restock, and the reserve. The
+// first departure takes the full working set. Each later one takes `topUp` of
+// the gap since the one before, since the bases send their unused rest home.
+// A one-way route is never bought for here: its own buy runs when it is sent
 // out. A base origin is left untouched.
 export function unassignedCxLoads(input: {
   now: number;
@@ -154,7 +208,9 @@ export function unassignedCxLoads(input: {
   looping: boolean;
   cx: boolean;
   need: Record<string, number> | undefined;
+  topUp?: (gapMs: number) => Record<string, number>;
   legSeconds: readonly (number | undefined)[];
+  waitMs?: number;
 }) {
   const draws: OriginDraw[] = [];
   if (!input.cx || !input.looping) {
@@ -163,8 +219,12 @@ export function unassignedCxLoads(input: {
   if (input.need === undefined) {
     return { draws, partial: true };
   }
-  for (const time of plannedDepartureTimes(input.now, input.until, input.legSeconds)) {
-    draws.push({ time, need: input.need });
+  const times = plannedDepartureTimes(input.now, input.until, input.legSeconds, input.waitMs);
+  for (let i = 0; i < times.length; i++) {
+    const time = times[i]!;
+    const need =
+      i === 0 || input.topUp === undefined ? input.need : input.topUp(time - times[i - 1]!);
+    draws.push({ time, need });
   }
   return { draws, partial: false };
 }
@@ -196,6 +256,13 @@ export function firstShortDraw(draws: readonly OriginDraw[], stock: Record<strin
   return undefined;
 }
 
+// How many draws the stock covers, in time order, before the first it cannot.
+export function drawsCovered(draws: readonly OriginDraw[], stock: Record<string, number>) {
+  const short = firstShortDraw(draws, stock);
+  const sorted = sortedDraws(draws);
+  return short === undefined ? sorted.length : sorted.indexOf(short);
+}
+
 // Days until the first draw the stock cannot cover. 0 when it is already short.
 export function countdownDays(now: number, draw: OriginDraw | undefined) {
   if (draw === undefined) {
@@ -222,6 +289,21 @@ export function drawTotal(draws: readonly OriginDraw[], until: number) {
     total[ticker] = Math.ceil(total[ticker]!);
   }
   return total;
+}
+
+// Fuel burn varies more than base use, so the stockpile plans 10% more of it.
+export const FUEL_BUFFER = 1.1;
+
+// The same need with SF and FF raised by FUEL_BUFFER, rounded up.
+export function withFuelBuffer(need: Record<string, number>) {
+  const result = { ...need };
+  for (const ticker of ['SF', 'FF']) {
+    const amount = result[ticker];
+    if (amount !== undefined && amount > 0) {
+      result[ticker] = Math.ceil(amount * FUEL_BUFFER);
+    }
+  }
+  return result;
 }
 
 export function daysToMs(days: number) {

@@ -6,6 +6,7 @@ import Active from '@src/components/forms/Active.vue';
 import { transitStopIds } from '@src/features/XIT/ROUTE/route-calc';
 import { ownedShipOfSize } from '@src/features/XIT/ROUTE/owned-ship';
 import { findRoute } from '@src/features/XIT/ROUTE/routes';
+import { acceptDroppedStop, stopIdentity } from '@src/features/XIT/ROUTE/route-stops';
 import { shipOptions } from '@src/features/XIT/TRANSITS/ship-options';
 import { stopLines } from '@src/features/XIT/TRANSITS/plan-route';
 import { routeResults } from '@src/features/XIT/TRANSITS/route-results';
@@ -24,6 +25,7 @@ const parameters = useXitParameters();
 const shipRegistration = ref('');
 const routeStops = ref('');
 const formError = ref('');
+const askReturn = ref(false);
 const options = computed(() => shipOptions());
 let appliedStops = false;
 let appliedShip = false;
@@ -88,6 +90,22 @@ watch(
 const lines = computed(() => stopLines(routeStops.value));
 const canTest = computed(() => shipRegistration.value.length > 0 && lines.value.length >= 2);
 
+// A one-way route that does not end at its origin, asked once per route.
+function needsReturnQuestion() {
+  const route = findRoute(parameters[0]);
+  if (route === undefined || route.loop !== false || route.returnToOrigin !== undefined) {
+    return false;
+  }
+  const origin = route.stops[0];
+  const last = route.stops.at(-1);
+  return (
+    origin !== undefined &&
+    last !== undefined &&
+    route.stops.length >= 2 &&
+    stopIdentity(origin) !== stopIdentity(last)
+  );
+}
+
 function onTest() {
   routeResults.routeId = parameters[0];
   formError.value = '';
@@ -95,6 +113,34 @@ function onTest() {
     formError.value = 'Choose a ship and enter at least two stops';
     return;
   }
+  if (needsReturnQuestion()) {
+    askReturn.value = true;
+    return;
+  }
+  startRun();
+}
+
+// YES ends the route with another visit to its origin, which unloads what the
+// ship brings back. The answer is saved on the route.
+function onReturn(yes: boolean) {
+  askReturn.value = false;
+  const route = findRoute(parameters[0]);
+  const origin = route?.stops[0];
+  if (route !== undefined && origin !== undefined) {
+    route.returnToOrigin = yes;
+    const visit = yes
+      ? acceptDroppedStop(route.stops, { kind: origin.kind, id: origin.id })
+      : undefined;
+    if (visit !== undefined) {
+      route.stops.push(visit);
+      route.legs = undefined;
+      routeStops.value = `${routeStops.value.trimEnd()}\n${origin.id}`;
+    }
+  }
+  startRun();
+}
+
+function startRun() {
   stagedRoute.value = {
     global: { name: 'Transits' },
     groups: [],
@@ -140,7 +186,16 @@ function onTest() {
         and gateway can be set, starting from the previous leg's choices. Tanks burn down from the
         first leg's loadout. Does not delete a blueprint.
       </p>
-      <ActionBar>
+      <template v-if="askReturn">
+        <p :class="$style.question">
+          This route does not loop. Should the ship fly back to the origin after the last stop?
+        </p>
+        <ActionBar>
+          <PrunButton dark @click="onReturn(false)">NO</PrunButton>
+          <PrunButton primary @click="onReturn(true)">YES, RETURN</PrunButton>
+        </ActionBar>
+      </template>
+      <ActionBar v-else>
         <PrunButton primary :disabled="!canTest" @click="onTest">Set Flight Preferences</PrunButton>
       </ActionBar>
     </form>
@@ -183,6 +238,11 @@ function onTest() {
 
 .note {
   margin: 4px 0 0 5px;
+}
+
+.question {
+  margin: 4px 0 0 5px;
+  color: #f7a600;
 }
 
 .error {

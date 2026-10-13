@@ -3,13 +3,16 @@ import { LEG_ESTIMATE_FACTOR, type RouteEta } from '@src/features/XIT/ROUTE/rout
 import {
   countdownDays,
   drawTotal,
+  drawsCovered,
   firstShortDraw,
   lapMs,
   lapStarts,
+  laterOriginLoads,
   loadingAtOrigin,
   nextLapStart,
   plannedDepartureTimes,
   unassignedCxLoads,
+  withFuelBuffer,
   type OriginDraw,
 } from '@src/features/XIT/ROUTE/route-supply';
 
@@ -46,7 +49,7 @@ function execution(
 }
 
 function eta(end: number, nextArrival?: number, partial = false): RouteEta {
-  return { end, nextArrival, partial, estimated: true };
+  return { end, nextArrival, partial, estimated: true, arrivals: [] };
 }
 
 describe('lapMs', () => {
@@ -72,6 +75,64 @@ describe('loadingAtOrigin', () => {
     expect(loadingAtOrigin(execution('FLYING', 0), false)).toBe(false);
     expect(loadingAtOrigin(execution('PLANNING', 0), false)).toBe(false);
     expect(loadingAtOrigin(execution('RUNNING_STEPS', 1), false)).toBe(false);
+  });
+});
+
+describe('laterOriginLoads', () => {
+  // Origin, base, origin again, base: the second stretch loads at waypoint 2.
+  const visits = [0, 2];
+  function midRoute(
+    state: PrunApi.ShipRouteExecutionState,
+    waypointIndex: number,
+    stepIndex = 0,
+  ): PrunApi.ShipRouteExecution {
+    return {
+      shipId: 'ship',
+      route: {
+        repeats: true,
+        waypoints: [origin, waypoint([step('UNLOAD')]), origin, waypoint([step('UNLOAD')])],
+      } as PrunApi.ShipRoute,
+      state,
+      waypointIndex,
+      stepIndex,
+      flightId: null,
+      stepStartedAt: null,
+      stepEndsAt: null,
+    };
+  }
+  const arrivals = (at: Record<number, number>): RouteEta => ({
+    ...eta(NOW + 9 * DAY_MS),
+    arrivals: Object.assign([], at),
+  });
+
+  it('dates a later origin visit still ahead at its estimated arrival', () => {
+    const later = laterOriginLoads(
+      midRoute('FLYING', 1),
+      false,
+      visits,
+      arrivals({ 1: NOW + DAY_MS, 2: NOW + 3 * DAY_MS }),
+      NOW,
+    );
+    expect(later).toEqual({ loads: [{ visit: 1, time: NOW + 3 * DAY_MS }], partial: false });
+  });
+
+  it('counts the visit now while the ship is still loading there, and not once it has', () => {
+    expect(laterOriginLoads(midRoute('RUNNING_STEPS', 2, 2), false, visits, eta(0), NOW)).toEqual({
+      loads: [{ visit: 1, time: NOW }],
+      partial: false,
+    });
+    expect(laterOriginLoads(midRoute('RUNNING_STEPS', 2, 4), false, visits, eta(0), NOW)).toEqual({
+      loads: [],
+      partial: false,
+    });
+    expect(laterOriginLoads(midRoute('FLYING', 3), false, visits, eta(0), NOW).loads).toEqual([]);
+  });
+
+  it('reports an unknown arrival as partial', () => {
+    expect(laterOriginLoads(midRoute('FLYING', 1), false, visits, arrivals({}), NOW)).toEqual({
+      loads: [],
+      partial: true,
+    });
   });
 });
 
@@ -158,6 +219,11 @@ describe('plannedDepartureTimes', () => {
     expect(plannedDepartureTimes(NOW, NOW + step, [3600, 3600])).toEqual([NOW, NOW + step]);
   });
 
+  it('adds the route wait to each lap', () => {
+    const step = (3600 + 3600) * LEG_ESTIMATE_FACTOR * 1000 + DAY_MS;
+    expect(plannedDepartureTimes(NOW, NOW + step, [3600, 3600], DAY_MS)).toEqual([NOW, NOW + step]);
+  });
+
   it('does not step shorter than a minute', () => {
     expect(plannedDepartureTimes(NOW, NOW + 60_000, [1, 1])).toEqual([NOW, NOW + 60_000]);
   });
@@ -179,6 +245,25 @@ describe('unassignedCxLoads', () => {
       legSeconds: [3600, 3600],
     });
     expect(plan.draws.map(draw => draw.time)).toEqual([NOW, NOW + step]);
+  });
+
+  it('takes the working set once and only a top-up of the gap on later laps', () => {
+    const step = 7200 * LEG_ESTIMATE_FACTOR * 1000;
+    const gaps: number[] = [];
+    const plan = unassignedCxLoads({
+      now: NOW,
+      until: NOW + 2 * step,
+      looping: true,
+      cx: true,
+      need: { RAT: 60 },
+      topUp: gap => {
+        gaps.push(gap);
+        return { RAT: 6 };
+      },
+      legSeconds: [3600, 3600],
+    });
+    expect(plan.draws.map(draw => draw.need.RAT)).toEqual([60, 6, 6]);
+    expect(gaps).toEqual([step, step]);
   });
 
   it('does not restock or reserve a planned non-looping route', () => {
@@ -226,5 +311,56 @@ describe('drawTotal', () => {
       { time: NOW + 20 * DAY_MS, need: { RAT: 99 } },
     ];
     expect(drawTotal(draws, NOW + 14 * DAY_MS)).toEqual({ RAT: 21, DW: 3 });
+  });
+});
+
+describe('restock', () => {
+  // Bases use 10 RAT a day plus 1 spare; each lap burns 50 SF.
+  const topUp = (gapMs: number) => ({ RAT: (10 * gapMs) / DAY_MS + 1, SF: 50 });
+
+  it('buys a long lap only once its departure falls inside the restock days', () => {
+    const lap = 8 * DAY_MS;
+    const later: OriginDraw[] = [{ time: NOW + 6 * DAY_MS, need: topUp(lap) }];
+    const inside: OriginDraw[] = [{ time: NOW + 4 * DAY_MS, need: topUp(lap) }];
+    expect(drawTotal(later, NOW + 5 * DAY_MS)).toEqual({});
+    expect(drawTotal(inside, NOW + 5 * DAY_MS)).toEqual({ RAT: 81, SF: 50 });
+  });
+
+  it('reads at least the restock days on a fresh restock', () => {
+    // A 2.4-day lap already out, next departure in 0.1 days: three departures
+    // land inside 5 days.
+    const lap = 2.4 * DAY_MS;
+    const draws: OriginDraw[] = [0.1, 2.5, 4.9, 7.3].map(day => ({
+      time: NOW + day * DAY_MS,
+      need: topUp(lap),
+    }));
+    const stock = drawTotal(draws, NOW + 5 * DAY_MS);
+    expect(countdownDays(NOW, firstShortDraw(draws, stock))).toBeGreaterThanOrEqual(5);
+    expect(drawsCovered(draws, stock)).toBe(3);
+  });
+});
+
+describe('withFuelBuffer', () => {
+  it('adds 10% to SF and FF, rounded up, and leaves other tickers alone', () => {
+    expect(withFuelBuffer({ SF: 95, FF: 40, RAT: 12 })).toEqual({ SF: 105, FF: 44, RAT: 12 });
+  });
+
+  it('adds no fuel the lap does not need', () => {
+    expect(withFuelBuffer({ RAT: 12 })).toEqual({ RAT: 12 });
+  });
+});
+
+describe('drawsCovered', () => {
+  const draws: OriginDraw[] = [
+    { time: NOW + 2 * DAY_MS, need: { RAT: 10 } },
+    { time: NOW + DAY_MS, need: { RAT: 10 } },
+  ];
+
+  it('counts the draws before the first short one', () => {
+    expect(drawsCovered(draws, { RAT: 15 })).toBe(1);
+  });
+
+  it('counts every draw when none is short', () => {
+    expect(drawsCovered(draws, { RAT: 20 })).toBe(2);
   });
 });

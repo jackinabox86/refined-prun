@@ -1,21 +1,27 @@
-import { departureBill, planRouteLoads, routeBaseBills } from '@src/features/XIT/ROUTE/route-load';
+import { addMaterials } from '@src/features/XIT/ACT/material-groups/resupply/milk-run';
+import { departureBill, planOriginSegments } from '@src/features/XIT/ROUTE/route-load';
 import {
   fuelCargoLoads,
   paddedLegSeconds,
-  planRouteTanks,
+  planSegmentTanks,
   routeSupplyDays,
+  waitSeconds,
 } from '@src/features/XIT/ROUTE/route-calc';
+import { originVisitIndexes } from '@src/features/XIT/ROUTE/route-stops';
 import { configLegSeconds, matchConfigRoute, routeEta } from '@src/features/XIT/ROUTE/route-eta';
 import {
   countdownDays,
   daysToMs,
   drawTotal,
+  drawsCovered,
   firstShortDraw,
+  laterOriginLoads,
   lapMs,
   lapStarts,
   loadingAtOrigin,
   nextLapStart,
   unassignedCxLoads,
+  withFuelBuffer,
   type OriginDraw,
 } from '@src/features/XIT/ROUTE/route-supply';
 import {
@@ -44,7 +50,8 @@ export interface OriginRow {
   kind: 'cx' | 'base';
   id: string;
   label: string;
-  // Saved routes that start here, and how many of them have a ship running them.
+  // Looping routes that start here, and how many of them have a ship running them.
+  // A one-way route still draws on the store below, but it is not counted here.
   routes: number;
   running: number;
   // Days to the first lap the store cannot load. Undefined when covered up to horizonDays.
@@ -52,10 +59,13 @@ export interface OriginRow {
   horizonDays: number;
   // A running route's lap could not be priced or timed, so the countdown may be late.
   partial: boolean;
-  // Everything the laps within the resupply days load here, before stock.
+  // What the routes need bought here for the resupply days, before stock: every
+  // departure estimated inside them, at its full load.
   restock: Record<string, number>;
   // Every running lap's load here, up to horizonDays.
   draws: OriginDraw[];
+  // How many of those loads the store covers before the first it cannot.
+  covered: number;
 }
 
 // A saved stop's location id: an exchange's station (ANT), a base's planet (ZV-759c).
@@ -74,24 +84,41 @@ function originLabel(stop: UserData.ShippingRouteStop) {
 // What one lap takes out of the origin store: the departure load ROUTECONFIG
 // plans for the RT, plus, on a loop, refilling the tanks that lap burned. Same
 // inputs as ROUTECONFIG. Undefined when ROUTECONFIG could not plan the load either.
-export function originLapNeed(route: UserData.ShippingRoute) {
-  const hold = cargoForRouteShip(route);
-  if (hold === undefined) {
+// `supplyDays` replaces the route's supply days: a top-up lap only replaces what
+// the bases used since the last departure, because each base visit sends the
+// unused rest home to the origin.
+export function originLapNeed(route: UserData.ShippingRoute, supplyDays?: number) {
+  const lap = planLap(route, supplyDays);
+  if (lap === undefined) {
     return undefined;
   }
-  const padded = sumBy(paddedLegSeconds(route.legs ?? []), seconds => seconds);
-  const days = routeSupplyDays(route.days, padded);
-  const caps = fuelCapacities(shipForRoute(route));
-  const tanks = planRouteTanks(caps.stl, caps.ftl, route.legs ?? []);
-  const billed = routeBaseBills(route.stops, days, fuelCargoLoads(tanks.stl, tanks.ftl));
-  if (billed === undefined) {
+  const { caps, tanks, segments } = lap;
+  const first = segments[0];
+  if (first === undefined) {
     return undefined;
   }
-  const plan = planRouteLoads(billed, hold);
-  const need = departureBill(billed, plan.sourced, plan.departureExtra);
+  let need = departureBill(first.bases, first.plan.sourced, first.plan.departureExtra);
+  for (let i = 1; i < segments.length; i++) {
+    const segment = segments[i];
+    if (segment === undefined) {
+      continue;
+    }
+    need = addMaterials(
+      need,
+      departureBill(segment.bases, segment.plan.sourced, segment.plan.departureExtra),
+    );
+  }
   if (route.loop !== false) {
-    const stl = caps.stl - (tanks.stl.at(-1)?.level ?? caps.stl);
-    const ftl = caps.ftl - (tanks.ftl.at(-1)?.level ?? caps.ftl);
+    let stl = caps.stl - (tanks.stl.at(-1)?.level ?? caps.stl);
+    let ftl = caps.ftl - (tanks.ftl.at(-1)?.level ?? caps.ftl);
+    if (tanks.arrivals.length > 1) {
+      stl = 0;
+      ftl = 0;
+      for (const arrival of tanks.arrivals) {
+        stl += caps.stl - arrival.stl;
+        ftl += caps.ftl - arrival.ftl;
+      }
+    }
     if (stl > 0) {
       need.SF = (need.SF ?? 0) + Math.ceil(stl);
     }
@@ -100,6 +127,62 @@ export function originLapNeed(route: UserData.ShippingRoute) {
     }
   }
   return need;
+}
+
+function planLap(route: UserData.ShippingRoute, supplyDays?: number) {
+  const hold = cargoForRouteShip(route);
+  if (hold === undefined) {
+    return undefined;
+  }
+  const days = supplyDays ?? lapSupplyDays(route);
+  const caps = fuelCapacities(shipForRoute(route));
+  const origins = originVisitIndexes(route.stops);
+  const tanks = planSegmentTanks(caps.stl, caps.ftl, route.legs ?? [], origins);
+  const fuel = fuelCargoLoads(tanks.stl, tanks.ftl, origins.length > 0 ? origins : [0]);
+  const segments = planOriginSegments(route.stops, days, fuel, hold, route.loop);
+  if (segments === undefined || segments.length === 0) {
+    return undefined;
+  }
+  return { caps, tanks, segments };
+}
+
+// What a later origin visit (ordinal >= 1) takes out of the origin stockpile:
+// the load for the stretch after it, plus refilling the tanks it arrives with,
+// with the fuel buffer. originLapNeed counts the same at the lap's first departure.
+function originStretchNeed(route: UserData.ShippingRoute, visit: number, supplyDays?: number) {
+  const lap = planLap(route, supplyDays);
+  const segment = lap?.segments[visit];
+  if (lap === undefined || segment === undefined) {
+    return undefined;
+  }
+  const need = departureBill(segment.bases, segment.plan.sourced, segment.plan.departureExtra);
+  const arrival = lap.tanks.arrivals[visit - 1];
+  if (arrival !== undefined) {
+    const stl = Math.ceil(lap.caps.stl - arrival.stl);
+    const ftl = Math.ceil(lap.caps.ftl - arrival.ftl);
+    if (stl > 0) {
+      need.SF = (need.SF ?? 0) + stl;
+    }
+    if (ftl > 0) {
+      need.FF = (need.FF ?? 0) + ftl;
+    }
+  }
+  return withFuelBuffer(need);
+}
+
+// What one lap draws from the origin stockpile: originLapNeed with the fuel
+// buffer. The countdown, the CX reserve and restock all plan with this, so the
+// buffer is bought and held, while the RT itself still loads the exact amount.
+function stockpileLapNeed(route: UserData.ShippingRoute, supplyDays?: number) {
+  const need = originLapNeed(route, supplyDays);
+  return need === undefined ? undefined : withFuelBuffer(need);
+}
+
+// The supply days one working set carries.
+function lapSupplyDays(route: UserData.ShippingRoute) {
+  const padded =
+    sumBy(paddedLegSeconds(route.legs ?? []), seconds => seconds) + waitSeconds(route.wait);
+  return routeSupplyDays(route.days, padded);
 }
 
 export function originStoreStock(stop: UserData.ShippingRouteStop) {
@@ -128,6 +211,12 @@ export function originStoreStock(stop: UserData.ShippingRouteStop) {
 interface Running {
   route: UserData.ShippingRoute;
   laps: number[];
+  // Later origin visits of the lap under way that have not loaded yet.
+  laterLoads: { visit: number; time: number }[];
+  // The first lap is now and its working set still comes out of the origin.
+  loadingNow: boolean;
+  repeats: boolean;
+  lapMs: number | undefined;
   partial: boolean;
 }
 
@@ -162,28 +251,63 @@ function runningRoutes(now: number, until: number) {
     });
     const lap = lapMs(waypoints, legSeconds);
     const next = nextLapStart(execution, eta, legSeconds);
+    const loadingNow = loadingAtOrigin(execution, atWaypoint);
+    // A ship loading at the first stop draws the whole lap there already.
+    const later = loadingNow
+      ? { loads: [], partial: false }
+      : laterOriginLoads(execution, atWaypoint, originVisitIndexes(saved.stops), eta, now);
     running.push({
       route: saved,
       laps: lapStarts({
         now,
         until,
-        loadingNow: loadingAtOrigin(execution, atWaypoint),
+        loadingNow,
         repeats: execution.route.repeats,
         nextLap: next.time,
         lapMs: lap,
       }),
-      partial: next.partial || (execution.route.repeats && lap === undefined),
+      laterLoads: later.loads.filter(x => x.time < until),
+      loadingNow: loadingNow && execution.route.repeats,
+      repeats: execution.route.repeats,
+      lapMs: lap,
+      partial: next.partial || later.partial || (execution.route.repeats && lap === undefined),
     });
   }
   return running;
+}
+
+// A later lap's draw: the bases' use over the gap since the previous departure,
+// plus that lap's fuel. Falls back to the full load when it cannot be planned.
+function topUpNeeds(route: UserData.ShippingRoute, need: Record<string, number>) {
+  const cache = new Map<number, Record<string, number>>();
+  return (gapMs: number) => {
+    let topUp = cache.get(gapMs);
+    if (topUp === undefined) {
+      topUp = stockpileLapNeed(route, gapMs / daysToMs(1)) ?? need;
+      cache.set(gapMs, topUp);
+    }
+    return topUp;
+  };
+}
+
+function roundUp(materials: Record<string, number>) {
+  const result: Record<string, number> = {};
+  for (const [ticker, amount] of Object.entries(materials)) {
+    if (amount > 0) {
+      result[ticker] = Math.ceil(amount);
+    }
+  }
+  return result;
 }
 
 export function originRows(now: number): OriginRow[] {
   const settings = userData.settings.routeSupply;
   const horizonDays = Math.max(MIN_HORIZON_DAYS, settings.days * 2, settings.yellow);
   const until = now + daysToMs(horizonDays);
-  const restockUntil = now + daysToMs(settings.days);
   const running = runningRoutes(now, until);
+  // Restock buys every departure estimated inside the restock days, so a fresh
+  // restock's countdown reads at least that long.
+  const restockUntil = now + daysToMs(settings.days);
 
   const rows = new Map<string, OriginRow & { stop: UserData.ShippingRouteStop }>();
   for (const route of userData.routes) {
@@ -206,42 +330,86 @@ export function originRows(now: number): OriginRow[] {
         partial: false,
         restock: {},
         draws: [],
+        covered: 0,
         stop,
       };
       rows.set(key, row);
     }
-    row.routes++;
+    const looping = route.loop !== false;
+    if (looping) {
+      row.routes++;
+    }
     const mine = running.filter(x => x.route === route);
     if (mine.length === 0) {
+      const need = stop.kind === 'cx' ? stockpileLapNeed(route) : undefined;
       const plan = unassignedCxLoads({
         now,
         until,
         looping: route.loop !== false,
         cx: stop.kind === 'cx',
-        need: stop.kind === 'cx' ? originLapNeed(route) : undefined,
+        need,
+        topUp: need === undefined ? undefined : topUpNeeds(route, need),
         legSeconds: configLegSeconds(route, true),
+        waitMs: waitSeconds(route.wait) * 1000,
       });
       row.partial ||= plan.partial;
       row.draws.push(...plan.draws);
+      // Its first draw departs now and carries the full working set.
+      if (need !== undefined) {
+        row.restock = addMaterials(row.restock, drawTotal(plan.draws, restockUntil));
+      }
       continue;
     }
-    row.running += mine.length;
-    const need = originLapNeed(route);
+    if (looping) {
+      row.running += mine.length;
+    }
+    const need = stockpileLapNeed(route);
     if (need === undefined) {
       row.partial = true;
       continue;
     }
+    const topUp = topUpNeeds(route, need);
     for (const run of mine) {
       row.partial ||= run.partial;
-      for (const time of run.laps) {
-        row.draws.push({ time, need });
+      const runDraws: OriginDraw[] = [];
+      // The lap under way still loads its later stretches here. A looping ship
+      // replaces one lap of those bases' use; a one-way ship takes the full bill.
+      const stretchDays =
+        run.repeats && run.lapMs !== undefined ? run.lapMs / daysToMs(1) : undefined;
+      for (const load of run.laterLoads) {
+        const stretch = originStretchNeed(route, load.visit, stretchDays);
+        if (stretch === undefined) {
+          row.partial = true;
+          continue;
+        }
+        runDraws.push({ time: load.time, need: stretch });
+      }
+      for (let i = 0; i < run.laps.length; i++) {
+        const time = run.laps[i]!;
+        // A ship loading now still takes its working set. One already out has
+        // it on the route, so its first draw only replaces the lap before.
+        const gap = i === 0 ? run.lapMs : time - run.laps[i - 1]!;
+        if ((i === 0 && run.loadingNow) || gap === undefined) {
+          runDraws.push({ time, need });
+          continue;
+        }
+        runDraws.push({ time, need: topUp(gap) });
+      }
+      row.draws.push(...runDraws);
+      // A one-way route is never restocked for: it has no next lap.
+      if (run.repeats) {
+        row.restock = addMaterials(row.restock, drawTotal(runDraws, restockUntil));
       }
     }
   }
 
-  return [...rows.values()].map(({ stop, ...row }) => ({
-    ...row,
-    countdown: countdownDays(now, firstShortDraw(row.draws, originStoreStock(stop))),
-    restock: drawTotal(row.draws, restockUntil),
-  }));
+  return [...rows.values()].map(({ stop, ...row }) => {
+    const stock = originStoreStock(stop);
+    return {
+      ...row,
+      countdown: countdownDays(now, firstShortDraw(row.draws, stock)),
+      covered: drawsCovered(row.draws, stock),
+      restock: roundUp(row.restock),
+    };
+  });
 }
