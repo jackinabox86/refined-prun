@@ -4,6 +4,9 @@ import {
   applyConfirmedLoadout,
   captureLoadout,
   confirmedLoadout,
+  mergeLegChoices,
+  readGateway,
+  readUsage,
   setInventoryFull,
   tankLevelsAtTarget,
 } from '@src/features/XIT/TRANSITS/btf-loadout';
@@ -14,6 +17,7 @@ import {
   formatRouteTotal,
   routeResults,
 } from '@src/features/XIT/TRANSITS/route-results';
+import { saveRouteLegs } from '@src/features/XIT/ROUTE/routes';
 import { blueprintTestFlightBlock } from '@src/features/XIT/TRANSITS/tank-level';
 import { blueprintsStore } from '@src/infrastructure/prun-api/data/blueprints';
 import { flightPlansStore } from '@src/infrastructure/prun-api/data/flight-plans';
@@ -37,16 +41,32 @@ export const BTF_LEG = act.addActionStep<BtfLegData>({
       confirmedLoadout.reset();
     }
     const label = `${data.originLabel} → ${data.destinationLabel}`;
+    const flight = { anchor: undefined as Element | undefined };
     const finish = (
       line: string,
       ok: boolean,
       recorded?: { seconds: number; stl: number; ftl: number },
     ) => {
+      const live = flight.anchor === undefined ? undefined : readGateway(flight.anchor);
+      const gateway = live ?? confirmedLoadout.current?.gatewayOn;
+      const usage =
+        flight.anchor === undefined
+          ? { fuelUsage: undefined, reactorUsage: undefined }
+          : readUsage(flight.anchor);
       routeResults.legs.push(
         ok && recorded !== undefined
-          ? { ok: true, seconds: recorded.seconds, stl: recorded.stl, ftl: recorded.ftl }
+          ? {
+              ok: true,
+              seconds: recorded.seconds,
+              stl: recorded.stl,
+              ftl: recorded.ftl,
+              ...(gateway === undefined ? {} : { gateway }),
+              ...(usage.fuelUsage === undefined ? {} : { fuelUsage: usage.fuelUsage }),
+              ...(usage.reactorUsage === undefined ? {} : { reactorUsage: usage.reactorUsage }),
+            }
           : { ok: false },
       );
+      saveRouteLegs(routeResults.routeId, routeResults.legs);
       const text = data.isLast ? `${line} | ${formatRouteTotal(routeResults.legs)}` : line;
       if (ok && recorded !== undefined) {
         const saved = confirmedLoadout.current;
@@ -82,6 +102,7 @@ export const BTF_LEG = act.addActionStep<BtfLegData>({
     if (tile === undefined) {
       return;
     }
+    flight.anchor = tile.anchor;
 
     const containers = _$$(tile.anchor, C.AddressSelector.container);
     const originField = containers[0];
@@ -165,13 +186,17 @@ export const BTF_LEG = act.addActionStep<BtfLegData>({
           );
           return;
         }
-        // The last leg stays on screen until the player confirms the fuel.
-        // Middle legs do not wait. A one-leg route already waited above.
-        const confirmLast = data.isLast && !isFirstOfType;
-        if (confirmLast) {
-          await waitAct(`Check the fuel loadout for ${label}, then ACT`);
+        // Every leg waits for the player's fuel and gateway choices for that leg.
+        // The first leg already waited above.
+        const confirmLeg = !isFirstOfType;
+        if (confirmLeg) {
+          await waitAct(`Set the fuel usage and gateway for ${label}, then ACT`);
+          const choices = captureLoadout(tile.anchor);
+          if (choices.ok && confirmedLoadout.current !== undefined) {
+            mergeLegChoices(confirmedLoadout.current, choices.loadout);
+          }
         }
-        const matched = confirmLast
+        const matched = confirmLeg
           ? await waitForLegPlan(tile.anchor, previousPlan, originQuery, destinationQuery, settle)
           : shown;
         if (matched === undefined) {
