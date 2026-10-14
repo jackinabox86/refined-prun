@@ -3,8 +3,13 @@ import { PlanetBurn } from '@src/core/burn';
 import PlanetHeader from '@src/features/XIT/BURN/PlanetHeader.vue';
 import MaterialList from '@src/features/XIT/BURN/MaterialList.vue';
 import { useTileState } from '@src/features/XIT/BURN/tile-state';
+import { ContractCargo } from '@src/features/XIT/BURN/contract-cargo';
 
-const { burn, canMinimize } = defineProps<{ burn: PlanetBurn; canMinimize?: boolean }>();
+const { burn, canMinimize } = defineProps<{
+  burn: PlanetBurn;
+  canMinimize?: boolean;
+  contractCargo: ContractCargo[];
+}>();
 
 const expand = useTileState('expand');
 
@@ -27,6 +32,7 @@ const onHeaderClick = () => {
   <tbody>
     <PlanetHeader
       :has-minimize="canMinimize"
+      :contract-cargo="contractCargo"
       :burn="burn"
       :minimized="isMinimized"
       :on-click="onHeaderClick" />
