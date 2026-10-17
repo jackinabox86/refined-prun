@@ -2,10 +2,53 @@
 
 ## Unreleased
 
+### Added
+
+- XIT Repair settings: Global repair settings are now managed in `XIT SET` Gameplay with Target age (default 60) and Red and Yellow thresholds (defaults 3 / 7). Also, a new countdown toggle: “on”, XIT BS and XIT DISPATCH repair cells count down to the planet target or the global target. “Off” still shows the age counting off.
+- `XIT FLTBUTTONS`: Pick FLT unload-button colors for Base or CX, empty or loaded. Defaults stay blue when empty and orange with cargo.
+- `XIT SET SFC`: Up to four SFC destination shortcuts, each a label plus an exchange or planet. Defaults remain ANT, BEN, HRT, and MOR. A blank destination hides that button. A button is grayed out when the ship is already there.
+- `XIT GOVBURNACT`: Off-by-default force CX buy. On, the CX Buy bill ignores warehouse stock. Other CX Buy packages still subtract it.
+- `XIT SET` Act: Optional XIT BS Days "one decimal", off by default. On, a burn under 10 days shows one decimal. Off keeps a whole number.
+- `XIT INV`: A name click opens `BS`, `SHP`, or `CX`. The bar still opens inventory.
+- `lm-link`: SHPI shows `LM {location}` at a commodity exchange or a planet with a local market, and the SHP / SHPF / SFC links drop the ship id. The planet right-click menu uses the same LM command.
+- `XIT BURNACT`: REFUEL toggle, on by default and remembered globally. On, the package starts with Refuel on all exchanges.
+- `xit-conts-collapse-long-cells`: On by default. XIT CONTS Item, Partner, and Self cells show three entries, then `(…)`.
+- `unclipped-tooltips`: Tooltips draw past the tile edge.
+- `chat-command-links`: Text in backticks in company, partner, and user chat becomes a command link.
+- `favicon-notification-badge`: The tab icon shows the unseen notification count, up to 99.
+- `inv-ship-names`: An INV row for a ship shows the ship name as a `SHP` link.
+- `inv-ship-destination-location`: An in-flight ship shows its destination in the INV Location column.
+- `XIT HELP AGT`: Agent guide, also `XIT HELP AGENT`. XIT AGENT has a "What is this?" button that opens it.
+
 ### Changed
 
+- `XIT NOBUY`: The no-buy editor is the XIT SET Act tab. `XIT NOBUY` opens that tab. The stored list is unchanged.
+- `XIT BS`: Clicking the cmds cell expands it, and clicking again collapses it.
+- `XIT DISPATCH`: Shift-click a burn value expands that base's burn rows. A plain click still opens `XIT BURN`.
+- Auto SFC arms the next stage as soon as departure is confirmed. The two-second pause is gone. The next flight still waits until that departure shows, or you skip.
+- `XIT PRUNSTAT`: The financial report shortcut opens prun.raylu.net/stats.
+- `correct-commands`: A station command that matches directly (`LM HRT`) is capitalized.
+- `XIT BURN`: The tile title is `BURN`, not `ENHANCED BURN`.
+- `XIT FLOW`: The ticker column still sorts, without a "Ticker" label.
+- `nots-shift-click-mark-read`: Shift-click opens the notification's target as a companion buffer beside NOTS. Ctrl-click marks that row read without opening it. A plain click is unchanged.
 - `XIT CONTC`: Conditions with no deadline are grouped after dated deadlines, then sorted by type, address, destination, ticker, and amount.
-- `XIT ACT`: Renaming a package from the header validates the name first. An invalid name shows an error overlay and leaves the current name unchanged.
+
+### Fixed
+
+- `XIT AGENT`: A milk-run non-input pickup runs while the ship is still docked, then one Open SFC.
+- `XIT ACT`: A failed or cancelled step stops the package. A missing CX order book fails the step. Ship cargo and fuel are stored by store id, so a nameless ship no longer hides a named one.
+- `XIT ACT`: A CX buy whose order book cannot fill any units is skipped without taking the next buy's ACT click.
+- The APEX alpha label stays behind the left sidebar shortcuts on a short window.
+- `XIT FXTS`: Each day's totals include both the material amount and the currency side of the trade.
+- POPID ALL skips a slider when the reserve bar cannot hold a move to max.
+- `XIT ACT`: Fit to Ship wraps in a narrow pane.
+- CX Buy price preview: a price under the refined-PrUn value reads `n% under`, with no warning color. At or above the value it still reads `n% over`.
+- `XIT FLT`: The ship name and the Repair cell open `SHP`. Class, status, and ETA stay on `SFC`. Size and cargo stay on `SHPI`. Fuel stays on `SHPF`.
+- `XIT DISPATCH`: A XIT SET Buffers rule keeps its width and height.
+
+### Removed
+
+- Repair time offset, including per-planet offsets. REPAIRACT's own Time Offset stays.
 
 ## 1.1.4
 
