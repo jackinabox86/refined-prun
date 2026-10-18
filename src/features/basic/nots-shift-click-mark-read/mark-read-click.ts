@@ -18,6 +18,13 @@ export function isNotificationCompanionClick(event: NotificationClick) {
   return event.shiftKey === true && event.ctrlKey !== true && isPrimaryClick(event);
 }
 
+// Shift-click companions only from a floating NOTS window. A NOTS docked on a
+// screen sits among buffers the player placed there, so shift-click falls back
+// to the game's plain click. Ctrl-click mark-read works in either host.
+export function isCompanionHost(window: object | null | undefined) {
+  return window != null;
+}
+
 export function openedWindowCommand(commandText: string | null | undefined) {
   const command = commandText?.trim() ?? '';
   if (command === '') {
@@ -26,8 +33,8 @@ export function openedWindowCommand(commandText: string | null | undefined) {
   return command;
 }
 
-// Docked NOTS cannot host a split companion. Only adopt when the host can
-// and the game actually labeled the window it opened.
+// Only adopt when the host can split and the game actually labeled the window
+// it opened.
 export function shouldAdoptOpenedWindowAsCompanion(
   canCompanion: boolean,
   command: string | undefined,
@@ -38,23 +45,19 @@ export function shouldAdoptOpenedWindowAsCompanion(
 export type CompanionTarget =
   | { action: 'leave' }
   | { action: 'unhide' }
-  | { action: 'companion'; command: string }
-  | { action: 'show'; command: string };
+  | { action: 'companion'; command: string };
 
 // A registered click command replaces whatever the game opened, the same buffer
 // a plain click opens. It opens even when the game only re-focused a buffer,
-// because that buffer is the game default, not the replacement. A docked NOTS
-// cannot host a companion, so it shows the replacement the way a plain click does.
+// because that buffer is the game default, not the replacement.
 export function companionTarget(
   canCompanion: boolean,
   openedCount: number,
   openedCommand: string | undefined,
   clickCommand: string | undefined,
 ): CompanionTarget {
-  if (clickCommand !== undefined) {
-    return canCompanion
-      ? { action: 'companion', command: clickCommand }
-      : { action: 'show', command: clickCommand };
+  if (clickCommand !== undefined && canCompanion) {
+    return { action: 'companion', command: clickCommand };
   }
   if (openedCount === 0) {
     return { action: 'leave' };

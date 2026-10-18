@@ -2,7 +2,6 @@ import { getPrunId } from '@src/infrastructure/prun-ui/attributes';
 import { UI_WINDOWS_REQUEST_FOCUS } from '@src/infrastructure/prun-api/client-messages';
 import { dispatchClientPrunMessage } from '@src/infrastructure/prun-api/prun-api-listener';
 import { alertsStore } from '@src/infrastructure/prun-api/data/alerts';
-import { showBuffer } from '@src/infrastructure/prun-ui/buffers';
 import {
   canOpenCompanion,
   openCompanionBuffer,
@@ -16,6 +15,7 @@ import css from '@src/utils/css-utils.module.css';
 import {
   closeOrUnhide,
   companionTarget,
+  isCompanionHost,
   isNotificationCompanionClick,
   isNotificationMarkReadClick,
   newlyOpenedWindows,
@@ -51,6 +51,10 @@ function onNotificationMouseDown(event: MouseEvent) {
 
 function onNotificationClick(event: MouseEvent, tile: PrunTile, container: HTMLElement) {
   if (isNotificationCompanionClick(event)) {
+    // A docked NOTS lets the game handle shift-click as a plain click.
+    if (!isCompanionHost(tile.window)) {
+      return;
+    }
     const alert = alertsStore.getById(getPrunId(container));
     watchCompanionTarget(tile, notificationClickCommand(alert));
     return;
@@ -181,11 +185,7 @@ async function adoptOpenedTarget(
   if (opened.length > 0) {
     await waitUntilDetached(opened[0]);
   }
-  if (target.action === 'companion') {
-    await openCompanionBuffer(tile, target.command);
-  } else {
-    await showBuffer(target.command);
-  }
+  await openCompanionBuffer(tile, target.command);
 }
 
 async function waitForOpenedCommand(opened: Element[]) {

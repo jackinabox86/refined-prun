@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   closeOrUnhide,
   companionTarget,
+  isCompanionHost,
   isNotificationCompanionClick,
   isNotificationMarkReadClick,
   newlyOpenedWindows,
@@ -71,6 +72,17 @@ describe('isNotificationCompanionClick', () => {
   });
 });
 
+describe('isCompanionHost', () => {
+  it('does not host a companion from a NOTS docked on a screen', () => {
+    expect(isCompanionHost(null)).toBe(false);
+    expect(isCompanionHost(undefined)).toBe(false);
+  });
+
+  it('hosts a companion from a floating NOTS window', () => {
+    expect(isCompanionHost({})).toBe(true);
+  });
+});
+
 describe('opened notification command', () => {
   it('does not adopt a missing or blank command', () => {
     expect(openedWindowCommand(undefined)).toBeUndefined();
@@ -113,8 +125,9 @@ describe('companionTarget', () => {
     });
   });
 
-  it('shows the click command when a docked NOTS cannot host a companion', () => {
-    expect(companionTarget(false, 1, undefined, vote)).toEqual({ action: 'show', command: vote });
+  it('keeps the game target visible when the host cannot split', () => {
+    expect(companionTarget(false, 1, undefined, vote)).toEqual({ action: 'unhide' });
+    expect(companionTarget(false, 0, undefined, vote)).toEqual({ action: 'leave' });
   });
 
   it('companions the game target when no click command is registered', () => {
