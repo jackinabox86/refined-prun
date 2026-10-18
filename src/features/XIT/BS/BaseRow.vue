@@ -297,6 +297,13 @@ function onCmdsClick() {
   visibility: hidden;
 }
 
+/* Hold the game's `tr:hover td` highlight while the menu is open, so the
+   expanded buttons keep their gray backing after the pointer leaves the row.
+   Two class selectors beat the game's rule. */
+.row:has(.cmdsOpen) > td {
+  background-color: rgba(255, 255, 255, 0.15);
+}
+
 .row {
   border-bottom: 1px solid #2b485a;
 }

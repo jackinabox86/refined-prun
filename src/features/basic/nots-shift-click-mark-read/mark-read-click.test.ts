@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   closeOrUnhide,
+  companionTarget,
   isNotificationCompanionClick,
   isNotificationMarkReadClick,
   newlyOpenedWindows,
@@ -92,6 +93,44 @@ describe('opened notification command', () => {
 
   it('adopts when the host can open a companion and the command is known', () => {
     expect(shouldAdoptOpenedWindowAsCompanion(true, 'SHPI AB-123')).toBe(true);
+  });
+});
+
+describe('companionTarget', () => {
+  const vote = 'COGCPD p-KW-688c pn-ADVERTISING_AGRICULTURE';
+
+  it('companions the click command instead of the game default the game opened', () => {
+    expect(companionTarget(true, 1, 'COGC KW-688c', vote)).toEqual({
+      action: 'companion',
+      command: vote,
+    });
+  });
+
+  it('companions the click command when the game only re-focused its default', () => {
+    expect(companionTarget(true, 0, undefined, vote)).toEqual({
+      action: 'companion',
+      command: vote,
+    });
+  });
+
+  it('shows the click command when a docked NOTS cannot host a companion', () => {
+    expect(companionTarget(false, 1, undefined, vote)).toEqual({ action: 'show', command: vote });
+  });
+
+  it('companions the game target when no click command is registered', () => {
+    expect(companionTarget(true, 1, 'SHPI AB-123', undefined)).toEqual({
+      action: 'companion',
+      command: 'SHPI AB-123',
+    });
+  });
+
+  it('leaves a re-focused game target alone when no click command is registered', () => {
+    expect(companionTarget(true, 0, undefined, undefined)).toEqual({ action: 'leave' });
+  });
+
+  it('keeps the game target visible when it cannot be adopted', () => {
+    expect(companionTarget(false, 1, 'SHPI AB-123', undefined)).toEqual({ action: 'unhide' });
+    expect(companionTarget(true, 1, undefined, undefined)).toEqual({ action: 'unhide' });
   });
 });
 

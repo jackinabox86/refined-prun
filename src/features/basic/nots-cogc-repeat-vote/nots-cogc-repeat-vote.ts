@@ -1,6 +1,7 @@
 import { getPrunId } from '@src/infrastructure/prun-ui/attributes';
 import { alertsStore } from '@src/infrastructure/prun-api/data/alerts';
 import { showBuffer } from '@src/infrastructure/prun-ui/buffers';
+import { registerNotificationClickCommand } from '@src/infrastructure/prun-ui/notification-click-commands';
 import { cogcRepeatVoteCommand } from './repeat-vote-command';
 
 function onTileReady(tile: PrunTile) {
@@ -14,8 +15,8 @@ function processNotification(container: HTMLElement) {
   }
 
   container.addEventListener('click', e => {
-    // Shift-click companions the game target, and ctrl-click marks the alert
-    // read without opening it. Both must reach the game.
+    // Shift-click companions the registered command, and ctrl-click marks the
+    // alert read without opening it. Both must reach the game.
     if (e.shiftKey || e.ctrlKey) {
       return;
     }
@@ -26,6 +27,7 @@ function processNotification(container: HTMLElement) {
 }
 
 function init() {
+  registerNotificationClickCommand(cogcRepeatVoteCommand);
   tiles.observe('NOTS', onTileReady);
 }
 

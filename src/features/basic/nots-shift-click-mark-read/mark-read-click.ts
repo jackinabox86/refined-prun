@@ -35,6 +35,36 @@ export function shouldAdoptOpenedWindowAsCompanion(
   return canCompanion && command !== undefined;
 }
 
+export type CompanionTarget =
+  | { action: 'leave' }
+  | { action: 'unhide' }
+  | { action: 'companion'; command: string }
+  | { action: 'show'; command: string };
+
+// A registered click command replaces whatever the game opened, the same buffer
+// a plain click opens. It opens even when the game only re-focused a buffer,
+// because that buffer is the game default, not the replacement. A docked NOTS
+// cannot host a companion, so it shows the replacement the way a plain click does.
+export function companionTarget(
+  canCompanion: boolean,
+  openedCount: number,
+  openedCommand: string | undefined,
+  clickCommand: string | undefined,
+): CompanionTarget {
+  if (clickCommand !== undefined) {
+    return canCompanion
+      ? { action: 'companion', command: clickCommand }
+      : { action: 'show', command: clickCommand };
+  }
+  if (openedCount === 0) {
+    return { action: 'leave' };
+  }
+  if (!shouldAdoptOpenedWindowAsCompanion(canCompanion, openedCommand)) {
+    return { action: 'unhide' };
+  }
+  return { action: 'companion', command: openedCommand! };
+}
+
 export function snapshotWindows(windows: ArrayLike<Element>) {
   return new Set(Array.from(windows));
 }

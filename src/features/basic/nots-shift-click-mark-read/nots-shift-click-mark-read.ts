@@ -1,10 +1,13 @@
 import { getPrunId } from '@src/infrastructure/prun-ui/attributes';
 import { UI_WINDOWS_REQUEST_FOCUS } from '@src/infrastructure/prun-api/client-messages';
 import { dispatchClientPrunMessage } from '@src/infrastructure/prun-api/prun-api-listener';
+import { alertsStore } from '@src/infrastructure/prun-api/data/alerts';
+import { showBuffer } from '@src/infrastructure/prun-ui/buffers';
 import {
   canOpenCompanion,
   openCompanionBuffer,
 } from '@src/infrastructure/prun-ui/companion-buffer';
+import { notificationClickCommand } from '@src/infrastructure/prun-ui/notification-click-commands';
 import { closePrunWindow } from '@src/infrastructure/prun-ui/utils/close-prun-window';
 import { onNodeTreeMutation } from '@src/utils/on-node-tree-mutation';
 import { sleep } from '@src/utils/sleep';
@@ -12,11 +15,11 @@ import { clickElement } from '@src/util';
 import css from '@src/utils/css-utils.module.css';
 import {
   closeOrUnhide,
+  companionTarget,
   isNotificationCompanionClick,
   isNotificationMarkReadClick,
   newlyOpenedWindows,
   openedWindowCommand,
-  shouldAdoptOpenedWindowAsCompanion,
   shouldRestorePriorWindow,
   snapshotWindows,
   topmostWindow,
@@ -30,7 +33,7 @@ const COMMAND_POLL_MS = 50;
 function onTileReady(tile: PrunTile) {
   subscribe($$(tile.anchor, C.AlertListItem.container), container => {
     container.addEventListener('mousedown', onNotificationMouseDown, true);
-    container.addEventListener('click', event => onNotificationClick(event, tile), true);
+    container.addEventListener('click', event => onNotificationClick(event, tile, container), true);
   });
 }
 
@@ -46,9 +49,10 @@ function onNotificationMouseDown(event: MouseEvent) {
   event.preventDefault();
 }
 
-function onNotificationClick(event: MouseEvent, tile: PrunTile) {
+function onNotificationClick(event: MouseEvent, tile: PrunTile, container: HTMLElement) {
   if (isNotificationCompanionClick(event)) {
-    watchCompanionTarget(tile);
+    const alert = alertsStore.getById(getPrunId(container));
+    watchCompanionTarget(tile, notificationClickCommand(alert));
     return;
   }
   if (!isNotificationMarkReadClick(event)) {
@@ -98,7 +102,7 @@ function onNotificationClick(event: MouseEvent, tile: PrunTile) {
   setTimeout(() => finish(newlyOpenedWindows(before, windows)), SETTLE_MS);
 }
 
-function watchCompanionTarget(tile: PrunTile) {
+function watchCompanionTarget(tile: PrunTile, clickCommand: string | undefined) {
   const windows = document.getElementsByClassName(C.Window.window);
   const before = snapshotWindows(windows);
   let settled = false;
@@ -110,7 +114,7 @@ function watchCompanionTarget(tile: PrunTile) {
     }
     settled = true;
     stopWatching();
-    void adoptOpenedTarget(tile, opened);
+    void adoptOpenedTarget(tile, opened, clickCommand);
   };
 
   stopWatching = onNodeTreeMutation(document, () => {
@@ -131,16 +135,29 @@ function watchCompanionTarget(tile: PrunTile) {
   setTimeout(() => finish(newlyOpenedWindows(before, windows)), SETTLE_MS);
 }
 
-async function adoptOpenedTarget(tile: PrunTile, opened: Element[]) {
-  // No new window means the game re-focused a buffer that was already open.
-  // Leave that focus visible. Retargeting the companion would hit buffer reuse
-  // and pull the existing window forward instead of filling the split.
-  if (opened.length === 0) {
+async function adoptOpenedTarget(
+  tile: PrunTile,
+  opened: Element[],
+  clickCommand: string | undefined,
+) {
+  // Without a click command, no new window means the game re-focused a buffer
+  // that was already open. Leave that focus visible. Retargeting the companion
+  // would hit buffer reuse and pull the existing window forward instead of
+  // filling the split.
+  const openedCommand =
+    clickCommand === undefined && opened.length > 0
+      ? await waitForOpenedCommand(opened)
+      : undefined;
+  const target = companionTarget(
+    canOpenCompanion(tile),
+    opened.length,
+    openedCommand,
+    clickCommand,
+  );
+  if (target.action === 'leave') {
     return;
   }
-
-  const command = await waitForOpenedCommand(opened);
-  if (!shouldAdoptOpenedWindowAsCompanion(canOpenCompanion(tile), command)) {
+  if (target.action === 'unhide') {
     for (const windowEl of opened) {
       unhideNotificationTarget(windowEl);
     }
@@ -157,12 +174,18 @@ async function adoptOpenedTarget(tile: PrunTile, opened: Element[]) {
       },
     );
   }
-  if (!closed || command === undefined) {
+  if (!closed) {
     return;
   }
 
-  await waitUntilDetached(opened[0]);
-  await openCompanionBuffer(tile, command);
+  if (opened.length > 0) {
+    await waitUntilDetached(opened[0]);
+  }
+  if (target.action === 'companion') {
+    await openCompanionBuffer(tile, target.command);
+  } else {
+    await showBuffer(target.command);
+  }
 }
 
 async function waitForOpenedCommand(opened: Element[]) {
