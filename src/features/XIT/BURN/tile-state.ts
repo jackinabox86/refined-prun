@@ -8,5 +8,11 @@ export const useTileState = createTileStateHook({
   prod: true,
   wf: true,
   io: false,
+  // Count goods bought under a BUY contract that the partner hasn't delivered yet.
+  buyCont: true,
+  // Planets whose contract cargo is excluded.
+  excludeContracts: [] as string[],
+  // Planets whose production inputs are supplied by someone else.
+  managed: [] as string[],
   expand: [] as string[],
 });
