@@ -1,4 +1,5 @@
 import { snapDays } from '@src/features/XIT/ROUTE/route-calc';
+import { checkSupply, parseStopSteps } from '@src/features/XIT/ROUTE/route-cargo';
 import { repeatOriginKey, stopIdentity } from '@src/features/XIT/ROUTE/route-stops';
 import type { WaitUnit } from '@src/features/XIT/RTACT/route-spec';
 
@@ -12,12 +13,19 @@ export interface RouteShareJson {
   format: typeof ROUTE_SHARE_FORMAT;
   version: typeof ROUTE_SHARE_VERSION;
   name: string;
-  stops: { kind: 'cx' | 'base'; id: string }[];
+  stops: RouteShareStop[];
   ship?: string;
   supplyDays?: number;
   loop: boolean;
   returnToOrigin?: boolean;
   wait?: { amount: number; unit: WaitUnit };
+}
+
+export interface RouteShareStop {
+  kind: 'cx' | 'base';
+  id: string;
+  supply?: Record<string, number>;
+  steps?: string[];
 }
 
 export type ImportedRoute = Omit<UserData.ShippingRoute, 'id'>;
@@ -31,7 +39,7 @@ export function exportRoute(route: UserData.ShippingRoute): RouteShareJson {
     format: ROUTE_SHARE_FORMAT,
     version: ROUTE_SHARE_VERSION,
     name: route.name,
-    stops: route.stops.map(stop => ({ kind: stop.kind, id: stop.id })),
+    stops: route.stops.map(exportStop),
     loop: route.loop !== false,
   };
   if (route.ship !== undefined && route.ship.length > 0) {
@@ -47,6 +55,17 @@ export function exportRoute(route: UserData.ShippingRoute): RouteShareJson {
     json.wait = { amount: route.wait.amount, unit: route.wait.unit };
   }
   return json;
+}
+
+function exportStop(stop: UserData.ShippingRouteStop): RouteShareStop {
+  const shared: RouteShareStop = { kind: stop.kind, id: stop.id };
+  if (stop.supply !== undefined) {
+    shared.supply = { ...stop.supply };
+  }
+  if (stop.steps !== undefined && stop.steps.length > 0) {
+    shared.steps = [...stop.steps];
+  }
+  return shared;
 }
 
 export function importRoute(text: string): RouteImportResult {
@@ -144,6 +163,10 @@ function importStops(value: unknown): UserData.ShippingRouteStop[] | string {
     // Exchange codes are upper case. Planet ids keep their case (ZV-759c).
     const id = kind === 'cx' ? trimmed.toUpperCase() : trimmed;
     const stop: UserData.ShippingRouteStop = { kind, id };
+    const cargo = importStopCargo(entry as Record<string, unknown>, stop, i + 1);
+    if (cargo !== undefined) {
+      return cargo;
+    }
     const origin = stops[0];
     if (stops.some(x => stopIdentity(x) === stopIdentity(stop))) {
       if (origin === undefined || stopIdentity(origin) !== stopIdentity(stop)) {
@@ -154,6 +177,38 @@ function importStops(value: unknown): UserData.ShippingRouteStop[] | string {
     stops.push(stop);
   }
   return stops;
+}
+
+// Fills the stop's supply and steps. Returns an error, or undefined when they are fine.
+function importStopCargo(
+  entry: Record<string, unknown>,
+  stop: UserData.ShippingRouteStop,
+  place: number,
+) {
+  if (entry.supply !== undefined) {
+    if (stop.kind !== 'base') {
+      return `Stop ${place} (${stop.id}): supply is for bases only. Use steps on an exchange.`;
+    }
+    const supply = checkSupply(entry.supply);
+    if (!supply.ok) {
+      return `Stop ${place} (${stop.id}): ${supply.error}.`;
+    }
+    stop.supply = supply.supply;
+  }
+  if (entry.steps !== undefined) {
+    if (!Array.isArray(entry.steps) || entry.steps.some(x => typeof x !== 'string')) {
+      return `Stop ${place} (${stop.id}): steps should be a list of strings.`;
+    }
+    const lines = (entry.steps as string[]).map(x => x.trim()).filter(x => x.length > 0);
+    const parsed = parseStopSteps(lines);
+    if (!parsed.ok) {
+      return `Stop ${place} (${stop.id}): ${parsed.error}.`;
+    }
+    if (lines.length > 0) {
+      stop.steps = lines;
+    }
+  }
+  return undefined;
 }
 
 function importWait(value: unknown): UserData.ShippingRoute['wait'] | string {

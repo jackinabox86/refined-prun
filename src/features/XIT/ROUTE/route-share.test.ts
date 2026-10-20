@@ -91,7 +91,42 @@ describe('route import', () => {
     });
   });
 
+  it('carries a set delivery and stop steps both ways', () => {
+    const route = saved();
+    route.stops[1] = { ...deimos, supply: { RAT: 120 }, steps: ['unload ALO all all'] };
+    route.stops[3] = { ...phobos, supply: {} };
+    const json = exportRoute(route);
+    expect(json.stops[1]).toEqual({
+      ...deimos,
+      supply: { RAT: 120 },
+      steps: ['unload ALO all all'],
+    });
+    expect(json.stops[3]).toEqual({ ...phobos, supply: {} });
+    const result = importRoute(JSON.stringify(json));
+    if (!result.ok) {
+      throw new Error(result.error);
+    }
+    expect(result.route.stops[1]).toEqual(json.stops[1]);
+    expect(result.route.stops[3]).toEqual(json.stops[3]);
+  });
+
   it.each([
+    [
+      '{"stops":[{"kind":"cx","id":"AI1","supply":{"RAT":5}}]}',
+      'Stop 1 (AI1): supply is for bases only. Use steps on an exchange.',
+    ],
+    [
+      '{"stops":[{"kind":"base","id":"ZV-759c","supply":{"RAT":1.5}}]}',
+      'Stop 1 (ZV-759c): RAT amount must be a whole number, 0 or more.',
+    ],
+    [
+      '{"stops":[{"kind":"cx","id":"AI1","steps":"load RAT 1 1"}]}',
+      'Stop 1 (AI1): steps should be a list of strings.',
+    ],
+    [
+      '{"stops":[{"kind":"cx","id":"AI1","steps":["load RAT 1 1","fly home"]}]}',
+      'Stop 1 (AI1): step 2 (fly home): unknown step "fly".',
+    ],
     ['not json', 'Invalid JSON.'],
     ['[]', 'Expected a JSON object.'],
     ['{"format":"contract","stops":[]}', 'Not a route (format must be "rpr-route").'],

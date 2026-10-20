@@ -11,7 +11,7 @@ import {
   ownUseByStop,
 } from '@src/features/XIT/ROUTE/route-load';
 import { fitLimitText } from '@src/features/XIT/ROUTE/route-fit-limit';
-import { buildRouteSpec } from '@src/features/XIT/ROUTE/route-rt';
+import { buildRouteSpec, type RouteBuildStop } from '@src/features/XIT/ROUTE/route-rt';
 import { setRouteBlock } from '@src/features/XIT/ROUTE/set-route-gate';
 import { buildRouteconfigPackage } from '@src/features/XIT/RTACT/route-package';
 import { previewedRtRoute, stagedRtRoute } from '@src/features/XIT/RTACT/staged';
@@ -48,6 +48,12 @@ import {
   shippingRoutes,
 } from '@src/features/XIT/ROUTE/routes';
 import { exportRoute, importRoute } from '@src/features/XIT/ROUTE/route-share';
+import {
+  formatSupply,
+  parseStopSteps,
+  parseSupplyText,
+  splitStepsText,
+} from '@src/features/XIT/ROUTE/route-cargo';
 import StopPool from '@src/features/XIT/ROUTE/StopPool.vue';
 import { shipOptions } from '@src/features/XIT/TRANSITS/ship-options';
 import { useTile } from '@src/hooks/use-tile';
@@ -481,7 +487,7 @@ function onImport() {
     ),
   ];
   if (foreign.length > 0) {
-    notes.push(`no base of yours at ${foreign.join(', ')}, so nothing loads there`);
+    notes.push(`no base of yours at ${foreign.join(', ')}, so the plan delivers nothing there`);
   }
   const created = addImportedRoute(imported);
   selectedId.value = created.id;
@@ -624,6 +630,41 @@ function removeStop(key: string) {
   current.legs = undefined;
 }
 
+// One stop's cargo editor is open at a time. Its fields save on change.
+const cargoKey = ref<string | undefined>(undefined);
+const cargoError = ref('');
+
+function hasCargo(stop: UserData.ShippingRouteStop) {
+  return stop.supply !== undefined || (stop.steps?.length ?? 0) > 0;
+}
+
+function toggleCargo(stop: UserData.ShippingRouteStop) {
+  const key = stopInstanceKey(stop);
+  cargoKey.value = cargoKey.value === key ? undefined : key;
+  cargoError.value = '';
+}
+
+function onSupplyChange(stop: UserData.ShippingRouteStop, event: Event) {
+  const parsed = parseSupplyText((event.target as HTMLInputElement).value);
+  if (!parsed.ok) {
+    cargoError.value = parsed.error;
+    return;
+  }
+  cargoError.value = '';
+  stop.supply = parsed.supply;
+}
+
+function onStepsChange(stop: UserData.ShippingRouteStop, event: Event) {
+  const lines = splitStepsText((event.target as HTMLInputElement).value);
+  const parsed = parseStopSteps(lines);
+  if (!parsed.ok) {
+    cargoError.value = parsed.error;
+    return;
+  }
+  cargoError.value = '';
+  stop.steps = lines.length > 0 ? lines : undefined;
+}
+
 // The wait saves as soon as it is edited, so SET ROUTE never builds an old one.
 function onWaitDraft(event: Event) {
   waitAmount.value = (event.target as HTMLInputElement).value;
@@ -672,12 +713,22 @@ function routeSpecForRt() {
     return undefined;
   }
   const multi = planned.segments.length > 1;
-  const built = buildRouteSpec({
-    stops: current.stops.map(stop => ({
+  const buildStops: RouteBuildStop[] = [];
+  for (const stop of current.stops) {
+    const steps = parseStopSteps(stop.steps);
+    if (!steps.ok) {
+      rtError.value = `${labelFor(stop)}: ${steps.error}`;
+      return undefined;
+    }
+    buildStops.push({
       kind: stop.kind,
       id: stop.id,
       query: waypointQuery(stop),
-    })),
+      steps: steps.steps,
+    });
+  }
+  const built = buildRouteSpec({
+    stops: buildStops,
     loop: current.loop,
     legs: current.legs,
     bills: first.bases.map(base => ({ id: base.naturalId, bill: base.bill })),
@@ -858,6 +909,7 @@ function selectShip(event: Event) {
                 <th>Input</th>
                 <th>Output</th>
                 <th>Fuel</th>
+                <th>Cargo</th>
               </tr>
             </thead>
             <tbody v-for="(stop, index) in rowStops()" :key="stopInstanceKey(stop)">
@@ -878,6 +930,32 @@ function selectShip(event: Event) {
                   </span>
                 </td>
                 <td>{{ fuelText(index) }}</td>
+                <td>
+                  <PrunButton dark inline @click="toggleCargo(stop)">
+                    {{ hasCargo(stop) ? 'EDIT*' : 'EDIT' }}
+                  </PrunButton>
+                </td>
+              </tr>
+              <tr v-if="cargoKey === stopInstanceKey(stop)">
+                <td colspan="7" :class="$style.cargo">
+                  <label v-if="stop.kind === 'base'" :class="$style.cargoRow">
+                    <span>Deliver</span>
+                    <input
+                      :class="$style.cargoInput"
+                      :value="formatSupply(stop.supply)"
+                      placeholder="supply days, or RAT 120, DW 80, or none"
+                      @change="onSupplyChange(stop, $event)" />
+                  </label>
+                  <label :class="$style.cargoRow">
+                    <span>Steps</span>
+                    <input
+                      :class="$style.cargoInput"
+                      :value="(stop.steps ?? []).join(' | ')"
+                      placeholder="unload ALO all all | load DW 0 capacity retain 20"
+                      @change="onStepsChange(stop, $event)" />
+                  </label>
+                  <span v-if="cargoError" :class="$style.shareError">{{ cargoError }}</span>
+                </td>
               </tr>
             </tbody>
           </table>
@@ -1036,6 +1114,34 @@ function selectShip(event: Event) {
 
 .load {
   padding: 2px 4px;
+}
+
+.table td.cargo {
+  text-align: left;
+  white-space: normal;
+}
+
+.cargoRow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 0;
+}
+
+.cargoRow > span {
+  width: 7ch;
+  flex: none;
+}
+
+.cargoInput {
+  flex: 1 1 auto;
+  min-width: 0;
+  color: inherit;
+  font-family: inherit;
+  font-size: inherit;
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid #8d6411;
 }
 
 /* A disabled button swallows hover, so let the tooltip wrapper receive it. */

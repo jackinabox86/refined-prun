@@ -248,6 +248,21 @@ function parseStopLine(
   return { ok: true, stop: { query, steps } };
 }
 
+// One step in the text syntax ("load RAT 0 capacity retain 120"), outside a stop line.
+export function parseRouteStep(
+  text: string,
+): { ok: true; step: RouteStep } | { ok: false; error: string } {
+  const segment = text.trim();
+  if (segment.length === 0) {
+    return { ok: false, error: 'empty step' };
+  }
+  const parsed = parseStep(segment, 0);
+  if (parsed.ok) {
+    return parsed;
+  }
+  return { ok: false, error: parsed.error.replace(/^Line 0: /, '') };
+}
+
 function parseStep(
   segment: string,
   line: number,

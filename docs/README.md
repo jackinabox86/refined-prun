@@ -13,3 +13,4 @@ The project is a browser extension for the game. Throughout the chat and the doc
 - **Game screens:** `docs/game/sidebar-screens.md`. Left-sidebar shortcuts, screen connection map, server-action buttons to avoid in tests; per-area details in `docs/game/screens-*.md` (bases, production, inventory, fleet, trade, contracts, company, comms).
 - **Data catalog and agent queries:** `docs/data-catalog.md`. Passive snapshots, provenance and completeness semantics, `XIT DATA`, tile exports, and the authenticated loopback query protocol.
 - **Planetary governance:** `docs/game/planetary-governance.md`. Population, happiness, governors, CoGC, POPI.
+- **Route import/export format:** `docs/route-format.md`. The JSON that XIT ROUTECONFIG exports and imports: route and stop fields, set deliveries, stop steps. Player-facing.
