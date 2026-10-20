@@ -405,11 +405,14 @@ export async function waitForNewRouteId(
   return created;
 }
 
+// Staging RT keeps a limit's amount field in the DOM, unrendered, while the limit is
+// on capacity or all carried. Only a rendered field means the amount row is showing.
 function amountInputs(root: Element): HTMLInputElement[] {
   return Array.from(root.querySelectorAll('input')).filter((el): el is HTMLInputElement => {
     const input = el as HTMLInputElement;
     const mode = input.getAttribute('inputmode');
-    return mode === 'decimal' || mode === 'numeric' || input.type === 'number';
+    const numeric = mode === 'decimal' || mode === 'numeric' || input.type === 'number';
+    return numeric && input.getClientRects().length > 0;
   });
 }
 
@@ -503,28 +506,13 @@ async function applyLimit(
 }
 
 async function fillMaterial(editor: Element, ticker: string): Promise<void> {
-  const selected = await selectMaterialInMaterialSelector(editor, ticker);
-  if (selected) {
-    return;
+  const container = _$(editor, C.MaterialSelector.container);
+  if (container === undefined) {
+    throw new Error('Could not find the material field');
   }
-  const portal = document.getElementById('autosuggest-portal');
-  if (portal === null) {
-    throw new Error(`Could not pick material ${ticker}`);
+  if (!(await selectMaterialInMaterialSelector(container, ticker))) {
+    throw new Error(`Could not find material ${ticker} in the list`);
   }
-  const labels = _$$(portal, C.AddressSelector.suggestionContent).map(
-    el => el.textContent?.trim() ?? '',
-  );
-  const chosen = pickSuggestion(labels, ticker);
-  if (chosen === undefined) {
-    throw new Error(`Could not pick material ${ticker}`);
-  }
-  const match = _$$(portal, C.AddressSelector.suggestionContent).find(
-    el => (el.textContent ?? '').trim() === chosen,
-  );
-  if (match === undefined) {
-    throw new Error(`Could not pick material ${ticker}`);
-  }
-  await clickElement(match as HTMLElement);
 }
 
 // The load editor's "Retain units" field, below Maximum units.
