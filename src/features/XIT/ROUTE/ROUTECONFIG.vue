@@ -41,11 +41,13 @@ import {
   shipForRoute,
 } from '@src/features/XIT/ROUTE/owned-ship';
 import {
+  addImportedRoute,
   createRoute,
   findRoute,
   ROUTE_STOP_MIME,
   shippingRoutes,
 } from '@src/features/XIT/ROUTE/routes';
+import { exportRoute, importRoute } from '@src/features/XIT/ROUTE/route-share';
 import StopPool from '@src/features/XIT/ROUTE/StopPool.vue';
 import { shipOptions } from '@src/features/XIT/TRANSITS/ship-options';
 import { useTile } from '@src/hooks/use-tile';
@@ -424,6 +426,73 @@ function onCreate() {
   selectedId.value = created.id;
 }
 
+// Share box: EXPORT fills it with the route's JSON, IMPORT reads it into a new route.
+const shareOpen = ref(false);
+const shareText = ref('');
+const shareStatus = ref('');
+const shareError = ref(false);
+
+function setShareStatus(text: string, error = false) {
+  shareStatus.value = text;
+  shareError.value = error;
+}
+
+async function onExport() {
+  const current = route.value;
+  if (current === undefined) {
+    return;
+  }
+  const json = JSON.stringify(exportRoute(current), null, 2);
+  shareText.value = json;
+  shareOpen.value = true;
+  let clipboard: string;
+  try {
+    await navigator.clipboard.writeText(json);
+    clipboard = 'copied to clipboard';
+  } catch {
+    clipboard = 'clipboard unavailable, copy from the box';
+  }
+  setShareStatus(`Exported ${current.name}, ${clipboard}.`);
+}
+
+function onShareToggle() {
+  shareOpen.value = !shareOpen.value;
+  setShareStatus('');
+}
+
+function onImport() {
+  const result = importRoute(shareText.value);
+  if (!result.ok) {
+    setShareStatus(result.error, true);
+    return;
+  }
+  const imported = result.route;
+  const notes: string[] = [];
+  const ship = imported.ship;
+  if (ship !== undefined && !shipOptions().some(x => x.value === ship)) {
+    imported.ship = undefined;
+    notes.push(`ship ${ship} is not yours, so no ship is set`);
+  }
+  const foreign = [
+    ...new Set(
+      imported.stops
+        .filter(x => x.kind === 'base' && sitesStore.getByPlanetNaturalId(x.id) === undefined)
+        .map(x => x.id),
+    ),
+  ];
+  if (foreign.length > 0) {
+    notes.push(`no base of yours at ${foreign.join(', ')}, so nothing loads there`);
+  }
+  const created = addImportedRoute(imported);
+  selectedId.value = created.id;
+  const count = created.stops.length;
+  const note = notes.length > 0 ? `: ${notes.join('; ')}` : '';
+  setShareStatus(
+    `Imported ${created.name} (${count} stop${count === 1 ? '' : 's'})${note}. ` +
+      'Run TRANSITS for flight times.',
+  );
+}
+
 function onSelect(event: Event) {
   selectedId.value = (event.target as HTMLSelectElement).value;
 }
@@ -724,9 +793,11 @@ function selectShip(event: Event) {
         </div>
       </div>
       <PrunButton dark @click="onCreate">NEW</PrunButton>
+      <PrunButton dark @click="onShareToggle">IMPORT</PrunButton>
       <template v-if="route">
         <input v-model="draftName" :class="$style.name" />
         <PrunButton dark @click="onRename">RENAME</PrunButton>
+        <PrunButton dark @click="onExport">EXPORT</PrunButton>
         <div :class="$style.separator" />
         <span :class="$style.daysLabel">Ship</span>
         <div :class="[C.FormComponent.input, C.forms.input, $style.selectWrap]">
@@ -760,6 +831,18 @@ function selectShip(event: Event) {
           LOOP
         </RadioItem>
       </template>
+    </div>
+    <div v-if="shareOpen" :class="$style.share">
+      <textarea
+        v-model="shareText"
+        :class="$style.shareText"
+        spellcheck="false"
+        placeholder='{"name":"Route","stops":[{"kind":"cx","id":"AI1"},{"kind":"base","id":"ZV-759c"}]}' />
+      <div :class="$style.shareBar">
+        <PrunButton primary @click="onImport">IMPORT AS NEW ROUTE</PrunButton>
+        <PrunButton dark @click="onShareToggle">CLOSE</PrunButton>
+        <span :class="shareError && $style.shareError">{{ shareStatus }}</span>
+      </div>
     </div>
     <p v-if="route === undefined" :class="$style.note">Create a route to order its stops.</p>
     <div v-else :class="$style.panes">
@@ -981,6 +1064,39 @@ function selectShip(event: Event) {
 
 .note {
   margin: 8px;
+}
+
+.share {
+  padding: 4px 6px;
+  border-bottom: 1px solid #2b485a;
+}
+
+.shareText {
+  width: 100%;
+  min-height: 80px;
+  box-sizing: border-box;
+  resize: vertical;
+  font-family: inherit;
+  font-size: inherit;
+  color: inherit;
+  background: transparent;
+  border: 1px solid #2b485a;
+}
+
+.shareText:focus {
+  outline: none;
+}
+
+.shareBar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding-top: 4px;
+  white-space: normal;
+}
+
+.shareError {
+  color: rgb(217, 83, 79);
 }
 
 .warning {

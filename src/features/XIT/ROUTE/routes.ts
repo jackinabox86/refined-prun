@@ -74,3 +74,9 @@ export function saveRouteLegs(
     reactorUsage: x.reactorUsage,
   }));
 }
+
+export function addImportedRoute(imported: Omit<UserData.ShippingRoute, 'id'>) {
+  const route: UserData.ShippingRoute = { ...imported, id: crypto.randomUUID() };
+  userData.routes.push(route);
+  return route;
+}
