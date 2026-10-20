@@ -91,33 +91,23 @@ describe('buildRouteSpec', () => {
     ]);
     // Waypoints hold the leg that flies to them; the origin holds the return leg.
     expect(built.spec.stops[0]).toMatchObject({ fuelUsage: 10, reactorUsage: 30, gateway: true });
-    // Every bill comes off first, so each sweep has room to take the leftover home.
+    // Every input comes off first, then loads back with the bill retained on the base.
     expect(built.spec.stops[1]?.steps).toEqual([
+      { kind: 'unload', ticker: 'DW', min: { mode: 'all' }, max: { mode: 'all' } },
+      { kind: 'unload', ticker: 'RAT', min: { mode: 'all' }, max: { mode: 'all' } },
       {
-        kind: 'unload',
+        kind: 'load',
         ticker: 'DW',
-        min: { mode: 'units', amount: 4 },
-        max: { mode: 'units', amount: 4 },
+        min: { mode: 'units', amount: 0 },
+        max: { mode: 'capacity' },
+        retain: 4,
       },
       {
-        kind: 'unload',
+        kind: 'load',
         ticker: 'RAT',
-        min: { mode: 'units', amount: 2 },
-        max: { mode: 'units', amount: 2 },
-      },
-      { kind: 'load', ticker: 'DW', min: { mode: 'units', amount: 0 }, max: { mode: 'capacity' } },
-      {
-        kind: 'unload',
-        ticker: 'DW',
-        min: { mode: 'units', amount: 4 },
-        max: { mode: 'units', amount: 4 },
-      },
-      { kind: 'load', ticker: 'RAT', min: { mode: 'units', amount: 0 }, max: { mode: 'capacity' } },
-      {
-        kind: 'unload',
-        ticker: 'RAT',
-        min: { mode: 'units', amount: 2 },
-        max: { mode: 'units', amount: 2 },
+        min: { mode: 'units', amount: 0 },
+        max: { mode: 'capacity' },
+        retain: 2,
       },
       { kind: 'load', ticker: 'FE', min: { mode: 'units', amount: 0 }, max: { mode: 'capacity' } },
       {
@@ -137,13 +127,8 @@ describe('buildRouteSpec', () => {
       gateway: false,
     });
     expect(built.spec.stops[3]).toMatchObject({ fuelUsage: 20 });
-    expect(built.spec.stops[3]?.steps.map(step => step.kind)).toEqual([
-      'unload',
-      'load',
-      'unload',
-      'refuel',
-    ]);
-    expect(built.spec.stops[3]?.steps[3]).toMatchObject({ kind: 'refuel', tank: 'FTL' });
+    expect(built.spec.stops[3]?.steps.map(step => step.kind)).toEqual(['unload', 'load', 'refuel']);
+    expect(built.spec.stops[3]?.steps[2]).toMatchObject({ kind: 'refuel', tank: 'FTL' });
   });
 
   it('unloads picked-up outputs at the final stop when the route does not loop', () => {
@@ -170,7 +155,7 @@ describe('buildRouteSpec', () => {
     });
   });
 
-  it('loads a whole output stack and unloads what the base uses of it itself', () => {
+  it('loads an output stack and retains what the base uses of it itself', () => {
     const built = buildRouteSpec({
       ...input(true),
       loadedByStop: new Map<string, Record<string, number>>([
@@ -189,12 +174,12 @@ describe('buildRouteSpec', () => {
     );
     expect(steps).toEqual([
       { kind: 'load', ticker: 'AL', min: { mode: 'units', amount: 0 }, max: { mode: 'capacity' } },
-      { kind: 'load', ticker: 'FE', min: { mode: 'units', amount: 0 }, max: { mode: 'capacity' } },
       {
-        kind: 'unload',
+        kind: 'load',
         ticker: 'FE',
-        min: { mode: 'units', amount: 7 },
-        max: { mode: 'units', amount: 7 },
+        min: { mode: 'units', amount: 0 },
+        max: { mode: 'capacity' },
+        retain: 7,
       },
     ]);
   });

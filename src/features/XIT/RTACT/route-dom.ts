@@ -527,11 +527,26 @@ async function fillMaterial(editor: Element, ticker: string): Promise<void> {
   await clickElement(match as HTMLElement);
 }
 
+// The load editor's "Retain units" field, below Maximum units.
+function fillRetain(editor: Element, retain: number): void {
+  const found = collectLimitNodes(editor);
+  const index = amountRowIndex(found.nodes, 'Retain');
+  const row = index === undefined ? undefined : found.elements[index];
+  const input = row === undefined ? undefined : amountInputs(row)[0];
+  if (input === undefined) {
+    throw new Error('Could not find the Retain units amount');
+  }
+  selectAndChangeInputValue(input, String(retain));
+}
+
 export async function fillStepEditor(editor: Element, step: RouteStep): Promise<void> {
   if (step.kind === 'load' || step.kind === 'unload') {
     await fillMaterial(editor, step.ticker);
     await applyLimit(editor, 'Minimum', step.min);
     await applyLimit(editor, 'Maximum', step.max);
+    if (step.kind === 'load' && step.retain !== undefined) {
+      fillRetain(editor, step.retain);
+    }
     return;
   }
   if (step.kind === 'wait') {
