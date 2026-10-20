@@ -60,6 +60,8 @@ describe('routeEta', () => {
     expect(eta.end).toBe(NOW + (HOUR + 14 * HOUR * LEG_ESTIMATE_FACTOR) * 1000);
     expect(eta.partial).toBe(false);
     expect(eta.estimated).toBe(true);
+    expect(eta.arrivals[0]).toBe(NOW + HOUR * 1000);
+    expect(eta.arrivals[1]).toBe(NOW + (HOUR + 10 * HOUR * LEG_ESTIMATE_FACTOR) * 1000);
   });
 
   it('does not pad an unflown leg', () => {

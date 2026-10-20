@@ -147,15 +147,85 @@ export function planRouteTanks(
   };
 }
 
-// Fuel bought onto the ship as cargo. The origin stop fills the tank in place,
-// so its load is not cargo.
-export function fuelCargoLoads(stl: readonly TankStop[], ftl: readonly TankStop[]) {
+export interface SegmentArrival {
+  stl: number;
+  ftl: number;
+}
+
+// One tank plan per stretch between origin visits. Each visit starts full and
+// fills in place. A single origin is the whole-route plan.
+export function planSegmentTanks(
+  stlCapacity: number,
+  ftlCapacity: number,
+  legs: readonly { ok: boolean; stl?: number; ftl?: number }[],
+  originIndexes: readonly number[],
+) {
+  const starts = originIndexes.length > 0 ? originIndexes : [0];
+  const stl: TankStop[] = [];
+  const ftl: TankStop[] = [];
+  const arrivals: SegmentArrival[] = [];
+  for (let s = 0; s < starts.length; s++) {
+    const start = starts[s] ?? 0;
+    const next = starts[s + 1];
+    const last = next === undefined;
+    const planned = planRouteTanks(
+      stlCapacity,
+      ftlCapacity,
+      legs.slice(start, last ? legs.length : next),
+    );
+    arrivals.push({
+      stl: planned.stl.at(-1)?.level ?? stlCapacity,
+      ftl: planned.ftl.at(-1)?.level ?? ftlCapacity,
+    });
+    const keep = last ? planned.stl.length : Math.max(0, next - start);
+    for (let i = 0; i < keep; i++) {
+      const stlStop = planned.stl[i];
+      const ftlStop = planned.ftl[i];
+      if (stlStop !== undefined) {
+        stl[start + i] = stlStop;
+      }
+      if (ftlStop !== undefined) {
+        ftl[start + i] = ftlStop;
+      }
+    }
+  }
+  return { stl, ftl, arrivals };
+}
+
+const WAIT_UNIT_SECONDS: Record<string, number> = {
+  seconds: 1,
+  minutes: 60,
+  hours: 60 * 60,
+  days: 24 * 60 * 60,
+};
+
+// Seconds added to the route duration. Zero when the route has no wait.
+export function waitSeconds(wait: { amount: number; unit: string } | undefined) {
+  if (wait === undefined || !Number.isFinite(wait.amount) || wait.amount <= 0) {
+    return 0;
+  }
+  const unit = WAIT_UNIT_SECONDS[wait.unit];
+  if (unit === undefined) {
+    return 0;
+  }
+  return wait.amount * unit;
+}
+
+// Fuel bought onto the ship as cargo. An origin visit fills the tank in place,
+// so that stop's load is not cargo. With no list, only the first stop is an origin.
+export function fuelCargoLoads(
+  stl: readonly TankStop[],
+  ftl: readonly TankStop[],
+  inPlace?: readonly number[],
+) {
+  const parked = new Set(inPlace ?? [0]);
   const count = Math.max(stl.length, ftl.length);
   const loads: FuelLoad[] = [];
   for (let i = 0; i < count; i++) {
+    const home = parked.has(i);
     loads.push({
-      stl: i === 0 ? 0 : (stl[i]?.loaded ?? 0),
-      ftl: i === 0 ? 0 : (ftl[i]?.loaded ?? 0),
+      stl: home ? 0 : (stl[i]?.loaded ?? 0),
+      ftl: home ? 0 : (ftl[i]?.loaded ?? 0),
     });
   }
   return loads;

@@ -7,10 +7,12 @@ import {
   minAdjustedBurn,
   padLegSeconds,
   planRouteTanks,
+  planSegmentTanks,
   planTank,
   routeSupplyDays,
   snapDays,
   transitStopIds,
+  waitSeconds,
 } from '@src/features/XIT/ROUTE/route-calc';
 
 describe('padLegSeconds', () => {
@@ -75,6 +77,23 @@ describe('planTank', () => {
     expect(fuelCargoLoads(tanks.stl, tanks.ftl)[1]).toEqual({ stl: 20, ftl: 0 });
   });
 
+  it('plans a single origin as one route and refills at each later origin', () => {
+    const legs = [
+      { ok: true, stl: 50, ftl: 10 },
+      { ok: true, stl: 50, ftl: 10 },
+      { ok: true, stl: 40, ftl: 0 },
+    ];
+    const whole = planRouteTanks(100, 100, legs.slice(0, 2));
+    const one = planSegmentTanks(100, 100, legs.slice(0, 2), [0]);
+    expect(one.stl).toEqual(whole.stl);
+    expect(one.ftl).toEqual(whole.ftl);
+    const split = planSegmentTanks(100, 100, legs, [0, 2]);
+    expect(split.stl[2]).toEqual({ level: 100, refuel: false, loaded: 0 });
+    expect(fuelCargoLoads(split.stl, split.ftl, [0, 2])[0]).toEqual({ stl: 0, ftl: 0 });
+    expect(fuelCargoLoads(split.stl, split.ftl, [0, 2])[2]).toEqual({ stl: 0, ftl: 0 });
+    expect(fuelCargoLoads(split.stl, split.ftl, [0, 2])[1]).toEqual({ stl: 20, ftl: 0 });
+  });
+
   it('returns an empty tank when the ship has no capacity', () => {
     expect(planTank(0, [5])).toEqual([
       { level: 0, refuel: false, loaded: 0 },
@@ -88,6 +107,13 @@ describe('route days', () => {
     expect(routeSupplyDays(undefined, 90000)).toBe(1);
     expect(routeSupplyDays(2.2, 0)).toBe(2.2);
     expect(snapDays(1.26)).toBe(1.3);
+  });
+
+  it('adds a persisted wait to the duration and ignores an empty one', () => {
+    expect(waitSeconds(undefined)).toBe(0);
+    expect(waitSeconds({ amount: 0, unit: 'days' })).toBe(0);
+    expect(waitSeconds({ amount: 2, unit: 'hours' })).toBe(2 * 60 * 60);
+    expect(routeSupplyDays(undefined, 86400 + waitSeconds({ amount: 1, unit: 'days' }))).toBe(2);
   });
 
   it('fits the largest 0.1 day step that still passes', () => {

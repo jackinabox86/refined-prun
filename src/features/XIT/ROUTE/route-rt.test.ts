@@ -91,20 +91,23 @@ describe('buildRouteSpec', () => {
     ]);
     // Waypoints hold the leg that flies to them; the origin holds the return leg.
     expect(built.spec.stops[0]).toMatchObject({ fuelUsage: 10, reactorUsage: 30, gateway: true });
+    // Every input comes off first, then loads back with the bill retained on the base.
     expect(built.spec.stops[1]?.steps).toEqual([
-      { kind: 'load', ticker: 'DW', min: { mode: 'units', amount: 0 }, max: { mode: 'capacity' } },
+      { kind: 'unload', ticker: 'DW', min: { mode: 'all' }, max: { mode: 'all' } },
+      { kind: 'unload', ticker: 'RAT', min: { mode: 'all' }, max: { mode: 'all' } },
       {
-        kind: 'unload',
+        kind: 'load',
         ticker: 'DW',
-        min: { mode: 'units', amount: 4 },
-        max: { mode: 'units', amount: 4 },
+        min: { mode: 'units', amount: 0 },
+        max: { mode: 'capacity' },
+        retain: 4,
       },
-      { kind: 'load', ticker: 'RAT', min: { mode: 'units', amount: 0 }, max: { mode: 'capacity' } },
       {
-        kind: 'unload',
+        kind: 'load',
         ticker: 'RAT',
-        min: { mode: 'units', amount: 2 },
-        max: { mode: 'units', amount: 2 },
+        min: { mode: 'units', amount: 0 },
+        max: { mode: 'capacity' },
+        retain: 2,
       },
       { kind: 'load', ticker: 'FE', min: { mode: 'units', amount: 0 }, max: { mode: 'capacity' } },
       {
@@ -124,7 +127,7 @@ describe('buildRouteSpec', () => {
       gateway: false,
     });
     expect(built.spec.stops[3]).toMatchObject({ fuelUsage: 20 });
-    expect(built.spec.stops[3]?.steps.map(step => step.kind)).toEqual(['load', 'unload', 'refuel']);
+    expect(built.spec.stops[3]?.steps.map(step => step.kind)).toEqual(['unload', 'load', 'refuel']);
     expect(built.spec.stops[3]?.steps[2]).toMatchObject({ kind: 'refuel', tank: 'FTL' });
   });
 
@@ -152,7 +155,7 @@ describe('buildRouteSpec', () => {
     });
   });
 
-  it('loads a whole output stack and unloads what the base uses of it itself', () => {
+  it('loads an output stack and retains what the base uses of it itself', () => {
     const built = buildRouteSpec({
       ...input(true),
       loadedByStop: new Map<string, Record<string, number>>([
@@ -171,12 +174,12 @@ describe('buildRouteSpec', () => {
     );
     expect(steps).toEqual([
       { kind: 'load', ticker: 'AL', min: { mode: 'units', amount: 0 }, max: { mode: 'capacity' } },
-      { kind: 'load', ticker: 'FE', min: { mode: 'units', amount: 0 }, max: { mode: 'capacity' } },
       {
-        kind: 'unload',
+        kind: 'load',
         ticker: 'FE',
-        min: { mode: 'units', amount: 7 },
-        max: { mode: 'units', amount: 7 },
+        min: { mode: 'units', amount: 0 },
+        max: { mode: 'capacity' },
+        retain: 7,
       },
     ]);
   });
@@ -211,6 +214,136 @@ describe('buildRouteSpec', () => {
       return;
     }
     expect(built.spec.stops.map(stop => stop.query)).toEqual(['Antares Station', 'ZV-759c']);
+  });
+
+  it('does not add a wait when the route has none', () => {
+    const built = buildRouteSpec(input(true));
+    expect(built.ok).toBe(true);
+    if (!built.ok) {
+      return;
+    }
+    expect(built.spec.stops.some(stop => stop.steps.some(step => step.kind === 'wait'))).toBe(
+      false,
+    );
+  });
+
+  it('sends a fractional day wait as whole minutes', () => {
+    const built = buildRouteSpec({ ...input(false), wait: { amount: 1.5, unit: 'days' } });
+    expect(built.ok).toBe(true);
+    if (!built.ok) {
+      return;
+    }
+    expect(built.spec.stops.at(-1)?.steps.at(-1)).toEqual({
+      kind: 'wait',
+      amount: 2160,
+      unit: 'minutes',
+    });
+  });
+
+  it('appends a wait to the last waypoint', () => {
+    const plain = buildRouteSpec(input(false));
+    const built = buildRouteSpec({ ...input(false), wait: { amount: 2, unit: 'hours' } });
+    expect(plain.ok && built.ok).toBe(true);
+    if (!plain.ok || !built.ok) {
+      return;
+    }
+    const last = built.spec.stops.at(-1);
+    expect(last?.steps.at(-1)).toEqual({ kind: 'wait', amount: 120, unit: 'minutes' });
+    expect(last?.steps.slice(0, -1)).toEqual(plain.spec.stops.at(-1)?.steps);
+  });
+
+  it('reloads at a later origin for the next stretch only', () => {
+    const built = buildRouteSpec({
+      ...input(false),
+      stops: [
+        { kind: 'cx', id: 'ANT', query: 'Antares Station' },
+        { kind: 'base', id: 'ZV-307d' },
+        { kind: 'cx', id: 'ANT', query: 'Antares Station' },
+        { kind: 'base', id: 'ZV-759c' },
+      ],
+      refuelStl: [false, false, false, false],
+      refuelFtl: [false, false, false, false],
+      segments: [
+        {
+          originIndex: 0,
+          bills: [{ id: 'ZV-307d', bill: { RAT: 2 } }],
+          sourced: {},
+          loadedByStop: new Map([['ZV-307d', { FE: 10 }]]),
+        },
+        {
+          originIndex: 2,
+          bills: [{ id: 'ZV-759c', bill: { DW: 1 } }],
+          sourced: {},
+          loadedByStop: new Map([['ZV-759c', {}]]),
+        },
+      ],
+    });
+    expect(built.ok).toBe(true);
+    if (!built.ok) {
+      return;
+    }
+    const loads = built.spec.stops.map(stop =>
+      stop.steps.filter(step => step.kind === 'load').map(step => step.ticker),
+    );
+    expect(loads[0]).toEqual(['RAT']);
+    expect(loads[2]).toEqual(['DW']);
+    expect(built.spec.stops[2]?.steps.slice(0, 4)).toEqual([
+      { kind: 'unload', ticker: 'DW', min: { mode: 'all' }, max: { mode: 'all' } },
+      { kind: 'unload', ticker: 'FE', min: { mode: 'all' }, max: { mode: 'all' } },
+      {
+        kind: 'refuel',
+        tank: 'STL',
+        source: 'local',
+        min: { mode: 'capacity' },
+        max: { mode: 'capacity' },
+      },
+      {
+        kind: 'refuel',
+        tank: 'FTL',
+        source: 'local',
+        min: { mode: 'capacity' },
+        max: { mode: 'capacity' },
+      },
+    ]);
+  });
+
+  it('flies a one-way route home with no tasks but the wait', () => {
+    const stops: RouteBuildInput['stops'] = [
+      { kind: 'cx', id: 'ANT', query: 'Antares Station' },
+      { kind: 'base', id: 'ZV-307d' },
+      { kind: 'base', id: 'ZV-759c' },
+      { kind: 'cx', id: 'ANT', query: 'Antares Station' },
+    ];
+    const base = {
+      ...input(false),
+      stops,
+      refuelStl: [false, false, false, true],
+      refuelFtl: [false, false, false, true],
+      wait: { amount: 1, unit: 'hours' as const },
+    };
+    const single = buildRouteSpec(base);
+    const segmented = buildRouteSpec({
+      ...base,
+      segments: [
+        {
+          originIndex: 0,
+          bills: [{ id: 'ZV-307d', bill: { RAT: 2 } }],
+          sourced: {},
+          loadedByStop: new Map([['ZV-307d', { FE: 10 }]]),
+        },
+        { originIndex: 3, bills: [], sourced: {}, loadedByStop: new Map() },
+      ],
+    });
+    for (const built of [single, segmented]) {
+      expect(built.ok).toBe(true);
+      if (!built.ok) {
+        return;
+      }
+      expect(built.spec.stops.at(-1)?.query).toBe('Antares Station');
+      expect(built.spec.stops.at(-1)?.steps).toEqual([
+        { kind: 'wait', amount: 60, unit: 'minutes' },
+      ]);
+    }
   });
 
   it('rejects a route with one stop', () => {

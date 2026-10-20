@@ -295,6 +295,22 @@ describe('planMilkRun', () => {
     expect(withNext.loadedByStop.get('A')).toEqual({ FE: 49 });
   });
 
+  it('counts a lone stop output when the ship takes it home', () => {
+    const lone = stop({
+      id: 'A',
+      days: 10,
+      bill: { DW: 5 },
+      storeQty: { FE: 50 },
+      dailyAmount: { FE: 4 },
+    });
+    const home = planMilkRun({ stops: [lone], cargo: cargo(40), sizeOf, returnsHome: true });
+    expect(home.fits).toBe(false);
+    expect(home.loadedByStop.get('A')).toEqual({ FE: 49 });
+    expect(home.firstOverflow?.stopId).toBe('A');
+    expect(home.firstOverflow?.weightLoad).toBe(49);
+    expect(home.firstOverflow?.outputWeight).toBe(49);
+  });
+
   it('sources from expected output over the days, not from parked stock', () => {
     // A makes 5 FE/day and holds 1000 RAT it does not make; B needs 30 FE and 10 RAT.
     const dailyA = { FE: 5, RAT: -1 };

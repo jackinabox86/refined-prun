@@ -273,6 +273,8 @@ declare namespace UserData {
   interface ShippingRouteStop {
     kind: 'cx' | 'base';
     id: string;
+    // Set only on a repeated origin, so two visits of the same stop stay distinct.
+    key?: string;
   }
 
   interface ShippingRouteLeg {
@@ -299,8 +301,19 @@ declare namespace UserData {
     days?: number;
     // Absent means the route loops back to its first stop for flight time.
     loop?: boolean;
+    // A one-way route's answer to TRANSITS asking whether it ends back at the
+    // origin. True added that final origin visit to stops. Absent means not asked.
+    returnToOrigin?: boolean;
     legs?: ShippingRouteLeg[];
     // Game route id (RT-…) recorded when ROUTECONFIG builds the route.
     rtId?: string;
+    // TRANSITS saved new legs after that build, so the game route still has the
+    // old timing and fuel settings until SET ROUTE runs again.
+    legsAfterRt?: boolean;
+    // Optional pause after the last waypoint. Absent means the route does not wait.
+    wait?: {
+      amount: number;
+      unit: 'seconds' | 'minutes' | 'hours' | 'days';
+    };
   }
 }

@@ -35,6 +35,9 @@ export interface PeakOverflow {
   volumeLoad: number;
   weightOver: number;
   volumeOver: number;
+  // The part of the load picked up at stops so far; the rest is inputs still aboard.
+  outputWeight: number;
+  outputVolume: number;
 }
 
 export interface MilkRunInput {
@@ -43,6 +46,9 @@ export interface MilkRunInput {
   sizeOf: (ticker: string) => MaterialSize | undefined;
   // Loaded at the CX on top of the bill and kept aboard; counts toward peak load.
   departureExtra?: Record<string, number>;
+  // The ship carries what it picks up back to where it started, so even a lone
+  // stop's output rides.
+  returnsHome?: boolean;
 }
 
 export interface MilkRunResult {
@@ -232,6 +238,7 @@ function checkLoad(
   weightLoad: number,
   volumeLoad: number,
   stopId: string | undefined,
+  output: { weight: number; volume: number },
 ): PeakOverflow | undefined {
   const weightOver = weightLoad - cargo.weightCapacity;
   const volumeOver = volumeLoad - cargo.volumeCapacity;
@@ -244,6 +251,8 @@ function checkLoad(
     volumeLoad,
     weightOver: Math.max(0, weightOver),
     volumeOver: Math.max(0, volumeOver),
+    outputWeight: output.weight,
+    outputVolume: output.volume,
   };
 }
 
@@ -279,13 +288,15 @@ export function planMilkRun(input: MilkRunInput): MilkRunResult {
   let volumeLoad = input.cargo.volumeLoad + departureTotals.volume;
 
   const overflows: PeakOverflow[] = [];
-  const departure = checkLoad(input.cargo, weightLoad, volumeLoad, undefined);
+  const output = { weight: 0, volume: 0 };
+  const departure = checkLoad(input.cargo, weightLoad, volumeLoad, undefined, output);
   if (departure) {
     overflows.push(departure);
   }
 
-  // A lone stop has no subsequent destination, so its output never rides.
-  const countOutput = input.stops.length > 1;
+  // A lone stop has no subsequent destination, so its output never rides,
+  // unless the ship takes it home.
+  const countOutput = input.stops.length > 1 || input.returnsHome === true;
   const outputs = countOutput ? outputByStop(input.stops) : new Map();
   for (const stop of input.stops) {
     const unloaded = totalsOf(stop.bill, input.sizeOf);
@@ -300,7 +311,9 @@ export function planMilkRun(input: MilkRunInput): MilkRunResult {
     const loaded = totalsOf(record, input.sizeOf);
     weightLoad += loaded.weight;
     volumeLoad += loaded.volume;
-    const peak = checkLoad(input.cargo, weightLoad, volumeLoad, stop.id);
+    output.weight += loaded.weight;
+    output.volume += loaded.volume;
+    const peak = checkLoad(input.cargo, weightLoad, volumeLoad, stop.id, { ...output });
     if (peak) {
       overflows.push(peak);
     }
