@@ -30,7 +30,9 @@ import {
 } from '@src/features/XIT/RTACT/route-dom';
 import {
   editorTitle,
+  isShipmentStep,
   routeSummaryLines,
+  shipmentRowText,
   stepSummary,
   type RouteStep,
   type RouteStop,
@@ -365,6 +367,33 @@ async function addStep(
   }
   revealHover(scope);
   await waitFor(() => findLabeled(scope, command), 1500);
+  if (isShipmentStep(step)) {
+    // A shipment step has no editor and no SAVE: the click adds it filled in, so the new
+    // row's text is the only signal.
+    const rowText = shipmentRowText(step);
+    const rowsBefore = textCount(tile.anchor, rowText);
+    try {
+      await clickControl(scope, command);
+    } catch (err) {
+      fail(err instanceof Error ? err.message : `Could not click ${command}`);
+      return false;
+    }
+    const added = await waitFor(() => {
+      const fresh = findWaypointScope(tile.anchor, needles);
+      const block = fresh === undefined ? undefined : waypointBlock(fresh);
+      return (
+        block !== undefined &&
+        textCount(block, rowText) > 0 &&
+        textCount(tile.anchor, rowText) > rowsBefore
+      );
+    }, 8000);
+    if (!added) {
+      fail(`Could not find the new ${command} step at ${stop.query}`);
+      return false;
+    }
+    log.info(`Added ${summary} at ${stop.query}`);
+    return true;
+  }
   // Count the whole route: an empty waypoint's block resolves to the full list, so a
   // per-block count would include the earlier waypoints' pencils.
   const editsBefore = stepEdits(tile.anchor).length;
@@ -499,6 +528,10 @@ async function assignShip(
   revealAssignments(tile.anchor);
   ctx.fail();
   return false;
+}
+
+function textCount(root: Element, text: string): number {
+  return (root.textContent ?? '').split(text).length - 1;
 }
 
 function findLabeled(root: Element, label: string): boolean {

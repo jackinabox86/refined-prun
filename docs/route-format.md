@@ -111,6 +111,8 @@ tickers and words are not case-sensitive.
 | `unload TICKER MIN MAX`                 | `unload DW all all`             | Unload between MIN and MAX units. Each is a number or `all` (everything carried).       |
 | `refuel TANK SOURCE MIN MAX`            | `refuel STL local capacity capacity` | TANK is `STL` or `FTL`; SOURCE is `ship` or `local`. MIN and MAX are units or `capacity`. |
 | `wait AMOUNT UNIT`                      | `wait 2 hours`                  | Pause at the stop. UNIT is `seconds`, `minutes`, `hours`, or `days`.                    |
+| `load shipment`                         | `load shipment`                 | Load every contract shipment bound for a later stop on the route.                       |
+| `unload shipment`                       | `unload shipment`               | Unload every contract shipment bound for this stop.                                     |
 
 At each stop the order is: the plan's unloads and loads, its refuels, then the stop's own steps
 in the order listed. The route `wait` comes last, at the final stop.
@@ -121,7 +123,26 @@ so leave room in the hold for them. The game takes whole numbers for wait amount
 In ROUTECONFIG, press **EDIT** on a stop and type the steps on one line, separated by `|`:
 `unload ALO all all | load DW 0 capacity retain 20`.
 
-Contract shipments (the game's Load shipment and Unload shipment steps) are not supported yet.
+### Contract shipments
+
+`load shipment` and `unload shipment` are the game's Load shipment and Unload shipment steps.
+They take no ticker or amount and do not name a contract: the game applies them to whatever
+shipments the ship is carrying or that wait at the stop. That makes them safe on a looping or
+shared route. A route with no shipments just skips them.
+
+```json
+{
+  "format": "rpr-route",
+  "version": 1,
+  "stops": [
+    { "kind": "cx", "id": "AI1", "steps": ["load shipment"] },
+    { "kind": "base", "id": "ZV-759c", "steps": ["unload shipment", "load shipment"] },
+    { "kind": "base", "id": "ZV-194a", "steps": ["unload shipment"] }
+  ]
+}
+```
+
+Like other stop steps, shipments are not counted by the cargo check, so leave room in the hold.
 
 ## A full example
 

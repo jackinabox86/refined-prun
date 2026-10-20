@@ -4,6 +4,7 @@ import {
   sourceLabel,
   stepCommandLabel,
   tankLabel,
+  type EditableStep,
   type RefuelLimit,
   type RouteStep,
   type UnloadLimit,
@@ -527,7 +528,7 @@ function fillRetain(editor: Element, retain: number): void {
   selectAndChangeInputValue(input, String(retain));
 }
 
-export async function fillStepEditor(editor: Element, step: RouteStep): Promise<void> {
+export async function fillStepEditor(editor: Element, step: EditableStep): Promise<void> {
   if (step.kind === 'load' || step.kind === 'unload') {
     await fillMaterial(editor, step.ticker);
     await applyLimit(editor, 'Minimum', step.min);
@@ -563,7 +564,7 @@ export async function fillStepEditor(editor: Element, step: RouteStep): Promise<
 
 export async function waitForEditor(
   anchor: Element,
-  step: RouteStep,
+  step: EditableStep,
 ): Promise<Element | undefined> {
   const title = editorTitle(step);
   let editor: Element | undefined;
