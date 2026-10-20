@@ -22,6 +22,8 @@ export interface LoadStep {
   ticker: string;
   min: LoadLimit;
   max: LoadLimit;
+  // The game's Retain units: left at the location, everything above it is loaded.
+  retain?: number;
 }
 
 export interface UnloadStep {
@@ -117,7 +119,7 @@ export function stepCommandLabel(step: RouteStep): string {
 export function stepSummary(step: RouteStep): string {
   switch (step.kind) {
     case 'load':
-      return `Load ${amountText(step.ticker, step.min, step.max)}`;
+      return loadText(step);
     case 'unload':
       return `Unload ${amountText(step.ticker, step.min, step.max)}`;
     case 'refuel':
@@ -155,6 +157,18 @@ function amountText(ticker: string, min: LoadLimit | UnloadLimit, max: LoadLimit
     return `all ${ticker} carried`;
   }
   return `${ticker} (min ${limitText(min)}, max ${limitText(max)})`;
+}
+
+// "Load excess RAT, retain 120": take everything above what the location keeps.
+function loadText(step: LoadStep): string {
+  const retain = step.retain ?? 0;
+  if (retain <= 0) {
+    return `Load ${amountText(step.ticker, step.min, step.max)}`;
+  }
+  if (step.min.mode === 'units' && step.min.amount === 0 && step.max.mode === 'capacity') {
+    return `Load excess ${step.ticker}, retain ${retain}`;
+  }
+  return `Load ${amountText(step.ticker, step.min, step.max)}, retain ${retain}`;
 }
 
 // One line per waypoint setting and step, in run order.
@@ -279,8 +293,15 @@ function parseCargoStep(
       step: { kind: 'refuel', tank, source, min: min.limit, max: max.limit },
     };
   }
-  if (tokens.length !== 4) {
-    return { ok: false, error: `Line ${line}: ${kind} TICKER MIN MAX` };
+  const retainTokens = kind === 'load' && tokens[4]?.toLowerCase() === 'retain';
+  if (tokens.length !== (retainTokens ? 6 : 4)) {
+    return {
+      ok: false,
+      error:
+        kind === 'load'
+          ? `Line ${line}: load TICKER MIN MAX [retain N]`
+          : `Line ${line}: unload TICKER MIN MAX`,
+    };
   }
   const ticker = tokens[1].toUpperCase();
   if (!/^[A-Z0-9]{1,4}$/.test(ticker)) {
@@ -295,7 +316,15 @@ function parseCargoStep(
     if (!max.ok) {
       return max;
     }
-    return { ok: true, step: { kind: 'load', ticker, min: min.limit, max: max.limit } };
+    const step: LoadStep = { kind: 'load', ticker, min: min.limit, max: max.limit };
+    if (retainTokens) {
+      const retain = Number(tokens[5]);
+      if (!Number.isInteger(retain) || retain < 0) {
+        return { ok: false, error: `Line ${line}: retain must be a whole number` };
+      }
+      step.retain = retain;
+    }
+    return { ok: true, step };
   }
   const min = parseLimit(tokens[2], 'unload', line, 'min');
   const max = parseLimit(tokens[3], 'unload', line, 'max');
@@ -500,7 +529,7 @@ function parsePayloadStep(
   if (kind !== 'load' && kind !== 'unload') {
     return { ok: false, error: 'Route payload step kind is invalid' };
   }
-  const cargo = step as { ticker?: unknown; min?: unknown; max?: unknown };
+  const cargo = step as { ticker?: unknown; min?: unknown; max?: unknown; retain?: unknown };
   if (typeof cargo.ticker !== 'string' || !/^[A-Z0-9]{1,4}$/.test(cargo.ticker)) {
     return { ok: false, error: 'Route payload ticker is invalid' };
   }
@@ -513,10 +542,14 @@ function parsePayloadStep(
     if (!max.ok) {
       return max;
     }
-    return {
-      ok: true,
-      step: { kind: 'load', ticker: cargo.ticker, min: min.limit, max: max.limit },
-    };
+    const load: LoadStep = { kind: 'load', ticker: cargo.ticker, min: min.limit, max: max.limit };
+    if (cargo.retain !== undefined) {
+      if (typeof cargo.retain !== 'number' || !Number.isInteger(cargo.retain) || cargo.retain < 0) {
+        return { ok: false, error: 'Route payload retain is invalid' };
+      }
+      load.retain = cargo.retain;
+    }
+    return { ok: true, step: load };
   }
   const min = payloadLimit(cargo.min, 'unload');
   const max = payloadLimit(cargo.max, 'unload');

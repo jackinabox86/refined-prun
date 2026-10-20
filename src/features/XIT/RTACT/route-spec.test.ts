@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { parseRouteId, parseRouteSpec, routeSummaryLines } from './route-spec';
+import {
+  parseRouteId,
+  parseRoutePayload,
+  parseRouteSpec,
+  routeSummaryLines,
+  stepSummary,
+} from './route-spec';
 
 const twoStops = `ZV-307d
 ANT | load DW 1 100
@@ -108,5 +114,36 @@ describe('routeSummaryLines', () => {
       'Loop on',
       'Assign AVI-0008Z',
     ]);
+  });
+});
+
+describe('retain units', () => {
+  const excess = {
+    kind: 'load' as const,
+    ticker: 'RAT',
+    min: { mode: 'units' as const, amount: 0 },
+    max: { mode: 'capacity' as const },
+    retain: 120,
+  };
+
+  it('previews a retained load as load excess', () => {
+    expect(stepSummary(excess)).toBe('Load excess RAT, retain 120');
+    expect(stepSummary({ ...excess, retain: undefined })).toBe('Load RAT (min 0, max capacity)');
+  });
+
+  it('parses retain from text and payload', () => {
+    const text = parseRouteSpec('ANT | load RAT 0 capacity retain 120\nBEN');
+    expect(text.ok && text.spec.stops[0]?.steps[0]).toEqual(excess);
+    expect(parseRouteSpec('ANT | load RAT 0 capacity retain x\nBEN').ok).toBe(false);
+    expect(parseRouteSpec('ANT | unload RAT all all retain 1\nBEN').ok).toBe(false);
+    const payload = parseRoutePayload(
+      JSON.stringify({
+        stops: [
+          { query: 'ANT', steps: [excess] },
+          { query: 'BEN', steps: [] },
+        ],
+      }),
+    );
+    expect(payload.ok && payload.spec.stops[0]?.steps[0]).toEqual(excess);
   });
 });

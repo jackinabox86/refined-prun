@@ -211,9 +211,18 @@ function pushDepartureLoads(steps: RouteStep[], departure: Record<string, number
   }
 }
 
-// A base visit leaves exactly one bill of each input on the base. Every bill is
-// dropped first, so the hold has room when each input's sweep loads all of it
-// off the base; the unused rest rides home. Outputs are loaded last.
+// Load whatever the location holds above `retain`, up to what the hold takes.
+function loadExcess(ticker: string, retain: number): RouteStep {
+  const step: RouteStep = { kind: 'load', ticker, min: nothing, max: capacity };
+  if (retain > 0) {
+    step.retain = retain;
+  }
+  return step;
+}
+
+// A base visit leaves exactly one bill of each input on the base. Every input is
+// unloaded first, then loaded back with the bill retained, so the excess (and what
+// later bases need) rides on. Outputs are loaded the same way, keeping the base's own use.
 function pushBaseSteps(
   steps: RouteStep[],
   bill: Record<string, number> | undefined,
@@ -221,23 +230,12 @@ function pushBaseSteps(
   ownUse: Record<string, number> | undefined,
 ) {
   const inputs = positiveTickers(bill);
+  pushUnloadAll(steps, inputs);
   for (const ticker of inputs) {
-    const amount = bill?.[ticker] ?? 0;
-    steps.push({ kind: 'unload', ticker, min: units(amount), max: units(amount) });
-  }
-  for (const ticker of inputs) {
-    const amount = bill?.[ticker] ?? 0;
-    steps.push(
-      { kind: 'load', ticker, min: nothing, max: capacity },
-      { kind: 'unload', ticker, min: units(amount), max: units(amount) },
-    );
+    steps.push(loadExcess(ticker, bill?.[ticker] ?? 0));
   }
   for (const ticker of positiveTickers(loaded)) {
-    steps.push({ kind: 'load', ticker, min: nothing, max: capacity });
-    const amount = ownUse?.[ticker] ?? 0;
-    if (amount > 0) {
-      steps.push({ kind: 'unload', ticker, min: units(amount), max: units(amount) });
-    }
+    steps.push(loadExcess(ticker, ownUse?.[ticker] ?? 0));
   }
 }
 
