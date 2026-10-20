@@ -459,7 +459,6 @@ function confirmAssign(actTile: PrunTile, ship: string, routeId: string) {
           assign = true;
           close?.();
         },
-        onClose: () => close?.(),
       },
       { onClosed: () => resolve(assign), dismissOnBackdrop: false },
     );
