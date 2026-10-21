@@ -21,9 +21,15 @@ import { sitesStore } from '@src/infrastructure/prun-api/data/sites';
 // the supply days. Stock that happens to be on the base today is not subtracted.
 const resupplyGroup = { type: 'Resupply' as const, useBaseInv: false };
 
+export interface RouteStopInput {
+  kind: 'cx' | 'base';
+  id: string;
+  supply?: Record<string, number>;
+}
+
 // Undefined means a base is missing burn data, same gate as DISPATCH fit.
 export function routeBaseBills(
-  stops: readonly { kind: 'cx' | 'base'; id: string }[],
+  stops: readonly RouteStopInput[],
   days: number,
   fuel: readonly FuelLoad[],
 ): MilkRunBase[] | undefined {
@@ -37,8 +43,15 @@ export function routeBaseBills(
     if (site === undefined) {
       continue;
     }
-    const bill = computeResupplyBill(resupplyGroup, stop.id, days);
-    if (bill === undefined || baseDailyAmount(site.siteId) === undefined) {
+    // A set delivery stands in for the supply-days bill, so it needs no burn data.
+    const bill =
+      stop.supply !== undefined
+        ? { ...stop.supply }
+        : computeResupplyBill(resupplyGroup, stop.id, days);
+    if (bill === undefined) {
+      return undefined;
+    }
+    if (stop.supply === undefined && baseDailyAmount(site.siteId) === undefined) {
       return undefined;
     }
     const extra = fuel[i];
@@ -85,7 +98,7 @@ export interface OriginSegmentPlan {
 // Each stretch between origin visits is its own load. A single visit is one plan
 // over every base, which is the whole route.
 export function planOriginSegments(
-  stops: readonly { kind: 'cx' | 'base'; id: string }[],
+  stops: readonly RouteStopInput[],
   days: number,
   fuel: readonly FuelLoad[],
   cargo: PrunApi.Store,

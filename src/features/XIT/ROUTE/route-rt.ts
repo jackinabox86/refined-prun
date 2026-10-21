@@ -16,6 +16,8 @@ export interface RouteBuildStop {
   // Address-selector text when the stored id is not what the game suggests.
   // An exchange code such as AI1 never appears in the suggestion list.
   query?: string;
+  // The stop's own extra steps, run after the planned ones.
+  steps?: readonly RouteStep[];
 }
 
 export interface RouteBuildLeg {
@@ -159,6 +161,12 @@ function appendRouteWait(stops: RouteStop[], wait: RouteBuildInput['wait']) {
   last.steps.push({ kind: 'wait', amount: minutes, unit: 'minutes' });
 }
 
+function pushStopSteps(steps: RouteStep[], stop: RouteBuildStop | undefined) {
+  for (const step of stop?.steps ?? []) {
+    steps.push({ ...step });
+  }
+}
+
 function applyLeg(stop: RouteStop, leg: RouteBuildLeg | undefined) {
   if (leg === undefined) {
     return;
@@ -261,6 +269,7 @@ function buildSegmentedRouteSpec(
     // A one-way route's return to the origin is only the flight home (and the wait).
     // The next run's first stop unloads, refuels and loads.
     if (!looping && i === last && i > 0 && id === ids[0]) {
+      pushStopSteps(steps, input.stops[i]);
       const stop: RouteStop = { query: searchQuery(input.stops, id), steps };
       applyLeg(stop, arrivingLeg(input.legs, i, ids.length, looping));
       stops.push(stop);
@@ -299,6 +308,7 @@ function buildSegmentedRouteSpec(
       pushUnloadAll(steps, segmentOutputs(segment));
     }
     const source = input.stops[i];
+    pushStopSteps(steps, source);
     const named = source?.query?.trim();
     const stop: RouteStop = {
       query: named !== undefined && named.length > 0 ? named : id,
@@ -365,6 +375,7 @@ export function buildRouteSpec(
         steps.push({ kind: 'unload', ticker, min: carried, max: carried });
       }
     }
+    pushStopSteps(steps, input.stops[i]);
     const stop: RouteStop = { query: searchQuery(input.stops, id), steps };
     applyLeg(stop, arrivingLeg(input.legs, i, ids.length, looping));
     stops.push(stop);
