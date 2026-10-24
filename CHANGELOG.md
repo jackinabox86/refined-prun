@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+### Changed
+
+- `nots-shift-click-mark-read`: Shift-click companions the same buffer a plain click opens, so a COGC program change opens the repeat-program vote and a ship arrival opens `SHPI`. In a NOTS docked on a screen, shift-click acts as a plain click. Ctrl-click still marks the row read.
+
+### Fixed
+
+- `XIT BS`: An open CMDS menu keeps the row's gray highlight after the pointer leaves, until CMDS is clicked again.
+
 ## 1.1.5
 
 ### Added
