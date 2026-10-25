@@ -17,6 +17,12 @@ function isCheckpoint(entry: MigrationEntry): entry is Checkpoint {
 // The date is for reference only, and it does not affect migration order.
 const migrations: MigrationEntry[] = [
   [
+    '25.10.2026 Add cxosExchange setting',
+    userData => {
+      userData.settings.cxosExchange ??= 'ALL';
+    },
+  ],
+  [
     '30.09.2026 Add BURNACT refuel option',
     userData => {
       userData.settings.burn.refuel = true;
