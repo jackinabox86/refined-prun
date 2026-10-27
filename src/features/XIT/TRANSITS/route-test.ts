@@ -67,6 +67,7 @@ act.addAction({
         BTF_LEG({
           ...leg,
           blueprintNaturalId: match.blueprint.naturalId,
+          payload: data.legPayloads?.[i],
           isLast: i === planned.legs.length - 1,
         }),
       );

@@ -6,6 +6,7 @@ import Active from '@src/components/forms/Active.vue';
 import { transitStopIds } from '@src/features/XIT/ROUTE/route-calc';
 import { ownedShipOfSize } from '@src/features/XIT/ROUTE/owned-ship';
 import { findRoute } from '@src/features/XIT/ROUTE/routes';
+import { routeLegPayloads } from '@src/features/XIT/ROUTE/route-origins';
 import { acceptDroppedStop, stopIdentity } from '@src/features/XIT/ROUTE/route-stops';
 import { shipOptions } from '@src/features/XIT/TRANSITS/ship-options';
 import { stopLines } from '@src/features/XIT/TRANSITS/plan-route';
@@ -140,6 +141,21 @@ function onReturn(yes: boolean) {
   startRun();
 }
 
+// The route's planned load sets each leg's payload. Stops edited here no longer
+// match that plan, so those legs fly full.
+function legPayloads() {
+  const route = findRoute(parameters[0]);
+  if (route === undefined) {
+    return undefined;
+  }
+  const planned = transitStopIds(route.stops, route.loop);
+  const typed = lines.value;
+  if (planned.length !== typed.length || planned.some((id, i) => id !== typed[i])) {
+    return undefined;
+  }
+  return routeLegPayloads(route);
+}
+
 function startRun() {
   stagedRoute.value = {
     global: { name: 'Transits' },
@@ -150,6 +166,7 @@ function startRun() {
         name: 'Route',
         shipRegistration: shipRegistration.value,
         routeStops: routeStops.value,
+        legPayloads: legPayloads(),
       },
     ],
   };

@@ -167,8 +167,9 @@ export async function applyConfirmedLoadout(anchor: Element, loadout: ConfirmedL
 }
 
 // The test flight opens with an empty hold, which flies faster than a loaded
-// ship. Start the first leg at a full hold; the player may still lower it.
-export async function setInventoryFull(anchor: Element) {
+// ship. Start the first leg at the route's planned tons, or a full hold before
+// the route has a load; the player may still change it.
+export async function setInventory(anchor: Element, tons: number | undefined) {
   const payload = L.BlueprintTestFlight.label.payload() ?? '';
   if (payload.length === 0) {
     return 'Inventory label is not loaded';
@@ -191,12 +192,30 @@ export async function setInventoryFull(anchor: Element) {
   if (!Number.isFinite(max)) {
     return `${payload} slider has no maximum`;
   }
-  const set = await setSliderTo(slider, max);
+  const target = payloadTarget(tons, handle, max);
+  const set = await setSliderTo(slider, target);
   if (!set.ok) {
     const at = set.now === undefined ? 'no value' : String(set.now);
-    return `could not set ${payload} to ${max} (now ${at})`;
+    return `could not set ${payload} to ${target} (now ${at})`;
   }
   return undefined;
+}
+
+function payloadTarget(tons: number | undefined, handle: Element, max: number) {
+  if (tons === undefined) {
+    return max;
+  }
+  const min = Number(handle.getAttribute('aria-valuemin'));
+  return Math.min(max, Math.max(Number.isFinite(min) ? min : 0, Math.ceil(tons)));
+}
+
+// Later legs start from the confirmed loadout. Its payload becomes that leg's tons.
+export function setLoadoutPayload(loadout: ConfirmedLoadout, tons: number | undefined) {
+  const payload = L.BlueprintTestFlight.label.payload() ?? '';
+  const saved = loadout.sliders.find(x => x.label === payload);
+  if (tons !== undefined && saved !== undefined) {
+    saved.value = Math.max(0, Math.ceil(tons));
+  }
 }
 
 // The address change rewrites the sliders after a write. Read them again at

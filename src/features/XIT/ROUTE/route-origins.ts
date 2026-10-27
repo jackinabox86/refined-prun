@@ -2,12 +2,14 @@ import { addMaterials } from '@src/features/XIT/ACT/material-groups/resupply/mil
 import { departureBill, planOriginSegments } from '@src/features/XIT/ROUTE/route-load';
 import {
   fuelCargoLoads,
+  legPayloads,
   paddedLegSeconds,
   planSegmentTanks,
   routeSupplyDays,
   waitSeconds,
 } from '@src/features/XIT/ROUTE/route-calc';
 import { originVisitIndexes } from '@src/features/XIT/ROUTE/route-stops';
+import { billTotals } from '@src/features/XIT/DISPATCH/utils';
 import { configLegSeconds, matchConfigRoute, routeEta } from '@src/features/XIT/ROUTE/route-eta';
 import {
   countdownDays,
@@ -127,6 +129,30 @@ export function originLapNeed(route: UserData.ShippingRoute, supplyDays?: number
     }
   }
   return need;
+}
+
+// The tons ROUTECONFIG plans aboard on each TRANSITS leg. Undefined until the
+// route has a load: no supply days yet and some base still on the supply-days bill.
+export function routeLegPayloads(route: UserData.ShippingRoute) {
+  const planned = route.stops.some(stop => stop.kind === 'base' && stop.supply === undefined);
+  if (planned && !(lapSupplyDays(route) > 0)) {
+    return undefined;
+  }
+  const lap = planLap(route);
+  const hold = cargoForRouteShip(route);
+  if (lap === undefined || hold === undefined) {
+    return undefined;
+  }
+  const segments = lap.segments.map(segment => ({
+    originIndex: segment.originIndex,
+    departure: departureBill(segment.bases, segment.plan.sourced, segment.plan.departureExtra),
+    bills: new Map(segment.bases.map(base => [base.naturalId, base.bill])),
+    loaded: segment.plan.loadedByStop,
+  }));
+  // The test flight's payload cannot exceed the hold. ROUTECONFIG flags an overload.
+  return legPayloads(route.stops, segments, route.loop, x => billTotals(x).weight).map(tons =>
+    Math.min(tons, hold.weightCapacity),
+  );
 }
 
 function planLap(route: UserData.ShippingRoute, supplyDays?: number) {

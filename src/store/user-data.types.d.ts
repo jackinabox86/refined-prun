@@ -147,6 +147,8 @@ declare namespace UserData {
     // Transits: ship registration, and one planet or CX stop per line.
     shipRegistration?: string;
     routeStops?: string;
+    // Tons aboard on each leg, from the route's load. Absent flies every leg full.
+    legPayloads?: number[];
   }
 
   interface TaskList {

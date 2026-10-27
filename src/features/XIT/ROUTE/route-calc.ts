@@ -264,6 +264,45 @@ export function transitStopIds(stops: readonly { id: string }[], loop: boolean |
   return ids;
 }
 
+export interface LegLoadSegment {
+  originIndex: number;
+  departure: Record<string, number>;
+  bills: Map<string, Record<string, number>>;
+  loaded: Map<string, Record<string, number>>;
+}
+
+// The hold weight on each TRANSITS leg. legs[i] flies from stop i, so it carries
+// the stretch's departure load minus every bill unloaded through stop i, plus every
+// pick-up. A later origin visit starts its stretch with that stretch's own load.
+export function legPayloads(
+  stops: readonly { kind: 'cx' | 'base'; id: string }[],
+  segments: readonly LegLoadSegment[],
+  loop: boolean | undefined,
+  weightOf: (record: Record<string, number>) => number,
+) {
+  const weights: number[] = [];
+  let segment: LegLoadSegment | undefined;
+  let weight = 0;
+  for (let i = 0; i < stops.length; i++) {
+    const stop = stops[i];
+    const starts = segments.find(x => x.originIndex === i);
+    if (starts !== undefined) {
+      segment = starts;
+      weight = weightOf(starts.departure);
+    }
+    // A later origin visit is not billed in its stretch, so it only loads.
+    if (segment !== undefined && stop?.kind === 'base') {
+      const bill = segment.bills.get(stop.id);
+      if (bill !== undefined) {
+        weight -= weightOf(bill);
+        weight += weightOf(segment.loaded.get(stop.id) ?? {});
+      }
+    }
+    weights.push(Math.max(0, weight));
+  }
+  return loop === false ? weights.slice(0, -1) : weights;
+}
+
 export function formatFuelCell(stl: TankStop | undefined, ftl: TankStop | undefined) {
   if (stl === undefined && ftl === undefined) {
     return '--';
