@@ -218,6 +218,26 @@ export function setLoadoutPayload(loadout: ConfirmedLoadout, tons: number | unde
   }
 }
 
+// A refuel fills the tanks, so this and later legs burn down from full.
+export function refuelLoadout(
+  loadout: ConfirmedLoadout,
+  tanks: { stl: number; ftl: number } | undefined,
+) {
+  if (tanks === undefined) {
+    return;
+  }
+  const stlLabel = L.BlueprintTestFlight.label.stlFuel() ?? '';
+  const ftlLabel = L.BlueprintTestFlight.label.ftlFuel() ?? '';
+  for (const saved of loadout.sliders) {
+    const kind = tankKind(saved.label, stlLabel, ftlLabel);
+    if (kind !== undefined) {
+      saved.value = Math.floor(tanks[kind]);
+    }
+  }
+  loadout.priorStl = [];
+  loadout.priorFtl = [];
+}
+
 // The address change rewrites the sliders after a write. Read them again at
 // the moment the plan is accepted, and refuse a plan whose tanks are not the
 // levels that leg was supposed to fly.
