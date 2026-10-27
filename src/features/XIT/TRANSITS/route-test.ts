@@ -3,6 +3,7 @@ import Edit from '@src/features/XIT/TRANSITS/Edit.vue';
 import { BTF_LEG } from '@src/features/XIT/TRANSITS/BTF_LEG';
 import { planRouteLegs, stopLines } from '@src/features/XIT/TRANSITS/plan-route';
 import { resolveRouteStop } from '@src/features/XIT/TRANSITS/resolve-route-stop';
+import { fuelCapacities } from '@src/features/XIT/ROUTE/owned-ship';
 import { ensureBlueprintsFetched } from '@src/features/XIT/TRANSITS/load-blueprints';
 import { matchShipBlueprint } from '@src/features/XIT/TRANSITS/ship-blueprint';
 import { blueprintTestFlightBlock } from '@src/features/XIT/TRANSITS/tank-level';
@@ -58,6 +59,11 @@ act.addAction({
       fail();
       return;
     }
+    // A later visit to the first stop refuels, so the leg leaving it starts full.
+    const lines = stopLines(data.routeStops ?? '');
+    const origin = lines[0]?.toUpperCase();
+    const caps = fuelCapacities(ship);
+    const tanks = caps.stl > 0 ? caps : undefined;
     for (let i = 0; i < planned.legs.length; i++) {
       const leg = planned.legs[i];
       if (leg === undefined) {
@@ -67,6 +73,8 @@ act.addAction({
         BTF_LEG({
           ...leg,
           blueprintNaturalId: match.blueprint.naturalId,
+          payload: data.legPayloads?.[i],
+          refuelTo: i > 0 && lines[i]?.toUpperCase() === origin ? tanks : undefined,
           isLast: i === planned.legs.length - 1,
         }),
       );

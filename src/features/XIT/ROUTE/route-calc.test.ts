@@ -3,6 +3,7 @@ import {
   cumulativeSecondsBeforeStop,
   formatFuelCell,
   fuelCargoLoads,
+  legPayloads,
   maxDaysAtStep,
   minAdjustedBurn,
   padLegSeconds,
@@ -133,5 +134,46 @@ describe('transitStopIds', () => {
 
   it('leaves the saved order alone when loop is off', () => {
     expect(transitStopIds(stops, false)).toEqual(['ANT', 'XG-123']);
+  });
+});
+
+describe('legPayloads', () => {
+  const tons = (record: Record<string, number>) => sumBy(Object.values(record), x => x);
+  const stops = [
+    { kind: 'cx' as const, id: 'AI1' },
+    { kind: 'base' as const, id: 'A' },
+    { kind: 'base' as const, id: 'B' },
+  ];
+  const segment = {
+    originIndex: 0,
+    departure: { RAT: 60, DW: 40 },
+    bills: new Map<string, Record<string, number>>([
+      ['A', { RAT: 60 }],
+      ['B', { DW: 40 }],
+    ]),
+    loaded: new Map([['A', { H2O: 30 }]]),
+  };
+
+  it('unloads each bill and adds each pick-up, leg by leg, home included', () => {
+    expect(legPayloads(stops, [segment], true, tons)).toEqual([100, 70, 30]);
+  });
+
+  it('drops the return leg on a one-way route', () => {
+    expect(legPayloads(stops, [segment], false, tons)).toEqual([100, 70]);
+  });
+
+  it('starts a later origin visit with its own load', () => {
+    const repeat = [
+      ...stops,
+      { kind: 'cx' as const, id: 'AI1' },
+      { kind: 'base' as const, id: 'C' },
+    ];
+    const second = {
+      originIndex: 3,
+      departure: { FEO: 25 },
+      bills: new Map([['C', { FEO: 25 }]]),
+      loaded: new Map(),
+    };
+    expect(legPayloads(repeat, [segment, second], true, tons)).toEqual([100, 70, 30, 25, 0]);
   });
 });

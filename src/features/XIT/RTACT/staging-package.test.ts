@@ -93,10 +93,22 @@ describe('addStep re-resolves the waypoint and gates SAVE', () => {
 
   it('waits for a new step pencil instead of action feedback', () => {
     expect(addStep).not.toContain('waitActionFeedback');
-    const afterClick = addStep.slice(addStep.indexOf('await clickControl(scope, command)'));
+    // The last click is the editable path; the shipment branch above has its own.
+    const afterClick = addStep.slice(addStep.lastIndexOf('await clickControl(scope, command)'));
     const lookup = afterClick.indexOf('findStepEdit');
     expect(lookup).toBeGreaterThan(-1);
     expect(afterClick.indexOf('waitFor')).toBeLessThan(lookup);
     expect(afterClick.indexOf('editsBefore')).toBeLessThan(lookup);
+  });
+
+  it('adds a shipment step after the ACT gate, with no editor and no SAVE', () => {
+    const start = addStep.indexOf('if (isShipmentStep(step))');
+    const shipment = addStep.slice(start, addStep.indexOf('// Count the whole route'));
+    expect(start).toBeGreaterThan(addStep.indexOf('await waitAct(`Add '));
+    expect(shipment).toContain('await clickControl(scope, command)');
+    expect(shipment).toContain('return true');
+    for (const editorCall of ['findStepEdit', 'fillStepEditor', 'clickEditorSave', 'waitAct']) {
+      expect(shipment).not.toContain(editorCall);
+    }
   });
 });

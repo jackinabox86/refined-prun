@@ -7,7 +7,9 @@ import {
   mergeLegChoices,
   readGateway,
   readUsage,
-  setInventoryFull,
+  setInventory,
+  setLoadoutPayload,
+  refuelLoadout,
   tankLevelsAtTarget,
 } from '@src/features/XIT/TRANSITS/btf-loadout';
 import { RouteLeg } from '@src/features/XIT/TRANSITS/plan-route';
@@ -27,6 +29,10 @@ import { waitFor } from '@src/utils/wait-for';
 
 export interface BtfLegData extends RouteLeg {
   blueprintNaturalId: string;
+  // Tons aboard on this leg. Absent flies the leg full.
+  payload?: number;
+  // Tank levels after the refuel at this leg's origin. Absent burns down from the last leg.
+  refuelTo?: { stl: number; ftl: number };
   isLast: boolean;
   result?: string;
 }
@@ -122,6 +128,8 @@ export const BTF_LEG = act.addActionStep<BtfLegData>({
           finish(`${label}: fuel loadout was not confirmed`, false);
           return;
         }
+        setLoadoutPayload(saved, data.payload);
+        refuelLoadout(saved, data.refuelTo);
         const error = await applyConfirmedLoadout(tile.anchor, saved);
         if (error !== undefined) {
           finish(`${label}: ${error}`, false);
@@ -143,7 +151,7 @@ export const BTF_LEG = act.addActionStep<BtfLegData>({
         }
       }
       if (action === 'confirm-loadout' && isFirstOfType) {
-        const full = await setInventoryFull(tile.anchor);
+        const full = await setInventory(tile.anchor, data.payload);
         if (full !== undefined) {
           finish(`${label}: ${full}`, false);
           return;

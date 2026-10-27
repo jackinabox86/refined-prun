@@ -3,7 +3,9 @@ import {
   parseRouteId,
   parseRoutePayload,
   parseRouteSpec,
+  parseRouteStep,
   routeSummaryLines,
+  stepCommandLabel,
   stepSummary,
 } from './route-spec';
 
@@ -145,5 +147,42 @@ describe('retain units', () => {
       }),
     );
     expect(payload.ok && payload.spec.stops[0]?.steps[0]).toEqual(excess);
+  });
+});
+
+describe('shipment steps', () => {
+  it('parses load and unload shipment from text, in any case', () => {
+    const text = parseRouteSpec('ANT | load shipment | Unload Shipment\nBEN | UNLOAD SHIPMENT');
+    expect(text.ok && text.spec.stops[0]?.steps).toEqual([
+      { kind: 'load-shipment' },
+      { kind: 'unload-shipment' },
+    ]);
+    expect(text.ok && text.spec.stops[1]?.steps).toEqual([{ kind: 'unload-shipment' }]);
+  });
+
+  it('takes no amounts', () => {
+    expect(parseRouteStep('load shipment 10').ok).toBe(false);
+    expect(parseRouteStep('unload shipment all all').ok).toBe(false);
+  });
+
+  it('round-trips through the RTEXEC payload', () => {
+    const payload = parseRoutePayload(
+      JSON.stringify({
+        stops: [
+          { query: 'ANT', steps: [{ kind: 'load-shipment' }] },
+          { query: 'BEN', steps: [{ kind: 'unload-shipment' }] },
+        ],
+      }),
+    );
+    expect(payload.ok && payload.spec.stops.map(x => x.steps)).toEqual([
+      [{ kind: 'load-shipment' }],
+      [{ kind: 'unload-shipment' }],
+    ]);
+  });
+
+  it('clicks the full command label, never bare Load or Unload', () => {
+    expect(stepCommandLabel({ kind: 'load-shipment' })).toBe('Load shipment');
+    expect(stepCommandLabel({ kind: 'unload-shipment' })).toBe('Unload shipment');
+    expect(stepSummary({ kind: 'unload-shipment' })).toBe('Unload shipments');
   });
 });

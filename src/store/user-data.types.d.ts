@@ -147,6 +147,8 @@ declare namespace UserData {
     // Transits: ship registration, and one planet or CX stop per line.
     shipRegistration?: string;
     routeStops?: string;
+    // Tons aboard on each leg, from the route's load. Absent flies every leg full.
+    legPayloads?: number[];
   }
 
   interface TaskList {
@@ -275,6 +277,12 @@ declare namespace UserData {
     id: string;
     // Set only on a repeated origin, so two visits of the same stop stay distinct.
     key?: string;
+    // A base's delivery, ticker -> units, used in place of the supply-days bill.
+    // Absent means the bill comes from supply days.
+    supply?: Record<string, number>;
+    // Extra steps run at this stop after the planned ones, in the XIT RTACT text
+    // syntax ("load RAT 0 capacity retain 120"). Not part of the load plan.
+    steps?: string[];
   }
 
   interface ShippingRouteLeg {

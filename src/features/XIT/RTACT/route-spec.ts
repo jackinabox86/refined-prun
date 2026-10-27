@@ -47,7 +47,20 @@ export interface RefuelStep {
   max: RefuelLimit;
 }
 
-export type RouteStep = LoadStep | UnloadStep | WaitStep | RefuelStep;
+// The game's Load shipment and Unload shipment steps. They have no editor: the game adds
+// them filled in, for every contract shipment bound for a later waypoint / for this one.
+export interface ShipmentStep {
+  kind: 'load-shipment' | 'unload-shipment';
+}
+
+// Steps the game opens an editor for after they are added.
+export type EditableStep = LoadStep | UnloadStep | WaitStep | RefuelStep;
+
+export type RouteStep = EditableStep | ShipmentStep;
+
+export function isShipmentStep(step: RouteStep): step is ShipmentStep {
+  return step.kind === 'load-shipment' || step.kind === 'unload-shipment';
+}
 
 export interface RouteStop {
   query: string;
@@ -112,7 +125,18 @@ export function stepCommandLabel(step: RouteStep): string {
       return 'Refuel';
     case 'wait':
       return 'Wait';
+    case 'load-shipment':
+      return 'Load shipment';
+    case 'unload-shipment':
+      return 'Unload shipment';
   }
+}
+
+// The text the game shows on a shipment step's row once it is added.
+export function shipmentRowText(step: ShipmentStep): string {
+  return step.kind === 'load-shipment'
+    ? 'All shipments bound for a later waypoint'
+    : 'All shipments bound for this waypoint';
 }
 
 // Plain-text step for the RTEXEC preview and log: "Load 120 RAT", "Unload all DW carried".
@@ -126,6 +150,10 @@ export function stepSummary(step: RouteStep): string {
       return `Refuel ${step.tank} from ${step.source === 'ship' ? 'ship' : 'local'}, ${rangeText(step.min, step.max, 'SF')}`;
     case 'wait':
       return `Wait ${step.amount} ${step.unit}`;
+    case 'load-shipment':
+      return 'Load shipments';
+    case 'unload-shipment':
+      return 'Unload shipments';
   }
 }
 
@@ -203,7 +231,7 @@ export function routeSummaryLines(spec: RouteSpec, shipId?: string): string[] {
   return lines;
 }
 
-export function editorTitle(step: RouteStep): string {
+export function editorTitle(step: EditableStep): string {
   switch (step.kind) {
     case 'load':
       return 'Edit load step';
@@ -248,12 +276,33 @@ function parseStopLine(
   return { ok: true, stop: { query, steps } };
 }
 
+// One step in the text syntax ("load RAT 0 capacity retain 120"), outside a stop line.
+export function parseRouteStep(
+  text: string,
+): { ok: true; step: RouteStep } | { ok: false; error: string } {
+  const segment = text.trim();
+  if (segment.length === 0) {
+    return { ok: false, error: 'empty step' };
+  }
+  const parsed = parseStep(segment, 0);
+  if (parsed.ok) {
+    return parsed;
+  }
+  return { ok: false, error: parsed.error.replace(/^Line 0: /, '') };
+}
+
 function parseStep(
   segment: string,
   line: number,
 ): { ok: true; step: RouteStep } | { ok: false; error: string } {
   const tokens = segment.split(/\s+/);
   const kind = tokens[0]?.toLowerCase();
+  if ((kind === 'load' || kind === 'unload') && tokens[1]?.toLowerCase() === 'shipment') {
+    if (tokens.length !== 2) {
+      return { ok: false, error: `Line ${line}: ${kind} shipment takes no amounts` };
+    }
+    return { ok: true, step: { kind: kind === 'load' ? 'load-shipment' : 'unload-shipment' } };
+  }
   if (kind === 'load' || kind === 'unload' || kind === 'refuel') {
     return parseCargoStep(kind, tokens, line);
   }
@@ -484,6 +533,9 @@ function parsePayloadStep(
     return { ok: false, error: 'Route payload step is not an object' };
   }
   const kind = (step as { kind?: unknown }).kind;
+  if (kind === 'load-shipment' || kind === 'unload-shipment') {
+    return { ok: true, step: { kind } };
+  }
   if (kind === 'wait') {
     const wait = step as { amount?: unknown; unit?: unknown };
     if (typeof wait.amount !== 'number' || !Number.isFinite(wait.amount) || wait.amount <= 0) {
