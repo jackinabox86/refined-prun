@@ -3,7 +3,8 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { shouldEmitAutoSfc } from '@src/features/XIT/ACT/actions/mtra/auto-sfc';
-import { packageForAgentRun } from './package-for-agent-run';
+import { ActionPackageConfig, configurableValue } from '@src/features/XIT/ACT/shared-types';
+import { agentBaseDest, packageForAgentRun } from './package-for-agent-run';
 
 const posted: UserData.ActionPackageData = {
   global: { name: 'Auto Offload' },
@@ -86,5 +87,58 @@ describe('packageForAgentRun', () => {
     expect(load).toBeGreaterThan(-1);
     expect(depart).toBeGreaterThan(load);
     expect(source).toContain('packageForAgentRun');
+  });
+
+  it('resolves the load base from the run config', () => {
+    const source = readFileSync(
+      join(dirname(fileURLToPath(import.meta.url)), 'ExecuteStoredPackage.vue'),
+      'utf8',
+    );
+    const base = source.indexOf('agentBaseDest(entry.pkg, runConfig.value)');
+    expect(base).toBeGreaterThan(-1);
+    expect(base).toBeLessThan(source.indexOf('steps.push(...buildLoadSteps'));
+    expect(source).toContain(':config-changed="onConfigChanged"');
+  });
+});
+
+// BURNACT agent post: the base is picked on execution.
+const singleGroup: UserData.ActionPackageData = {
+  global: { name: 'Auto Offload' },
+  groups: [],
+  actions: [
+    {
+      type: 'MTRA',
+      name: 'Resupply',
+      group: 'Resupply',
+      origin: 'BUFFER 33 Cargo',
+      dest: configurableValue,
+    },
+  ],
+};
+
+function configWithDest(name: string, destination: string): ActionPackageConfig {
+  return {
+    materialGroups: {},
+    actions: { [name]: { destination } },
+  } as unknown as ActionPackageConfig;
+}
+
+describe('agentBaseDest', () => {
+  it('uses the posted base of the first MTRA', () => {
+    expect(agentBaseDest(posted, undefined)).toBe('Promitor Base');
+    expect(agentBaseDest(posted, configWithDest('Auto Offload', 'Other Base'))).toBe(
+      'Promitor Base',
+    );
+  });
+
+  it('uses the configured base when the posted base is configurable', () => {
+    expect(agentBaseDest(singleGroup, configWithDest('Resupply', 'Promitor Base'))).toBe(
+      'Promitor Base',
+    );
+  });
+
+  it('has no base until one is configured', () => {
+    expect(agentBaseDest(singleGroup, undefined)).toBeUndefined();
+    expect(agentBaseDest(singleGroup, configWithDest('Other', 'Promitor Base'))).toBeUndefined();
   });
 });

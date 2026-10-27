@@ -290,7 +290,10 @@ the hold is universal.
   depart before those loads, which then skip (`not present in origin`). When the host
   can resolve the ship cargo store it sets `noSfc` on every MTRA in the run copy so the
   loads stay while the ship is docked. The stored channel message is left unchanged, so a
-  printed package run in ACT still launches itself.
+  printed package run in ACT still launches itself. The load base is the first MTRA's
+  `dest`. A single-group post (BURNACT `agent`) leaves it `Configure on Execution`, so the
+  host reads the picked base from the run config via `configChanged`. Without it the host
+  would still depart, with no output or misc loads.
 - **`CX Buy` with `useCXInv: true` nets out warehouse stock**, so a PREVIEW showing
   `Buy 900` against `Transfer 1,000` of the same ticker is correct (100 already in the
   warehouse), not a quantity bug.
