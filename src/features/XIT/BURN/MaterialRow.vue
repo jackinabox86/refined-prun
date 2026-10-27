@@ -93,7 +93,13 @@ const needAmt = computed(() => computeNeed(burn, getResupplyDays(naturalId)));
       <MaterialIcon size="inline-table" :ticker="material.ticker" />
     </td>
     <td>
-      <span>
+      <span
+        :class="{ [$style.contract]: (burn.contractInventory ?? 0) > 0 }"
+        :data-tooltip="
+          (burn.contractInventory ?? 0) > 0
+            ? `Includes ${fixed0(burn.contractInventory ?? 0)} still to be delivered under a contract.`
+            : undefined
+        ">
         {{ invWhole }}<span :class="$style.fraction">{{ invFraction }}</span>
       </span>
     </td>
@@ -125,6 +131,10 @@ const needAmt = computed(() => computeNeed(burn, getResupplyDays(naturalId)));
 .materialContainer {
   width: 32px;
   padding: 0;
+}
+
+.contract {
+  color: #f7a600;
 }
 
 .fraction {

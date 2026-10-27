@@ -22,6 +22,7 @@ import InlineFlex from '@src/components/InlineFlex.vue';
 import { findWithQuery } from '@src/utils/find-with-query';
 import { convertToPlanetNaturalId } from '@src/core/planet-natural-id';
 import { userData } from '@src/store/user-data';
+import { adjustPlanetBurn, contractCargoByPlanet } from '@src/features/XIT/BURN/contract-cargo';
 
 const parameters = useXitParameters();
 
@@ -94,6 +95,14 @@ const inf = useTileState('inf');
 const prod = useTileState('prod');
 const wf = useTileState('wf');
 const io = useTileState('io');
+const buyCont = useTileState('buyCont');
+const excludeContracts = useTileState('excludeContracts');
+const managed = useTileState('managed');
+
+function getPlanetContractCargo(naturalId: string) {
+  const cargo = contractCargoByPlanet.value?.get(naturalId) ?? [];
+  return buyCont.value ? cargo : cargo.filter(x => x.kind !== 'PURCHASE');
+}
 
 function filterBurn(burn: BurnValues): BurnValues {
   const filtered: BurnValues = {};
@@ -118,6 +127,14 @@ const planetBurn = computed(() => {
     .filter(x => x !== overall)
     .map(getPlanetBurn)
     .filter(x => x !== undefined)
+    .map(x =>
+      adjustPlanetBurn(x, {
+        cargo: excludeContracts.value.includes(x.naturalId)
+          ? []
+          : getPlanetContractCargo(x.naturalId),
+        ignoreProductionInputs: managed.value.includes(x.naturalId),
+      }),
+    )
     .map(x => ({ ...x, burn: filterBurn(x.burn) }));
   if (filtered.length <= 1) {
     return filtered;
@@ -151,6 +168,10 @@ const planetBurn = computed(() => {
       overallBurn[ticker].workforce += mat.workforce;
       overallBurn[ticker].remainingAllocation += mat.remainingAllocation;
       overallBurn[ticker].inventory += mat.inventory;
+      if (mat.contractInventory !== undefined) {
+        overallBurn[ticker].contractInventory =
+          (overallBurn[ticker].contractInventory ?? 0) + mat.contractInventory;
+      }
     }
   }
 
@@ -270,6 +291,15 @@ function copyBurnTable() {
       </RadioItem>
       <div :class="$style.separator" />
       <RadioItem v-model="io" horizontal>I/O</RadioItem>
+      <div :class="$style.separator" />
+      <RadioItem
+        v-model="buyCont"
+        horizontal
+        :class="$style.radioItemWithTooltip"
+        data-tooltip="Count goods bought under a contract that the seller hasn't delivered yet."
+        data-tooltip-position="bottom">
+        BUY CONT
+      </RadioItem>
       <div :class="$style.spacer" />
       <CopyButton :copy-fn="copyBurnTable" data-tooltip-position="bottom" />
     </div>
@@ -319,6 +349,7 @@ function copyBurnTable() {
         v-for="burn in planetBurn"
         :key="burn.planetName"
         :can-minimize="planetBurn.length > 1"
+        :contract-cargo="burn.naturalId ? getPlanetContractCargo(burn.naturalId) : []"
         :burn="burn" />
     </table>
   </template>
