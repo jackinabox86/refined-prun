@@ -1,0 +1,385 @@
+import {
+  addMaterials,
+  subtractMaterials,
+} from '@src/features/XIT/ACT/material-groups/resupply/milk-run';
+import { arrivingLeg, transitStopIds, waitSeconds } from '@src/features/XIT/ROUTE/route-calc';
+import type {
+  RefuelStep,
+  RouteSpec,
+  RouteStep,
+  RouteStop,
+} from '@src/features/XIT/RTACT/route-spec';
+
+export interface RouteBuildStop {
+  kind: 'cx' | 'base';
+  id: string;
+  // Address-selector text when the stored id is not what the game suggests.
+  // An exchange code such as AI1 never appears in the suggestion list.
+  query?: string;
+  // The stop's own extra steps, run after the planned ones.
+  steps?: readonly RouteStep[];
+}
+
+export interface RouteBuildLeg {
+  gateway?: boolean;
+  fuelUsage?: number;
+  reactorUsage?: number;
+}
+
+export interface RouteBuildInput {
+  stops: readonly RouteBuildStop[];
+  loop: boolean | undefined;
+  legs?: readonly RouteBuildLeg[];
+  bills: readonly { id: string; bill: Record<string, number> }[];
+  sourced: Record<string, number>;
+  loadedByStop: ReadonlyMap<string, Record<string, number>>;
+  // What a base uses of its own outputs over the supply days. The ship loads the
+  // whole stack, then unloads this back, the same way inputs are handled.
+  ownUseByStop?: ReadonlyMap<string, Record<string, number>>;
+  // Loaded at the first stop on top of the bill, see sourcedDayBuffer.
+  departureExtra?: Record<string, number>;
+  refuelStl: readonly boolean[];
+  refuelFtl: readonly boolean[];
+  // Present when the route visits its origin more than once. Each entry is one
+  // stretch, already billed on its own. A single visit leaves this unset.
+  segments?: readonly RouteBuildSegment[];
+  // Appended to the last waypoint. Absent means the route does not wait.
+  wait?: { amount: number; unit: 'seconds' | 'minutes' | 'hours' | 'days' };
+}
+
+export interface RouteBuildSegment {
+  originIndex: number;
+  bills: readonly { id: string; bill: Record<string, number> }[];
+  sourced: Record<string, number>;
+  loadedByStop: ReadonlyMap<string, Record<string, number>>;
+  ownUseByStop?: ReadonlyMap<string, Record<string, number>>;
+  departureExtra?: Record<string, number>;
+}
+
+const capacity = { mode: 'capacity' as const };
+const carried = { mode: 'all' as const };
+// Pick up whatever is there: no minimum to wait for, up to what the hold takes.
+const nothing = { mode: 'units' as const, amount: 0 };
+
+// Same reduction as departureBill: sum the base bills, then drop what the route sources.
+function departureAmounts(
+  bills: readonly { bill: Record<string, number> }[],
+  sourced: Record<string, number>,
+  extra: Record<string, number> | undefined,
+) {
+  let bill: Record<string, number> = {};
+  for (const base of bills) {
+    bill = addMaterials(bill, base.bill);
+  }
+  return addMaterials(subtractMaterials(bill, sourced), extra);
+}
+
+function positiveTickers(record: Record<string, number> | undefined) {
+  if (record === undefined) {
+    return [];
+  }
+  return Object.entries(record)
+    .filter(([, amount]) => Number.isFinite(amount) && amount > 0)
+    .map(([ticker]) => ticker)
+    .sort((a, b) => a.localeCompare(b));
+}
+
+function units(amount: number) {
+  return { mode: 'units' as const, amount };
+}
+
+function refuel(tank: RefuelStep['tank']): RefuelStep {
+  return { kind: 'refuel', tank, source: 'local', min: capacity, max: capacity };
+}
+
+function kindOf(stops: readonly RouteBuildStop[], id: string) {
+  return stops.find(stop => stop.id === id)?.kind;
+}
+
+function searchQuery(stops: readonly RouteBuildStop[], id: string) {
+  const named = stops.find(stop => stop.id === id)?.query?.trim();
+  if (named !== undefined && named.length > 0) {
+    return named;
+  }
+  return id;
+}
+
+function billFor(input: RouteBuildInput, id: string) {
+  return input.bills.find(base => base.id === id)?.bill;
+}
+
+function routeMaterials(input: {
+  bills: readonly { bill: Record<string, number> }[];
+  loadedByStop: ReadonlyMap<string, Record<string, number>>;
+}) {
+  const tickers = new Set<string>();
+  for (const base of input.bills) {
+    for (const ticker of positiveTickers(base.bill)) {
+      tickers.add(ticker);
+    }
+  }
+  for (const record of input.loadedByStop.values()) {
+    for (const ticker of positiveTickers(record)) {
+      tickers.add(ticker);
+    }
+  }
+  return [...tickers].sort((a, b) => a.localeCompare(b));
+}
+
+function unionTickers(groups: readonly (readonly string[])[]) {
+  const tickers = new Set<string>();
+  for (const group of groups) {
+    for (const ticker of group) {
+      tickers.add(ticker);
+    }
+  }
+  return [...tickers].sort((a, b) => a.localeCompare(b));
+}
+
+function segmentMaterials(segment: RouteBuildSegment) {
+  return routeMaterials(segment);
+}
+
+function segmentOutputs(segment: RouteBuildSegment) {
+  return routeMaterials({ bills: [], loadedByStop: segment.loadedByStop });
+}
+
+// The RT editor takes whole wait amounts only, up to 40000. Minutes keep a
+// fractional day (1.5 days = 2160 minutes) exact to the minute.
+const RT_WAIT_MAX_MINUTES = 40000;
+
+function appendRouteWait(stops: RouteStop[], wait: RouteBuildInput['wait']) {
+  const seconds = waitSeconds(wait);
+  if (seconds <= 0) {
+    return;
+  }
+  const last = stops.at(-1);
+  if (last === undefined) {
+    return;
+  }
+  const minutes = Math.min(RT_WAIT_MAX_MINUTES, Math.max(1, Math.round(seconds / 60)));
+  last.steps.push({ kind: 'wait', amount: minutes, unit: 'minutes' });
+}
+
+function pushStopSteps(steps: RouteStep[], stop: RouteBuildStop | undefined) {
+  for (const step of stop?.steps ?? []) {
+    steps.push({ ...step });
+  }
+}
+
+function applyLeg(stop: RouteStop, leg: RouteBuildLeg | undefined) {
+  if (leg === undefined) {
+    return;
+  }
+  if (leg.fuelUsage !== undefined) {
+    stop.fuelUsage = leg.fuelUsage;
+  }
+  if (leg.reactorUsage !== undefined) {
+    stop.reactorUsage = leg.reactorUsage;
+  }
+  if (leg.gateway !== undefined) {
+    stop.gateway = leg.gateway;
+  }
+}
+
+// One ShippingRoute, already billed, becomes the stop list RT_BUILD drives.
+// A looping route uses the game Loop toggle. RT-SNXV-3853 has that toggle on
+// and does not list its origin again, so the return stop from transitStopIds
+// is not a waypoint. The first stop's unload-all covers what the ship brings home.
+function segmentAt(segments: readonly RouteBuildSegment[], index: number) {
+  let found: RouteBuildSegment | undefined;
+  for (const segment of segments) {
+    if (segment.originIndex <= index) {
+      found = segment;
+    }
+  }
+  return found;
+}
+
+function previousSegment(segments: readonly RouteBuildSegment[], index: number) {
+  let found: RouteBuildSegment | undefined;
+  for (const segment of segments) {
+    if (segment.originIndex < index) {
+      found = segment;
+    }
+  }
+  return found;
+}
+
+function pushUnloadAll(steps: RouteStep[], tickers: readonly string[]) {
+  for (const ticker of tickers) {
+    steps.push({ kind: 'unload', ticker, min: carried, max: carried });
+  }
+}
+
+function pushDepartureLoads(steps: RouteStep[], departure: Record<string, number>) {
+  for (const ticker of positiveTickers(departure)) {
+    const amount = departure[ticker] ?? 0;
+    steps.push({ kind: 'load', ticker, min: units(amount), max: units(amount) });
+  }
+}
+
+// Load whatever the location holds above `retain`, up to what the hold takes.
+function loadExcess(ticker: string, retain: number): RouteStep {
+  const step: RouteStep = { kind: 'load', ticker, min: nothing, max: capacity };
+  if (retain > 0) {
+    step.retain = retain;
+  }
+  return step;
+}
+
+// A base visit leaves exactly one bill of each input on the base. Every input is
+// unloaded first, then loaded back with the bill retained, so the excess (and what
+// later bases need) rides on. Outputs are loaded the same way, keeping the base's own use.
+function pushBaseSteps(
+  steps: RouteStep[],
+  bill: Record<string, number> | undefined,
+  loaded: Record<string, number> | undefined,
+  ownUse: Record<string, number> | undefined,
+) {
+  const inputs = positiveTickers(bill);
+  pushUnloadAll(steps, inputs);
+  for (const ticker of inputs) {
+    steps.push(loadExcess(ticker, bill?.[ticker] ?? 0));
+  }
+  for (const ticker of positiveTickers(loaded)) {
+    steps.push(loadExcess(ticker, ownUse?.[ticker] ?? 0));
+  }
+}
+
+// Each origin visit drops what the ship still carries, refuels, and loads only
+// the stretch up to the next visit.
+function buildSegmentedRouteSpec(
+  input: RouteBuildInput,
+): { ok: true; spec: RouteSpec } | { ok: false; error: string } {
+  const looping = input.loop !== false;
+  const ids = transitStopIds(input.stops, false);
+  if (ids.length < 2) {
+    return { ok: false, error: 'Need at least 2 stops' };
+  }
+  const segments = input.segments ?? [];
+  const everything = unionTickers(segments.map(segment => segmentMaterials(segment)));
+  const last = ids.length - 1;
+  const stops: RouteStop[] = [];
+  for (let i = 0; i < ids.length; i++) {
+    const id = ids[i] ?? '';
+    const steps: RouteStep[] = [];
+    const segment = segmentAt(segments, i);
+    const origin = segment?.originIndex === i;
+    // A one-way route's return to the origin is only the flight home (and the wait).
+    // The next run's first stop unloads, refuels and loads.
+    if (!looping && i === last && i > 0 && id === ids[0]) {
+      pushStopSteps(steps, input.stops[i]);
+      const stop: RouteStop = { query: searchQuery(input.stops, id), steps };
+      applyLeg(stop, arrivingLeg(input.legs, i, ids.length, looping));
+      stops.push(stop);
+      continue;
+    }
+    if (origin && segment !== undefined) {
+      const previous = previousSegment(segments, i);
+      const drop =
+        i === 0
+          ? everything
+          : unionTickers([
+              previous === undefined ? [] : segmentOutputs(previous),
+              segmentMaterials(segment),
+            ]);
+      pushUnloadAll(steps, drop);
+      steps.push(refuel('STL'), refuel('FTL'));
+      pushDepartureLoads(
+        steps,
+        departureAmounts(segment.bills, segment.sourced, segment.departureExtra),
+      );
+    } else if (segment !== undefined && kindOf(input.stops, id) === 'base') {
+      pushBaseSteps(
+        steps,
+        segment.bills.find(base => base.id === id)?.bill,
+        segment.loadedByStop.get(id),
+        segment.ownUseByStop?.get(id),
+      );
+    }
+    if (!origin && input.refuelStl[i] === true) {
+      steps.push(refuel('STL'));
+    }
+    if (!origin && input.refuelFtl[i] === true) {
+      steps.push(refuel('FTL'));
+    }
+    if (i === last && !looping && !origin && segment !== undefined) {
+      pushUnloadAll(steps, segmentOutputs(segment));
+    }
+    const source = input.stops[i];
+    pushStopSteps(steps, source);
+    const named = source?.query?.trim();
+    const stop: RouteStop = {
+      query: named !== undefined && named.length > 0 ? named : id,
+      steps,
+    };
+    applyLeg(stop, arrivingLeg(input.legs, i, ids.length, looping));
+    stops.push(stop);
+  }
+  appendRouteWait(stops, input.wait);
+  return { ok: true, spec: { stops, loop: looping } };
+}
+
+export function buildRouteSpec(
+  input: RouteBuildInput,
+): { ok: true; spec: RouteSpec } | { ok: false; error: string } {
+  if ((input.segments?.length ?? 0) > 1) {
+    return buildSegmentedRouteSpec(input);
+  }
+  const looping = input.loop !== false;
+  const ids = transitStopIds(input.stops, false);
+  if (ids.length < 2) {
+    return { ok: false, error: 'Need at least 2 stops' };
+  }
+  const departure = departureAmounts(input.bills, input.sourced, input.departureExtra);
+  const materials = routeMaterials(input);
+  const outputs = routeMaterials({ ...input, bills: [] });
+  const last = ids.length - 1;
+  const stops: RouteStop[] = [];
+  for (let i = 0; i < ids.length; i++) {
+    const id = ids[i] ?? '';
+    const steps: RouteStep[] = [];
+    const first = i === 0;
+    const finalStop = i === last;
+    // A one-way route that flies home ends with the flight (and the wait) only.
+    const returnHome = finalStop && !looping && id === ids[0];
+    if (returnHome) {
+      // No steps.
+    } else if (first) {
+      for (const ticker of materials) {
+        steps.push({ kind: 'unload', ticker, min: carried, max: carried });
+      }
+      steps.push(refuel('STL'), refuel('FTL'));
+      for (const ticker of positiveTickers(departure)) {
+        const amount = departure[ticker] ?? 0;
+        steps.push({ kind: 'load', ticker, min: units(amount), max: units(amount) });
+      }
+    } else if (kindOf(input.stops, id) === 'base') {
+      pushBaseSteps(
+        steps,
+        billFor(input, id),
+        input.loadedByStop.get(id),
+        input.ownUseByStop?.get(id),
+      );
+    }
+    if (!first && !returnHome && input.refuelStl[i] === true) {
+      steps.push(refuel('STL'));
+    }
+    if (!first && !returnHome && input.refuelFtl[i] === true) {
+      steps.push(refuel('FTL'));
+    }
+    // The looping return is the first stop's unload-all, not another copy of the origin.
+    if (finalStop && !looping && !returnHome) {
+      for (const ticker of outputs) {
+        steps.push({ kind: 'unload', ticker, min: carried, max: carried });
+      }
+    }
+    pushStopSteps(steps, input.stops[i]);
+    const stop: RouteStop = { query: searchQuery(input.stops, id), steps };
+    applyLeg(stop, arrivingLeg(input.legs, i, ids.length, looping));
+    stops.push(stop);
+  }
+  appendRouteWait(stops, input.wait);
+  return { ok: true, spec: { stops, loop: looping } };
+}

@@ -8,6 +8,7 @@ import FEAT from '@src/features/XIT/SET/FEAT.vue';
 import FIN from '@src/features/XIT/SET/FIN.vue';
 import BFR from '@src/features/XIT/SET/BFR.vue';
 import SFC from '@src/features/XIT/SET/SFC.vue';
+import ROUTE from '@src/features/XIT/SET/ROUTE.vue';
 
 const tabs: Tab[] = [
   {
@@ -39,6 +40,11 @@ const tabs: Tab[] = [
     id: 'SFC',
     label: 'SFC',
     component: SFC,
+  },
+  {
+    id: 'ROUTE',
+    label: 'Route',
+    component: ROUTE,
   },
 ];
 

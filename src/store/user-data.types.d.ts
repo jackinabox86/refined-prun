@@ -84,6 +84,7 @@ declare namespace UserData {
     | 'CONT Ship'
     | 'CONT Trade'
     | 'GovBurn Data'
+    | 'Staging RT'
     | 'Transits';
 
   interface ActionData {
@@ -103,6 +104,16 @@ declare namespace UserData {
 
     // GovBurn Data: planet natural ID or name.
     planet?: string;
+
+    // Staging RT: optional existing route id, the stop list the player typed, and an optional
+    // ship to assign once the stops are in. routePayload is the ROUTECONFIG bridge's JSON
+    // RouteSpec; the text runner leaves it empty.
+    routeId?: string;
+    routeSpec?: string;
+    routePayload?: string;
+    shipId?: string;
+    // ROUTECONFIG route id, so a built game route can be assigned later.
+    configRouteId?: string;
 
     origin?: string;
     dest?: string;
@@ -136,6 +147,8 @@ declare namespace UserData {
     // Transits: ship registration, and one planet or CX stop per line.
     shipRegistration?: string;
     routeStops?: string;
+    // Tons aboard on each leg, from the route's load. Absent flies every leg full.
+    legPayloads?: number[];
   }
 
   interface TaskList {
@@ -258,4 +271,57 @@ declare namespace UserData {
   // Persists GOVBURNACT's slot picks; may be shorter than the configured
   // count when some slots are still unresolved.
   type GovBurnPlanetSlots = Record<string, string[]>;
+
+  interface ShippingRouteStop {
+    kind: 'cx' | 'base';
+    id: string;
+    // Set only on a repeated origin, so two visits of the same stop stay distinct.
+    key?: string;
+    // A base's delivery, ticker -> units, used in place of the supply-days bill.
+    // Absent means the bill comes from supply days.
+    supply?: Record<string, number>;
+    // Extra steps run at this stop after the planned ones, in the XIT RTACT text
+    // syntax ("load RAT 0 capacity retain 120"). Not part of the load plan.
+    steps?: string[];
+  }
+
+  interface ShippingRouteLeg {
+    ok: boolean;
+    seconds?: number;
+    stl?: number;
+    ftl?: number;
+    // Whether that leg's test flight had the gateway toggle on. Not shown.
+    gateway?: boolean;
+    // Fuel usage and reactor usage slider values for that leg. Not shown.
+    // Reactor usage is absent on a leg without an FTL jump.
+    fuelUsage?: number;
+    reactorUsage?: number;
+  }
+
+  interface ShippingRoute {
+    id: string;
+    name: string;
+    stops: ShippingRouteStop[];
+    // Ship registration, the same value XIT TRANSITS uses. Older routes
+    // stored only shipSize.
+    ship?: string;
+    shipSize?: string;
+    days?: number;
+    // Absent means the route loops back to its first stop for flight time.
+    loop?: boolean;
+    // A one-way route's answer to TRANSITS asking whether it ends back at the
+    // origin. True added that final origin visit to stops. Absent means not asked.
+    returnToOrigin?: boolean;
+    legs?: ShippingRouteLeg[];
+    // Game route id (RT-…) recorded when ROUTECONFIG builds the route.
+    rtId?: string;
+    // TRANSITS saved new legs after that build, so the game route still has the
+    // old timing and fuel settings until SET ROUTE runs again.
+    legsAfterRt?: boolean;
+    // Optional pause after the last waypoint. Absent means the route does not wait.
+    wait?: {
+      amount: number;
+      unit: 'seconds' | 'minutes' | 'hours' | 'days';
+    };
+  }
 }

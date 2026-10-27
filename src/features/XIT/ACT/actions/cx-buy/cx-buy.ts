@@ -69,6 +69,13 @@ act.addAction<Config>({
           delete materials[mat];
         }
       }
+      // WAR already leaves out what the routes will load; say why it is bought anyway.
+      const held = state.routeHeld[exchange] ?? {};
+      for (const mat of Object.keys(materials)) {
+        if ((held[mat] ?? 0) > 0) {
+          log.info(`${fixed0(held[mat]!)} ${mat} on ${exchange} is held for routes`);
+        }
+      }
     }
 
     // The all-materials switch stands in for listing every ticker individually.

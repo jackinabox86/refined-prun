@@ -48,6 +48,15 @@ export const initialUserData = deepFreeze({
       countdown: false,
       planetOverrides: {} as Record<string, { threshold?: number }>,
     },
+    // XIT ROUTEBURN Origins: days of route laps RESTOCK buys for, and the countdown colors.
+    routeSupply: {
+      days: 14,
+      red: 3,
+      yellow: 7,
+      // Per exchange code, when its last Route Restock run finished. The route
+      // reserve only holds stock for laps due before that time + days.
+      restockedAt: {} as Record<string, number>,
+    },
     noBuy: [] as string[],
     noBuyAll: false,
     noBuyThresholds: {
@@ -134,6 +143,9 @@ export const initialUserData = deepFreeze({
 
   // Used in user-data-migrations.ts
   migrations: undefined,
+  // Shared by XIT ROUTECONFIG and XIT ROUTEBURN. Absent on older blobs stays
+  // at this default because applyUserData assigns top-level keys only.
+  routes: [] as UserData.ShippingRoute[],
 });
 
 export const userData = reactive({} as typeof initialUserData);

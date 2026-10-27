@@ -63,6 +63,29 @@ export function captureLoadout(
   };
 }
 
+// The next leg starts from the choices the player just confirmed. Tank sliders
+// keep the first leg's levels, which later legs burn down from. A setting the
+// leg did not show, such as Reactor usage without an FTL jump, is kept.
+export function mergeLegChoices(loadout: ConfirmedLoadout, choices: ConfirmedLoadout) {
+  for (const chosen of choices.sliders) {
+    if (chosen.tank !== undefined) {
+      continue;
+    }
+    const saved = loadout.sliders.find(x => x.label === chosen.label);
+    if (saved === undefined) {
+      loadout.sliders.push(chosen);
+    } else {
+      saved.value = chosen.value;
+    }
+  }
+  if (choices.selectValue !== undefined) {
+    loadout.selectValue = choices.selectValue;
+  }
+  if (choices.gatewayOn !== undefined) {
+    loadout.gatewayOn = choices.gatewayOn;
+  }
+}
+
 export async function applyConfirmedLoadout(anchor: Element, loadout: ConfirmedLoadout) {
   const select = anchor.querySelector('select');
   if (
@@ -107,18 +130,24 @@ export async function applyConfirmedLoadout(anchor: Element, loadout: ConfirmedL
   // The destination change rebuilds the form. The sliders are not back yet
   // when the address click returns.
   let byLabel = findSliders();
-  const present = await waitFor(() => {
+  const tanksPresent = await waitFor(() => {
     byLabel = findSliders();
-    return ordered.every(saved => byLabel.has(saved.label));
+    return ordered.every(saved => saved.tank === undefined || byLabel.has(saved.label));
   }, 5000);
-  if (!present) {
+  if (!tanksPresent) {
     const missing = ordered.find(saved => !byLabel.has(saved.label));
     return `${missing?.label ?? 'loadout'} slider is not on the test flight`;
   }
+  // A leg without an FTL jump shows Reactor usage as "--" with no slider, so a
+  // setting that does not come back is skipped. The tanks are always there.
+  await waitFor(() => {
+    byLabel = findSliders();
+    return ordered.every(saved => byLabel.has(saved.label));
+  }, 1500);
   for (const saved of ordered) {
     const slider = byLabel.get(saved.label);
     if (slider === undefined) {
-      return `${saved.label} slider is not on the test flight`;
+      continue;
     }
     const target = sliderTarget(
       { ...saved, tank: tankKind(saved.label, stlLabel, ftlLabel) },
@@ -138,8 +167,9 @@ export async function applyConfirmedLoadout(anchor: Element, loadout: ConfirmedL
 }
 
 // The test flight opens with an empty hold, which flies faster than a loaded
-// ship. Start the first leg at a full hold; the player may still lower it.
-export async function setInventoryFull(anchor: Element) {
+// ship. Start the first leg at the route's planned tons, or a full hold before
+// the route has a load; the player may still change it.
+export async function setInventory(anchor: Element, tons: number | undefined) {
   const payload = L.BlueprintTestFlight.label.payload() ?? '';
   if (payload.length === 0) {
     return 'Inventory label is not loaded';
@@ -162,12 +192,50 @@ export async function setInventoryFull(anchor: Element) {
   if (!Number.isFinite(max)) {
     return `${payload} slider has no maximum`;
   }
-  const set = await setSliderTo(slider, max);
+  const target = payloadTarget(tons, handle, max);
+  const set = await setSliderTo(slider, target);
   if (!set.ok) {
     const at = set.now === undefined ? 'no value' : String(set.now);
-    return `could not set ${payload} to ${max} (now ${at})`;
+    return `could not set ${payload} to ${target} (now ${at})`;
   }
   return undefined;
+}
+
+function payloadTarget(tons: number | undefined, handle: Element, max: number) {
+  if (tons === undefined) {
+    return max;
+  }
+  const min = Number(handle.getAttribute('aria-valuemin'));
+  return Math.min(max, Math.max(Number.isFinite(min) ? min : 0, Math.ceil(tons)));
+}
+
+// Later legs start from the confirmed loadout. Its payload becomes that leg's tons.
+export function setLoadoutPayload(loadout: ConfirmedLoadout, tons: number | undefined) {
+  const payload = L.BlueprintTestFlight.label.payload() ?? '';
+  const saved = loadout.sliders.find(x => x.label === payload);
+  if (tons !== undefined && saved !== undefined) {
+    saved.value = Math.max(0, Math.ceil(tons));
+  }
+}
+
+// A refuel fills the tanks, so this and later legs burn down from full.
+export function refuelLoadout(
+  loadout: ConfirmedLoadout,
+  tanks: { stl: number; ftl: number } | undefined,
+) {
+  if (tanks === undefined) {
+    return;
+  }
+  const stlLabel = L.BlueprintTestFlight.label.stlFuel() ?? '';
+  const ftlLabel = L.BlueprintTestFlight.label.ftlFuel() ?? '';
+  for (const saved of loadout.sliders) {
+    const kind = tankKind(saved.label, stlLabel, ftlLabel);
+    if (kind !== undefined) {
+      saved.value = Math.floor(tanks[kind]);
+    }
+  }
+  loadout.priorStl = [];
+  loadout.priorFtl = [];
 }
 
 // The address change rewrites the sliders after a write. Read them again at
@@ -432,4 +500,41 @@ function gatewayOn(el: HTMLElement) {
     node = node.parentElement;
   }
   return false;
+}
+
+// Fuel usage and reactor usage as flown. Reactor usage is undefined on a leg
+// without an FTL jump, where the test flight has no slider for it.
+export function readUsage(anchor: Element) {
+  const fuelLabel = L.BlueprintTestFlight.label.fuelUsage() ?? '';
+  const reactorLabel = L.BlueprintTestFlight.label.reactorUsage() ?? '';
+  const labels = fieldLabels();
+  let fuelUsage: number | undefined;
+  let reactorUsage: number | undefined;
+  for (const slider of _$$(anchor, 'rc-slider')) {
+    const label = matchingFieldLabel(ancestorTexts(slider), labels);
+    const handle = sliderHandle(slider);
+    const now = handle === undefined ? undefined : readNow(handle);
+    if (label === undefined || now === undefined) {
+      continue;
+    }
+    if (fuelLabel.length > 0 && label === fuelLabel) {
+      fuelUsage = now;
+    }
+    if (reactorLabel.length > 0 && label === reactorLabel) {
+      reactorUsage = now;
+    }
+  }
+  return { fuelUsage, reactorUsage };
+}
+
+export function readGateway(anchor: Element) {
+  const select = anchor.querySelector('select');
+  if (select === null) {
+    return undefined;
+  }
+  const gateway = gatewayToggle(select);
+  if (gateway === undefined) {
+    return undefined;
+  }
+  return gatewayOn(gateway);
 }

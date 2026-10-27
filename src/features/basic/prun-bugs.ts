@@ -65,6 +65,21 @@ function fixZOrder() {
   applyCssRule(`.${C.Frame.sidebar} > .${C.Frame.title}`, $style.sidebarTitle);
 }
 
+// XIT toolbars reuse ComExOrdersPanel.filter as a flex row of toggles. Newer game CSS
+// makes that class a subgrid row of a ComExOrdersPanel.filters grid. Outside one, every
+// toggle becomes its own full-width row. Keep the old flex row for elements that are not
+// in a filters grid, and leave the game's own COMEX rows alone. Older CSS has no filters
+// class and is still flex, so there is nothing to do there.
+function keepStandaloneFiltersFlex() {
+  if (!('filters' in C.ComExOrdersPanel)) {
+    return;
+  }
+  applyCssRule(
+    `.${C.ComExOrdersPanel.filter}:not(.${C.ComExOrdersPanel.filters} > *)`,
+    $style.standaloneFilter,
+  );
+}
+
 function fixSliders() {
   applyCssRule('.rc-slider-dot', $style.rcSliderDotFixes);
   applyCssRule('.rc-slider-handle', $style.rcSliderHandleFixes);
@@ -100,6 +115,7 @@ function preventDragSelection() {
 function init() {
   removeMobileCssRules();
   fixZOrder();
+  keepStandaloneFiltersFlex();
   fixSliders();
   preventDragSelection();
 

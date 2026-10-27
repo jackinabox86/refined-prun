@@ -33,7 +33,7 @@ Two tables (Offers, Requests): Trader (company link), Amount, Price.
 
 ## CXPO — Place Order
 
-Order form. Fields: Exchange, Material, Price average (+ `set` button copies it into the limit), Bid / Ask, Price Band ⓘ, Storage Location (select over ship cargo holds and Warehouse at the exchange), Inventory, Quantity, Price Limit, Effective price ⓘ, Volume, Shipment size; a small preview table (Amt., Price). `buy` / `sell` buttons are server actions — safe to open and fill, never submit in tests.
+Order form. Fields: Exchange, Material, Price average (+ `set` button copies it into the limit), Bid / Ask, Price Band ⓘ, Storage Location (select over ship cargo holds and an option labeled `Warehouse`), Inventory (`N units`), Quantity, Price Limit, Effective price ⓘ, Volume, Shipment size; a small preview table (Amt., Price). `buy` / `sell` buttons are server actions — safe to open and fill, never submit in tests.
 
 ## CXOS — Own Orders
 

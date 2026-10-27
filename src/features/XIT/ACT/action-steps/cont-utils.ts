@@ -1,13 +1,12 @@
 import {
-  changeInputValue,
   changeSelectIndex,
   changeTextAreaValue,
   clickElement,
   focusElement,
   selectAndChangeInputValue,
+  selectMaterialInMaterialSelector,
 } from '@src/util';
 import { sleep } from '@src/utils/sleep';
-import { $ } from '@src/utils/select-dom';
 import { fixed0 } from '@src/utils/format';
 import { contractDraftsStore } from '@src/infrastructure/prun-api/data/contract-drafts';
 import { ActionStepExecuteContext, AssertFn } from '@src/features/XIT/ACT/shared-types';
@@ -51,45 +50,16 @@ function truncate(text: string, limit: number) {
 
 /**
  * Types a ticker into a MaterialSelector and clicks the matching suggestion.
- * Also used by MTRA_TRANSFER and the ship-unload feature.
+ * Also used by MTRA_TRANSFER and the ship-unload feature. Delegates to the
+ * shared helper, which also finds staging's suggestions in #autosuggest-portal
+ * and gives up after 3s instead of waiting forever.
  */
 export async function selectMaterial(container: Element, ticker: string) {
-  const input = (await $(container, C.MaterialSelector.input)) as HTMLInputElement | null;
-  if (!input) {
-    return false;
+  const selected = await selectMaterialInMaterialSelector(container, ticker);
+  if (selected) {
+    await sleep(200);
   }
-
-  const suggestionsContainer = (await $(
-    container,
-    C.MaterialSelector.suggestionsContainer,
-  )) as HTMLElement | null;
-
-  focusElement(input);
-  changeInputValue(input, ticker);
-
-  const suggestionsList = await $(container, C.MaterialSelector.suggestionsList);
-
-  if (suggestionsContainer) {
-    suggestionsContainer.style.display = 'none';
-  }
-
-  const match = _$$(suggestionsList, C.MaterialSelector.suggestionEntry).find(
-    entry => _$(entry, C.ColoredIcon.label)?.textContent === ticker,
-  );
-
-  if (!match) {
-    if (suggestionsContainer) {
-      suggestionsContainer.style.display = '';
-    }
-    return false;
-  }
-
-  await clickElement(match as HTMLElement);
-  if (suggestionsContainer) {
-    suggestionsContainer.style.display = '';
-  }
-  await sleep(200);
-  return true;
+  return selected;
 }
 
 /**

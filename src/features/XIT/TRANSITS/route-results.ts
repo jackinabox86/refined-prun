@@ -5,10 +5,14 @@ export interface RecordedLeg {
   seconds?: number;
   stl?: number;
   ftl?: number;
+  gateway?: boolean;
+  fuelUsage?: number;
+  reactorUsage?: number;
 }
 
 export const routeResults = {
   legs: [] as RecordedLeg[],
+  routeId: undefined as string | undefined,
   reset() {
     this.legs = [];
   },

@@ -19,6 +19,15 @@ describe('shipOptions', () => {
     ]);
   });
 
+  it('skips a ship whose registration or name is missing', () => {
+    expect(
+      shipOptions([
+        { registration: null, name: null } as unknown as PrunApi.Ship,
+        ship('AA-001', null as unknown as string),
+      ]),
+    ).toStrictEqual([{ value: 'AA-001', label: 'AA-001' }]);
+  });
+
   it('sorts by label', () => {
     expect(shipOptions([ship('ZZ-9', 'Zeta'), ship('AA-1', 'Alpha')])).toStrictEqual([
       { value: 'AA-1', label: 'Alpha (AA-1)' },
