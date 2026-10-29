@@ -780,12 +780,11 @@ onMounted(async () => {
 </template>
 
 <style module>
+/* No inner scroller: the game's ScrollView scrolls the tile, as in DISPATCH. */
 .container {
   display: flex;
   flex-direction: column;
   padding: 5px;
-  height: 100%;
-  overflow-y: auto;
 }
 .controls {
   display: flex;
