@@ -6,10 +6,14 @@ import { AGENT_DONE } from '@src/features/XIT/ACT/action-steps/AGENT_DONE';
 import { OPEN_SFC } from '@src/features/XIT/ACT/action-steps/OPEN_SFC';
 import { MTRA_TRANSFER } from '@src/features/XIT/ACT/action-steps/MTRA_TRANSFER';
 import { deserializeStorage } from '@src/features/XIT/ACT/actions/utils';
-import { ActionStep, configurableValue } from '@src/features/XIT/ACT/shared-types';
+import {
+  ActionPackageConfig,
+  ActionStep,
+  configurableValue,
+} from '@src/features/XIT/ACT/shared-types';
 import { getPlanetBurn } from '@src/core/burn';
 import { sitesStore } from '@src/infrastructure/prun-api/data/sites';
-import { packageForAgentRun } from '@src/features/XIT/AGENT/package-for-agent-run';
+import { agentBaseDest, packageForAgentRun } from '@src/features/XIT/AGENT/package-for-agent-run';
 
 const parameters = useXitParameters();
 const messageId = parameters.join(' ');
@@ -115,6 +119,13 @@ function buildLoadSteps(baseStore: PrunApi.Store, shipStore: PrunApi.Store): Act
   return [...loadAll, ...playerReview];
 }
 
+// Live run config: a configurable base is only known once the player picks it.
+const runConfig = ref<ActionPackageConfig>();
+
+function onConfigChanged(next: ActionPackageConfig) {
+  runConfig.value = next;
+}
+
 const extraSteps = computed(() => {
   if (!entry) {
     return undefined;
@@ -130,14 +141,8 @@ const extraSteps = computed(() => {
   }
 
   // Base store from MTRA dest — needed for the load phase.
-  const mtraDest = entry.pkg.actions.find(x => x.type === 'MTRA')?.dest;
-  let baseStore: PrunApi.Store | undefined;
-  if (mtraDest !== undefined && mtraDest !== configurableValue) {
-    const resolved = deserializeStorage(mtraDest);
-    if (resolved?.type === 'STORE') {
-      baseStore = resolved;
-    }
-  }
+  const resolved = deserializeStorage(agentBaseDest(entry.pkg, runConfig.value));
+  const baseStore = resolved?.type === 'STORE' ? resolved : undefined;
 
   // Chain destination for OPEN_SFC (optional — SFC still opens without one).
   let destination: string | undefined;
@@ -162,5 +167,9 @@ const extraSteps = computed(() => {
 
 <template>
   <div v-if="!entry"> Package "{{ messageId }}" not found. Refresh XIT AGENT and try again. </div>
-  <ExecuteActionPackage v-else-if="runPkg" :pkg="runPkg" :extra-steps="extraSteps" />
+  <ExecuteActionPackage
+    v-else-if="runPkg"
+    :pkg="runPkg"
+    :extra-steps="extraSteps"
+    :config-changed="onConfigChanged" />
 </template>
