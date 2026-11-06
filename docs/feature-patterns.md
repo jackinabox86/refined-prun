@@ -61,6 +61,10 @@ both emitted `rp-CargoBar__container`, so STO's rules were styling XIT FLT's bar
 Grep for the basename before adding a component, and prefix it when it collides — FLT's is now
 `FleetCargoBar.vue`, DISPATCH's row is `PlanetRow.vue`.
 
+Don't give a helper module the lowercase name of its command file (`LOWSTRIFE.ts` next to
+`lowstrife.ts`). Windows and macOS filesystems are case-insensitive, so writing one overwrites
+the other with no error. Name the helper after what it does (`ship-loading.ts`).
+
 ### Parameter Checks
 
 If a tile command can't be opened without a parameter (like `PRODQ`), don't guard against missing parameters.
