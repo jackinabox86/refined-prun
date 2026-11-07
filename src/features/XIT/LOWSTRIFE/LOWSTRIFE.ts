@@ -5,12 +5,14 @@ import { getEntityNameFromAddress } from '@src/infrastructure/prun-api/data/addr
 xit.add({
   command: 'LOWSTRIFE',
   name: parameters => {
+    if (parameters.length === 0) {
+      return 'SHIP LOADING';
+    }
     const site = sitesStore.getByPlanetNaturalIdOrName(parameters.join(' '));
     const name = site ? getEntityNameFromAddress(site.address) : parameters.join(' ');
     return `SHIP LOADING - ${name}`;
   },
   description:
     'Loads a ship with consumables for a fixed number of days and production inputs for as many days as fit, then fills the spare room with DW.',
-  mandatoryParameters: 'Planet',
   component: () => LOWSTRIFE,
 });

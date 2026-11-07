@@ -147,6 +147,13 @@ export const initialUserData = deepFreeze({
   // Shared by XIT ROUTECONFIG and XIT ROUTEBURN. Absent on older blobs stays
   // at this default because applyUserData assigns top-level keys only.
   routes: [] as UserData.ShippingRoute[],
+  // XIT LOWSTRIFE. Top-level for the same reason as routes.
+  lowstrife: {
+    // Planet natural id of the last base picked, the default for a new tile.
+    lastPlanet: '',
+    // Planet natural id -> tickers left out of the load.
+    exclusions: {} as Record<string, string[]>,
+  },
 });
 
 export const userData = reactive({} as typeof initialUserData);

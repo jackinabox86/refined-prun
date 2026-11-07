@@ -3,7 +3,10 @@ import { useXitParameters } from '@src/hooks/use-xit-parameters';
 import { getPlanetBurn } from '@src/core/burn';
 import { sortMaterials } from '@src/core/sort-materials';
 import { sitesStore } from '@src/infrastructure/prun-api/data/sites';
-import { getEntityNameFromAddress } from '@src/infrastructure/prun-api/data/addresses';
+import {
+  getEntityNameFromAddress,
+  getEntityNaturalIdFromAddress,
+} from '@src/infrastructure/prun-api/data/addresses';
 import { materialsStore } from '@src/infrastructure/prun-api/data/materials';
 import { shipsStore } from '@src/infrastructure/prun-api/data/ships';
 import { storagesStore } from '@src/infrastructure/prun-api/data/storage';
@@ -23,16 +26,79 @@ import {
 } from '@src/features/XIT/LOWSTRIFE/ship-loading';
 import { stagedLowstrife } from '@src/features/XIT/LOWSTRIFE/staged';
 import { useTileState } from '@src/features/XIT/LOWSTRIFE/tile-state';
+import PlanetSelector from '@src/features/XIT/LOWSTRIFE/PlanetSelector.vue';
+import { userData } from '@src/store/user-data';
+import type { BurnValues } from '@src/core/burn';
 
 // Join all parameters in case a natural id was split on underscores by the XIT router.
 const parameters = useXitParameters();
 const planetParameter = parameters.join(' ');
 
-const site = computed(() => sitesStore.getByPlanetNaturalIdOrName(planetParameter));
+// The selected base's natural id. A command parameter picks the base it names, otherwise
+// the tile keeps its last pick, and a new tile starts on the last base picked anywhere.
+const planet = useTileState('planet');
+if (!planet.value) {
+  planet.value = userData.lowstrife.lastPlanet;
+}
+watch(planet, value => {
+  if (value) {
+    userData.lowstrife.lastPlanet = value;
+  }
+});
+// Sites can load after the tile opens, so apply the parameter once it resolves.
+const parameterPlanet = computed(() => {
+  const site = sitesStore.getByPlanetNaturalIdOrName(planetParameter);
+  return site ? getEntityNaturalIdFromAddress(site.address) : undefined;
+});
+let parameterApplied = false;
+watch(
+  parameterPlanet,
+  naturalId => {
+    if (naturalId && !parameterApplied) {
+      planet.value = naturalId;
+      parameterApplied = true;
+    }
+  },
+  { immediate: true },
+);
+
+const site = computed(() => sitesStore.getByPlanetNaturalId(planet.value));
 const planetName = computed(() =>
   site.value ? getEntityNameFromAddress(site.value.address) : undefined,
 );
-const burn = computed(() => getPlanetBurn(site.value)?.burn);
+const fullBurn = computed(() => getPlanetBurn(site.value)?.burn);
+
+// Materials the user supplies separately. Sticky per planet across tiles.
+const excluded = computed(() => userData.lowstrife.exclusions[planet.value ?? ''] ?? []);
+
+function setExcluded(ticker: string, value: boolean) {
+  const key = planet.value;
+  if (!key) {
+    return;
+  }
+  const next = excluded.value.filter(x => x !== ticker);
+  if (value) {
+    next.push(ticker);
+  }
+  if (next.length > 0) {
+    userData.lowstrife.exclusions[key] = next;
+  } else {
+    delete userData.lowstrife.exclusions[key];
+  }
+}
+
+const burn = computed(() => {
+  if (!fullBurn.value) {
+    return undefined;
+  }
+  const result: BurnValues = {};
+  for (const [ticker, mat] of Object.entries(fullBurn.value)) {
+    if (!excluded.value.includes(ticker)) {
+      result[ticker] = mat;
+    }
+  }
+  return result;
+});
 
 const shipName = useTileState('ship');
 const consumableDays = useTileState('consumableDays');
@@ -85,6 +151,7 @@ const load = computed(() => {
   }
   return computeLowstrifeLoad({
     burn: burn.value,
+    excludeDwFill: excluded.value.includes('DW'),
     consumableDays: consumableDays.value ?? 0,
     maxWeight: maxWeight.value ?? 0,
     maxVolume: maxVolume.value ?? 0,
@@ -92,26 +159,35 @@ const load = computed(() => {
   });
 });
 
+const roleLabels = { consumable: 'consumable', input: 'input', both: 'consumable + input' };
+
+// Loaded materials plus the excluded ones, so an exclusion can be undone from the table.
+
 const rows = computed(() => {
   const result = load.value;
-  if (!result || !burn.value) {
+  if (!result || !fullBurn.value) {
     return [];
   }
-  const materials = Object.keys(result.materials)
-    .map(materialsStore.getByTicker)
-    .filter(x => x !== undefined);
-  return sortMaterials(materials).map(x => ({
-    ticker: x.ticker,
-    amount: result.materials[x.ticker],
-    role: lowstrifeRole(burn.value![x.ticker]),
-  }));
+  const tickers = new Set([
+    ...Object.keys(result.materials),
+    ...excluded.value.filter(x => fullBurn.value![x] !== undefined),
+  ]);
+  const materials = [...tickers].map(materialsStore.getByTicker).filter(x => x !== undefined);
+  return sortMaterials(materials).map(x => {
+    const burnTickers = fullBurn.value!;
+    const isExcluded = excluded.value.includes(x.ticker);
+    return {
+      ticker: x.ticker,
+      amount: isExcluded ? 0 : result.materials[x.ticker],
+      role: x.ticker in burnTickers ? roleLabels[lowstrifeRole(burnTickers[x.ticker])] : 'fill',
+      excluded: isExcluded,
+    };
+  });
 });
-
-const roleLabels = { consumable: 'consumable', input: 'input', both: 'consumable + input' };
 
 const pkg = computed(() =>
   lowstrifePackage({
-    planetName: planetName.value ?? planetParameter,
+    planetName: planetName.value ?? planet.value ?? '',
     shipName: shipName.value || undefined,
     materials: load.value?.materials ?? {},
   }),
@@ -131,10 +207,12 @@ function execute() {
 </script>
 
 <template>
-  <div v-if="!planetParameter">
-    Specify a planet, for example: XIT LOWSTRIFE &lt;planet name or natural id&gt;
-  </div>
-  <div v-else-if="!site">Planet "{{ planetParameter }}" not found.</div>
+  <form>
+    <Active label="Planet" tooltip="The base to load for. Type to filter your bases.">
+      <PlanetSelector v-model="planet" />
+    </Active>
+  </form>
+  <div v-if="!site" :class="$style.summary">Select a base.</div>
   <div v-else-if="!burn">Loading burn data...</div>
   <template v-else>
     <form>
@@ -179,6 +257,10 @@ function execute() {
     <table>
       <thead>
         <tr>
+          <th
+            title="Checked materials are loaded. Uncheck a material you supply separately; the choice is kept per base.">
+            Load
+          </th>
           <th>Ticker</th>
           <th>Amount</th>
           <th>Days</th>
@@ -186,12 +268,19 @@ function execute() {
       </thead>
       <tbody>
         <tr v-if="rows.length === 0">
-          <td colspan="3">Nothing to load.</td>
+          <td colspan="4">Nothing to load.</td>
         </tr>
-        <tr v-for="row in rows" :key="row.ticker">
+        <tr v-for="row in rows" :key="row.ticker" :class="{ [$style.excluded]: row.excluded }">
+          <td>
+            <input
+              type="checkbox"
+              :class="$style.checkbox"
+              :checked="!row.excluded"
+              @change="setExcluded(row.ticker, !($event.target as HTMLInputElement).checked)" />
+          </td>
           <td>{{ row.ticker }}</td>
-          <td>{{ row.amount }}</td>
-          <td>{{ roleLabels[row.role] }}</td>
+          <td>{{ row.excluded ? '--' : row.amount }}</td>
+          <td>{{ row.excluded ? 'excluded' : row.role }}</td>
         </tr>
       </tbody>
     </table>
@@ -213,5 +302,15 @@ function execute() {
 
 .error {
   color: #d9534f;
+}
+
+.excluded {
+  color: var(--rp-color-text);
+}
+
+.checkbox {
+  margin: 0;
+  accent-color: #f7a600;
+  cursor: pointer;
 }
 </style>

@@ -14,6 +14,8 @@ export interface LowstrifeInput {
   maxWeight: number;
   maxVolume: number;
   getMaterial: (ticker: string) => LowstrifeMaterialSize | undefined;
+  // Skips the DW fill, for a user who supplies DW separately.
+  excludeDwFill?: boolean;
 }
 
 export interface LowstrifeLoad {
@@ -140,7 +142,7 @@ export function computeLowstrifeLoad(input: LowstrifeInput): LowstrifeLoad {
   }
 
   let dwFill = 0;
-  const dw = getMaterial('DW');
+  const dw = input.excludeDwFill ? undefined : getMaterial('DW');
   if (dw) {
     const t = totals(materials, getMaterial);
     const room = Math.min((maxWeight - t.weight) / dw.weight, (maxVolume - t.volume) / dw.volume);
