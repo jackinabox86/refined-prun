@@ -204,6 +204,19 @@ describe('production days', () => {
     expect(result.weight).toBeLessThan(2000);
   });
 
+  it('skips the DW fill when the inputs are capped at the consumable days', () => {
+    const result = computeLowstrifeLoad({
+      burn: sheetBurn,
+      consumableDays: 10,
+      maxWeight: 2000,
+      maxVolume: 2000,
+      getMaterial,
+    });
+    expect(result.productionLimit).toBe('cap');
+    expect(result.dwFill).toBe(0);
+    expect(result.weight).toBeLessThan(2000);
+  });
+
   it('grows when the consumable days are lowered', () => {
     const at = (consumableDays: number) =>
       computeLowstrifeLoad({
