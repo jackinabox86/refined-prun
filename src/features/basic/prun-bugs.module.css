@@ -2,6 +2,16 @@
   z-index: 1;
 }
 
+/* The older ComExOrdersPanel.filter rule. */
+.standaloneFilter {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: normal;
+  column-gap: 3px;
+  padding: 5px;
+}
+
 .scrollTrack {
   z-index: 2;
 }
