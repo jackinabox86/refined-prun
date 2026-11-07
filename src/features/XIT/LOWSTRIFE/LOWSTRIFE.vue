@@ -219,16 +219,16 @@ function execute() {
       <Active label="Ship" tooltip="The ship to load. Its free cargo space seeds the limits below.">
         <SelectInput v-model="shipName" :options="shipOptions" />
       </Active>
+      <Active
+        label="Consumable Days"
+        tooltip="Workforce consumables are loaded for this many days. Production inputs get the most days that still fit, up to the same number.">
+        <NumberInput v-model="consumableDays" float />
+      </Active>
       <Active label="Max Weight (t)">
         <NumberInput v-model="maxWeight" float />
       </Active>
       <Active label="Max Volume (m³)">
         <NumberInput v-model="maxVolume" float />
-      </Active>
-      <Active
-        label="Consumable Days"
-        tooltip="Workforce consumables are loaded for this many days. Production inputs get the most days that still fit.">
-        <NumberInput v-model="consumableDays" float />
       </Active>
     </form>
     <SectionHeader>Load</SectionHeader>
@@ -246,7 +246,10 @@ function execute() {
         <span :class="$style.value">
           {{ load.productionDays === undefined ? '--' : load.productionDays.toFixed(1) }}
         </span>
-        <span v-if="load.productionLimit"> (limited by {{ load.productionLimit }})</span>
+        <span v-if="load.productionLimit === 'cap'" :class="$style.warning">
+          (capped at consumable days, spare room left)
+        </span>
+        <span v-else-if="load.productionLimit"> (limited by {{ load.productionLimit }})</span>
       </div>
       <div :class="{ [$style.error]: !load.fits }">
         {{ fixed02(load.weight) }}t / {{ fixed02(maxWeight ?? 0) }}t, {{ fixed02(load.volume) }}m³ /
@@ -297,6 +300,10 @@ function execute() {
 }
 
 .value {
+  color: #f7a600;
+}
+
+.warning {
   color: #f7a600;
 }
 

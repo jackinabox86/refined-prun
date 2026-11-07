@@ -177,14 +177,31 @@ describe('production days', () => {
         AL: mat(-10, 0, 'input'),
         SI: mat(20, 0, 'output'),
       },
-      consumableDays: 10,
+      consumableDays: 30,
       maxWeight: 1000,
       maxVolume: 1000,
       getMaterial,
     });
-    // Consumables: 101 RAT = 21.21t. Outputs: 46.58t/day into 978.79t = 21.01 days.
+    // Consumables: 301 RAT = 63.21t. Outputs: 46.58t/day into 936.79t = 20.11 days.
     expect(result.productionLimit).toBe('outputs');
-    expect(result.productionDays).toBe(21);
+    expect(result.productionDays).toBe(20.1);
+  });
+
+  it('caps the inputs at the consumable days and flags the spare room', () => {
+    const result = computeLowstrifeLoad({
+      burn: sheetBurn,
+      consumableDays: 10,
+      maxWeight: 2000,
+      maxVolume: 2000,
+      excludeDwFill: true,
+      getMaterial,
+    });
+    expect(result.inputDays).toBe(10);
+    expect(result.productionDays).toBe(10);
+    expect(result.productionLimit).toBe('cap');
+    // AL 889 in stock covers 18.9 days, so 10 days loads none; SI 718 covers 15.3.
+    expect(result.materials.AL).toBeUndefined();
+    expect(result.weight).toBeLessThan(2000);
   });
 
   it('grows when the consumable days are lowered', () => {
