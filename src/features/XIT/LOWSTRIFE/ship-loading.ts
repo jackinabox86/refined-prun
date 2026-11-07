@@ -15,7 +15,7 @@ export interface LowstrifeInput {
   maxVolume: number;
   getMaterial: (ticker: string) => LowstrifeMaterialSize | undefined;
   // Skips the DW fill, for a user who supplies DW separately. The fill is also skipped
-  // when the inputs are capped at the consumable days.
+  // when the inputs are capped at the consumable days or the planet has no inputs.
   excludeDwFill?: boolean;
 }
 
@@ -155,9 +155,9 @@ export function computeLowstrifeLoad(input: LowstrifeInput): LowstrifeLoad {
     productionLimit = 'cap';
   }
 
-  // Inputs capped at the consumable days mean the ship has more room than the visit
-  // needs, so filling it with DW would only buy water for well past the next visit.
-  const inputsCapped = inputDays !== undefined && inputDays >= consumableDays;
+  // DW only tops up a ship the inputs fill. Inputs capped at the consumable days, or no
+  // inputs at all, leave room the visit does not need, and DW there is just excess water.
+  const inputsCapped = inputDays === undefined || inputDays >= consumableDays;
   let dwFill = 0;
   const dw = input.excludeDwFill || inputsCapped ? undefined : getMaterial('DW');
   if (dw) {

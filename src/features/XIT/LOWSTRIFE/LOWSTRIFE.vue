@@ -26,6 +26,7 @@ import {
 } from '@src/features/XIT/LOWSTRIFE/ship-loading';
 import { stagedLowstrife } from '@src/features/XIT/LOWSTRIFE/staged';
 import { useTileState } from '@src/features/XIT/LOWSTRIFE/tile-state';
+import { getShipsAtCX } from '@src/features/XIT/DISPATCH/utils';
 import PlanetSelector from '@src/features/XIT/LOWSTRIFE/PlanetSelector.vue';
 import { userData } from '@src/store/user-data';
 import type { BurnValues } from '@src/core/burn';
@@ -103,9 +104,10 @@ const burn = computed(() => {
 const shipName = useTileState('ship');
 const consumableDays = useTileState('consumableDays');
 
+// Only ships docked at an exchange can pick up the load.
 const shipOptions = computed(() =>
-  (shipsStore.all.value ?? [])
-    .map(x => x.name)
+  (getShipsAtCX() ?? [])
+    .map(x => x.ship.name)
     .filter(x => !!x)
     .sort(),
 );
@@ -113,7 +115,7 @@ const shipOptions = computed(() =>
 watch(
   shipOptions,
   options => {
-    if (!shipName.value && options.length > 0) {
+    if (options.length > 0 && !options.includes(shipName.value ?? '')) {
       shipName.value = options[0];
     }
   },

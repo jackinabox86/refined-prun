@@ -127,6 +127,7 @@ describe('computeLowstrifeLoad', () => {
     });
     expect(result.inputDays).toBeUndefined();
     expect(result.materials.RAT).toBe(257);
+    expect(result.dwFill).toBe(0);
   });
 });
 
