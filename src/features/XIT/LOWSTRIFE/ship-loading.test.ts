@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { BurnValues, MaterialBurn } from '@src/core/burn';
 import { configurableValue } from '@src/features/XIT/ACT/shared-types';
-import { computeLowstrifeLoad, loadAmount, lowstrifePackage } from './ship-loading';
+import { computeLowstrifeLoad, loadAmount, lowstrifePackage, lowstrifeRole } from './ship-loading';
 
 const sizes: Record<string, { weight: number; volume: number }> = {
   AL: { weight: 2.7, volume: 1 },
@@ -127,6 +127,87 @@ describe('computeLowstrifeLoad', () => {
     });
     expect(result.inputDays).toBeUndefined();
     expect(result.materials.RAT).toBe(257);
+  });
+});
+
+describe('mixed consumables and inputs', () => {
+  // RAT on a FIM base: 10/day for the workforce, 20/day into production.
+  const ratForFim: MaterialBurn = {
+    ...mat(-30, 0, 'input'),
+    input: 20,
+    workforce: 10,
+  };
+
+  it('loads the workforce share for the consumable days and the rest for the input days', () => {
+    expect(lowstrifeRole(ratForFim)).toBe('both');
+    const result = computeLowstrifeLoad({
+      burn: { RAT: ratForFim },
+      consumableDays: 60,
+      maxWeight: 0.21 * 1000,
+      maxVolume: 1000,
+      getMaterial,
+    });
+    // 600 for the workforce, then 20/day until 1000 units: 19.95 days.
+    expect(result.inputDays).toBeCloseTo(19.95, 2);
+    expect(result.materials.RAT).toBe(1000);
+  });
+
+  it('keeps net loading for a material the planet also produces', () => {
+    expect(lowstrifeRole({ ...ratForFim, output: 5, dailyAmount: -25 })).toBe('consumable');
+  });
+});
+
+describe('production days', () => {
+  it('is limited by the inputs on the sheet rows and floored to the tenth', () => {
+    const result = computeLowstrifeLoad({
+      burn: sheetBurn,
+      consumableDays: 60,
+      maxWeight: 2000,
+      maxVolume: 2000,
+      getMaterial,
+    });
+    expect(result.productionDays).toBe(23);
+    expect(result.productionLimit).toBe('inputs');
+  });
+
+  it('is limited by the outputs when they take more space than the inputs', () => {
+    const result = computeLowstrifeLoad({
+      burn: {
+        RAT: mat(-10, 0, 'workforce'),
+        AL: mat(-10, 0, 'input'),
+        SI: mat(20, 0, 'output'),
+      },
+      consumableDays: 10,
+      maxWeight: 1000,
+      maxVolume: 1000,
+      getMaterial,
+    });
+    // Consumables: 101 RAT = 21.21t. Outputs: 46.58t/day into 978.79t = 21.01 days.
+    expect(result.productionLimit).toBe('outputs');
+    expect(result.productionDays).toBe(21);
+  });
+
+  it('grows when the consumable days are lowered', () => {
+    const at = (consumableDays: number) =>
+      computeLowstrifeLoad({
+        burn: sheetBurn,
+        consumableDays,
+        maxWeight: 2000,
+        maxVolume: 2000,
+        getMaterial,
+      }).productionDays!;
+    expect(at(30)).toBeGreaterThan(at(60));
+  });
+
+  it('is undefined when the planet neither consumes inputs nor produces', () => {
+    const result = computeLowstrifeLoad({
+      burn: { RAT: sheetBurn.RAT },
+      consumableDays: 10,
+      maxWeight: 500,
+      maxVolume: 500,
+      getMaterial,
+    });
+    expect(result.productionDays).toBeUndefined();
   });
 });
 

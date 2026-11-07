@@ -16,7 +16,11 @@ import SelectInput from '@src/components/forms/SelectInput.vue';
 import CopyButton from '@src/components/CopyButton.vue';
 import PrunButton from '@src/components/PrunButton.vue';
 import SectionHeader from '@src/components/SectionHeader.vue';
-import { computeLowstrifeLoad, lowstrifePackage } from '@src/features/XIT/LOWSTRIFE/ship-loading';
+import {
+  computeLowstrifeLoad,
+  lowstrifePackage,
+  lowstrifeRole,
+} from '@src/features/XIT/LOWSTRIFE/ship-loading';
 import { stagedLowstrife } from '@src/features/XIT/LOWSTRIFE/staged';
 import { useTileState } from '@src/features/XIT/LOWSTRIFE/tile-state';
 
@@ -99,9 +103,11 @@ const rows = computed(() => {
   return sortMaterials(materials).map(x => ({
     ticker: x.ticker,
     amount: result.materials[x.ticker],
-    consumable: burn.value![x.ticker].workforce > 0,
+    role: lowstrifeRole(burn.value![x.ticker]),
   }));
 });
+
+const roleLabels = { consumable: 'consumable', input: 'input', both: 'consumable + input' };
 
 const pkg = computed(() =>
   lowstrifePackage({
@@ -153,6 +159,14 @@ function execute() {
         </span>
         , DW fill: <span :class="$style.value">{{ load.dwFill }}</span>
       </div>
+      <div
+        title="Days of production whose inputs, or outputs if larger, fit in the space the consumables leave free. Lower Consumable Days to raise it.">
+        Production days:
+        <span :class="$style.value">
+          {{ load.productionDays === undefined ? '--' : load.productionDays.toFixed(1) }}
+        </span>
+        <span v-if="load.productionLimit"> (limited by {{ load.productionLimit }})</span>
+      </div>
       <div :class="{ [$style.error]: !load.fits }">
         {{ fixed02(load.weight) }}t / {{ fixed02(maxWeight ?? 0) }}t, {{ fixed02(load.volume) }}m³ /
         {{ fixed02(maxVolume ?? 0) }}m³
@@ -174,7 +188,7 @@ function execute() {
         <tr v-for="row in rows" :key="row.ticker">
           <td>{{ row.ticker }}</td>
           <td>{{ row.amount }}</td>
-          <td>{{ row.consumable ? 'consumable' : 'input' }}</td>
+          <td>{{ roleLabels[row.role] }}</td>
         </tr>
       </tbody>
     </table>

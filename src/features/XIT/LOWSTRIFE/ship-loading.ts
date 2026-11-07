@@ -1,4 +1,4 @@
-import type { BurnValues } from '@src/core/burn';
+import type { BurnValues, MaterialBurn } from '@src/core/burn';
 import { configurableValue } from '@src/features/XIT/ACT/shared-types';
 import { maxFittingDays } from '@src/features/XIT/ACT/material-groups/resupply/fit-days';
 
@@ -21,6 +21,12 @@ export interface LowstrifeLoad {
   // Days of production inputs that fit next to the consumables. Undefined when the
   // planet consumes no production inputs.
   inputDays: number | undefined;
+  // Days of production, to the tenth, whose inputs fit next to the consumables on the
+  // way in and whose outputs fit next to them on the way out. Undefined when the planet
+  // neither consumes production inputs nor produces anything.
+  productionDays: number | undefined;
+  // The side that limits productionDays.
+  productionLimit: 'inputs' | 'outputs' | undefined;
   dwFill: number;
   weight: number;
   volume: number;
@@ -37,6 +43,37 @@ export function loadAmount(dailyAmount: number, inventory: number, days: number)
   }
   const need = -dailyAmount * days - inventory;
   return need > 0 ? Math.ceil(need) + 1 : 0;
+}
+
+export type LowstrifeRole = 'consumable' | 'input' | 'both';
+
+// A material the planet both feeds its workforce and feeds into production (RAT on a
+// FIM base) loads its workforce share for the consumable days and its production share
+// for the input days. Materials the planet also produces keep loading their net shortfall
+// for a single duration, since their output covers part of either need.
+export function lowstrifeRole(mat: MaterialBurn): LowstrifeRole {
+  if (mat.workforce > 0 && mat.input > 0 && mat.output <= 0) {
+    return 'both';
+  }
+  return mat.workforce > 0 ? 'consumable' : 'input';
+}
+
+function materialLoad(mat: MaterialBurn, consumableDays: number, inputDays: number) {
+  const role = lowstrifeRole(mat);
+  if (role !== 'both') {
+    return loadAmount(
+      mat.dailyAmount,
+      mat.inventory,
+      role === 'consumable' ? consumableDays : inputDays,
+    );
+  }
+  const need = mat.workforce * consumableDays + mat.input * inputDays - mat.inventory;
+  return need > 0 ? Math.ceil(need) + 1 : 0;
+}
+
+// Production days fit at the input-days step, then floored to the tenth.
+function toTenth(days: number) {
+  return Math.floor(Number((days * 10).toFixed(6))) / 10;
 }
 
 function totals(materials: Record<string, number>, getMaterial: LowstrifeInput['getMaterial']) {
@@ -56,17 +93,15 @@ function totals(materials: Record<string, number>, getMaterial: LowstrifeInput['
 // inputs for the most days that still fit the ship, then the spare room filled with DW.
 export function computeLowstrifeLoad(input: LowstrifeInput): LowstrifeLoad {
   const { burn, consumableDays, maxWeight, maxVolume, getMaterial } = input;
-  const isConsumable = (ticker: string) => burn[ticker].workforce > 0;
-  const hasInputs = Object.keys(burn).some(
-    ticker => !isConsumable(ticker) && burn[ticker].dailyAmount < 0,
+  const hasInputs = Object.values(burn).some(
+    mat => lowstrifeRole(mat) !== 'consumable' && mat.dailyAmount < 0,
   );
+  const outputs = Object.keys(burn).filter(ticker => burn[ticker].dailyAmount > 0);
 
   const load = (inputDays: number) => {
     const materials: Record<string, number> = {};
     for (const ticker of Object.keys(burn)) {
-      const mat = burn[ticker];
-      const days = isConsumable(ticker) ? consumableDays : inputDays;
-      const amount = loadAmount(mat.dailyAmount, mat.inventory, days);
+      const amount = materialLoad(burn[ticker], consumableDays, inputDays);
       if (amount > 0) {
         materials[ticker] = amount;
       }
@@ -74,13 +109,35 @@ export function computeLowstrifeLoad(input: LowstrifeInput): LowstrifeLoad {
     return materials;
   };
 
-  const fits = (materials: Record<string, number>) => {
+  const fitsWith = (materials: Record<string, number>, extra = { weight: 0, volume: 0 }) => {
     const t = totals(materials, getMaterial);
-    return t.weight <= maxWeight && t.volume <= maxVolume;
+    return t.weight + extra.weight <= maxWeight && t.volume + extra.volume <= maxVolume;
   };
 
-  const inputDays = hasInputs ? maxFittingDays(days => fits(load(days))) : undefined;
+  const inputDays = hasInputs ? maxFittingDays(days => fitsWith(load(days))) : undefined;
   const materials = load(inputDays ?? 0);
+
+  // The space the consumables leave free carries the inputs of the production days in
+  // and their outputs out, so the larger of the two sets the production days.
+  const consumables = load(0);
+  const outputDays =
+    outputs.length > 0
+      ? maxFittingDays(days => {
+          const produced = Object.fromEntries(
+            outputs.map(ticker => [ticker, burn[ticker].dailyAmount * days]),
+          );
+          return fitsWith(consumables, totals(produced, getMaterial));
+        })
+      : undefined;
+  let productionDays: number | undefined;
+  let productionLimit: LowstrifeLoad['productionLimit'];
+  if (inputDays !== undefined && (outputDays === undefined || inputDays <= outputDays)) {
+    productionDays = toTenth(inputDays);
+    productionLimit = 'inputs';
+  } else if (outputDays !== undefined) {
+    productionDays = toTenth(outputDays);
+    productionLimit = 'outputs';
+  }
 
   let dwFill = 0;
   const dw = getMaterial('DW');
@@ -98,6 +155,8 @@ export function computeLowstrifeLoad(input: LowstrifeInput): LowstrifeLoad {
   return {
     materials,
     inputDays,
+    productionDays,
+    productionLimit,
     dwFill,
     weight: t.weight,
     volume: t.volume,
