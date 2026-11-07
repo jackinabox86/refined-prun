@@ -131,7 +131,10 @@ function execute() {
 </script>
 
 <template>
-  <div v-if="!site">Planet "{{ planetParameter }}" not found.</div>
+  <div v-if="!planetParameter">
+    Specify a planet, for example: XIT LOWSTRIFE &lt;planet name or natural id&gt;
+  </div>
+  <div v-else-if="!site">Planet "{{ planetParameter }}" not found.</div>
   <div v-else-if="!burn">Loading burn data...</div>
   <template v-else>
     <form>
