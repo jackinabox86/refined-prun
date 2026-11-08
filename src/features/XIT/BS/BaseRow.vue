@@ -6,7 +6,7 @@ import MaterialList from '@src/features/XIT/BURN/MaterialList.vue';
 import { burnCellBufferCommand, toggleExpandedBurn } from '@src/features/XIT/BS/burn-cell-click';
 import { showBuffer } from '@src/infrastructure/prun-ui/buffers';
 import { getPlanetBurn } from '@src/core/burn';
-import { countDays } from '@src/features/XIT/BURN/utils';
+import { burnDaysClass, countDays } from '@src/features/XIT/BURN/utils';
 import { formatBsBurnDays } from '@src/features/XIT/BS/format-bs-burn-days';
 import { useTileState } from '@src/store/user-data-tiles';
 import { getPickupAlarm, getStorageAlarmLevel } from '@src/core/storage-analysis';
@@ -69,17 +69,7 @@ function onBurnDaysClick(e: MouseEvent) {
   expandedBurns.value = toggleExpandedBurn(expandedBurns.value, naturalId);
 }
 
-const burnBgClass = computed(() => {
-  if (days.value === undefined) {
-    return {};
-  }
-  const d = Math.floor(days.value);
-  return {
-    [C.Workforces.daysMissing]: d <= userData.settings.burn.red,
-    [C.Workforces.daysWarning]: d <= userData.settings.burn.yellow,
-    [C.Workforces.daysSupplied]: d > userData.settings.burn.yellow,
-  };
-});
+const burnBgClass = computed(() => (days.value === undefined ? {} : burnDaysClass(days.value)));
 
 const daysText = computed(() => {
   if (days.value === undefined) {
