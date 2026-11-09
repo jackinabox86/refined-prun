@@ -12,6 +12,7 @@ import { shipsStore } from '@src/infrastructure/prun-api/data/ships';
 import { storagesStore } from '@src/infrastructure/prun-api/data/storage';
 import { showBuffer } from '@src/infrastructure/prun-ui/buffers';
 import { fixed02 } from '@src/utils/format';
+import { getBaseStore } from '@src/core/store-id';
 import Active from '@src/components/forms/Active.vue';
 import Commands from '@src/components/forms/Commands.vue';
 import NumberInput from '@src/components/forms/NumberInput.vue';
@@ -148,6 +149,16 @@ watch(
   { immediate: true },
 );
 
+const baseSpace = computed(() => {
+  const store = getBaseStore(planet.value);
+  return store
+    ? {
+        weight: store.weightCapacity - store.weightLoad,
+        volume: store.volumeCapacity - store.volumeLoad,
+      }
+    : undefined;
+});
+
 const load = computed(() => {
   if (!burn.value) {
     return undefined;
@@ -158,6 +169,7 @@ const load = computed(() => {
     consumableDays: consumableDays.value ?? 0,
     maxWeight: maxWeight.value ?? 0,
     maxVolume: maxVolume.value ?? 0,
+    baseSpace: baseSpace.value,
     getMaterial: ticker => materialsStore.getByTicker(ticker),
   });
 });
@@ -244,18 +256,17 @@ function execute() {
         </Passive>
         <Passive
           label="Production Days"
-          tooltip="Days of production the free space covers: inputs in, outputs out. Lower Consumable Days to raise it.">
-          <span v-if="load.productionLimit === 'cap'" :class="$style.warning">
-            (capped, spare room)&nbsp;
-          </span>
-          <span v-else-if="load.productionLimit" :class="$style.value">
+          tooltip="Days of production inputs or outputs the base store still holds once the consumables are dropped off. Lower Consumable Days to raise it.">
+          <span v-if="load.productionLimit" :class="$style.value">
             ({{ load.productionLimit }})&nbsp;
           </span>
           <span :class="$style.value">
             {{ load.productionDays === undefined ? '--' : load.productionDays.toFixed(1) }}
           </span>
         </Passive>
-        <Passive label="DW Fill">
+        <Passive
+          label="DW Fill"
+          tooltip="Extra DW added to fill the ship's spare room. Skipped when inputs already load for all the consumable days.">
           <span :class="$style.value">{{ load.dwFill }}</span>
         </Passive>
         <Passive
@@ -327,10 +338,6 @@ function execute() {
 
 .break {
   height: 8px;
-}
-
-.warning {
-  color: #f7a600;
 }
 
 .error {

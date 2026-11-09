@@ -17,6 +17,8 @@ export interface LowstrifeInput {
   // Skips the DW fill, for a user who supplies DW separately. The fill is also skipped
   // when the inputs are capped at the consumable days or the planet has no inputs.
   excludeDwFill?: boolean;
+  // Free space in the base store. Production days are measured against it.
+  baseSpace?: LowstrifeMaterialSize;
 }
 
 export interface LowstrifeLoad {
@@ -24,13 +26,12 @@ export interface LowstrifeLoad {
   // Days of production inputs that fit next to the consumables, capped at the consumable
   // days. Undefined when the planet consumes no production inputs.
   inputDays: number | undefined;
-  // Days of production, to the tenth, whose inputs fit next to the consumables on the
-  // way in and whose outputs fit next to them on the way out. Undefined when the planet
-  // neither consumes production inputs nor produces anything.
+  // Days of production inputs, or of outputs, that fit in the base store once the
+  // consumables are dropped off, to the tenth; the larger daily side sets it. Undefined
+  // without the base space, or when the planet neither consumes inputs nor produces.
   productionDays: number | undefined;
-  // The side that limits productionDays. 'cap' when both inputs and outputs would fit
-  // past the consumable days, so the load leaves spare room.
-  productionLimit: 'inputs' | 'outputs' | 'cap' | undefined;
+  // The side that limits productionDays.
+  productionLimit: 'inputs' | 'outputs' | undefined;
   dwFill: number;
   weight: number;
   volume: number;
@@ -75,7 +76,7 @@ function materialLoad(mat: MaterialBurn, consumableDays: number, inputDays: numb
   return need > 0 ? Math.ceil(need) + 1 : 0;
 }
 
-// Production days fit at the input-days step, then floored to the tenth.
+// Production days are floored to the tenth.
 function toTenth(days: number) {
   return Math.floor(Number((days * 10).toFixed(6))) / 10;
 }
@@ -100,7 +101,6 @@ export function computeLowstrifeLoad(input: LowstrifeInput): LowstrifeLoad {
   const hasInputs = Object.values(burn).some(
     mat => lowstrifeRole(mat) !== 'consumable' && mat.dailyAmount < 0,
   );
-  const outputs = Object.keys(burn).filter(ticker => burn[ticker].dailyAmount > 0);
 
   const load = (inputDays: number) => {
     const materials: Record<string, number> = {};
@@ -113,46 +113,62 @@ export function computeLowstrifeLoad(input: LowstrifeInput): LowstrifeLoad {
     return materials;
   };
 
-  const fitsWith = (materials: Record<string, number>, extra = { weight: 0, volume: 0 }) => {
+  const fits = (materials: Record<string, number>) => {
     const t = totals(materials, getMaterial);
-    return t.weight + extra.weight <= maxWeight && t.volume + extra.volume <= maxVolume;
+    return t.weight <= maxWeight && t.volume <= maxVolume;
   };
 
   // Inputs never load for longer than the consumables, so a roomy ship keeps spare space.
   const inputDays = hasInputs
     ? Math.min(
         consumableDays,
-        maxFittingDays(days => fitsWith(load(days))),
+        maxFittingDays(days => fits(load(days))),
       )
     : undefined;
   const materials = load(inputDays ?? 0);
 
-  // The space the consumables leave free carries the inputs of the production days in
-  // and their outputs out, so the larger of the two sets the production days.
-  const consumables = load(0);
-  const outputDays =
-    outputs.length > 0
-      ? Math.min(
-          consumableDays,
-          maxFittingDays(days => {
-            const produced = Object.fromEntries(
-              outputs.map(ticker => [ticker, burn[ticker].dailyAmount * days]),
-            );
-            return fitsWith(consumables, totals(produced, getMaterial));
-          }),
-        )
-      : undefined;
+  // The base keeps the dropped-off consumables, and the rest of its free space holds
+  // production inputs or outputs, so the bulkier side sets the production days.
   let productionDays: number | undefined;
   let productionLimit: LowstrifeLoad['productionLimit'];
-  if (inputDays !== undefined && (outputDays === undefined || inputDays <= outputDays)) {
-    productionDays = toTenth(inputDays);
-    productionLimit = 'inputs';
-  } else if (outputDays !== undefined) {
-    productionDays = toTenth(outputDays);
-    productionLimit = 'outputs';
-  }
-  if (productionDays !== undefined && productionDays >= consumableDays) {
-    productionLimit = 'cap';
+  if (input.baseSpace) {
+    const consumables = totals(load(0), getMaterial);
+    const room = {
+      weight: input.baseSpace.weight - consumables.weight,
+      volume: input.baseSpace.volume - consumables.volume,
+    };
+    const daysOf = (perDay: Record<string, number>) => {
+      const t = totals(perDay, getMaterial);
+      if (t.weight <= 0 && t.volume <= 0) {
+        return undefined;
+      }
+      const days = Math.min(
+        t.weight > 0 ? room.weight / t.weight : Infinity,
+        t.volume > 0 ? room.volume / t.volume : Infinity,
+      );
+      return Math.max(0, days);
+    };
+    const inputsPerDay: Record<string, number> = {};
+    const outputsPerDay: Record<string, number> = {};
+    for (const [ticker, mat] of Object.entries(burn)) {
+      const role = lowstrifeRole(mat);
+      if (mat.dailyAmount > 0) {
+        outputsPerDay[ticker] = mat.dailyAmount;
+      } else if (role === 'both') {
+        inputsPerDay[ticker] = mat.input;
+      } else if (role === 'input' && mat.dailyAmount < 0) {
+        inputsPerDay[ticker] = -mat.dailyAmount;
+      }
+    }
+    const inputSide = daysOf(inputsPerDay);
+    const outputSide = daysOf(outputsPerDay);
+    if (inputSide !== undefined && (outputSide === undefined || inputSide <= outputSide)) {
+      productionDays = toTenth(inputSide);
+      productionLimit = 'inputs';
+    } else if (outputSide !== undefined) {
+      productionDays = toTenth(outputSide);
+      productionLimit = 'outputs';
+    }
   }
 
   // DW only tops up a ship the inputs fill. Inputs capped at the consumable days, or no

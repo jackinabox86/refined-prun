@@ -159,7 +159,56 @@ describe('mixed consumables and inputs', () => {
 });
 
 describe('production days', () => {
-  it('is limited by the inputs on the sheet rows and floored to the tenth', () => {
+  const base = (baseSpace: { weight: number; volume: number }, consumableDays = 30) =>
+    computeLowstrifeLoad({
+      burn: {
+        RAT: mat(-10, 0, 'workforce'),
+        AL: mat(-10, 0, 'input'),
+        SI: mat(20, 0, 'output'),
+      },
+      consumableDays,
+      maxWeight: 100,
+      maxVolume: 100,
+      baseSpace,
+      getMaterial,
+    });
+
+  it('measures the outputs against the base space left after the consumables', () => {
+    // Consumables: 301 RAT = 63.21t. Outputs: 46.58t/day into 936.79t = 20.11 days.
+    const result = base({ weight: 1000, volume: 1000 });
+    expect(result.productionLimit).toBe('outputs');
+    expect(result.productionDays).toBe(20.1);
+  });
+
+  it('ignores the ship limits', () => {
+    // The 100t ship holds a fraction of these days; the base space alone sets them.
+    expect(base({ weight: 1000, volume: 1000 }).productionDays).toBeGreaterThan(2);
+  });
+
+  it('is limited by the inputs when they take more space than the outputs', () => {
+    const result = computeLowstrifeLoad({
+      burn: sheetBurn,
+      consumableDays: 60,
+      maxWeight: 2000,
+      maxVolume: 2000,
+      baseSpace: { weight: 3000, volume: 3000 },
+      getMaterial,
+    });
+    // AL + SI: 236.56t/day. Consumables at 60 days: 605.69t. (3000 - 605.69) / 236.56 = 10.12.
+    expect(result.productionLimit).toBe('inputs');
+    expect(result.productionDays).toBe(10.1);
+  });
+
+  it('shrinks when the consumable days grow', () => {
+    const space = { weight: 1000, volume: 1000 };
+    expect(base(space, 10).productionDays!).toBeGreaterThan(base(space, 40).productionDays!);
+  });
+
+  it('is zero when the consumables alone fill the base', () => {
+    expect(base({ weight: 50, volume: 1000 }).productionDays).toBe(0);
+  });
+
+  it('is undefined without the base space', () => {
     const result = computeLowstrifeLoad({
       burn: sheetBurn,
       consumableDays: 60,
@@ -167,67 +216,7 @@ describe('production days', () => {
       maxVolume: 2000,
       getMaterial,
     });
-    expect(result.productionDays).toBe(23);
-    expect(result.productionLimit).toBe('inputs');
-  });
-
-  it('is limited by the outputs when they take more space than the inputs', () => {
-    const result = computeLowstrifeLoad({
-      burn: {
-        RAT: mat(-10, 0, 'workforce'),
-        AL: mat(-10, 0, 'input'),
-        SI: mat(20, 0, 'output'),
-      },
-      consumableDays: 30,
-      maxWeight: 1000,
-      maxVolume: 1000,
-      getMaterial,
-    });
-    // Consumables: 301 RAT = 63.21t. Outputs: 46.58t/day into 936.79t = 20.11 days.
-    expect(result.productionLimit).toBe('outputs');
-    expect(result.productionDays).toBe(20.1);
-  });
-
-  it('caps the inputs at the consumable days and flags the spare room', () => {
-    const result = computeLowstrifeLoad({
-      burn: sheetBurn,
-      consumableDays: 10,
-      maxWeight: 2000,
-      maxVolume: 2000,
-      excludeDwFill: true,
-      getMaterial,
-    });
-    expect(result.inputDays).toBe(10);
-    expect(result.productionDays).toBe(10);
-    expect(result.productionLimit).toBe('cap');
-    // AL 889 in stock covers 18.9 days, so 10 days loads none; SI 718 covers 15.3.
-    expect(result.materials.AL).toBeUndefined();
-    expect(result.weight).toBeLessThan(2000);
-  });
-
-  it('skips the DW fill when the inputs are capped at the consumable days', () => {
-    const result = computeLowstrifeLoad({
-      burn: sheetBurn,
-      consumableDays: 10,
-      maxWeight: 2000,
-      maxVolume: 2000,
-      getMaterial,
-    });
-    expect(result.productionLimit).toBe('cap');
-    expect(result.dwFill).toBe(0);
-    expect(result.weight).toBeLessThan(2000);
-  });
-
-  it('grows when the consumable days are lowered', () => {
-    const at = (consumableDays: number) =>
-      computeLowstrifeLoad({
-        burn: sheetBurn,
-        consumableDays,
-        maxWeight: 2000,
-        maxVolume: 2000,
-        getMaterial,
-      }).productionDays!;
-    expect(at(30)).toBeGreaterThan(at(60));
+    expect(result.productionDays).toBeUndefined();
   });
 
   it('is undefined when the planet neither consumes inputs nor produces', () => {
@@ -236,9 +225,25 @@ describe('production days', () => {
       consumableDays: 10,
       maxWeight: 500,
       maxVolume: 500,
+      baseSpace: { weight: 1000, volume: 1000 },
       getMaterial,
     });
     expect(result.productionDays).toBeUndefined();
+  });
+});
+
+describe('DW fill', () => {
+  it('is skipped when the inputs are capped at the consumable days', () => {
+    const result = computeLowstrifeLoad({
+      burn: sheetBurn,
+      consumableDays: 10,
+      maxWeight: 2000,
+      maxVolume: 2000,
+      getMaterial,
+    });
+    expect(result.inputDays).toBe(10);
+    expect(result.dwFill).toBe(0);
+    expect(result.weight).toBeLessThan(2000);
   });
 });
 
