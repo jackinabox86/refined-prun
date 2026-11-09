@@ -506,14 +506,24 @@ async function applyLimit(
   selectAndChangeInputValue(input, String(limit.amount));
 }
 
+// Tries the updated client's MaterialSelector first, then the older RT editor's
+// AddressSelector-style suggestions in #autosuggest-portal.
 async function fillMaterial(editor: Element, ticker: string): Promise<void> {
   const container = _$(editor, C.MaterialSelector.container);
-  if (container === undefined) {
-    throw new Error('Could not find the material field');
+  if (container !== undefined && (await selectMaterialInMaterialSelector(container, ticker))) {
+    return;
   }
-  if (!(await selectMaterialInMaterialSelector(container, ticker))) {
+  const portal = document.getElementById('autosuggest-portal');
+  const suggestions = portal === null ? [] : _$$(portal, C.AddressSelector.suggestionContent);
+  const chosen = pickSuggestion(
+    suggestions.map(el => el.textContent?.trim() ?? ''),
+    ticker,
+  );
+  const match = suggestions.find(el => (el.textContent ?? '').trim() === chosen);
+  if (chosen === undefined || match === undefined) {
     throw new Error(`Could not find material ${ticker} in the list`);
   }
+  await clickElement(match as HTMLElement);
 }
 
 // The load editor's "Retain units" field, below Maximum units.

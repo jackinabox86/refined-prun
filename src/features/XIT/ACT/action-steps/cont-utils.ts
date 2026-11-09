@@ -51,8 +51,8 @@ function truncate(text: string, limit: number) {
 /**
  * Types a ticker into a MaterialSelector and clicks the matching suggestion.
  * Also used by MTRA_TRANSFER and the ship-unload feature. Delegates to the
- * shared helper, which also finds staging's suggestions in #autosuggest-portal
- * and gives up after 3s instead of waiting forever.
+ * shared helper, which checks the updated client's #autosuggest-portal first,
+ * then the older in-selector list, and gives up after 3s.
  */
 export async function selectMaterial(container: Element, ticker: string) {
   const selected = await selectMaterialInMaterialSelector(container, ticker);

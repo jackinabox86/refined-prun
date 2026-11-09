@@ -64,21 +64,22 @@ export function focusElement(input: HTMLElement) {
   input.dispatchEvent(event);
 }
 
-// Production renders the suggestion list inside the selector. The staging client
-// renders it in the shared #autosuggest-portal, as the address field already does.
-// The selector is checked first, so production keeps its existing path.
+// The updated game client renders the suggestion list in the shared #autosuggest-portal,
+// as the address field already does. The older client renders it inside the selector.
+// The portal is checked first, then the selector, so both clients work.
 function findMaterialSuggestion(container: Element, ticker: string) {
-  const roots: Element[] = [container];
+  const roots: Element[] = [];
   const portal = document.getElementById('autosuggest-portal');
   if (portal) {
     roots.push(portal);
   }
+  roots.push(container);
   for (const root of roots) {
-    const entries = _$$(root, C.MaterialSelector.suggestionEntry);
-    if (entries.length > 0) {
-      return entries.find(x => _$(x, C.ColoredIcon.label)?.textContent?.trim() === ticker) as
-        | HTMLElement
-        | undefined;
+    const match = _$$(root, C.MaterialSelector.suggestionEntry).find(
+      x => _$(x, C.ColoredIcon.label)?.textContent?.trim() === ticker,
+    );
+    if (match) {
+      return match as HTMLElement;
     }
   }
   return undefined;
@@ -91,7 +92,8 @@ export async function selectMaterialInMaterialSelector(baseElement: Element, tic
   }
   const input = await $(container, 'input');
 
-  // Hides the in-selector list while it is driven. Staging has no such list.
+  // Hides the older client's in-selector list while it is driven. The updated client
+  // has no such list.
   const suggestionsContainer = _$(container, C.MaterialSelector.suggestionsContainer) as
     | HTMLElement
     | undefined;
