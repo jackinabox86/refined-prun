@@ -17,7 +17,7 @@ export interface LowstrifeInput {
   // Skips the DW fill, for a user who supplies DW separately. The fill is also skipped
   // when the inputs are capped at the consumable days or the planet has no inputs.
   excludeDwFill?: boolean;
-  // Free space in the base store. Production days are measured against it.
+  // Total capacity of the base store. Production days are measured against it.
   baseSpace?: LowstrifeMaterialSize;
 }
 
@@ -127,7 +127,7 @@ export function computeLowstrifeLoad(input: LowstrifeInput): LowstrifeLoad {
     : undefined;
   const materials = load(inputDays ?? 0);
 
-  // The base keeps the dropped-off consumables, and the rest of its free space holds
+  // The base keeps the dropped-off consumables, and the rest of its capacity holds
   // production inputs or outputs, so the bulkier side sets the production days.
   let productionDays: number | undefined;
   let productionLimit: LowstrifeLoad['productionLimit'];

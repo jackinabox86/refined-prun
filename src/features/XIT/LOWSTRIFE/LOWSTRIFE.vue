@@ -153,8 +153,8 @@ const baseSpace = computed(() => {
   const store = getBaseStore(planet.value);
   return store
     ? {
-        weight: store.weightCapacity - store.weightLoad,
-        volume: store.volumeCapacity - store.volumeLoad,
+        weight: store.weightCapacity,
+        volume: store.volumeCapacity,
       }
     : undefined;
 });
