@@ -2,6 +2,26 @@
 
 ## Unreleased
 
+### Added
+
+- `XIT ROUTECONFIG`: Plan a shipping route. Drag a commodity exchange and bases into stop order, pick a ship, and set supply days, loop, and end wait. Each stop shows its loads, unloads, and fuel, and TRANSITS times the legs. Routes import and export as JSON. SET ROUTE builds the route in the game's RT editor and needs the game's route update, which is on the staging server only for now.
+- `XIT ROUTEBURN`: One row per saved route with its lowest burn, production, and repair, split into Automated (looping) and On-Demand routes. Each exchange origin has a restock countdown, and RESTOCK buys the route departures due within the Route Supply days. ASSIGN buys an on-demand route's shortfall and assigns its ship.
+- `XIT ROUTETRACK`: Ships on game routes, with the next arrival and when the route ends or loops.
+- `XIT SET` Route: Route Supply days, plus the red and yellow thresholds for XIT ROUTEBURN origin countdowns.
+- `cont-fulfill-route-stock`: CONT FULFILL asks before handing over CX warehouse stock a route restock bought for your routes. XIT ACT MTRA transfers ask the same, and CX Buy and Refuel do not count that stock as on hand.
+- `XIT CXOS`: Trade overview with recent CX trades per ticker and CX inventory next to open asks. Clicking a ticker opens the CXOS tile filtered to it beside `CXPO`. The exchange, category, and search filters are for PRO players.
+- `cxo-ticker-details-link`: A `TICKER.EXCHANGE` link in CXO opens the XIT CXOS details view instead of `CXP`.
+- `XIT LOWSTRIFE`: Ship loading planner for a planet. Pick a ship and it loads consumables for a set number of days (default 60), production inputs for as many days as fit, and fills the spare room with DW. EXECUTE runs the load in `XIT LOWSTRIFEACT`, and COPY copies the action package JSON.
+
+### Changed
+
+- `XIT TRANSITS`: "Test route" is now "Set Flight Preferences". Every leg waits for ACT so you can set its fuel usage and gateway, starting from the previous leg's choices. The run starts as soon as its window opens and closes when it finishes, unless a step failed. Opened from ROUTECONFIG, it fills in that route's stops and ship.
+
+### Fixed
+
+- `XIT AGENT`: A package whose base is set to Configure on Execution, such as the single-group agent post from BURNACT, REPAIRACT, or GOVBURNEXEC, loads the base's output before Open SFC.
+- `XIT BS`: Burn days are colored from the unrounded value, matching XIT BURN. 7.3 days against a yellow threshold of 7 is green.
+
 ## 1.1.6
 
 ### Changed
