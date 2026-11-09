@@ -221,26 +221,28 @@ function execute() {
       <Active label="Ship" tooltip="The ship to load. Its free cargo space seeds the limits below.">
         <SelectInput v-model="shipName" :options="shipOptions" />
       </Active>
+      <Active label="Weight Limit (t)">
+        <NumberInput v-model="maxWeight" float :class="$style.number" />
+      </Active>
+      <Active label="Volume Limit (m³)">
+        <NumberInput v-model="maxVolume" float :class="$style.number" />
+      </Active>
+    </form>
+    <div :class="$style.break" />
+    <form>
       <Active
         label="Consumable Days"
         tooltip="Workforce consumables are loaded for this many days. Production inputs get the most days that still fit, up to the same number.">
-        <NumberInput v-model="consumableDays" float />
-      </Active>
-      <Active label="Max Weight (t)">
-        <NumberInput v-model="maxWeight" float />
-      </Active>
-      <Active label="Max Volume (m³)">
-        <NumberInput v-model="maxVolume" float />
+        <NumberInput v-model="consumableDays" float :class="$style.number" />
       </Active>
     </form>
-    <SectionHeader>Load</SectionHeader>
     <div v-if="load" :class="$style.summary">
       <div>
         Input days:
         <span :class="$style.value">
           {{ load.inputDays === undefined ? '--' : fixed02(load.inputDays) }}
         </span>
-        , DW fill: <span :class="$style.value">{{ load.dwFill }}</span>
+        <span :class="$style.hint"> - inputs loaded for this many days</span>
       </div>
       <div
         title="Days of production whose inputs, or outputs if larger, fit in the space the consumables leave free. Lower Consumable Days to raise it.">
@@ -248,17 +250,21 @@ function execute() {
         <span :class="$style.value">
           {{ load.productionDays === undefined ? '--' : load.productionDays.toFixed(1) }}
         </span>
+        <span :class="$style.hint"> - days the free space covers, inputs in + outputs out</span>
         <span v-if="load.productionLimit === 'cap'" :class="$style.warning">
           (capped at consumable days, spare room left)
         </span>
         <span v-else-if="load.productionLimit"> (limited by {{ load.productionLimit }})</span>
       </div>
+      <div>
+        DW fill: <span :class="$style.value">{{ load.dwFill }}</span>
+      </div>
       <div :class="{ [$style.error]: !load.fits }">
-        {{ fixed02(load.weight) }}t / {{ fixed02(maxWeight ?? 0) }}t, {{ fixed02(load.volume) }}m³ /
-        {{ fixed02(maxVolume ?? 0) }}m³
+        Fill: {{ fixed02(load.weight) }}t, {{ fixed02(load.volume) }}m³
         <span v-if="!load.fits"> - consumables alone exceed the limits</span>
       </div>
     </div>
+    <SectionHeader>Load</SectionHeader>
     <table>
       <thead>
         <tr>
@@ -303,6 +309,25 @@ function execute() {
 
 .value {
   color: #f7a600;
+}
+
+.hint {
+  color: var(--rp-color-text);
+}
+
+.number {
+  width: 158px;
+  margin-right: 0;
+  margin-left: auto;
+}
+
+.number input {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.break {
+  height: 8px;
 }
 
 .warning {
