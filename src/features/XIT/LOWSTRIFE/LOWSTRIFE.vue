@@ -15,6 +15,7 @@ import { fixed02 } from '@src/utils/format';
 import Active from '@src/components/forms/Active.vue';
 import Commands from '@src/components/forms/Commands.vue';
 import NumberInput from '@src/components/forms/NumberInput.vue';
+import Passive from '@src/components/forms/Passive.vue';
 import SelectInput from '@src/components/forms/SelectInput.vue';
 import CopyButton from '@src/components/CopyButton.vue';
 import PrunButton from '@src/components/PrunButton.vue';
@@ -235,35 +236,35 @@ function execute() {
         tooltip="Workforce consumables are loaded for this many days. Production inputs get the most days that still fit, up to the same number.">
         <NumberInput v-model="consumableDays" float :class="$style.number" />
       </Active>
+      <template v-if="load">
+        <Passive label="Input Days" tooltip="Days of production inputs loaded.">
+          <span :class="$style.value">
+            {{ load.inputDays === undefined ? '--' : fixed02(load.inputDays) }}
+          </span>
+        </Passive>
+        <Passive
+          label="Production Days"
+          tooltip="Days of production the free space covers: inputs in, outputs out. Lower Consumable Days to raise it.">
+          <span :class="$style.value">
+            {{ load.productionDays === undefined ? '--' : load.productionDays.toFixed(1) }}
+          </span>
+          <span v-if="load.productionLimit === 'cap'" :class="$style.warning">
+            &nbsp;(capped, spare room)
+          </span>
+          <span v-else-if="load.productionLimit">&nbsp;({{ load.productionLimit }})</span>
+        </Passive>
+        <Passive label="DW Fill">
+          <span :class="$style.value">{{ load.dwFill }}</span>
+        </Passive>
+        <Passive
+          label="Fill"
+          :tooltip="load.fits ? undefined : 'Consumables alone exceed the limits.'">
+          <span :class="load.fits ? $style.value : $style.error">
+            {{ fixed02(load.weight) }}t, {{ fixed02(load.volume) }}m³
+          </span>
+        </Passive>
+      </template>
     </form>
-    <div v-if="load" :class="$style.summary">
-      <div>
-        Input days:
-        <span :class="$style.value">
-          {{ load.inputDays === undefined ? '--' : fixed02(load.inputDays) }}
-        </span>
-        <span :class="$style.hint"> - inputs loaded for this many days</span>
-      </div>
-      <div
-        title="Days of production whose inputs, or outputs if larger, fit in the space the consumables leave free. Lower Consumable Days to raise it.">
-        Production days:
-        <span :class="$style.value">
-          {{ load.productionDays === undefined ? '--' : load.productionDays.toFixed(1) }}
-        </span>
-        <span :class="$style.hint"> - days the free space covers, inputs in + outputs out</span>
-        <span v-if="load.productionLimit === 'cap'" :class="$style.warning">
-          (capped at consumable days, spare room left)
-        </span>
-        <span v-else-if="load.productionLimit"> (limited by {{ load.productionLimit }})</span>
-      </div>
-      <div>
-        DW fill: <span :class="$style.value">{{ load.dwFill }}</span>
-      </div>
-      <div :class="{ [$style.error]: !load.fits }">
-        Fill: {{ fixed02(load.weight) }}t, {{ fixed02(load.volume) }}m³
-        <span v-if="!load.fits"> - consumables alone exceed the limits</span>
-      </div>
-    </div>
     <SectionHeader>Load</SectionHeader>
     <table>
       <thead>
@@ -309,10 +310,6 @@ function execute() {
 
 .value {
   color: #f7a600;
-}
-
-.hint {
-  color: var(--rp-color-text);
 }
 
 .number {
