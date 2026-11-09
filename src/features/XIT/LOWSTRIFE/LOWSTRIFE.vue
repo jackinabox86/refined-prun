@@ -278,6 +278,10 @@ function execute() {
         </Passive>
       </template>
     </form>
+    <Commands>
+      <CopyButton :copy-fn="copyJson" />
+      <PrunButton primary :disabled="!canExecute" @click="execute">EXECUTE</PrunButton>
+    </Commands>
     <SectionHeader>Load</SectionHeader>
     <table>
       <thead>
@@ -309,10 +313,6 @@ function execute() {
         </tr>
       </tbody>
     </table>
-    <Commands>
-      <CopyButton :copy-fn="copyJson" />
-      <PrunButton primary :disabled="!canExecute" @click="execute">EXECUTE</PrunButton>
-    </Commands>
   </template>
 </template>
 
