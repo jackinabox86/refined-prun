@@ -245,13 +245,15 @@ function execute() {
         <Passive
           label="Production Days"
           tooltip="Days of production the free space covers: inputs in, outputs out. Lower Consumable Days to raise it.">
+          <span v-if="load.productionLimit === 'cap'" :class="$style.warning">
+            (capped, spare room)&nbsp;
+          </span>
+          <span v-else-if="load.productionLimit" :class="$style.value">
+            ({{ load.productionLimit }})&nbsp;
+          </span>
           <span :class="$style.value">
             {{ load.productionDays === undefined ? '--' : load.productionDays.toFixed(1) }}
           </span>
-          <span v-if="load.productionLimit === 'cap'" :class="$style.warning">
-            &nbsp;(capped, spare room)
-          </span>
-          <span v-else-if="load.productionLimit">&nbsp;({{ load.productionLimit }})</span>
         </Passive>
         <Passive label="DW Fill">
           <span :class="$style.value">{{ load.dwFill }}</span>
