@@ -95,6 +95,12 @@ function totals(materials: Record<string, number>, getMaterial: LowstrifeInput['
   return { weight, volume };
 }
 
+// Rounding first keeps float residue like 2000.0000000000002 from failing a load that
+// fills the limit exactly.
+function withinLimits(t: LowstrifeMaterialSize, maxWeight: number, maxVolume: number): boolean {
+  return Number(t.weight.toFixed(6)) <= maxWeight && Number(t.volume.toFixed(6)) <= maxVolume;
+}
+
 // Ports the "Ship loading v2" sheet: consumables for a fixed number of days, production
 // inputs for the most days that still fit the ship, then the spare room filled with DW.
 export function computeLowstrifeLoad(input: LowstrifeInput): LowstrifeLoad {
@@ -114,10 +120,8 @@ export function computeLowstrifeLoad(input: LowstrifeInput): LowstrifeLoad {
     return materials;
   };
 
-  const fits = (materials: Record<string, number>) => {
-    const t = totals(materials, getMaterial);
-    return t.weight <= maxWeight && t.volume <= maxVolume;
-  };
+  const fits = (materials: Record<string, number>) =>
+    withinLimits(totals(materials, getMaterial), maxWeight, maxVolume);
 
   // Inputs never load for longer than the consumables, so a roomy ship keeps spare space.
   // Zero consumable days means an inputs-only trip, so the inputs fill the ship instead.
@@ -195,7 +199,7 @@ export function computeLowstrifeLoad(input: LowstrifeInput): LowstrifeLoad {
     dwFill,
     weight: t.weight,
     volume: t.volume,
-    fits: t.weight <= maxWeight && t.volume <= maxVolume,
+    fits: withinLimits(t, maxWeight, maxVolume),
   };
 }
 

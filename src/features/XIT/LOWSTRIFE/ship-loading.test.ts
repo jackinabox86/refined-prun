@@ -245,6 +245,38 @@ describe('DW fill', () => {
     expect(result.dwFill).toBe(0);
     expect(result.weight).toBeLessThan(2000);
   });
+
+  it('fits a fill that lands exactly on the limit despite float residue', () => {
+    // A reported Sand load: GRN 108 + H2O 9453 + DW 14 sums to 2000.0000000000002m³.
+    const result = computeLowstrifeLoad({
+      burn: {
+        DW: {
+          input: 0,
+          output: 1900,
+          workforce: 77,
+          dailyAmount: 1823,
+          remainingAllocation: 0,
+          inventory: 1201,
+          daysLeft: 0,
+          type: 'workforce',
+        },
+        GRN: mat(-22.96, 124, 'input'),
+        H2O: mat(-2725.2, 17882, 'input'),
+      },
+      consumableDays: 60,
+      maxWeight: 2000,
+      maxVolume: 2000,
+      getMaterial: ticker =>
+        ({
+          DW: { weight: 0.1, volume: 0.1 },
+          GRN: { weight: 0.9, volume: 1 },
+          H2O: { weight: 0.2, volume: 0.2 },
+        })[ticker],
+    });
+    expect(result.materials).toEqual({ GRN: 108, H2O: 9453, DW: 14 });
+    expect(result.volume).toBeGreaterThan(2000);
+    expect(result.fits).toBe(true);
+  });
 });
 
 describe('zero consumable days', () => {
