@@ -9,10 +9,11 @@ import {
 } from './auto-sfc';
 
 describe('shouldShowAutoSfcToggle', () => {
-  it('shows the toggle on BURNACT, REPAIRACT, and GOVBURNEXEC', () => {
+  it('shows the toggle on BURNACT, REPAIRACT, GOVBURNEXEC, and LOWSTRIFEACT', () => {
     expect(shouldShowAutoSfcToggle('BURNACT')).toBe(true);
     expect(shouldShowAutoSfcToggle('REPAIRACT')).toBe(true);
     expect(shouldShowAutoSfcToggle('GOVBURNEXEC')).toBe(true);
+    expect(shouldShowAutoSfcToggle('LOWSTRIFEACT')).toBe(true);
   });
 
   it('does not show the toggle on DISPATCHACT or generic ACT', () => {

@@ -203,6 +203,7 @@ const rows = computed(() => {
 const pkg = computed(() =>
   lowstrifePackage({
     planetName: planetName.value ?? planet.value ?? '',
+    planetNaturalId: planet.value || undefined,
     shipName: shipName.value || undefined,
     materials: load.value?.materials ?? {},
   }),
@@ -245,7 +246,7 @@ function execute() {
     <form>
       <Active
         label="Consumable Days"
-        tooltip="Workforce consumables are loaded for this many days. Production inputs get the most days that still fit, up to the same number.">
+        tooltip="Workforce consumables are loaded for this many days. Production inputs get the most days that still fit, up to the same number. At 0, inputs fill the ship and DW tops up the rest.">
         <NumberInput v-model="consumableDays" float :class="$style.number" />
       </Active>
       <template v-if="load">

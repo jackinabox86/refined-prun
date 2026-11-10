@@ -1,8 +1,13 @@
-// Per-base auto SFC for BURNACT, REPAIRACT, and GOVBURNEXEC.
+// Per-base auto SFC for BURNACT, REPAIRACT, GOVBURNEXEC, and LOWSTRIFEACT.
 // One shared map: these hosts did not already share a per-base settings record.
 // Missing means on (current auto-SFC behavior). Only an explicit off is stored.
 
-export const AUTO_SFC_TOGGLE_COMMANDS = new Set(['BURNACT', 'REPAIRACT', 'GOVBURNEXEC']);
+export const AUTO_SFC_TOGGLE_COMMANDS = new Set([
+  'BURNACT',
+  'REPAIRACT',
+  'GOVBURNEXEC',
+  'LOWSTRIFEACT',
+]);
 
 const PRUNPLANNER_PACKAGES = [
   'PRUNplanner Supply Cart',
