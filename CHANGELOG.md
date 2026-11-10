@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 1.1.7
+
 ### Added
 
 - `XIT ROUTECONFIG`: !BETA!  See https://oogcapitalmanagement.com/posts/oog-fork-shipping-routes-preview/ for more info.  Plan a shipping route. Drag a commodity exchange and bases into stop order, pick a ship, and set supply days. Each stop shows its loads, unloads, and fuel, and TRANSITS times the legs. SET ROUTE builds the route in the game's RT editor and needs the game's route update, which is on the staging server only for now.
