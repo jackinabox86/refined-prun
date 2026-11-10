@@ -4,7 +4,7 @@
 
 ### Added
 
-- `XIT ROUTECONFIG`: !BETA! Plan a shipping route. Drag a commodity exchange and bases into stop order, pick a ship, and set supply days. Each stop shows its loads, unloads, and fuel, and TRANSITS times the legs. SET ROUTE builds the route in the game's RT editor and needs the game's route update, which is on the staging server only for now.
+- `XIT ROUTECONFIG`: !BETA!  See https://oogcapitalmanagement.com/posts/oog-fork-shipping-routes-preview/ for more info.  Plan a shipping route. Drag a commodity exchange and bases into stop order, pick a ship, and set supply days. Each stop shows its loads, unloads, and fuel, and TRANSITS times the legs. SET ROUTE builds the route in the game's RT editor and needs the game's route update, which is on the staging server only for now.
 - `XIT TRANSITS`: Runs a proposed route through blueprints to determine flight duration and fuel cost, as well as toggle gateway use. 
 - `XIT ROUTEBURN`: One row per saved route with its lowest burn, production, and repair, split into Automated (looping) and On-Demand routes. Each exchange origin has a restock countdown, and RESTOCK buys the route departures due within the Route Supply days. ASSIGN buys an on-demand route's shortfall and assigns its ship.
 - `XIT ROUTETRACK`: Ships on game routes, with the next arrival and when the route ends or loops.
