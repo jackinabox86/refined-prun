@@ -9,7 +9,8 @@ export interface LowstrifeMaterialSize {
 
 export interface LowstrifeInput {
   burn: BurnValues;
-  // Workforce consumables are always loaded for this many days.
+  // Workforce consumables are always loaded for this many days. Zero loads no consumables
+  // and lets the production inputs fill the ship.
   consumableDays: number;
   maxWeight: number;
   maxVolume: number;
@@ -24,7 +25,7 @@ export interface LowstrifeInput {
 export interface LowstrifeLoad {
   materials: Record<string, number>;
   // Days of production inputs that fit next to the consumables, capped at the consumable
-  // days. Undefined when the planet consumes no production inputs.
+  // days unless those are zero. Undefined when the planet consumes no production inputs.
   inputDays: number | undefined;
   // Days of production inputs, or of outputs, that fit in the base store once the
   // consumables are dropped off, to the tenth; the larger daily side sets it. Undefined
@@ -94,6 +95,12 @@ function totals(materials: Record<string, number>, getMaterial: LowstrifeInput['
   return { weight, volume };
 }
 
+// Rounding first keeps float residue like 2000.0000000000002 from failing a load that
+// fills the limit exactly.
+function withinLimits(t: LowstrifeMaterialSize, maxWeight: number, maxVolume: number): boolean {
+  return Number(t.weight.toFixed(6)) <= maxWeight && Number(t.volume.toFixed(6)) <= maxVolume;
+}
+
 // Ports the "Ship loading v2" sheet: consumables for a fixed number of days, production
 // inputs for the most days that still fit the ship, then the spare room filled with DW.
 export function computeLowstrifeLoad(input: LowstrifeInput): LowstrifeLoad {
@@ -113,18 +120,15 @@ export function computeLowstrifeLoad(input: LowstrifeInput): LowstrifeLoad {
     return materials;
   };
 
-  const fits = (materials: Record<string, number>) => {
-    const t = totals(materials, getMaterial);
-    return t.weight <= maxWeight && t.volume <= maxVolume;
-  };
+  const fits = (materials: Record<string, number>) =>
+    withinLimits(totals(materials, getMaterial), maxWeight, maxVolume);
 
   // Inputs never load for longer than the consumables, so a roomy ship keeps spare space.
-  const inputDays = hasInputs
-    ? Math.min(
-        consumableDays,
-        maxFittingDays(days => fits(load(days))),
-      )
-    : undefined;
+  // Zero consumable days means an inputs-only trip, so the inputs fill the ship instead.
+  const inputsOnly = consumableDays <= 0;
+  const fittingDays = hasInputs ? maxFittingDays(days => fits(load(days))) : undefined;
+  const inputDays =
+    fittingDays === undefined || inputsOnly ? fittingDays : Math.min(consumableDays, fittingDays);
   const materials = load(inputDays ?? 0);
 
   // The base keeps the dropped-off consumables, and the rest of its capacity holds
@@ -173,7 +177,7 @@ export function computeLowstrifeLoad(input: LowstrifeInput): LowstrifeLoad {
 
   // DW only tops up a ship the inputs fill. Inputs capped at the consumable days, or no
   // inputs at all, leave room the visit does not need, and DW there is just excess water.
-  const inputsCapped = inputDays === undefined || inputDays >= consumableDays;
+  const inputsCapped = inputDays === undefined || (!inputsOnly && inputDays >= consumableDays);
   let dwFill = 0;
   const dw = input.excludeDwFill || inputsCapped ? undefined : getMaterial('DW');
   if (dw) {
@@ -195,28 +199,32 @@ export function computeLowstrifeLoad(input: LowstrifeInput): LowstrifeLoad {
     dwFill,
     weight: t.weight,
     volume: t.volume,
-    fits: t.weight <= maxWeight && t.volume <= maxVolume,
+    fits: withinLimits(t, maxWeight, maxVolume),
   };
 }
 
 // The sheet's output: one MTRA of a Manual group into the ship's cargo. The origin is
-// left configurable instead of the sheet's hard-coded warehouse.
+// left configurable instead of the sheet's hard-coded warehouse. The planet natural id
+// becomes the auto SFC destination, so the loaded ship flies to the base it was loaded for.
 export function lowstrifePackage(args: {
   planetName: string;
+  planetNaturalId: string | undefined;
   shipName: string | undefined;
   materials: Record<string, number>;
 }): UserData.ActionPackageData {
+  const mtra: UserData.ActionData = {
+    type: 'MTRA',
+    name: 'MTRA',
+    group: lowstrifeGroupName,
+    origin: configurableValue,
+    dest: args.shipName ? `${args.shipName} Cargo` : configurableValue,
+  };
+  if (args.planetNaturalId) {
+    mtra.sfcDestination = args.planetNaturalId;
+  }
   return {
     global: { name: `LOWSTRIFE: ${args.planetName}` },
     groups: [{ type: 'Manual', name: lowstrifeGroupName, materials: args.materials }],
-    actions: [
-      {
-        type: 'MTRA',
-        name: 'MTRA',
-        group: lowstrifeGroupName,
-        origin: configurableValue,
-        dest: args.shipName ? `${args.shipName} Cargo` : configurableValue,
-      },
-    ],
+    actions: [mtra],
   };
 }

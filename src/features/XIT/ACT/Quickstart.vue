@@ -15,6 +15,7 @@ import {
 } from '@src/infrastructure/prun-api/data/addresses';
 import { comparePlanets } from '@src/util';
 import SelectInput from '@src/components/forms/SelectInput.vue';
+import PlanetSelector from '@src/components/forms/PlanetSelector.vue';
 import { warehousesStore } from '@src/infrastructure/prun-api/data/warehouses';
 import { configurableValue } from '@src/features/XIT/ACT/shared-types';
 import { storagesStore } from '@src/infrastructure/prun-api/data/storage';
@@ -116,7 +117,7 @@ const ExchangeTickers = {
         <SelectInput v-model="cx" :options="cxes" />
       </Active>
       <Active label="Planet to Resupply">
-        <SelectInput v-model="planet" :options="planets" />
+        <PlanetSelector v-model="planet" value="name" />
       </Active>
       <Active label="Resupply Days">
         <NumberInput v-model="days" float />

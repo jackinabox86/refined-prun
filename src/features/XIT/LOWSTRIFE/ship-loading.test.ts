@@ -245,11 +245,94 @@ describe('DW fill', () => {
     expect(result.dwFill).toBe(0);
     expect(result.weight).toBeLessThan(2000);
   });
+
+  it('fits a fill that lands exactly on the limit despite float residue', () => {
+    // A reported Sand load: GRN 108 + H2O 9453 + DW 14 sums to 2000.0000000000002m³.
+    const result = computeLowstrifeLoad({
+      burn: {
+        DW: {
+          input: 0,
+          output: 1900,
+          workforce: 77,
+          dailyAmount: 1823,
+          remainingAllocation: 0,
+          inventory: 1201,
+          daysLeft: 0,
+          type: 'workforce',
+        },
+        GRN: mat(-22.96, 124, 'input'),
+        H2O: mat(-2725.2, 17882, 'input'),
+      },
+      consumableDays: 60,
+      maxWeight: 2000,
+      maxVolume: 2000,
+      getMaterial: ticker =>
+        ({
+          DW: { weight: 0.1, volume: 0.1 },
+          GRN: { weight: 0.9, volume: 1 },
+          H2O: { weight: 0.2, volume: 0.2 },
+        })[ticker],
+    });
+    expect(result.materials).toEqual({ GRN: 108, H2O: 9453, DW: 14 });
+    expect(result.volume).toBeGreaterThan(2000);
+    expect(result.fits).toBe(true);
+  });
+});
+
+describe('zero consumable days', () => {
+  const zeroDays = (burn: BurnValues) =>
+    computeLowstrifeLoad({
+      burn,
+      consumableDays: 0,
+      maxWeight: 2000,
+      maxVolume: 2000,
+      getMaterial,
+    });
+
+  it('fills the ship with inputs and tops up the remainder with DW', () => {
+    const result = zeroDays(sheetBurn);
+    // No consumables, so AL + SI take the whole 2000t: more days than the sheet's 23.08,
+    // and uncapped by the zero consumable days.
+    expect(result.inputDays).toBeCloseTo(25.63, 2);
+    expect(result.materials.RAT).toBeUndefined();
+    expect(result.materials.AL).toBeGreaterThan(0);
+    expect(result.materials.SI).toBeGreaterThan(0);
+    expect(result.dwFill).toBeGreaterThan(0);
+    // The DW only covers what one more fit step of inputs could not.
+    expect(result.dwFill * sizes.DW.weight).toBeLessThan(236.56 * 0.01 + 2.7 + 2.329);
+    expect(result.weight).toBeCloseTo(2000, 0);
+    expect(result.fits).toBe(true);
+  });
+
+  it('loads nothing without inputs', () => {
+    const result = zeroDays({ RAT: sheetBurn.RAT, DW: sheetBurn.DW });
+    expect(result.inputDays).toBeUndefined();
+    expect(result.materials).toEqual({});
+    expect(result.dwFill).toBe(0);
+  });
+
+  it('skips the DW fill when DW is excluded', () => {
+    const result = computeLowstrifeLoad({
+      burn: sheetBurn,
+      consumableDays: 0,
+      maxWeight: 2000,
+      maxVolume: 2000,
+      getMaterial,
+      excludeDwFill: true,
+    });
+    expect(result.dwFill).toBe(0);
+    expect(result.materials.DW).toBeUndefined();
+  });
 });
 
 describe('lowstrifePackage', () => {
-  it('builds one MTRA of a Manual group into the ship cargo', () => {
-    const pkg = lowstrifePackage({ planetName: 'Hortus', shipName: 'ace', materials: { RAT: 5 } });
+  it('builds one MTRA of a Manual group into the ship cargo, flying to the planet', () => {
+    const pkg = lowstrifePackage({
+      planetName: 'Hortus',
+      planetNaturalId: 'VH-331a',
+      shipName: 'ace',
+      materials: { RAT: 5 },
+    });
     expect(pkg.groups).toEqual([{ type: 'Manual', name: 'Item xfer', materials: { RAT: 5 } }]);
     expect(pkg.actions).toEqual([
       {
@@ -258,7 +341,18 @@ describe('lowstrifePackage', () => {
         group: 'Item xfer',
         origin: configurableValue,
         dest: 'ace Cargo',
+        sfcDestination: 'VH-331a',
       },
     ]);
+  });
+
+  it('leaves the SFC destination unset without a planet', () => {
+    const pkg = lowstrifePackage({
+      planetName: '',
+      planetNaturalId: undefined,
+      shipName: 'ace',
+      materials: {},
+    });
+    expect(pkg.actions[0]).not.toHaveProperty('sfcDestination');
   });
 });

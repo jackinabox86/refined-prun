@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import SelectInput from '@src/components/forms/SelectInput.vue';
+import PlanetSelector from '@src/components/forms/PlanetSelector.vue';
 import NumberInput from '@src/components/forms/NumberInput.vue';
 import Active from '@src/components/forms/Active.vue';
 import { Config } from '@src/features/XIT/ACT/material-groups/repair/config';
@@ -42,7 +42,7 @@ if (data.advanceDays === configurableValue && config.advanceDays === undefined) 
 <template>
   <form>
     <Active v-if="data.planet === configurableValue" label="Planet">
-      <SelectInput v-model="config.planet" :options="planets" />
+      <PlanetSelector v-model="config.planet" value="name" />
     </Active>
     <Active
       v-if="data.days === configurableValue"

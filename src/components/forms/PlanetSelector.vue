@@ -6,8 +6,15 @@ import {
 } from '@src/infrastructure/prun-api/data/addresses';
 import { comparePlanets } from '@src/util';
 
-// Planet natural id of the selected base.
+// The selected base, stored as its planet natural id or, with `value="name"`, its planet name.
 const model = defineModel<string>();
+
+const { value = 'naturalId' } = defineProps<{ value?: 'naturalId' | 'name' }>();
+
+interface Base {
+  naturalId: string;
+  name: string;
+}
 
 const bases = computed(() =>
   (sitesStore.all.value ?? [])
@@ -19,10 +26,12 @@ const bases = computed(() =>
     .sort((a, b) => comparePlanets(a.naturalId, b.naturalId)),
 );
 
-const label = (base: { naturalId: string; name: string }) =>
+const label = (base: Base) =>
   base.name && base.name !== base.naturalId ? `${base.name} (${base.naturalId})` : base.naturalId;
 
-const selected = computed(() => bases.value.find(x => x.naturalId === model.value));
+const valueOf = (base: Base) => (value === 'name' ? base.name : base.naturalId);
+
+const selected = computed(() => bases.value.find(x => valueOf(x) === model.value));
 
 const input = useTemplateRef<HTMLInputElement>('input');
 const text = ref('');
@@ -63,9 +72,9 @@ function close() {
   text.value = selected.value ? label(selected.value) : '';
 }
 
-function pick(base: { naturalId: string; name: string } | undefined) {
+function pick(base: Base | undefined) {
   if (base) {
-    model.value = base.naturalId;
+    model.value = valueOf(base);
   }
   close();
   input.value?.blur();

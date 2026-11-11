@@ -837,6 +837,11 @@ sitesStore.all.value      // undefined until fetched, then array
 sitesStore.fetched.value  // boolean
 ```
 
+`sitesStore.all` keeps the server's `SITE_SITES` order, which is not the order the game shows.
+The `BS` base list puts named systems first by name, unnamed ones by natural id, and named
+planets ahead of lettered ones within a system. `comparePlanets` in `src/util.ts` reproduces it,
+so sort a base list with it to match the game (checked live against `BS` on 32 bases).
+
 ### Store key shapes (verified the hard way)
 
 Map getters are keyed by API values, which don't always match what the game UI shows:
@@ -1072,9 +1077,9 @@ fleet) to each ship's cargo hold in `storagesStore` via `idShipStore`, matching
 with zero matching holds are omitted, not disabled. Fit resolution (`maxFittingDays`) is
 unchanged. The XIT PLANETS pickup-size dropdown still offers the full catalog.
 
-`XIT BURNACT`, `XIT REPAIRACT`, and `XIT GOVBURNEXEC` share one per-base auto-SFC
-flag in `settings.planetAutoSfc[planetNaturalId]`. They did not already share a
-per-base settings record (burn / repair / govburn each have their own maps), so
+`XIT BURNACT`, `XIT REPAIRACT`, `XIT GOVBURNEXEC`, and `XIT LOWSTRIFEACT` share one
+per-base auto-SFC flag in `settings.planetAutoSfc[planetNaturalId]`. They did not already
+share a per-base settings record (burn / repair / govburn each have their own maps), so
 this is a new shared field, not a key on `settings.burn`. Missing means on —
 current auto-SFC behavior. An explicit `false` is sticky for that base only and
 stops `OPEN_SFC`. The toggle sits below MTRA's "To" row and does not appear in

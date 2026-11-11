@@ -22,6 +22,7 @@ describe('auto SFC wiring', () => {
     expect(source).toContain("'BURNACT'");
     expect(source).toContain("'REPAIRACT'");
     expect(source).toContain("'GOVBURNEXEC'");
+    expect(source).toContain("'LOWSTRIFEACT'");
     expect(source).not.toMatch(/DISPATCHACT/);
   });
 
