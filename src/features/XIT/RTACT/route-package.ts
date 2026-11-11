@@ -1,8 +1,8 @@
 import type { RouteSpec } from '@src/features/XIT/RTACT/route-spec';
-import { stagingRunBlock } from '@src/features/XIT/RTACT/staging-host';
+import { rtRunBlock } from '@src/features/XIT/RTACT/rt-host';
 import type { StagingPackageResult } from '@src/features/XIT/RTACT/staging-package';
 
-// Hands a built RouteSpec to the staging RT runner. Off staging this returns no package.
+// Hands a built RouteSpec to the RT runner. Off the APEX game hosts this returns no package.
 export function buildRouteconfigPackage(
   hostname: string,
   spec: RouteSpec,
@@ -10,7 +10,7 @@ export function buildRouteconfigPackage(
   routeName: string,
   configRouteId?: string,
 ): StagingPackageResult {
-  const blocked = stagingRunBlock(hostname);
+  const blocked = rtRunBlock(hostname);
   if (blocked !== undefined) {
     return { ok: false, error: blocked };
   }

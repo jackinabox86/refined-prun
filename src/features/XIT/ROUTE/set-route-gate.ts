@@ -1,7 +1,6 @@
 // Why SET ROUTE stays disabled. Undefined means the button is armed.
 
 export interface SetRouteGateInput {
-  staging: boolean;
   shipChosen: boolean;
   stopCount: number;
   billReady: boolean;
@@ -20,9 +19,6 @@ export function supplyDaysReady(days: number) {
 }
 
 export function setRouteBlock(input: SetRouteGateInput) {
-  if (!input.staging) {
-    return 'RT build runs on the staging host.';
-  }
   if (!input.shipChosen) {
     return 'Set a ship above to build the route.';
   }

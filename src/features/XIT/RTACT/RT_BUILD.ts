@@ -38,7 +38,7 @@ import {
   type RouteStop,
 } from '@src/features/XIT/RTACT/route-spec';
 import { shouldClickAddWaypoint, waypointNeedles } from '@src/features/XIT/RTACT/route-controls';
-import { stagingRunBlock } from '@src/features/XIT/RTACT/staging-host';
+import { rtRunBlock } from '@src/features/XIT/RTACT/rt-host';
 import { rtStageWindowSize } from '@src/features/XIT/RTACT/rt-stage-layout';
 import { resizeSplitWindow, splitOwnerId } from '@src/infrastructure/prun-ui/companion-buffer';
 import { AssertFn } from '@src/features/XIT/ACT/shared-types';
@@ -56,13 +56,13 @@ interface Data {
 
 export const RT_BUILD = act.addActionStep<Data>({
   type: 'RT_BUILD',
-  description: data => `Build staging route (${data.stops.length} stops)`,
+  description: data => `Build route (${data.stops.length} stops)`,
   previewLines: data =>
     routeSummaryLines({ stops: data.stops, loop: data.loop }, data.shipId?.trim()),
   execute: async ctx => {
     const { data, log, requestTile, waitAct, waitActionFeedback, fail, complete } = ctx;
     const assert: AssertFn = ctx.assert;
-    const blocked = stagingRunBlock(location.hostname);
+    const blocked = rtRunBlock(location.hostname);
     if (blocked !== undefined) {
       fail(blocked);
       return;

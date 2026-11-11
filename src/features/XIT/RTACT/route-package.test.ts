@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { STAGING_HOST } from '@src/features/XIT/RTACT/staging-host';
+import { PRODUCTION_HOST, STAGING_HOST } from '@src/features/XIT/RTACT/rt-host';
 import { buildRouteconfigPackage } from '@src/features/XIT/RTACT/route-package';
 import type { RouteSpec } from '@src/features/XIT/RTACT/route-spec';
 
@@ -24,10 +24,15 @@ describe('buildRouteconfigPackage', () => {
     expect(JSON.parse(result.pkg.actions[0]?.routePayload ?? '')).toEqual(spec);
   });
 
-  it('returns the staging error off the staging host', () => {
-    expect(buildRouteconfigPackage('apex.prosperousuniverse.com', spec, '', 'Milk')).toEqual({
+  it('stages the built spec on the production host', () => {
+    const result = buildRouteconfigPackage(PRODUCTION_HOST, spec, '', 'Milk');
+    expect(result.ok).toBe(true);
+  });
+
+  it('returns the host error off the APEX game hosts', () => {
+    expect(buildRouteconfigPackage('example.com', spec, '', 'Milk')).toEqual({
       ok: false,
-      error: `RT route runner is inert off ${STAGING_HOST}`,
+      error: `RT route runner only runs on ${PRODUCTION_HOST}`,
     });
   });
 });

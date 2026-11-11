@@ -2,19 +2,23 @@ import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import { STAGING_HOST } from './staging-host';
+import { PRODUCTION_HOST, STAGING_HOST } from './rt-host';
 import { buildStagingPackage } from './staging-package';
 
 describe('buildStagingPackage', () => {
   const spec = 'ZV-307d\nANT\n';
 
-  it('does not build a package off the staging host', () => {
-    const result = buildStagingPackage('apex.prosperousuniverse.com', '', spec);
+  it('does not build a package off the APEX game hosts', () => {
+    const result = buildStagingPackage('example.com', '', spec);
     expect(result.ok).toBe(false);
     if (result.ok) {
       return;
     }
     expect(result).not.toHaveProperty('pkg');
+  });
+
+  it('builds a package on the production host', () => {
+    expect(buildStagingPackage(PRODUCTION_HOST, '', spec).ok).toBe(true);
   });
 
   it('builds a package on the staging host', () => {
@@ -34,9 +38,9 @@ describe('RT_BUILD source order', () => {
   const source = readFileSync(join(here, 'RT_BUILD.ts'), 'utf8');
   const execute = source.slice(source.indexOf('execute: async ctx'));
 
-  it('blocks on the staging host before it requests a tile', () => {
-    expect(execute.indexOf('stagingRunBlock')).toBeGreaterThan(-1);
-    expect(execute.indexOf('stagingRunBlock')).toBeLessThan(execute.indexOf('requestTile('));
+  it('blocks off the APEX game hosts before it requests a tile', () => {
+    expect(execute.indexOf('rtRunBlock')).toBeGreaterThan(-1);
+    expect(execute.indexOf('rtRunBlock')).toBeLessThan(execute.indexOf('requestTile('));
   });
 
   it('checks the add-waypoint gate before clicking ADD WAYPOINT', () => {
