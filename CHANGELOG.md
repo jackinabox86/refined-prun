@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+### Changed
+
+- `XIT LOWSTRIFE`: With Consumable Days at 0, the planner loads production inputs only, as many days as fit, and DW tops up the rest.
+- `XIT LOWSTRIFEACT`: The loaded ship's SFC goes to the base it was loaded for. LOWSTRIFEACT has the per-base auto SFC toggle, like BURNACT, REPAIRACT, and GOVBURNEXEC.
+- Base pickers in `XIT ACT` (Quickstart's Planet to Resupply, and a resupply or repair Planet set to Configure on Execution) and in `XIT TODO` Resupply and Repair tasks are type-to-search. Type a base name or planet id, then pick with the mouse or the arrow keys and Enter. XIT TODO lists bases in the game's order.
+- Material picks in `XIT ACT` MTRA and CONT steps, CONTD paste-import and fill-all, and the one-row XIT toolbars work with both the current game client and the upcoming game update.
+
+### Fixed
+
+- `XIT LOWSTRIFE`: A load that fills the ship exactly is no longer shown in red as over the limit, and EXECUTE stays enabled.
+
 ## 1.1.7
 
 ### Added
