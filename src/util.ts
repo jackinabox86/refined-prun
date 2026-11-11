@@ -4,6 +4,7 @@ import { getStarNaturalId, starsStore } from '@src/infrastructure/prun-api/data/
 import { stationsStore } from '@src/infrastructure/prun-api/data/stations';
 import { getMaterialName } from '@src/infrastructure/prun-ui/i18n';
 import { sleep } from './utils/sleep';
+import { waitFor } from './utils/wait-for';
 
 // Download a file containing fileData with fileName
 export function downloadFile(fileData, fileName, isJSON: boolean = true) {
@@ -63,6 +64,27 @@ export function focusElement(input: HTMLElement) {
   input.dispatchEvent(event);
 }
 
+// The updated game client renders the suggestion list in the shared #autosuggest-portal,
+// as the address field already does. The older client renders it inside the selector.
+// The portal is checked first, then the selector, so both clients work.
+function findMaterialSuggestion(container: Element, ticker: string) {
+  const roots: Element[] = [];
+  const portal = document.getElementById('autosuggest-portal');
+  if (portal) {
+    roots.push(portal);
+  }
+  roots.push(container);
+  for (const root of roots) {
+    const match = _$$(root, C.MaterialSelector.suggestionEntry).find(
+      x => _$(x, C.ColoredIcon.label)?.textContent?.trim() === ticker,
+    );
+    if (match) {
+      return match as HTMLElement;
+    }
+  }
+  return undefined;
+}
+
 export async function selectMaterialInMaterialSelector(baseElement: Element, ticker: string) {
   let container = baseElement;
   if (!container.classList.contains(C.MaterialSelector.container)) {
@@ -70,24 +92,30 @@ export async function selectMaterialInMaterialSelector(baseElement: Element, tic
   }
   const input = await $(container, 'input');
 
-  const suggestionsContainer = await $(container, C.MaterialSelector.suggestionsContainer);
+  // Hides the older client's in-selector list while it is driven. The updated client
+  // has no such list.
+  const suggestionsContainer = _$(container, C.MaterialSelector.suggestionsContainer) as
+    | HTMLElement
+    | undefined;
   focusElement(input);
   changeInputValue(input, ticker);
 
-  const suggestionsList = await $(container, C.MaterialSelector.suggestionsList);
-  suggestionsContainer.style.display = 'none';
-  const match = _$$(suggestionsList, C.MaterialSelector.suggestionEntry).find(
-    x => _$(x, C.ColoredIcon.label)?.textContent === ticker,
-  );
-
-  if (!match) {
-    suggestionsContainer.style.display = '';
-    return false;
+  if (suggestionsContainer) {
+    suggestionsContainer.style.display = 'none';
   }
+  let match: HTMLElement | undefined;
+  await waitFor(() => {
+    match = findMaterialSuggestion(container, ticker);
+    return match !== undefined;
+  }, 3000);
 
-  await clickElement(match);
-  suggestionsContainer.style.display = '';
-  return true;
+  if (match) {
+    await clickElement(match);
+  }
+  if (suggestionsContainer) {
+    suggestionsContainer.style.display = '';
+  }
+  return match !== undefined;
 }
 
 // A function to compare two planets (to be used in .sort() functions)

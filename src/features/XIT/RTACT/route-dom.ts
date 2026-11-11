@@ -406,11 +406,14 @@ export async function waitForNewRouteId(
   return created;
 }
 
+// Staging RT keeps a limit's amount field in the DOM, unrendered, while the limit is
+// on capacity or all carried. Only a rendered field means the amount row is showing.
 function amountInputs(root: Element): HTMLInputElement[] {
   return Array.from(root.querySelectorAll('input')).filter((el): el is HTMLInputElement => {
     const input = el as HTMLInputElement;
     const mode = input.getAttribute('inputmode');
-    return mode === 'decimal' || mode === 'numeric' || input.type === 'number';
+    const numeric = mode === 'decimal' || mode === 'numeric' || input.type === 'number';
+    return numeric && input.getClientRects().length > 0;
   });
 }
 
@@ -503,27 +506,22 @@ async function applyLimit(
   selectAndChangeInputValue(input, String(limit.amount));
 }
 
+// Tries the updated client's MaterialSelector first, then the older RT editor's
+// AddressSelector-style suggestions in #autosuggest-portal.
 async function fillMaterial(editor: Element, ticker: string): Promise<void> {
-  const selected = await selectMaterialInMaterialSelector(editor, ticker);
-  if (selected) {
+  const container = _$(editor, C.MaterialSelector.container);
+  if (container !== undefined && (await selectMaterialInMaterialSelector(container, ticker))) {
     return;
   }
   const portal = document.getElementById('autosuggest-portal');
-  if (portal === null) {
-    throw new Error(`Could not pick material ${ticker}`);
-  }
-  const labels = _$$(portal, C.AddressSelector.suggestionContent).map(
-    el => el.textContent?.trim() ?? '',
+  const suggestions = portal === null ? [] : _$$(portal, C.AddressSelector.suggestionContent);
+  const chosen = pickSuggestion(
+    suggestions.map(el => el.textContent?.trim() ?? ''),
+    ticker,
   );
-  const chosen = pickSuggestion(labels, ticker);
-  if (chosen === undefined) {
-    throw new Error(`Could not pick material ${ticker}`);
-  }
-  const match = _$$(portal, C.AddressSelector.suggestionContent).find(
-    el => (el.textContent ?? '').trim() === chosen,
-  );
-  if (match === undefined) {
-    throw new Error(`Could not pick material ${ticker}`);
+  const match = suggestions.find(el => (el.textContent ?? '').trim() === chosen);
+  if (chosen === undefined || match === undefined) {
+    throw new Error(`Could not find material ${ticker} in the list`);
   }
   await clickElement(match as HTMLElement);
 }

@@ -378,6 +378,8 @@ declare global {
     };
     ComExOrdersPanel: {
       filter: string;
+      // Newer game CSS only. Check with `in` before reading.
+      filters?: string;
     };
     ComExOrdersTable: {
       number: string;
