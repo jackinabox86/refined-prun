@@ -888,6 +888,8 @@ text — every one of those is a trap the helper already handles. Typing fires a
 
 ACT's `OPEN_SFC.ts`, `CONT_SEND.ts`, and `CONT_TRADE.ts` all call this helper directly for
 destination/origin/location fields — `cont-utils.ts`'s old `selectLocation` duplicate is gone.
+The RT runner's waypoint field goes through it too, after clearing a field that still holds
+its last pick (see `RT — Routes` in `docs/game/screens-fleet.md`).
 `OPEN_SFC` in particular used to burn two extra `waitAct` clicks (`Set destination?` /
 `Select destination?`) hand-rolling the type-then-click sequence `selectAddress` already does
 in one call, scoped to a raw `document.documentElement` lookup that could grab the wrong
