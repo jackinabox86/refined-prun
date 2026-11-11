@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 1.1.8
+
 ### Changed
 
 - `XIT LOWSTRIFE`: With Consumable Days at 0, the planner loads production inputs only, as many days as fit, and DW tops up the rest.
