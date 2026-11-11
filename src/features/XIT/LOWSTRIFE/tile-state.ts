@@ -4,4 +4,6 @@ export const useTileState = createTileStateHook({
   planet: '',
   ship: '',
   consumableDays: 60,
+  repair: false,
+  repairOffset: 1,
 });
