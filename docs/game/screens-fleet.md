@@ -2,7 +2,7 @@
 
 ## FLT — Fleet
 
-Table of all ships. Columns: Transponder, Name, Cargo, Status, Fuel, Location, Destination, ETA, Command. Transponder and name are links → `SHP <transponder>`.
+Table of all ships. Columns: Name, Cargo, Status, Fuel, Route, Location, Destination, ETA, Command. The November 2026 RT update removed the Transponder column and added Route, so Name is the first cell of a row; extension code that indexes FLT cells must use these positions.
 
 Per-row command buttons:
 - `view` → `SFC <transponder>` (flight control)

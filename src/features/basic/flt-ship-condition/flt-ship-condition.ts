@@ -8,7 +8,7 @@ function onTileReady(tile: PrunTile) {
       reactive({
         id: refPrunId(row),
       }),
-    ).appendTo(row.children[1]);
+    ).appendTo(row.children[0]);
   });
 }
 
