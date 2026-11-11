@@ -1085,6 +1085,16 @@ current auto-SFC behavior. An explicit `false` is sticky for that base only and
 stops `OPEN_SFC`. The toggle sits below MTRA's "To" row and does not appear in
 `DISPATCHACT` or generic `XIT ACT`.
 
+`XIT LOWSTRIFE` has a Repair toggle (off by default) and a Time Offset (default 1,
+REPAIRACT's meaning) below DW Fill, both tile state like Consumable Days. On, the load
+adds `computeRepairBill(site, 0, offset)`: a zero day threshold bills every repairable
+building, with no threshold row. Repair materials ride in the ship, so they count in the
+Fill, in the fit that sets Input Days, and in the DW fill room. They do not count
+against Production Days: the repair uses them up on arrival, so the base store room is
+measured after the consumables alone (`loadBurn(0)` in `ship-loading.ts`, never
+`load(0)`). Unchecking a repair material uses the same per-base exclusion list as the
+burn materials.
+
 ### Comparators in a Primary/Secondary Sort Chain
 
 A comparator that a chain calls for the primary key must return `0` on a tie. Folding a
