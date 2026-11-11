@@ -2,7 +2,7 @@
 
 ## FLT — Fleet
 
-Table of all ships. Columns: Transponder, Name, Cargo, Status, Fuel, Location, Destination, ETA, Command. Transponder and name are links → `SHP <transponder>`.
+Table of all ships. Columns: Name, Cargo, Status, Fuel, Route, Location, Destination, ETA, Command. The November 2026 RT update removed the Transponder column and added Route, so Name is the first cell of a row; extension code that indexes FLT cells must use these positions.
 
 Per-row command buttons:
 - `view` → `SFC <transponder>` (flight control)
@@ -48,6 +48,8 @@ Two grids: STL fuel tank (SF) and FTL fuel tank (FF), each with weight/volume ga
 ## RT — Routes
 
 `RT` lists routes. `RT <id>` opens one. Creating a route, adding a waypoint, saving a step or waypoint, assigning a ship, and the Loop toggle are server actions. `delete` on the list, and `Delete waypoint`, `Delete step`, and `CANCEL` in the editors, are server actions the RT runner does not click. The game shipped the RT route update to production in November 2026; the runner (`rt-host.ts`) runs on both `apex.prosperousuniverse.com` and `apex.staging.prosperousuniverse.com`.
+
+The waypoint `Enter location` field is the game's standard `AddressSelector` (react-autosuggest: typing calls `queryAddress`, a pick calls `onAddressSelection`), and its list renders in `#autosuggest-portal`. Focused empty, it lists own bases, warehouses, and CX stations; any other planet only arrives from a typed search. A field still holding a pick drops the first query typed over it and the portal stays empty. Clearing the field and yielding one macrotask before typing makes the next query list at once. On production `RT-WTMP-4226`, picks of `KI-840c`, `ANT`, `ZV-307d`, and `OT-580b` armed ADD WAYPOINT in 59–284 ms this way, and the field still answered manual typing afterwards.
 
 The route view has a Settings row labeled Loop. The switch is a small `div` whose own text is `Loop`, next to a `span` with the same word. It is not a button, and it is not the sidebar `Frame` toggle. A new route starts with that switch off: the div's text color is `rgb(153, 153, 153)`. On, that color is `rgb(221, 221, 221)`. The class does not change. A script-dispatched click leaves it off. The runner calls the div's React `onClick`. If the color does not change, it waits for the operator to flip the switch and press ACT. On an older route the same word was a sidebar `Frame` toggle whose indicator class includes `Active`. On staging, `RT-SNXV-3853` had Loop on and three waypoints — Antares Station (Antares I), Antares II - Deimos (ZV-759c), Antares I - Phobos (ZV-307d). The origin was not listed again at the end. The ROUTECONFIG bridge sets this toggle and does not append the origin as a final waypoint. The first stop's unload-all is what clears cargo the ship still holds when the loop comes back. A duplicate origin was not submitted; this is the shape of an existing looping route.
 

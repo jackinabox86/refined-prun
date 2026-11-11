@@ -14,7 +14,7 @@ function init() {
   applyLocalizationPatch(L.ShipStatus.lock, () => shipStatusIconBySegmentType.LOCK);
   applyLocalizationPatch(L.ShipStatus.decay, () => shipStatusIconBySegmentType.DECAY);
   applyLocalizationPatch(L.ShipStatus.jumpgateway, () => shipStatusIconBySegmentType.JUMP_GATEWAY);
-  applyCssRule(['FLT', 'FLTS', 'FLTP'], `td:nth-child(4)`, $style.status);
+  applyCssRule(['FLT', 'FLTS', 'FLTP'], `td:nth-child(3)`, $style.status);
 }
 
 features.add(import.meta.url, init, 'FLT: Replaces the flight status text with arrow icons.');
