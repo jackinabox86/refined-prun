@@ -306,6 +306,11 @@ function execute() {
           tooltip="Extra DW added to fill the ship's spare room. Skipped when inputs already load for all the consumable days.">
           <span :class="$style.value">{{ load.dwFill }}</span>
         </Passive>
+      </template>
+    </form>
+    <template v-if="load">
+      <div :class="$style.break" />
+      <form>
         <Active
           label="Repair"
           tooltip="Load repair materials for every production building on the base. They count toward the fill but not the production days.">
@@ -316,6 +321,9 @@ function execute() {
           tooltip="The number of days in the future this repair will be conducted.">
           <NumberInput v-model="repairOffset" float :class="$style.number" />
         </Active>
+      </form>
+      <div :class="$style.break" />
+      <form>
         <Passive
           label="Fill"
           :tooltip="
@@ -329,8 +337,8 @@ function execute() {
             {{ fixed02(load.weight) }}t, {{ fixed02(load.volume) }}m³
           </span>
         </Passive>
-      </template>
-    </form>
+      </form>
+    </template>
     <Commands>
       <CopyButton :copy-fn="copyJson" />
       <PrunButton primary :disabled="!canExecute" @click="execute">EXECUTE</PrunButton>
