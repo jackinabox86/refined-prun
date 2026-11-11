@@ -29,7 +29,7 @@ import {
 import { stagedLowstrife } from '@src/features/XIT/LOWSTRIFE/staged';
 import { useTileState } from '@src/features/XIT/LOWSTRIFE/tile-state';
 import { getShipsAtCX } from '@src/features/XIT/DISPATCH/utils';
-import PlanetSelector from '@src/features/XIT/LOWSTRIFE/PlanetSelector.vue';
+import PlanetSelector from '@src/components/forms/PlanetSelector.vue';
 import { userData } from '@src/store/user-data';
 import type { BurnValues } from '@src/core/burn';
 

@@ -3,6 +3,7 @@ import SectionHeader from '@src/components/SectionHeader.vue';
 import Active from '@src/components/forms/Active.vue';
 import TextInput from '@src/components/forms/TextInput.vue';
 import SelectInput from '@src/components/forms/SelectInput.vue';
+import PlanetSelector from '@src/components/forms/PlanetSelector.vue';
 import NumberInput from '@src/components/forms/NumberInput.vue';
 import Commands from '@src/components/forms/Commands.vue';
 import PrunButton from '@src/components/PrunButton.vue';
@@ -17,6 +18,7 @@ import { createId } from '@src/store/create-id';
 import { fixed0 } from '@src/utils/format';
 import { isRepairableBuilding } from '@src/core/buildings';
 import { mergeMaterialAmounts, sortMaterialAmounts } from '@src/core/sort-materials';
+import { comparePlanets } from '@src/util';
 
 const { onDelete, onSave, task } = defineProps<{
   onDelete?: () => void;
@@ -48,16 +50,14 @@ function formatDateForInput(date: number | undefined) {
   return `${year}-${month}-${day}`;
 }
 
-const planets = computed(() => {
-  return (sitesStore.all.value ?? []).map(x => ({
-    label: getEntityNameFromAddress(x.address),
-    value: getEntityNaturalIdFromAddress(x.address),
-  }));
-});
-
-const planet = ref(
-  planets.value.find(x => x.value === task.planet)?.value ?? planets.value[0]?.value,
+const planets = computed(() =>
+  (sitesStore.all.value ?? [])
+    .map(x => getEntityNaturalIdFromAddress(x.address))
+    .filter(x => x !== undefined)
+    .sort(comparePlanets),
 );
+
+const planet = ref(planets.value.find(x => x === task.planet) ?? planets.value[0]);
 
 watchEffect(() => {
   // Preload resupply
@@ -169,7 +169,7 @@ function onDeleteClick() {
       </template>
       <template v-if="type === 'Resupply'">
         <Active label="Planet">
-          <SelectInput v-model="planet" :options="planets" />
+          <PlanetSelector v-model="planet" />
         </Active>
         <Active label="Days" tooltip="The number of days of supplies.">
           <NumberInput v-model="days" float />
@@ -177,7 +177,7 @@ function onDeleteClick() {
       </template>
       <template v-if="type === 'Repair'">
         <Active label="Planet">
-          <SelectInput v-model="planet" :options="planets" />
+          <PlanetSelector v-model="planet" />
         </Active>
         <Active label="Building age" tooltip="The minimum building age to be included in the list.">
           <NumberInput v-model="buildingAge" float />
