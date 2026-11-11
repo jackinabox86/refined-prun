@@ -3,14 +3,14 @@ import Header from '@src/components/Header.vue';
 import PrunButton from '@src/components/PrunButton.vue';
 import { buildStagingPackage } from '@src/features/XIT/RTACT/staging-package';
 import { stagedRtRoute } from '@src/features/XIT/RTACT/staged';
-import { isStagingHost, STAGING_HOST } from '@src/features/XIT/RTACT/staging-host';
+import { isRtHost, PRODUCTION_HOST } from '@src/features/XIT/RTACT/rt-host';
 import { useTile } from '@src/hooks/use-tile';
 import { UI_TILES_CHANGE_COMMAND } from '@src/infrastructure/prun-api/client-messages';
 import { dispatchClientPrunMessage } from '@src/infrastructure/prun-api/prun-api-listener';
 import { showBuffer } from '@src/infrastructure/prun-ui/buffers';
 
 const tile = useTile();
-const staging = isStagingHost(location.hostname);
+const rtHost = isRtHost(location.hostname);
 const routeId = ref('');
 const specText = ref('');
 const shipId = ref('');
@@ -34,8 +34,8 @@ function onRunClick() {
 
 <template>
   <div>
-    <Header>Staging RT route</Header>
-    <p v-if="!staging">This runner only runs on {{ STAGING_HOST }}.</p>
+    <Header>RT route</Header>
+    <p v-if="!rtHost">This runner only runs on {{ PRODUCTION_HOST }}.</p>
     <template v-else>
       <p>
         One stop per line, at least two. A step sits after a pipe. Each ACT click authorizes one add

@@ -3,7 +3,6 @@ import { setRouteBlock, type SetRouteGateInput } from '@src/features/XIT/ROUTE/s
 
 function ready(patch: Partial<SetRouteGateInput> = {}): SetRouteGateInput {
   return {
-    staging: true,
     shipChosen: true,
     stopCount: 2,
     billReady: true,

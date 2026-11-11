@@ -14,9 +14,8 @@ import { fitLimitText } from '@src/features/XIT/ROUTE/route-fit-limit';
 import { buildRouteSpec, type RouteBuildStop } from '@src/features/XIT/ROUTE/route-rt';
 import { setRouteBlock } from '@src/features/XIT/ROUTE/set-route-gate';
 import { buildRouteconfigPackage } from '@src/features/XIT/RTACT/route-package';
-import { previewedRtRoute, stagedRtRoute } from '@src/features/XIT/RTACT/staged';
-import { routeSummaryLines, type WaitUnit } from '@src/features/XIT/RTACT/route-spec';
-import { isStagingHost } from '@src/features/XIT/RTACT/staging-host';
+import { stagedRtRoute } from '@src/features/XIT/RTACT/staged';
+import type { WaitUnit } from '@src/features/XIT/RTACT/route-spec';
 import {
   formatFuelCell,
   fuelCargoLoads,
@@ -81,7 +80,6 @@ interface PoolEntry {
 const tile = useTile();
 const parameters = useXitParameters();
 const rtError = ref('');
-const staging = isStagingHost(location.hostname);
 const selectedId = ref(parameters[0] ?? shippingRoutes()[0]?.id);
 const draftName = ref('');
 const route = computed(() => findRoute(selectedId.value));
@@ -381,7 +379,6 @@ function inputOver(stop: UserData.ShippingRouteStop, index: number) {
 
 const rtTooltip = computed(() =>
   setRouteBlock({
-    staging,
     shipChosen: shipChosen.value,
     stopCount: route.value?.stops.length ?? 0,
     billReady: loadPlan.value !== undefined && tanks.value !== undefined,
@@ -395,25 +392,6 @@ const rtTooltip = computed(() =>
 );
 
 const canBuildRt = computed(() => rtTooltip.value === undefined);
-
-// Off staging, PREVIEW arms on the same checks SET ROUTE would pass there.
-const previewTooltip = computed(() => {
-  const block = setRouteBlock({
-    staging: true,
-    shipChosen: shipChosen.value,
-    stopCount: route.value?.stops.length ?? 0,
-    billReady: loadPlan.value !== undefined && tanks.value !== undefined,
-    legs: route.value?.legs,
-    supplyDays: supplyDays.value,
-    hasOverflow: (loadPlan.value?.segments ?? []).some(
-      segment => segment.plan.overflows.length > 0,
-    ),
-    inputOverloaded: rowStops().some((stop, index) => inputOver(stop, index)),
-  });
-  return block?.replace('build the route', 'preview the route');
-});
-
-const canPreviewRt = computed(() => previewTooltip.value === undefined);
 
 function outputOver(stop: UserData.ShippingRouteStop) {
   return stop.kind === 'base' && overflowIds.value.has(stop.id);
@@ -797,23 +775,6 @@ function onBuildRt() {
   dispatchClientPrunMessage(UI_TILES_CHANGE_COMMAND(tile.id, 'XIT RTEXEC'));
 }
 
-function onPreviewRt() {
-  const current = route.value;
-  if (current === undefined || !canPreviewRt.value) {
-    return;
-  }
-  const spec = routeSpecForRt();
-  if (spec === undefined) {
-    return;
-  }
-  rtError.value = '';
-  previewedRtRoute.value = {
-    name: current.name,
-    lines: routeSummaryLines(spec, current.ship ?? undefined),
-  };
-  showBuffer('XIT RTPREVIEW');
-}
-
 function openTransits() {
   const current = route.value;
   if (current === undefined || !canTransit.value) {
@@ -1008,15 +969,6 @@ function selectShip(event: Event) {
               data-tooltip-position="left">
               <PrunButton :primary="canBuildRt" :disabled="!canBuildRt" @click="onBuildRt">
                 SET ROUTE
-              </PrunButton>
-            </span>
-            <span
-              v-if="!staging"
-              :class="$style.transitsGate"
-              :data-tooltip="previewTooltip"
-              data-tooltip-position="left">
-              <PrunButton :primary="canPreviewRt" :disabled="!canPreviewRt" @click="onPreviewRt">
-                PREVIEW
               </PrunButton>
             </span>
           </div>

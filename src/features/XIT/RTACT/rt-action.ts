@@ -6,7 +6,7 @@ import {
   parseRoutePayload,
   parseRouteSpec,
 } from '@src/features/XIT/RTACT/route-spec';
-import { stagingRunBlock } from '@src/features/XIT/RTACT/staging-host';
+import { rtRunBlock } from '@src/features/XIT/RTACT/rt-host';
 import { AssertFn } from '@src/features/XIT/ACT/shared-types';
 
 act.addAction({
@@ -23,7 +23,7 @@ act.addAction({
   generateSteps: async ctx => {
     const { data, emitStep } = ctx;
     const assert: AssertFn = ctx.assert;
-    const blocked = stagingRunBlock(location.hostname);
+    const blocked = rtRunBlock(location.hostname);
     if (blocked !== undefined) {
       assert(false, blocked);
     }
