@@ -34,11 +34,11 @@ import {
 import { shipsStore } from '@src/infrastructure/prun-api/data/ships';
 import { stationsStore } from '@src/infrastructure/prun-api/data/stations';
 import {
-  addressQuery,
   findStationBySystemId,
   selectAddress,
 } from '@src/infrastructure/prun-ui/utils/select-address';
 import {
+  changeInputValue,
   changeSelectIndex,
   clickAtCenter,
   clickElement,
@@ -177,84 +177,14 @@ async function pickLocationOnce(anchor: Element, query: string): Promise<boolean
   if (container === undefined) {
     return false;
   }
-  const picked = await selectAddress(container, query, { waypoint: true });
-  if (!picked) {
-    return false;
+  // A field still holding the last pick drops the first query typed over it and
+  // shows no list. Clear it and let the selector re-render before typing.
+  const input = _$(container, C.AddressSelector.input) as HTMLInputElement | undefined;
+  if (input !== undefined && input.value !== '') {
+    changeInputValue(input, '');
+    await sleep(0);
   }
-  // The shared helper only confirms the row. This screen's click is the React handler.
-  return pressWaypointSuggestion(anchor, addressQuery(query));
-}
-
-function suggestionNodes(input: HTMLElement): HTMLElement[] {
-  const nodes: HTMLElement[] = [];
-  const portal = document.getElementById('autosuggest-portal');
-  if (portal !== null) {
-    const options = Array.from(portal.querySelectorAll('[role="option"]')) as HTMLElement[];
-    nodes.push(
-      ...(options.length > 0
-        ? options
-        : (_$$(portal, C.AddressSelector.suggestionContent) as HTMLElement[])),
-    );
-  }
-  const list = input.closest('[role="combobox"]')?.querySelector('[role="listbox"]');
-  if (list !== null && list !== undefined) {
-    nodes.push(...(Array.from(list.querySelectorAll('[role="option"]')) as HTMLElement[]));
-  }
-  return nodes;
-}
-
-async function pressWaypointSuggestion(anchor: Element, query: string): Promise<boolean> {
-  const input = locationInput(anchor) ?? locationInput(document.body);
-  if (input === undefined) {
-    return false;
-  }
-  const labels = suggestionNodes(input).map(node =>
-    (node.textContent ?? '').replace(/\s+/g, ' ').trim(),
-  );
-  const chosen = pickSuggestion(labels, query);
-  if (chosen === undefined) {
-    return false;
-  }
-  const match = suggestionNodes(input).find(
-    node => (node.textContent ?? '').replace(/\s+/g, ' ').trim() === chosen,
-  );
-  if (match === undefined) {
-    return false;
-  }
-  const onClick = suggestionOnClick(match);
-  if (onClick !== undefined) {
-    onClick({
-      target: match,
-      currentTarget: match,
-      preventDefault() {},
-      stopPropagation() {},
-      persist() {},
-      nativeEvent: { isTrusted: true, button: 0, detail: 1 },
-    });
-    return true;
-  }
-  await clickAtCenter(match);
-  return true;
-}
-
-function suggestionOnClick(start: HTMLElement): ((event: object) => void) | undefined {
-  const record = start as unknown as Record<string, unknown>;
-  const fiberKey = Object.getOwnPropertyNames(record).find(name =>
-    name.startsWith('__reactFiber$'),
-  );
-  let fiber = fiberKey === undefined ? undefined : record[fiberKey];
-  for (let depth = 0; depth < 8 && fiber !== null && typeof fiber === 'object'; depth += 1) {
-    const props = (fiber as { memoizedProps?: unknown; return?: unknown }).memoizedProps;
-    if (
-      props !== null &&
-      typeof props === 'object' &&
-      typeof (props as { onClick?: unknown }).onClick === 'function'
-    ) {
-      return (props as { onClick: (event: object) => void }).onClick;
-    }
-    fiber = (fiber as { return?: unknown }).return;
-  }
-  return undefined;
+  return await selectAddress(container, query);
 }
 
 export async function pickLocation(anchor: Element, query: string): Promise<boolean> {
