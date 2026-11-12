@@ -6,11 +6,13 @@ import { computeLowstrifeLoad, loadAmount, lowstrifePackage, lowstrifeRole } fro
 const sizes: Record<string, { weight: number; volume: number }> = {
   AL: { weight: 2.7, volume: 1 },
   ALE: { weight: 0.1, volume: 0.1 },
+  BSE: { weight: 0.3, volume: 0.5 },
   DW: { weight: 0.1, volume: 0.1 },
   EXO: { weight: 0.1, volume: 0.05 },
   HMS: { weight: 0.05, volume: 0.05 },
   KOM: { weight: 0.1, volume: 0.1 },
   LD: { weight: 0.001, volume: 0.01 },
+  MCG: { weight: 0.1, volume: 0.1 },
   MED: { weight: 0.3, volume: 0.1 },
   PT: { weight: 0.25, volume: 0.2 },
   RAT: { weight: 0.21, volume: 0.1 },
@@ -322,6 +324,62 @@ describe('zero consumable days', () => {
     });
     expect(result.dwFill).toBe(0);
     expect(result.materials.DW).toBeUndefined();
+  });
+});
+
+describe('repair', () => {
+  // 100t and 110m³ of repair materials.
+  const repair = { MCG: 1000, BSE: 20 };
+  const run = (consumableDays: number, repairBill?: Record<string, number>) =>
+    computeLowstrifeLoad({
+      burn: sheetBurn,
+      consumableDays,
+      maxWeight: 2000,
+      maxVolume: 2000,
+      baseSpace: { weight: 3000, volume: 3000 },
+      getMaterial,
+      repair: repairBill,
+    });
+
+  it('adds the repair materials to the load and the fill', () => {
+    // At 10 days the inputs are capped and nothing tops up, so only the repair adds weight.
+    const without = run(10);
+    const result = run(10, repair);
+    expect(result.dwFill).toBe(0);
+    expect(result.materials).toEqual({ ...without.materials, MCG: 1000, BSE: 20 });
+    expect(result.weight).toBeCloseTo(without.weight + 106, 6);
+    expect(result.volume).toBeCloseTo(without.volume + 110, 6);
+    expect(result.fits).toBe(true);
+  });
+
+  it('adds to a material the burn already loads', () => {
+    const result = run(10, { RAT: 3 });
+    expect(result.materials.RAT).toBe(run(10).materials.RAT + 3);
+  });
+
+  it('takes ship room from the inputs', () => {
+    const without = run(60);
+    const result = run(60, repair);
+    expect(result.inputDays!).toBeLessThan(without.inputDays!);
+    expect(result.materials.MCG).toBe(1000);
+    expect(result.materials.BSE).toBe(20);
+    expect(result.weight).toBeLessThanOrEqual(2000);
+    expect(result.fits).toBe(true);
+  });
+
+  it('leaves the production days alone', () => {
+    // The base store still keeps only the consumables; 100t more would drop this to 9.6.
+    const result = run(60, repair);
+    expect(result.productionLimit).toBe('inputs');
+    expect(result.productionDays).toBe(10.1);
+    expect(result.productionDays).toBe(run(60).productionDays);
+  });
+
+  it('leaves the load unchanged without repair materials', () => {
+    // A just-repaired building bills zero of each material.
+    const without = run(60);
+    expect(run(60, {})).toEqual(without);
+    expect(run(60, { MCG: 0, BSE: 0 })).toEqual(without);
   });
 });
 

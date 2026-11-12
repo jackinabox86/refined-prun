@@ -30,6 +30,8 @@ import { stagedLowstrife } from '@src/features/XIT/LOWSTRIFE/staged';
 import { useTileState } from '@src/features/XIT/LOWSTRIFE/tile-state';
 import { getShipsAtCX } from '@src/features/XIT/DISPATCH/utils';
 import PlanetSelector from '@src/components/forms/PlanetSelector.vue';
+import RadioItem from '@src/components/forms/RadioItem.vue';
+import { computeRepairBill } from '@src/features/XIT/ACT/material-groups/repair/bill';
 import { userData } from '@src/store/user-data';
 import type { BurnValues } from '@src/core/burn';
 
@@ -105,6 +107,30 @@ const burn = computed(() => {
 
 const shipName = useTileState('ship');
 const consumableDays = useTileState('consumableDays');
+const repair = useTileState('repair');
+const repairOffset = useTileState('repairOffset');
+
+// Every production building on the base, aged by the time offset. A zero day threshold
+// is what makes the bill cover all of them.
+const fullRepairBill = computed(() => {
+  if (!repair.value || site.value === undefined) {
+    return undefined;
+  }
+  return computeRepairBill(site.value, 0, repairOffset.value ?? 0);
+});
+
+const repairBill = computed(() => {
+  if (fullRepairBill.value === undefined) {
+    return undefined;
+  }
+  const result: Record<string, number> = {};
+  for (const [ticker, amount] of Object.entries(fullRepairBill.value)) {
+    if (!excluded.value.includes(ticker)) {
+      result[ticker] = amount;
+    }
+  }
+  return result;
+});
 
 // Only ships docked at an exchange can pick up the load.
 const shipOptions = computed(() =>
@@ -170,6 +196,7 @@ const load = computed(() => {
     maxWeight: maxWeight.value ?? 0,
     maxVolume: maxVolume.value ?? 0,
     baseSpace: baseSpace.value,
+    repair: repairBill.value,
     getMaterial: ticker => materialsStore.getByTicker(ticker),
   });
 });
@@ -183,18 +210,27 @@ const rows = computed(() => {
   if (!result || !fullBurn.value) {
     return [];
   }
+  const repairTickers = fullRepairBill.value ?? {};
   const tickers = new Set([
     ...Object.keys(result.materials),
-    ...excluded.value.filter(x => fullBurn.value![x] !== undefined),
+    ...excluded.value.filter(
+      x => fullBurn.value![x] !== undefined || repairTickers[x] !== undefined,
+    ),
   ]);
   const materials = [...tickers].map(materialsStore.getByTicker).filter(x => x !== undefined);
   return sortMaterials(materials).map(x => {
     const burnTickers = fullBurn.value!;
     const isExcluded = excluded.value.includes(x.ticker);
+    const burnRole =
+      x.ticker in burnTickers ? roleLabels[lowstrifeRole(burnTickers[x.ticker])] : undefined;
+    let role = burnRole ?? 'fill';
+    if (x.ticker in repairTickers) {
+      role = burnRole !== undefined ? `${burnRole} + repair` : 'repair';
+    }
     return {
       ticker: x.ticker,
       amount: isExcluded ? 0 : result.materials[x.ticker],
-      role: x.ticker in burnTickers ? roleLabels[lowstrifeRole(burnTickers[x.ticker])] : 'fill',
+      role,
       excluded: isExcluded,
     };
   });
@@ -270,15 +306,39 @@ function execute() {
           tooltip="Extra DW added to fill the ship's spare room. Skipped when inputs already load for all the consumable days.">
           <span :class="$style.value">{{ load.dwFill }}</span>
         </Passive>
+      </template>
+    </form>
+    <template v-if="load">
+      <div :class="$style.break" />
+      <form>
+        <Active
+          label="Repair"
+          tooltip="Load repair materials for every production building on the base. They count toward the fill but not the production days.">
+          <RadioItem v-model="repair">repair</RadioItem>
+        </Active>
+        <Active
+          label="Time Offset"
+          tooltip="The number of days in the future this repair will be conducted.">
+          <NumberInput v-model="repairOffset" float :class="$style.number" />
+        </Active>
+      </form>
+      <div :class="$style.break" />
+      <form>
         <Passive
           label="Fill"
-          :tooltip="load.fits ? undefined : 'Consumables alone exceed the limits.'">
+          :tooltip="
+            load.fits
+              ? undefined
+              : repair
+                ? 'Consumables and repair materials alone exceed the limits.'
+                : 'Consumables alone exceed the limits.'
+          ">
           <span :class="load.fits ? $style.value : $style.error">
             {{ fixed02(load.weight) }}t, {{ fixed02(load.volume) }}m³
           </span>
         </Passive>
-      </template>
-    </form>
+      </form>
+    </template>
     <Commands>
       <CopyButton :copy-fn="copyJson" />
       <PrunButton primary :disabled="!canExecute" @click="execute">EXECUTE</PrunButton>

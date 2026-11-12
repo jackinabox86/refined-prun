@@ -20,6 +20,9 @@ export interface LowstrifeInput {
   excludeDwFill?: boolean;
   // Total capacity of the base store. Production days are measured against it.
   baseSpace?: LowstrifeMaterialSize;
+  // Repair materials for the base's buildings. They ride with the load and take ship room,
+  // but the repair uses them up on arrival, so they leave the production days alone.
+  repair?: Record<string, number>;
 }
 
 export interface LowstrifeLoad {
@@ -109,12 +112,22 @@ export function computeLowstrifeLoad(input: LowstrifeInput): LowstrifeLoad {
     mat => lowstrifeRole(mat) !== 'consumable' && mat.dailyAmount < 0,
   );
 
-  const load = (inputDays: number) => {
+  const loadBurn = (inputDays: number) => {
     const materials: Record<string, number> = {};
     for (const ticker of Object.keys(burn)) {
       const amount = materialLoad(burn[ticker], consumableDays, inputDays);
       if (amount > 0) {
         materials[ticker] = amount;
+      }
+    }
+    return materials;
+  };
+
+  const load = (inputDays: number) => {
+    const materials = loadBurn(inputDays);
+    for (const [ticker, amount] of Object.entries(input.repair ?? {})) {
+      if (amount > 0) {
+        materials[ticker] = (materials[ticker] ?? 0) + amount;
       }
     }
     return materials;
@@ -136,7 +149,7 @@ export function computeLowstrifeLoad(input: LowstrifeInput): LowstrifeLoad {
   let productionDays: number | undefined;
   let productionLimit: LowstrifeLoad['productionLimit'];
   if (input.baseSpace) {
-    const consumables = totals(load(0), getMaterial);
+    const consumables = totals(loadBurn(0), getMaterial);
     const room = {
       weight: input.baseSpace.weight - consumables.weight,
       volume: input.baseSpace.volume - consumables.volume,
