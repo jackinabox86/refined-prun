@@ -35,6 +35,21 @@ export class ActionRunner {
     return this.options.log;
   }
 
+  // A package with no actions that only carries extra steps (ROUTEBUY with nothing to
+  // buy, ROUTEDEL) has nothing to generate, so the generator's empty-package error
+  // does not apply to it.
+  private async generateSteps(
+    pkg: UserData.ActionPackageData,
+    config: ActionPackageConfig,
+    preview: boolean,
+    extraSteps: ActionStep[] | undefined,
+  ) {
+    if (pkg.actions.length === 0 && extraSteps !== undefined && extraSteps.length > 0) {
+      return { steps: [] as ActionStep[], fail: false };
+    }
+    return await this.stepGenerator.generateSteps(pkg, config, preview);
+  }
+
   get isRunning() {
     return this.stepMachine?.isRunning ?? false;
   }
@@ -50,7 +65,7 @@ export class ActionRunner {
     }
     // Create a copy to prevent changes during execution.
     const copy = structuredClone(deepToRaw(pkg));
-    const { steps, fail } = await this.stepGenerator.generateSteps(copy, config, true);
+    const { steps, fail } = await this.generateSteps(copy, config, true, extraSteps);
     if (!fail && extraSteps && extraSteps.length > 0) {
       steps.push(...extraSteps);
     }
@@ -81,7 +96,7 @@ export class ActionRunner {
     }
     // Create a copy to prevent changes during execution.
     const copy = structuredClone(deepToRaw(pkg));
-    const { steps, fail } = await this.stepGenerator.generateSteps(copy, config, false);
+    const { steps, fail } = await this.generateSteps(copy, config, false, extraSteps);
     if (fail) {
       this.log.error('Action Package execution failed');
       return;
