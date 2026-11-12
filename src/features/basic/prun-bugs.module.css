@@ -60,10 +60,6 @@
   scrollbar-gutter: auto;
 }
 
-.giftSearchResults {
-  max-height: 190px;
-}
-
 .tooltipBottom {
   &:before {
     margin-top: 6px;
