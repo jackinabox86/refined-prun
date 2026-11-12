@@ -34,3 +34,5 @@ After a commodity is picked, the MaterialSelector input holds the i18n **display
 ### AddressSelector autosuggest gotchas
 
 Suggestions render in `#autosuggest-portal` (outside the tile DOM; only one portal open at a time). On focus, the portal first shows a **default list** (own bases, warehouses, CX stations) for the empty query; the typed query's search results only arrive after the server round-trip. Code that clicks as soon as *any* suggestion exists picks from the stale default list — wait for an entry whose text matches the query. Picking a suggestion canonicalizes the input to the address's natural id: a station becomes its system id (`Moria Station` → `OT-580`), a planet its planet id (`Montem` → `OT-580b`).
+
+The user search (`UserSelector`; observed on GIFT's Recipient field) renders its results in the same portal since the November 2026 game update, as a floating popup with "Search results" and "Recent partners" sections above the tiles. A tile-scoped `applyCssRule` on `C.UserSelector.suggestionsContainer` no longer reaches it.

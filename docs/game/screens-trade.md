@@ -38,3 +38,5 @@ Order form. Fields: Exchange, Material, Price average (+ `set` button copies it 
 ## CXOS — Own Orders
 
 Manage your open exchange orders (optional Pagesize parameter).
+
+Since the November 2026 game update the filters (PRO only) sit in a `CollapsibleSection` titled Filters, which replaced the old Show/Hide toggle. While closed, the section renders no filter content at all: no Order types, Exchanges, Order statuses, or Materials rows, and no ticker input. Code that drives the filters must open the section first by clicking `C.CollapsibleSection.header`; `C.CollapsibleSection.open` marks it open. On production a fresh CXOS buffer opened with Filters open. DELETE FILLED sits in the next `ActionBar.element` after the section.
