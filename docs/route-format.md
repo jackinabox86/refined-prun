@@ -41,7 +41,9 @@ This loops AI1 → ZV-759c → AI1, and supplies ZV-759c from supply days.
 | `wait`           | object           | none               | A pause after the last waypoint: `{"amount": 3, "unit": "days"}`. Units are `seconds`, `minutes`, `hours`, `days`. Amount 0 means no wait. |
 
 Flight times, fuel and reactor settings, and the game route id are not part of the file. They
-belong to one player's ship, so TRANSITS measures them again after an import.
+belong to one player's ship, so TRANSITS measures them again after an import. An imported
+route therefore shows as `unlinked` in ROUTECONFIG until SET ROUTE builds its own game route,
+and deleting it removes only the ROUTECONFIG route.
 
 ## Stops
 
