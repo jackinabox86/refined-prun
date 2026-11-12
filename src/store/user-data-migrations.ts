@@ -23,6 +23,12 @@ const migrations: MigrationEntry[] = [
     },
   ],
   [
+    '12.11.2026 Remove flt-hide-transponder',
+    userData => {
+      removeFeature(userData, 'flt-hide-transponder');
+    },
+  ],
+  [
     '25.10.2026 Add cxosExchange setting',
     userData => {
       userData.settings.cxosExchange ??= 'ALL';
