@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 1.1.10
+
 ### Added
 
 - `XIT LOWSTRIFE`: Repair toggle (off by default) and Time Offset (default 1, like REPAIRACT's). With Repair on, the load includes repair materials for every production building on the base. They take ship room but do not lower Production Days. Repair rows read `repair` in the Days column and can be unchecked like burn materials.
