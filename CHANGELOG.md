@@ -2,6 +2,25 @@
 
 ## Unreleased
 
+### Added
+
+- `XIT LOWSTRIFE`: Repair toggle (off by default) and Time Offset (default 1, like REPAIRACT's). With Repair on, the load includes repair materials for every production building on the base. They take ship room but do not lower Production Days. Repair rows read `repair` in the Days column and can be unchecked like burn materials.
+
+### Fixed
+
+- `XIT ROUTECONFIG`: SET ROUTE searches for each stop, so a planet that is not one of your bases, warehouses, or CX stations is picked in a fraction of a second instead of stalling and asking you to pick it by hand.
+- `flt-ship-condition` / `flt-flight-status-icons`: Follow FLT's new layout after the game removed the Transponder column. The condition label is back next to the ship name, and the status styling is on Status instead of Fuel.
+
+### Removed
+
+- `flt-hide-transponder`: The game removed FLT's Transponder column. On the new layout this feature hid the ship name instead.
+
+## 1.1.9
+
+### Changed
+
+- `XIT ROUTECONFIG`: SET ROUTE works on the live game server now that the game's route update has shipped there. The PREVIEW button that stood in for it is gone.
+
 ## 1.1.8
 
 ### Changed
