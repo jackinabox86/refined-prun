@@ -1370,6 +1370,17 @@ subscribe($$(tile.frame, C.ContextControls.item), item => {
 
 See `src/features/basic/bs-inv-base-store-link.ts`.
 
+### Reordering a native context item
+
+The context bar is a `display: flex` row, but `order` cannot place a native item inside the
+right-aligned group: `header-hide-controls-button` prepends its eye item and a `flex-grow: 1`
+spacer on every tile, and a negative `order` lands the item left of both. Move the DOM node
+instead, before the first item that has a `C.ContextControls.cmd` (the eye item has none). Other
+features prepend their items after the game renders, so a single move does not hold — re-anchor
+on every `onNodeTreeMutation` of the bar, and only when out of place so the move does not loop.
+`RT` (route list) is a native item on both `SHPI` and `FLT`. See
+`src/features/basic/shpi-rt-button-left.ts`.
+
 ### NOTS: shift-click companion, ctrl-click mark read
 
 `alertsStore` is receive-only (`ALERTS_ALERTS` / `ALERTS_ALERT` / `ALERTS_ALERTS_DELETED`). There is no mark-as-read client write in `prun-api`. The persist-like-a-normal-open behavior is a side effect of the game's own notification-row click, so a feature that wants that write must **not** `preventDefault` / `stopPropagation` on the gesture.
