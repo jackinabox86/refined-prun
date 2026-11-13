@@ -1,3 +1,4 @@
+import { transitStopIds } from '@src/features/XIT/ROUTE/route-calc';
 import { userData } from '@src/store/user-data';
 
 export const ROUTE_STOP_MIME = 'application/x-rpr-route-stop';
@@ -45,8 +46,11 @@ export function saveRouteRtId(configRouteId: string | undefined, rtId: string) {
   route.legsAfterRt = undefined;
 }
 
+// Leg i belongs to the waypoint after stop i, so legs flown over other stops than
+// the route's current ones would land on the wrong waypoints. Returns false then.
 export function saveRouteLegs(
   routeId: string | undefined,
+  stops: readonly string[],
   legs: readonly {
     ok: boolean;
     seconds?: number;
@@ -59,7 +63,11 @@ export function saveRouteLegs(
 ) {
   const route = findRoute(routeId);
   if (route === undefined) {
-    return;
+    return true;
+  }
+  const current = transitStopIds(route.stops, route.loop);
+  if (current.length !== stops.length || current.some((id, i) => id !== stops[i])) {
+    return false;
   }
   if (route.rtId !== undefined) {
     route.legsAfterRt = true;
@@ -73,6 +81,7 @@ export function saveRouteLegs(
     fuelUsage: x.fuelUsage,
     reactorUsage: x.reactorUsage,
   }));
+  return true;
 }
 
 export function addImportedRoute(imported: Omit<UserData.ShippingRoute, 'id'>) {

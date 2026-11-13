@@ -72,7 +72,13 @@ export const BTF_LEG = act.addActionStep<BtfLegData>({
             }
           : { ok: false },
       );
-      saveRouteLegs(routeResults.routeId, routeResults.legs);
+      const stored = saveRouteLegs(routeResults.routeId, routeResults.stops, routeResults.legs);
+      if (!stored && !routeResults.unsaved) {
+        routeResults.unsaved = true;
+        log.warning(
+          "These stops are not the route's current stops, so the results are not saved to the route. Run TRANSITS again on the route's stops.",
+        );
+      }
       const text = data.isLast ? `${line} | ${formatRouteTotal(routeResults.legs)}` : line;
       if (ok && recorded !== undefined) {
         const saved = confirmedLoadout.current;

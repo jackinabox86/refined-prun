@@ -13,8 +13,13 @@ export interface RecordedLeg {
 export const routeResults = {
   legs: [] as RecordedLeg[],
   routeId: undefined as string | undefined,
+  // The stops this run flies, one per line of the TRANSITS stop text.
+  stops: [] as string[],
+  // The route's stops changed, so this run's legs were not saved to it.
+  unsaved: false,
   reset() {
     this.legs = [];
+    this.unsaved = false;
   },
 };
 
