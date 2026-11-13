@@ -47,12 +47,7 @@ import {
   shippingRoutes,
 } from '@src/features/XIT/ROUTE/routes';
 import { exportRoute, importRoute } from '@src/features/XIT/ROUTE/route-share';
-import {
-  formatSupply,
-  parseStopSteps,
-  parseSupplyText,
-  splitStepsText,
-} from '@src/features/XIT/ROUTE/route-cargo';
+import { parseStopSteps } from '@src/features/XIT/ROUTE/route-cargo';
 import StopPool from '@src/features/XIT/ROUTE/StopPool.vue';
 import { shipOptions } from '@src/features/XIT/TRANSITS/ship-options';
 import { useTile } from '@src/hooks/use-tile';
@@ -608,49 +603,6 @@ function removeStop(key: string) {
   current.legs = undefined;
 }
 
-// One stop's cargo editor is open at a time. Its fields save on change.
-// The Cargo column that opens it stays hidden until CARGO is switched on.
-const showCargo = ref(false);
-const cargoKey = ref<string | undefined>(undefined);
-const cargoError = ref('');
-
-function onShowCargo(on: boolean | undefined) {
-  showCargo.value = on === true;
-  cargoKey.value = undefined;
-  cargoError.value = '';
-}
-
-function hasCargo(stop: UserData.ShippingRouteStop) {
-  return stop.supply !== undefined || (stop.steps?.length ?? 0) > 0;
-}
-
-function toggleCargo(stop: UserData.ShippingRouteStop) {
-  const key = stopInstanceKey(stop);
-  cargoKey.value = cargoKey.value === key ? undefined : key;
-  cargoError.value = '';
-}
-
-function onSupplyChange(stop: UserData.ShippingRouteStop, event: Event) {
-  const parsed = parseSupplyText((event.target as HTMLInputElement).value);
-  if (!parsed.ok) {
-    cargoError.value = parsed.error;
-    return;
-  }
-  cargoError.value = '';
-  stop.supply = parsed.supply;
-}
-
-function onStepsChange(stop: UserData.ShippingRouteStop, event: Event) {
-  const lines = splitStepsText((event.target as HTMLInputElement).value);
-  const parsed = parseStopSteps(lines);
-  if (!parsed.ok) {
-    cargoError.value = parsed.error;
-    return;
-  }
-  cargoError.value = '';
-  stop.steps = lines.length > 0 ? lines : undefined;
-}
-
 // The wait saves as soon as it is edited, so SET ROUTE never builds an old one.
 function onWaitDraft(event: Event) {
   waitAmount.value = (event.target as HTMLInputElement).value;
@@ -850,9 +802,6 @@ function selectShip(event: Event) {
           @update:model-value="onLoop">
           LOOP
         </RadioItem>
-        <RadioItem :model-value="showCargo" horizontal @update:model-value="onShowCargo">
-          CARGO
-        </RadioItem>
       </template>
     </div>
     <div v-if="shareOpen" :class="$style.share">
@@ -881,7 +830,6 @@ function selectShip(event: Event) {
                 <th>Input</th>
                 <th>Output</th>
                 <th>Fuel</th>
-                <th v-if="showCargo">Cargo</th>
               </tr>
             </thead>
             <tbody v-for="(stop, index) in rowStops()" :key="stopInstanceKey(stop)">
@@ -902,32 +850,6 @@ function selectShip(event: Event) {
                   </span>
                 </td>
                 <td>{{ fuelText(index) }}</td>
-                <td v-if="showCargo">
-                  <PrunButton dark inline @click="toggleCargo(stop)">
-                    {{ hasCargo(stop) ? 'EDIT*' : 'EDIT' }}
-                  </PrunButton>
-                </td>
-              </tr>
-              <tr v-if="showCargo && cargoKey === stopInstanceKey(stop)">
-                <td colspan="7" :class="$style.cargo">
-                  <label v-if="stop.kind === 'base'" :class="$style.cargoRow">
-                    <span>Deliver</span>
-                    <input
-                      :class="$style.cargoInput"
-                      :value="formatSupply(stop.supply)"
-                      placeholder="supply days, or RAT 120, DW 80, or none"
-                      @change="onSupplyChange(stop, $event)" />
-                  </label>
-                  <label :class="$style.cargoRow">
-                    <span>Steps</span>
-                    <input
-                      :class="$style.cargoInput"
-                      :value="(stop.steps ?? []).join(' | ')"
-                      placeholder="unload ALO all all | load DW 0 capacity retain 20"
-                      @change="onStepsChange(stop, $event)" />
-                  </label>
-                  <span v-if="cargoError" :class="$style.shareError">{{ cargoError }}</span>
-                </td>
               </tr>
             </tbody>
           </table>
@@ -1077,34 +999,6 @@ function selectShip(event: Event) {
 
 .load {
   padding: 2px 4px;
-}
-
-.table td.cargo {
-  text-align: left;
-  white-space: normal;
-}
-
-.cargoRow {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 2px 0;
-}
-
-.cargoRow > span {
-  width: 7ch;
-  flex: none;
-}
-
-.cargoInput {
-  flex: 1 1 auto;
-  min-width: 0;
-  color: inherit;
-  font-family: inherit;
-  font-size: inherit;
-  background: transparent;
-  border: none;
-  border-bottom: 1px solid #8d6411;
 }
 
 /* A disabled button swallows hover, so let the tooltip wrapper receive it. */
