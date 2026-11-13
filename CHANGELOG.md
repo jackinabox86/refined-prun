@@ -2,6 +2,27 @@
 
 ## Unreleased
 
+### Added
+
+- `nots-notification-type-label`: Ship route notifications get a `ROUTE` label: route completed, route aborted (not flyable or no license), shipment too large, and shipment not unloaded.
+
+### Changed
+
+- `XIT FLOW`: Buy and sell prices default to VWAP7D on your pricing exchange, instead of the Ask for buy and the Bid for sell. Market-maker materials use the MM buy price. Your per-ticker price overrides still apply.
+
+### Fixed
+
+- `XIT TRANSITS`: Ships without an FTL drive can be timed. A run no longer stops on "FTL fuel was not confirmed", and a Fuel usage or Reactor usage carried over from the last leg starts at the nearest end of the next leg's range instead of failing that leg.
+- `XIT TRANSITS`: An open TRANSITS follows stops added, removed, or reordered in XIT ROUTECONFIG. A run whose stops no longer match the route's stops does not save its flight times and fuel to the route, and the log says to run TRANSITS again.
+- `cxos-hide-delete-filled`: DELETE FILLED is hidden again while the CXOS filters are collapsed.
+- `XIT CXOS`: Opening a ticker's details opens the CXOS Filters section when it is collapsed, so the tile still filters to that ticker and exchange.
+- `flt-shorten-addresses`: Only the Location and Destination columns are shortened. Ship names and the Route column are left as they are.
+- `unclipped-tooltips`: Long tooltips wrap to fit on screen, and tooltips with line breaks keep them.
+
+### Removed
+
+- `contd-upward-search-results`: The game now shows CONTD user search results outside the tile.
+
 ## 1.1.10
 
 ### Added
