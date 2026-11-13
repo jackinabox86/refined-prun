@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 1.1.11
+
 ### Added
 
 - `nots-notification-type-label`: Ship route notifications get a `ROUTE` label: route completed, route aborted (not flyable or no license), shipment too large, and shipment not unloaded.
