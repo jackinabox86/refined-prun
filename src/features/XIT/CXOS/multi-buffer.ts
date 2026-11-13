@@ -103,6 +103,8 @@ async function injectCXOSFilter(tile: HTMLElement, ticker: string, exchange: str
     return;
   }
 
+  await openFilters(tile);
+
   // Stop if the filter sections are not rendered.
   if (!(await toggleFilledFilter(tile)) || !(await filterByExchange(tile, exchange))) {
     return;
@@ -128,18 +130,7 @@ async function injectCXOSFilter(tile: HTMLElement, ticker: string, exchange: str
         !i.classList.contains(C.PanelSelector.input) && (i.type === 'search' || i.type === 'text'),
     );
 
-    if (filterInput) {
-      return true;
-    }
-
-    const showBtn = Array.from(tile.querySelectorAll('span, div, button')).find(el =>
-      includesText(el, L.ComExOrdersPanel.filter.show()),
-    ) as HTMLElement | undefined;
-    if (showBtn) {
-      clickElement(showBtn);
-    }
-
-    return false;
+    return !!filterInput;
   });
 
   if (found && filterInput) {
@@ -148,6 +139,18 @@ async function injectCXOSFilter(tile: HTMLElement, ticker: string, exchange: str
     filterInput.dispatchEvent(
       new KeyboardEvent('keydown', { bubbles: true, key: 'Enter', code: 'Enter', keyCode: 13 }),
     );
+  }
+}
+
+// The filters sit in a collapsible section that renders nothing while closed.
+async function openFilters(tile: HTMLElement) {
+  const section = _$(tile, C.CollapsibleSection.container);
+  if (!section || section.classList.contains(C.CollapsibleSection.open)) {
+    return;
+  }
+  const header = _$(section, C.CollapsibleSection.header);
+  if (header) {
+    await clickElement(header as HTMLElement);
   }
 }
 

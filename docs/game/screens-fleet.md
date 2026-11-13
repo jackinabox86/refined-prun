@@ -2,7 +2,7 @@
 
 ## FLT — Fleet
 
-Table of all ships. Columns: Name, Cargo, Status, Fuel, Route, Location, Destination, ETA, Command. The November 2026 RT update removed the Transponder column and added Route, so Name is the first cell of a row; extension code that indexes FLT cells must use these positions.
+Table of all ships. Columns: Name, Cargo, Status, Fuel, Route, Location, Destination, ETA, Command. The November 2026 RT update removed the Transponder column and added Route, so Name is the first cell of a row; extension code that indexes FLT cells must use these positions. `tagger.ts` tags the Name, Status, Location, Destination, and ETA cells by header text (`ElementTag.FLT_*_CELL`); prefer the tag over an index in new code.
 
 Per-row command buttons:
 - `view` → `SFC <transponder>` (flight control)
