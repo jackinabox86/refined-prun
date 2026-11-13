@@ -1,3 +1,6 @@
+import { FUEL_BUFFER } from '@src/features/XIT/ROUTE/route-supply';
+import { displaytimeBetween, fixed0, percent0 } from '@src/utils/format';
+
 // CX stock held back for the routes. A Route Restock run opens a window of
 // resupply days at each exchange it bought for, and every lap a running route
 // loads there before the window ends is a floor the other ACT buys (BURN,
@@ -6,6 +9,47 @@
 // never top it back up.
 
 const DAY_MS = 24 * 60 * 60 * 1000;
+
+export interface RouteReserveShare {
+  name: string;
+  departures: number;
+  // Average time between departures. Undefined with a single departure.
+  spacingMs: number | undefined;
+  // No ship runs the route, so its departures are planned from now.
+  planned: boolean;
+  held: Record<string, number>;
+}
+
+// Why the routes hold `ticker` here: each route's departures before the
+// restock window ends, how often it departs, and what each departure loads.
+export function describeRouteReserve(
+  ticker: string,
+  shares: readonly RouteReserveShare[],
+  now: number,
+  end: number,
+) {
+  const lines = [
+    `Held for route departures in the next ${displaytimeBetween(now, end)}, ` +
+      'until the restock window ends (Restock days in XIT SET ROUTE, from the last Route Restock).',
+  ];
+  for (const share of shares) {
+    const amount = share.held[ticker] ?? 0;
+    if (!(amount > 0)) {
+      continue;
+    }
+    let departures = `${share.departures} departure${share.departures === 1 ? '' : 's'}`;
+    if (share.spacingMs !== undefined) {
+      departures += `, one every ${displaytimeBetween(0, share.spacingMs)}`;
+    }
+    const each = share.departures > 1 ? ` (~${fixed0(amount / share.departures)} each)` : '';
+    const planned = share.planned ? ' No ship runs it, so it is planned from now.' : '';
+    lines.push(`${share.name}: ${departures}, ${fixed0(amount)} ${ticker}${each}.${planned}`);
+  }
+  if (ticker === 'SF' || ticker === 'FF') {
+    lines.push(`Fuel includes a ${percent0(FUEL_BUFFER - 1)} buffer.`);
+  }
+  return lines.join('\n');
+}
 
 // When the window the last restock opened ends. Undefined when the exchange was
 // never restocked or its window has run out.

@@ -379,7 +379,7 @@ export function originRows(now: number): OriginRow[] {
         waitMs: waitSeconds(route.wait) * 1000,
       });
       row.partial ||= plan.partial;
-      row.draws.push(...plan.draws);
+      row.draws.push(...plan.draws.map(draw => ({ ...draw, route: route.id, planned: true })));
       // Its first draw departs now and carries the full working set.
       if (need !== undefined) {
         row.restock = addMaterials(row.restock, drawTotal(plan.draws, restockUntil));
@@ -408,7 +408,7 @@ export function originRows(now: number): OriginRow[] {
           row.partial = true;
           continue;
         }
-        runDraws.push({ time: load.time, need: stretch });
+        runDraws.push({ time: load.time, need: stretch, route: route.id });
       }
       for (let i = 0; i < run.laps.length; i++) {
         const time = run.laps[i]!;
@@ -416,10 +416,10 @@ export function originRows(now: number): OriginRow[] {
         // it on the route, so its first draw only replaces the lap before.
         const gap = i === 0 ? run.lapMs : time - run.laps[i - 1]!;
         if ((i === 0 && run.loadingNow) || gap === undefined) {
-          runDraws.push({ time, need });
+          runDraws.push({ time, need, route: route.id });
           continue;
         }
-        runDraws.push({ time, need: topUp(gap) });
+        runDraws.push({ time, need: topUp(gap), route: route.id });
       }
       row.draws.push(...runDraws);
       // A one-way route is never restocked for: it has no next lap.

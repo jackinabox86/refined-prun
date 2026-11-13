@@ -18,6 +18,10 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 export interface OriginDraw {
   time: number;
   need: Record<string, number>;
+  // Id of the saved route that loads it.
+  route?: string;
+  // No ship runs the route, so the departure is planned from now.
+  planned?: boolean;
 }
 
 // Whole-lap length in ms. Undefined when any leg has no known time.
@@ -289,6 +293,30 @@ export function drawTotal(draws: readonly OriginDraw[], until: number) {
     total[ticker] = Math.ceil(total[ticker]!);
   }
   return total;
+}
+
+// The drawTotal of each route: how many departures it makes before `until`,
+// the average time between them, and what they take.
+export function drawsByRoute(draws: readonly OriginDraw[], until: number) {
+  const byRoute = new Map<string, OriginDraw[]>();
+  for (const draw of draws) {
+    if (draw.time > until) {
+      continue;
+    }
+    const key = draw.route ?? '';
+    byRoute.set(key, [...(byRoute.get(key) ?? []), draw]);
+  }
+  return [...byRoute].map(([route, list]) => {
+    const times = list.map(x => x.time);
+    const spread = Math.max(...times) - Math.min(...times);
+    return {
+      route,
+      departures: list.length,
+      spacingMs: list.length > 1 ? spread / (list.length - 1) : undefined,
+      planned: list.some(x => x.planned === true),
+      total: drawTotal(list, until),
+    };
+  });
 }
 
 // Fuel burn varies more than base use, so the stockpile plans 10% more of it.
