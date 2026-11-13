@@ -2,10 +2,13 @@ import { describe, expect, it } from 'vitest';
 import {
   blueprintTestFlightBlock,
   matchingFieldLabel,
+  settingTarget,
   sliderNudgeLimit,
   sliderTarget,
+  sliderValue,
   tankForLeg,
   tankKind,
+  tanksToCheck,
 } from '@src/features/XIT/TRANSITS/tank-level';
 
 describe('tankForLeg', () => {
@@ -30,6 +33,55 @@ describe('sliderTarget', () => {
   it('decrements only a fuel tank', () => {
     expect(sliderTarget(stl, [175], [])).toBe(1325);
     expect(sliderTarget(inventory, [175], [40])).toBe(200);
+  });
+});
+
+describe('sliderValue', () => {
+  it('reads a handle value', () => {
+    expect(sliderValue('0.282')).toBe(0.282);
+    expect(sliderValue('0')).toBe(0);
+  });
+
+  it('reads an empty or absent value as no value, not 0', () => {
+    expect(sliderValue('')).toBeUndefined();
+    expect(sliderValue('  ')).toBeUndefined();
+    expect(sliderValue(null)).toBeUndefined();
+    expect(sliderValue('--')).toBeUndefined();
+  });
+});
+
+describe('settingTarget', () => {
+  it('keeps a setting this leg can take', () => {
+    expect(settingTarget(0.5, 0.282, 1)).toBe(0.5);
+    expect(settingTarget(0.05, 0.01, 1)).toBe(0.05);
+  });
+
+  it('starts a setting below this leg minimum at the minimum', () => {
+    expect(settingTarget(0.05, 0.282, 1)).toBe(0.282);
+    expect(settingTarget(0, 0.01, 1)).toBe(0.01);
+  });
+
+  it('starts a setting above this leg maximum at the maximum', () => {
+    expect(settingTarget(0.9, 0.303, 0.678)).toBe(0.678);
+  });
+});
+
+describe('tanksToCheck', () => {
+  const stl = { label: 'STL Fuel', value: 1500, tank: 'stl' as const };
+  const ftl = { label: 'FTL fuel', value: 300, tank: 'ftl' as const };
+  const fuelUsage = { label: 'Fuel usage', value: 0.05, tank: undefined };
+
+  it('checks both tanks on a ship with an FTL tank', () => {
+    expect(tanksToCheck([stl, ftl, fuelUsage], ['stl', 'ftl'])).toEqual(['stl', 'ftl']);
+  });
+
+  it('does not require an FTL tank the flight does not show', () => {
+    expect(tanksToCheck([stl, fuelUsage], ['stl'])).toEqual(['stl']);
+  });
+
+  it('still checks an FTL tank that was confirmed or is on the flight', () => {
+    expect(tanksToCheck([stl, ftl], ['stl'])).toEqual(['stl', 'ftl']);
+    expect(tanksToCheck([stl], ['stl', 'ftl'])).toEqual(['stl', 'ftl']);
   });
 });
 

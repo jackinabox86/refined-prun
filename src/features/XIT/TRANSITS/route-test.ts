@@ -3,6 +3,7 @@ import Edit from '@src/features/XIT/TRANSITS/Edit.vue';
 import { BTF_LEG } from '@src/features/XIT/TRANSITS/BTF_LEG';
 import { planRouteLegs, stopLines } from '@src/features/XIT/TRANSITS/plan-route';
 import { resolveRouteStop } from '@src/features/XIT/TRANSITS/resolve-route-stop';
+import { routeResults } from '@src/features/XIT/TRANSITS/route-results';
 import { fuelCapacities } from '@src/features/XIT/ROUTE/owned-ship';
 import { ensureBlueprintsFetched } from '@src/features/XIT/TRANSITS/load-blueprints';
 import { matchShipBlueprint } from '@src/features/XIT/TRANSITS/ship-blueprint';
@@ -61,6 +62,7 @@ act.addAction({
     }
     // A later visit to the first stop refuels, so the leg leaving it starts full.
     const lines = stopLines(data.routeStops ?? '');
+    routeResults.stops = lines;
     const origin = lines[0]?.toUpperCase();
     const caps = fuelCapacities(ship);
     const tanks = caps.stl > 0 ? caps : undefined;

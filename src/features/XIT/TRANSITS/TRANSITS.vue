@@ -88,6 +88,19 @@ watch(
   },
 );
 
+// ROUTECONFIG can reorder, add or remove stops while this buffer stays open.
+watch(
+  () => {
+    const route = findRoute(parameters[0]);
+    return route === undefined ? undefined : transitStopIds(route.stops, route.loop).join('\n');
+  },
+  stops => {
+    if (stops !== undefined) {
+      routeStops.value = stops;
+    }
+  },
+);
+
 const lines = computed(() => stopLines(routeStops.value));
 const canTest = computed(() => shipRegistration.value.length > 0 && lines.value.length >= 2);
 

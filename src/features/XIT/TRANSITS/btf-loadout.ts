@@ -4,9 +4,13 @@ import { waitFor } from '@src/utils/wait-for';
 import {
   LoadoutSlider,
   matchingFieldLabel,
+  settingTarget,
   sliderNudgeLimit,
   sliderTarget,
+  sliderValue,
   tankKind,
+  TankKind,
+  tanksToCheck,
 } from '@src/features/XIT/TRANSITS/tank-level';
 
 export interface ConfirmedLoadout {
@@ -35,16 +39,22 @@ export function captureLoadout(
   }
   const sliders: LoadoutSlider[] = [];
   for (const slider of _$$(anchor, 'rc-slider')) {
-    const handle = sliderHandle(slider);
-    const now = handle === undefined ? undefined : readNow(handle);
-    if (handle === undefined || now === undefined) {
-      return { ok: false, error: 'a loadout slider has no value' };
-    }
     const label = matchingFieldLabel(ancestorTexts(slider), labels);
     if (label === undefined) {
       return { ok: false, error: 'a loadout slider has no label' };
     }
-    sliders.push({ label, value: now, tank: tankKind(label, stlLabel, ftlLabel) });
+    const tank = tankKind(label, stlLabel, ftlLabel);
+    const handle = sliderHandle(slider);
+    const now = handle === undefined ? undefined : readNow(handle);
+    if (now === undefined) {
+      // A setting with no value, such as Fuel usage on a ship without an FTL drive,
+      // is not carried to the next leg. A tank must have a level.
+      if (tank !== undefined) {
+        return { ok: false, error: `${label} has no value` };
+      }
+      continue;
+    }
+    sliders.push({ label, value: now, tank });
   }
   if (!sliders.some(x => x.tank === 'stl')) {
     return { ok: false, error: 'STL fuel slider is not on the test flight' };
@@ -149,11 +159,12 @@ export async function applyConfirmedLoadout(anchor: Element, loadout: ConfirmedL
     if (slider === undefined) {
       continue;
     }
-    const target = sliderTarget(
-      { ...saved, tank: tankKind(saved.label, stlLabel, ftlLabel) },
-      loadout.priorStl,
-      loadout.priorFtl,
-    );
+    const tank = tankKind(saved.label, stlLabel, ftlLabel);
+    const range = sliderRange(slider);
+    const target =
+      tank === undefined && range !== undefined
+        ? settingTarget(saved.value, range.min, range.max)
+        : sliderTarget({ ...saved, tank }, loadout.priorStl, loadout.priorFtl);
     const set = await setSliderTo(slider, target);
     if (!set.ok) {
       const at = set.now === undefined ? 'no value' : String(set.now);
@@ -246,6 +257,7 @@ export function tankLevelsAtTarget(anchor: Element, loadout: ConfirmedLoadout) {
   const stlLabel = L.BlueprintTestFlight.label.stlFuel() ?? '';
   const ftlLabel = L.BlueprintTestFlight.label.ftlFuel() ?? '';
   const live = new Map<string, number | undefined>();
+  const onFlight: TankKind[] = [];
   for (const slider of _$$(anchor, 'rc-slider')) {
     const label = matchingFieldLabel(ancestorTexts(slider), labels);
     if (label === undefined) {
@@ -253,8 +265,12 @@ export function tankLevelsAtTarget(anchor: Element, loadout: ConfirmedLoadout) {
     }
     const handle = sliderHandle(slider);
     live.set(label, handle === undefined ? undefined : readNow(handle));
+    const tank = tankKind(label, stlLabel, ftlLabel);
+    if (tank !== undefined) {
+      onFlight.push(tank);
+    }
   }
-  for (const kind of ['stl', 'ftl'] as const) {
+  for (const kind of tanksToCheck(loadout.sliders, onFlight)) {
     const saved = loadout.sliders.find(
       slider => tankKind(slider.label, stlLabel, ftlLabel) === kind,
     );
@@ -361,11 +377,17 @@ function sliderHandle(slider: Element) {
 }
 
 function readNow(handle: HTMLElement) {
-  const value = Number(handle.getAttribute('aria-valuenow'));
-  if (!Number.isFinite(value)) {
+  return sliderValue(handle.getAttribute('aria-valuenow'));
+}
+
+function sliderRange(slider: Element) {
+  const handle = sliderHandle(slider);
+  const min = sliderValue(handle?.getAttribute('aria-valuemin') ?? null);
+  const max = sliderValue(handle?.getAttribute('aria-valuemax') ?? null);
+  if (min === undefined || max === undefined) {
     return undefined;
   }
-  return value;
+  return { min, max };
 }
 
 function sliderOnChange(handle: HTMLElement) {

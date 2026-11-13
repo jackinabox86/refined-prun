@@ -346,6 +346,91 @@ describe('buildRouteSpec', () => {
     }
   });
 
+  describe('five trips with distinct fuel usage', () => {
+    const fiveStops: RouteBuildInput['stops'] = [
+      { kind: 'cx', id: 'ANT' },
+      { kind: 'base', id: 'ZV-307d' },
+      { kind: 'base', id: 'ZV-759c' },
+      { kind: 'cx', id: 'BEN' },
+      { kind: 'base', id: 'LS-300c' },
+    ];
+    const fuel = [0.11, 0.22, 0.33, 0.44, 0.55];
+    const legs = fuel.map(fuelUsage => ({ fuelUsage }));
+    const noRefuel = [false, false, false, false, false, false];
+
+    it('puts each trip on the waypoint it flies to, the return trip on the first', () => {
+      const built = buildRouteSpec({
+        ...input(true),
+        stops: fiveStops,
+        legs,
+        refuelStl: noRefuel,
+        refuelFtl: noRefuel,
+      });
+      expect(built.ok).toBe(true);
+      if (!built.ok) {
+        return;
+      }
+      expect(built.spec.stops.map(stop => [stop.query, stop.fuelUsage])).toEqual([
+        ['ANT', 0.55],
+        ['ZV-307d', 0.11],
+        ['ZV-759c', 0.22],
+        ['BEN', 0.33],
+        ['LS-300c', 0.44],
+      ]);
+    });
+
+    it('keeps trip order on a one-way route that flies home', () => {
+      const built = buildRouteSpec({
+        ...input(false),
+        stops: [...fiveStops, { kind: 'cx', id: 'ANT' }],
+        legs,
+        refuelStl: noRefuel,
+        refuelFtl: noRefuel,
+      });
+      expect(built.ok).toBe(true);
+      if (!built.ok) {
+        return;
+      }
+      expect(built.spec.stops.map(stop => stop.fuelUsage)).toEqual([
+        undefined,
+        0.11,
+        0.22,
+        0.33,
+        0.44,
+        0.55,
+      ]);
+    });
+
+    it('leaves a trip with no recorded fuel usage unset', () => {
+      const gaps = [{ fuelUsage: 0.11 }, {}, { fuelUsage: 0.33 }, {}, { fuelUsage: 0.55 }];
+      const built = buildRouteSpec({
+        ...input(true),
+        stops: fiveStops,
+        legs: gaps,
+        refuelStl: noRefuel,
+        refuelFtl: noRefuel,
+      });
+      expect(built.ok).toBe(true);
+      if (!built.ok) {
+        return;
+      }
+      expect(built.spec.stops.map(stop => stop.fuelUsage)).toEqual([
+        0.55,
+        0.11,
+        undefined,
+        0.33,
+        undefined,
+      ]);
+      expect(built.spec.stops.map(stop => 'fuelUsage' in stop)).toEqual([
+        true,
+        true,
+        false,
+        true,
+        false,
+      ]);
+    });
+  });
+
   it('rejects a route with one stop', () => {
     const built = buildRouteSpec({
       ...input(false),
