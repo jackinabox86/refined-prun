@@ -18,6 +18,8 @@ export interface MaterialBurn {
   dailyAmount: number;
   remainingAllocation: number;
   inventory: number;
+  // Part of inventory that is still in transit under a contract (XIT BURN only).
+  contractInventory?: number;
   daysLeft: number;
   type: 'input' | 'output' | 'workforce';
 }
@@ -244,23 +246,27 @@ export function calculatePlanetBurn(
   }
 
   for (const ticker in burnValues) {
-    const mat = burnValues[ticker];
-    mat.dailyAmount = mat.output;
-    mat.type = 'output';
-    mat.dailyAmount -= mat.workforce;
-    if (mat.workforce > 0 && mat.dailyAmount <= 0) {
-      mat.type = 'workforce';
-    }
-    mat.dailyAmount -= mat.input;
-    if (mat.input > 0 && mat.dailyAmount <= 0) {
-      mat.type = 'input';
-    }
-    mat.dailyAmount = clampNearZeroDailyAmount(mat.dailyAmount);
-    const inv = mat.remainingAllocation + mat.inventory;
-    mat.daysLeft = mat.dailyAmount >= 0 ? Number.POSITIVE_INFINITY : inv / -mat.dailyAmount;
+    finalizeMaterialBurn(burnValues[ticker]);
   }
 
   return burnValues;
+}
+
+// Derives dailyAmount, type and daysLeft from the rate and inventory fields.
+export function finalizeMaterialBurn(mat: MaterialBurn) {
+  mat.dailyAmount = mat.output;
+  mat.type = 'output';
+  mat.dailyAmount -= mat.workforce;
+  if (mat.workforce > 0 && mat.dailyAmount <= 0) {
+    mat.type = 'workforce';
+  }
+  mat.dailyAmount -= mat.input;
+  if (mat.input > 0 && mat.dailyAmount <= 0) {
+    mat.type = 'input';
+  }
+  mat.dailyAmount = clampNearZeroDailyAmount(mat.dailyAmount);
+  const inv = mat.remainingAllocation + mat.inventory;
+  mat.daysLeft = mat.dailyAmount >= 0 ? Number.POSITIVE_INFINITY : inv / -mat.dailyAmount;
 }
 
 // Days left of the most urgent net-consumed material. 1000 is the sentinel
