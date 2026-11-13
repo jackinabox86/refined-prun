@@ -51,6 +51,33 @@ export function sliderNudgeLimit(span: number, width: number) {
   return Math.ceil(span / width) + 2;
 }
 
+// A handle's aria-valuenow. Number('') and Number(null) are both 0, so an empty or
+// absent value would read as a setting of 0. It is no value instead.
+export function sliderValue(raw: string | null) {
+  if (raw === null || raw.trim().length === 0) {
+    return undefined;
+  }
+  const value = Number(raw);
+  return Number.isFinite(value) ? value : undefined;
+}
+
+// A setting carried from the last leg can sit outside this leg's range: Fuel usage
+// starts at 0.282 on one route and at 0.01 on another. Every leg waits for the
+// player's choice, so the setting starts at the nearest end instead of failing the leg.
+export function settingTarget(value: number, min: number, max: number) {
+  return Math.min(max, Math.max(min, value));
+}
+
+// STL is always checked. A blueprint without an FTL tank shows no FTL fuel slider,
+// so FTL is checked only when the player confirmed one or the flight shows one.
+export function tanksToCheck(confirmed: readonly LoadoutSlider[], onFlight: readonly TankKind[]) {
+  const kinds: TankKind[] = ['stl'];
+  if (confirmed.some(x => x.tank === 'ftl') || onFlight.includes('ftl')) {
+    kinds.push('ftl');
+  }
+  return kinds;
+}
+
 export function sliderTarget(slider: LoadoutSlider, priorStl: number[], priorFtl: number[]) {
   if (slider.tank === 'stl') {
     return tankForLeg(slider.value, priorStl);
