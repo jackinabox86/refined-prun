@@ -609,8 +609,16 @@ function removeStop(key: string) {
 }
 
 // One stop's cargo editor is open at a time. Its fields save on change.
+// The Cargo column that opens it stays hidden until CARGO is switched on.
+const showCargo = ref(false);
 const cargoKey = ref<string | undefined>(undefined);
 const cargoError = ref('');
+
+function onShowCargo(on: boolean | undefined) {
+  showCargo.value = on === true;
+  cargoKey.value = undefined;
+  cargoError.value = '';
+}
 
 function hasCargo(stop: UserData.ShippingRouteStop) {
   return stop.supply !== undefined || (stop.steps?.length ?? 0) > 0;
@@ -842,6 +850,9 @@ function selectShip(event: Event) {
           @update:model-value="onLoop">
           LOOP
         </RadioItem>
+        <RadioItem :model-value="showCargo" horizontal @update:model-value="onShowCargo">
+          CARGO
+        </RadioItem>
       </template>
     </div>
     <div v-if="shareOpen" :class="$style.share">
@@ -870,7 +881,7 @@ function selectShip(event: Event) {
                 <th>Input</th>
                 <th>Output</th>
                 <th>Fuel</th>
-                <th>Cargo</th>
+                <th v-if="showCargo">Cargo</th>
               </tr>
             </thead>
             <tbody v-for="(stop, index) in rowStops()" :key="stopInstanceKey(stop)">
@@ -891,13 +902,13 @@ function selectShip(event: Event) {
                   </span>
                 </td>
                 <td>{{ fuelText(index) }}</td>
-                <td>
+                <td v-if="showCargo">
                   <PrunButton dark inline @click="toggleCargo(stop)">
                     {{ hasCargo(stop) ? 'EDIT*' : 'EDIT' }}
                   </PrunButton>
                 </td>
               </tr>
-              <tr v-if="cargoKey === stopInstanceKey(stop)">
+              <tr v-if="showCargo && cargoKey === stopInstanceKey(stop)">
                 <td colspan="7" :class="$style.cargo">
                   <label v-if="stop.kind === 'base'" :class="$style.cargoRow">
                     <span>Deliver</span>
