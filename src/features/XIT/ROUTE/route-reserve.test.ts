@@ -1,12 +1,42 @@
 import { describe, expect, it } from 'vitest';
 import {
+  describeRouteReserve,
   heldStock,
   restockWindowEnd,
   routeStockDraws,
   withoutReserve,
 } from '@src/features/XIT/ROUTE/route-reserve';
 
-const DAY = 24 * 60 * 60 * 1000;
+const HOUR = 60 * 60 * 1000;
+const DAY = 24 * HOUR;
+
+describe('describeRouteReserve', () => {
+  it('names each route holding the ticker, how often it departs, and its load per departure', () => {
+    const text = describeRouteReserve(
+      'SF',
+      [
+        {
+          name: 'Route 4',
+          departures: 7,
+          spacingMs: 51 * HOUR,
+          planned: false,
+          held: { SF: 2310, RAT: 50 },
+        },
+        { name: 'Route 2', departures: 1, spacingMs: undefined, planned: true, held: { SF: 330 } },
+        { name: 'Route 9', departures: 3, spacingMs: DAY, planned: false, held: { RAT: 9 } },
+      ],
+      0,
+      13 * DAY + 4 * HOUR,
+    );
+    expect(text.split('\n')).toEqual([
+      'Held for route departures in the next 13d 4h, until the restock window ends ' +
+        '(Restock days in XIT SET ROUTE, from the last Route Restock).',
+      'Route 4: 7 departures, one every 2d 3h, 2,310 SF (~330 each).',
+      'Route 2: 1 departure, 330 SF. No ship runs it, so it is planned from now.',
+      'Fuel includes a 10% buffer.',
+    ]);
+  });
+});
 
 describe('withoutReserve', () => {
   it('leaves only stock above the route floor for other buys', () => {

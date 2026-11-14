@@ -43,6 +43,13 @@ This loops AI1 → ZV-759c → AI1, and supplies ZV-759c from supply days.
 Flight times, fuel and reactor settings, and the game route id are not part of the file. They
 belong to one player's ship, so TRANSITS measures them again after an import.
 
+A loop departs again as soon as it is back at the origin, plus its waits. Supply days size each
+delivery, not how often the ship leaves. Restock and the CX route reserve count every departure
+within the Restock days set in XIT SET ROUTE, at 85% of the TRANSITS flight times, and each
+departure refills the fuel one lap burns plus 10%. A loop with short flights and no `wait`
+therefore holds far more fuel than its supply days suggest. A saved loop no ship runs is counted
+as departing now. Hover the reserved count in CXPO to see each route's share.
+
 ## Stops
 
 ```json

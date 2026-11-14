@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { LEG_ESTIMATE_FACTOR, type RouteEta } from '@src/features/XIT/ROUTE/route-eta';
 import {
   countdownDays,
+  drawsByRoute,
   drawTotal,
   drawsCovered,
   firstShortDraw,
@@ -337,6 +338,61 @@ describe('restock', () => {
     const stock = drawTotal(draws, NOW + 5 * DAY_MS);
     expect(countdownDays(NOW, firstShortDraw(draws, stock))).toBeGreaterThanOrEqual(5);
     expect(drawsCovered(draws, stock)).toBe(3);
+  });
+});
+
+describe('route reserve departures', () => {
+  // Each lap burns 300 SF, which the stockpile holds with the fuel buffer.
+  const need = withFuelBuffer({ SF: 300 });
+  const until = NOW + 14 * DAY_MS;
+
+  function reserve(legSeconds: number[]) {
+    const plan = unassignedCxLoads({
+      now: NOW,
+      until,
+      looping: true,
+      cx: true,
+      need,
+      topUp: () => need,
+      legSeconds,
+    });
+    return drawsByRoute(
+      plan.draws.map(draw => ({ ...draw, route: 'loop' })),
+      until,
+    )[0]!;
+  }
+
+  it('holds a 2.5-day loop for the laps it flies in 14 days, one lap of fuel each', () => {
+    // A 2.125-day lap at the 85% leg factor: departures at day 0, 2.1, ... 12.75.
+    const share = reserve([1.25 * 86400, 1.25 * 86400]);
+    expect(share.departures).toBe(7);
+    expect(share.spacingMs).toBeCloseTo(2.5 * LEG_ESTIMATE_FACTOR * DAY_MS);
+    expect(share.total).toEqual({ SF: 7 * 330 });
+  });
+
+  it('holds a very short loop once per lap it can fly, not more often', () => {
+    // A 1.7-hour lap: 198 departures fit in 14 days.
+    const share = reserve([3600, 3600]);
+    expect(share.departures).toBe(198);
+    expect(share.spacingMs).toBeCloseTo(2 * HOUR_MS * LEG_ESTIMATE_FACTOR);
+    expect(share.total).toEqual({ SF: 198 * 330 });
+  });
+});
+
+describe('drawsByRoute', () => {
+  it('splits the reserve by route without changing what it adds up to', () => {
+    const draws: OriginDraw[] = [
+      { time: NOW, need: { SF: 100, RAT: 5 }, route: 'a' },
+      { time: NOW + DAY_MS, need: { SF: 100 }, route: 'a' },
+      { time: NOW + DAY_MS, need: { SF: 40 }, route: 'b', planned: true },
+      { time: NOW + 20 * DAY_MS, need: { SF: 999 }, route: 'b', planned: true },
+    ];
+    const until = NOW + 14 * DAY_MS;
+    expect(drawsByRoute(draws, until)).toEqual([
+      { route: 'a', departures: 2, spacingMs: DAY_MS, planned: false, total: { SF: 200, RAT: 5 } },
+      { route: 'b', departures: 1, spacingMs: undefined, planned: true, total: { SF: 40 } },
+    ]);
+    expect(drawTotal(draws, until)).toEqual({ SF: 240, RAT: 5 });
   });
 });
 
