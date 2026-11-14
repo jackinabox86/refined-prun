@@ -23,7 +23,6 @@ import {
   loadingAtOrigin,
   nextLapStart,
   unassignedCxLoads,
-  withFuelBuffer,
   type OriginDraw,
 } from '@src/features/XIT/ROUTE/route-supply';
 import {
@@ -173,8 +172,8 @@ function planLap(route: UserData.ShippingRoute, supplyDays?: number) {
 }
 
 // What a later origin visit (ordinal >= 1) takes out of the origin stockpile:
-// the load for the stretch after it, plus refilling the tanks it arrives with,
-// with the fuel buffer. originLapNeed counts the same at the lap's first departure.
+// the load for the stretch after it, plus refilling the tanks it arrives with.
+// originLapNeed counts the same at the lap's first departure.
 function originStretchNeed(route: UserData.ShippingRoute, visit: number, supplyDays?: number) {
   const lap = planLap(route, supplyDays);
   const segment = lap?.segments[visit];
@@ -193,15 +192,7 @@ function originStretchNeed(route: UserData.ShippingRoute, visit: number, supplyD
       need.FF = (need.FF ?? 0) + ftl;
     }
   }
-  return withFuelBuffer(need);
-}
-
-// What one lap draws from the origin stockpile: originLapNeed with the fuel
-// buffer. The countdown, the CX reserve and restock all plan with this, so the
-// buffer is bought and held, while the RT itself still loads the exact amount.
-function stockpileLapNeed(route: UserData.ShippingRoute, supplyDays?: number) {
-  const need = originLapNeed(route, supplyDays);
-  return need === undefined ? undefined : withFuelBuffer(need);
+  return need;
 }
 
 // The supply days one working set carries.
@@ -309,7 +300,7 @@ function topUpNeeds(route: UserData.ShippingRoute, need: Record<string, number>)
   return (gapMs: number) => {
     let topUp = cache.get(gapMs);
     if (topUp === undefined) {
-      topUp = stockpileLapNeed(route, gapMs / daysToMs(1)) ?? need;
+      topUp = originLapNeed(route, gapMs / daysToMs(1)) ?? need;
       cache.set(gapMs, topUp);
     }
     return topUp;
@@ -367,7 +358,7 @@ export function originRows(now: number): OriginRow[] {
     }
     const mine = running.filter(x => x.route === route);
     if (mine.length === 0) {
-      const need = stop.kind === 'cx' ? stockpileLapNeed(route) : undefined;
+      const need = stop.kind === 'cx' ? originLapNeed(route) : undefined;
       const plan = unassignedCxLoads({
         now,
         until,
@@ -389,7 +380,7 @@ export function originRows(now: number): OriginRow[] {
     if (looping) {
       row.running += mine.length;
     }
-    const need = stockpileLapNeed(route);
+    const need = originLapNeed(route);
     if (need === undefined) {
       row.partial = true;
       continue;

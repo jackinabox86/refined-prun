@@ -33,7 +33,6 @@ describe('describeRouteReserve', () => {
         '(Restock days in XIT SET ROUTE, from the last Route Restock).',
       'Route 4: 7 departures, one every 2d 3h, 2,310 SF (~330 each).',
       'Route 2: 1 departure, 330 SF. No ship runs it, so it is planned from now.',
-      'Fuel includes a 10% buffer.',
     ]);
   });
 });

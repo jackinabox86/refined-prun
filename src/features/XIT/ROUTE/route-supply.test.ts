@@ -13,7 +13,6 @@ import {
   nextLapStart,
   plannedDepartureTimes,
   unassignedCxLoads,
-  withFuelBuffer,
   type OriginDraw,
 } from '@src/features/XIT/ROUTE/route-supply';
 
@@ -342,8 +341,8 @@ describe('restock', () => {
 });
 
 describe('route reserve departures', () => {
-  // Each lap burns 300 SF, which the stockpile holds with the fuel buffer.
-  const need = withFuelBuffer({ SF: 300 });
+  // Each lap burns 300 SF.
+  const need = { SF: 300 };
   const until = NOW + 14 * DAY_MS;
 
   function reserve(legSeconds: number[]) {
@@ -367,7 +366,7 @@ describe('route reserve departures', () => {
     const share = reserve([1.25 * 86400, 1.25 * 86400]);
     expect(share.departures).toBe(7);
     expect(share.spacingMs).toBeCloseTo(2.5 * LEG_ESTIMATE_FACTOR * DAY_MS);
-    expect(share.total).toEqual({ SF: 7 * 330 });
+    expect(share.total).toEqual({ SF: 7 * 300 });
   });
 
   it('holds a very short loop once per lap it can fly, not more often', () => {
@@ -375,7 +374,7 @@ describe('route reserve departures', () => {
     const share = reserve([3600, 3600]);
     expect(share.departures).toBe(198);
     expect(share.spacingMs).toBeCloseTo(2 * HOUR_MS * LEG_ESTIMATE_FACTOR);
-    expect(share.total).toEqual({ SF: 198 * 330 });
+    expect(share.total).toEqual({ SF: 198 * 300 });
   });
 });
 
@@ -393,16 +392,6 @@ describe('drawsByRoute', () => {
       { route: 'b', departures: 1, spacingMs: undefined, planned: true, total: { SF: 40 } },
     ]);
     expect(drawTotal(draws, until)).toEqual({ SF: 240, RAT: 5 });
-  });
-});
-
-describe('withFuelBuffer', () => {
-  it('adds 10% to SF and FF, rounded up, and leaves other tickers alone', () => {
-    expect(withFuelBuffer({ SF: 95, FF: 40, RAT: 12 })).toEqual({ SF: 105, FF: 44, RAT: 12 });
-  });
-
-  it('adds no fuel the lap does not need', () => {
-    expect(withFuelBuffer({ RAT: 12 })).toEqual({ RAT: 12 });
   });
 });
 

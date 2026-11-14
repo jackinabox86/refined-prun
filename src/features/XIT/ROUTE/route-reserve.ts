@@ -1,5 +1,4 @@
-import { FUEL_BUFFER } from '@src/features/XIT/ROUTE/route-supply';
-import { displaytimeBetween, fixed0, percent0 } from '@src/utils/format';
+import { displaytimeBetween, fixed0 } from '@src/utils/format';
 
 // CX stock held back for the routes. A Route Restock run opens a window of
 // resupply days at each exchange it bought for, and every lap a running route
@@ -44,9 +43,6 @@ export function describeRouteReserve(
     const each = share.departures > 1 ? ` (~${fixed0(amount / share.departures)} each)` : '';
     const planned = share.planned ? ' No ship runs it, so it is planned from now.' : '';
     lines.push(`${share.name}: ${departures}, ${fixed0(amount)} ${ticker}${each}.${planned}`);
-  }
-  if (ticker === 'SF' || ticker === 'FF') {
-    lines.push(`Fuel includes a ${percent0(FUEL_BUFFER - 1)} buffer.`);
   }
   return lines.join('\n');
 }
