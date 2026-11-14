@@ -47,6 +47,8 @@ import {
   shippingRoutes,
 } from '@src/features/XIT/ROUTE/routes';
 import { exportRoute, importRoute } from '@src/features/XIT/ROUTE/route-share';
+import { linkedRtId } from '@src/features/XIT/ROUTE/route-delete';
+import { requestRouteDelete } from '@src/features/XIT/ROUTE/route-delete-run';
 import {
   formatSupply,
   parseStopSteps,
@@ -84,6 +86,14 @@ const selectedId = ref(parameters[0] ?? shippingRoutes()[0]?.id);
 const draftName = ref('');
 const route = computed(() => findRoute(selectedId.value));
 const routes = computed(() => shippingRoutes());
+const rtLink = computed(() => (route.value === undefined ? undefined : linkedRtId(route.value)));
+
+// A delete can finish later in XIT ROUTEDEL, so follow the list rather than the click.
+watch(route, current => {
+  if (current === undefined && routes.value.length > 0) {
+    selectedId.value = routes.value[0].id;
+  }
+});
 
 watch(
   () => route.value?.id,
@@ -408,6 +418,14 @@ function fuelText(index: number) {
 function onCreate() {
   const created = createRoute();
   selectedId.value = created.id;
+}
+
+function onDelete(event: Event) {
+  const current = route.value;
+  if (current === undefined) {
+    return;
+  }
+  requestRouteDelete(event, current.id);
 }
 
 // Share box: EXPORT fills it with the route's JSON, IMPORT reads it into a new route.
@@ -810,6 +828,22 @@ function selectShip(event: Event) {
         <input v-model="draftName" :class="$style.name" />
         <PrunButton dark @click="onRename">RENAME</PrunButton>
         <PrunButton dark @click="onExport">EXPORT</PrunButton>
+        <PrunButton dark @click="onDelete">DELETE</PrunButton>
+        <span
+          v-if="rtLink"
+          :class="$style.rtLink"
+          data-tooltip="The game route SET ROUTE built. DELETE removes both."
+          data-tooltip-position="bottom"
+          @click="showBuffer(`RT ${rtLink}`)">
+          {{ rtLink }}
+        </span>
+        <span
+          v-else
+          :class="$style.unlinked"
+          data-tooltip="No game route is linked. SET ROUTE builds one and links it. DELETE removes only this route."
+          data-tooltip-position="bottom">
+          unlinked
+        </span>
         <div :class="$style.separator" />
         <span :class="$style.daysLabel">Ship</span>
         <div :class="[C.FormComponent.input, C.forms.input, $style.selectWrap]">
@@ -1026,6 +1060,17 @@ function selectShip(event: Event) {
 
 .daysLabel {
   margin-left: 4px;
+}
+
+.rtLink {
+  margin-left: 4px;
+  color: #f7a600;
+  cursor: pointer;
+}
+
+.unlinked {
+  margin-left: 4px;
+  color: #999;
 }
 
 .separator {

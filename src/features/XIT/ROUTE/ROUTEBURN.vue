@@ -20,7 +20,8 @@ import {
   stageRouteAssign,
 } from '@src/features/XIT/ROUTE/route-assign-run';
 import { originRows } from '@src/features/XIT/ROUTE/route-origins';
-import { createRoute, findRoute, removeRoute } from '@src/features/XIT/ROUTE/routes';
+import { requestRouteDelete } from '@src/features/XIT/ROUTE/route-delete-run';
+import { createRoute, findRoute } from '@src/features/XIT/ROUTE/routes';
 import { store as planetContextMenu } from '@src/features/XIT/planet-context-menu';
 import { exchangesStore } from '@src/infrastructure/prun-api/data/exchanges';
 import { getEntityNameFromAddress } from '@src/infrastructure/prun-api/data/addresses';
@@ -266,9 +267,10 @@ function toggle(id: string) {
   expanded.value = [...expanded.value, id];
 }
 
-function onRemove(id: string) {
-  removeRoute(id);
-  expanded.value = expanded.value.filter(x => x !== id);
+function onRemove(event: Event, id: string) {
+  requestRouteDelete(event, id, () => {
+    expanded.value = expanded.value.filter(x => x !== id);
+  });
 }
 
 function burnText(days: number | undefined) {
@@ -416,7 +418,7 @@ async function onAssign(id: string) {
               </td>
               <td>
                 <div :class="$style.actions">
-                  <PrunButton dark inline @click="onRemove(row.id)">REMOVE</PrunButton>
+                  <PrunButton dark inline @click="onRemove($event, row.id)">REMOVE</PrunButton>
                   <PrunButton dark inline @click="openConfig(row.id)">CONFIG</PrunButton>
                 </div>
               </td>
