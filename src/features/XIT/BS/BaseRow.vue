@@ -8,6 +8,12 @@ import { showBuffer } from '@src/infrastructure/prun-ui/buffers';
 import { getPlanetBurn } from '@src/core/burn';
 import { burnDaysClass, countDays } from '@src/features/XIT/BURN/utils';
 import { formatBsBurnDays } from '@src/features/XIT/BS/format-bs-burn-days';
+import {
+  EN_ROUTE_BLUE,
+  EN_ROUTE_BLUE_BG,
+  EN_ROUTE_ROCKET,
+  isOnAutomatedRoute,
+} from '@src/features/XIT/ROUTE/automated-route-bases';
 import { useTileState } from '@src/store/user-data-tiles';
 import { getPickupAlarm, getStorageAlarmLevel } from '@src/core/storage-analysis';
 import { fixed1 } from '@src/utils/format';
@@ -18,6 +24,7 @@ import { userData } from '@src/store/user-data';
 import { presentRepairCell, repairCellClass } from '@src/features/XIT/REP/present-repair-cell';
 import { getPlanetRepairAge } from '@src/features/XIT/REP/entries';
 import { timestampEachMinute } from '@src/utils/dayjs';
+import fa from '@src/utils/font-awesome.module.css';
 import { store as planetContextMenu } from '../planet-context-menu';
 
 const {
@@ -69,7 +76,18 @@ function onBurnDaysClick(e: MouseEvent) {
   expandedBurns.value = toggleExpandedBurn(expandedBurns.value, naturalId);
 }
 
-const burnBgClass = computed(() => (days.value === undefined ? {} : burnDaysClass(days.value)));
+const enRoute = computed(() => isOnAutomatedRoute(naturalId));
+
+const burnBgClass = computed(() => {
+  if (enRoute.value) {
+    return undefined;
+  }
+  return days.value === undefined ? {} : burnDaysClass(days.value);
+});
+
+const burnBgStyle = computed(() =>
+  enRoute.value ? { backgroundColor: EN_ROUTE_BLUE_BG } : undefined,
+);
 
 const daysText = computed(() => {
   if (days.value === undefined) {
@@ -169,8 +187,15 @@ function onCmdsClick() {
       </div>
     </td>
     <td v-if="showBurn" :class="$style.statusCell">
-      <div :class="[$style.statusContent, burnBgClass]">
-        <span :class="$style.statusNum" @click="onBurnDaysClick">{{ daysText ?? '-' }}</span>
+      <div :class="[$style.statusContent, burnBgClass]" :style="burnBgStyle">
+        <span
+          v-if="enRoute"
+          :class="[fa.solid, $style.statusNum]"
+          :style="{ color: EN_ROUTE_BLUE }"
+          @click="onBurnDaysClick"
+          >{{ EN_ROUTE_ROCKET }}</span
+        >
+        <span v-else :class="$style.statusNum" @click="onBurnDaysClick">{{ daysText ?? '-' }}</span>
         <PrunButton dark inline @click="showBuffer(`XIT BURNACT ${naturalId}`)">RES</PrunButton>
       </div>
     </td>

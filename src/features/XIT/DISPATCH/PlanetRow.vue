@@ -9,6 +9,12 @@ import { getPlanetBurn } from '@src/core/burn';
 import MaterialList from '@src/features/XIT/BURN/MaterialList.vue';
 import { burnDaysClass, countDays, formatBurnDays } from '@src/features/XIT/BURN/utils';
 import { toggleExpandedBurn } from '@src/features/XIT/BS/burn-cell-click';
+import {
+  EN_ROUTE_BLUE,
+  EN_ROUTE_BLUE_BG,
+  EN_ROUTE_ROCKET,
+  isOnAutomatedRoute,
+} from '@src/features/XIT/ROUTE/automated-route-bases';
 import { useTileState } from '@src/store/user-data-tiles';
 import { presentRepairCell, repairCellClass } from '@src/features/XIT/REP/present-repair-cell';
 import { getPlanetRepairAge } from '@src/features/XIT/REP/entries';
@@ -18,6 +24,7 @@ import { shipsStore } from '@src/infrastructure/prun-api/data/ships';
 import { fixed0 } from '@src/utils/format';
 import type { MaterialFilter } from '@src/features/XIT/ACT/material-groups/resupply/config';
 import { DispatchBaseConfig, billTotals } from '@src/features/XIT/DISPATCH/utils';
+import fa from '@src/utils/font-awesome.module.css';
 
 const {
   siteId,
@@ -72,7 +79,18 @@ function onBurnClick(event: MouseEvent) {
   showBuffer(`XIT BURN ${naturalId}`);
 }
 
-const burnBgClass = computed(() => (days.value === undefined ? {} : burnDaysClass(days.value)));
+const enRoute = computed(() => isOnAutomatedRoute(naturalId));
+
+const burnBgClass = computed(() => {
+  if (enRoute.value) {
+    return undefined;
+  }
+  return days.value === undefined ? {} : burnDaysClass(days.value);
+});
+
+const burnBgStyle = computed(() =>
+  enRoute.value ? { backgroundColor: EN_ROUTE_BLUE_BG } : undefined,
+);
 
 const daysText = computed(() => (days.value === undefined ? '-' : formatBurnDays(days.value)));
 
@@ -187,9 +205,16 @@ function clearShip() {
     <td :class="$style.statusCell">
       <div
         :class="[$style.statusContent, burnBgClass]"
+        :style="burnBgStyle"
         @mousedown="onBurnMouseDown"
         @click="onBurnClick">
-        <span :class="$style.statusNum">{{ daysText }}</span>
+        <span
+          v-if="enRoute"
+          :class="[fa.solid, $style.statusNum]"
+          :style="{ color: EN_ROUTE_BLUE }"
+          >{{ EN_ROUTE_ROCKET }}</span
+        >
+        <span v-else :class="$style.statusNum">{{ daysText }}</span>
       </div>
     </td>
     <td :class="$style.toggleCell">

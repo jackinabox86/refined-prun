@@ -19,6 +19,7 @@ import { getRepairThreshold } from '@src/core/buildings';
 import { countDays } from '@src/features/XIT/BURN/utils';
 import { getPlanetRepairAge } from '@src/features/XIT/REP/entries';
 import { compareBases, type SortDirection, type SortKey } from '@src/features/XIT/BS/base-sort';
+import { isOnAutomatedRoute } from '@src/features/XIT/ROUTE/automated-route-bases';
 import { timestampEachMinute } from '@src/utils/dayjs';
 import { useXitParameters } from '@src/hooks/use-xit-parameters';
 import { findWithQuery } from '@src/utils/find-with-query';
@@ -75,6 +76,7 @@ interface BaseEntry {
   days: number | undefined;
   repairDays: number | undefined;
   repairTarget: number;
+  enRoute: boolean;
 }
 
 const bases = computed<BaseEntry[] | undefined>(() => {
@@ -96,6 +98,7 @@ const bases = computed<BaseEntry[] | undefined>(() => {
         days: burn ? countDays(burn.burn) : undefined,
         repairDays: getPlanetRepairAge(site.siteId, now),
         repairTarget: getRepairThreshold(naturalId),
+        enRoute: naturalId !== '' && isOnAutomatedRoute(naturalId),
       };
     })
     .filter(x => x.naturalId);

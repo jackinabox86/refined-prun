@@ -219,4 +219,32 @@ describe('compareBases', () => {
     ];
     expect(order(reported, 'proximity')[0]).toBe('ME-001c');
   });
+
+  it('sinks an en-route base to the bottom of a burn sort', () => {
+    const enRoute = base({ naturalId: 'EN-001a', days: 1, enRoute: true });
+    const urgent = base({ naturalId: 'OF-001a', days: 5 });
+    expect(order([enRoute, urgent], 'burn')).toEqual(['OF-001a', 'EN-001a']);
+  });
+
+  it('keeps an en-route base with repairs due in DYNAMIC proximity rank', () => {
+    const enRouteDue = base({
+      naturalId: 'EN-001a',
+      days: 20,
+      repairDays: 60,
+      enRoute: true,
+    });
+    const comfortable = base({ naturalId: 'OF-001a', days: 20, repairDays: 10 });
+    expect(order([comfortable, enRouteDue], 'proximity')).toEqual(['EN-001a', 'OF-001a']);
+  });
+
+  it('still sinks an en-route base without repairs due under DYNAMIC', () => {
+    const enRoute = base({
+      naturalId: 'EN-001a',
+      days: 2,
+      repairDays: 10,
+      enRoute: true,
+    });
+    const later = base({ naturalId: 'OF-001a', days: 20, repairDays: 10 });
+    expect(order([enRoute, later], 'proximity')).toEqual(['OF-001a', 'EN-001a']);
+  });
 });

@@ -4,6 +4,7 @@ import { showBuffer } from '@src/infrastructure/prun-ui/buffers';
 import PrunButton from '@src/components/PrunButton.vue';
 import { PlanetBurn } from '@src/core/burn';
 import { countDays } from '@src/features/XIT/BURN/utils';
+import { isOnAutomatedRoute } from '@src/features/XIT/ROUTE/automated-route-bases';
 import { store as planetContextMenu } from '@src/features/XIT/planet-context-menu';
 import { useTileState } from '@src/features/XIT/BURN/tile-state';
 
@@ -16,6 +17,7 @@ const { burn } = defineProps<{
 
 const io = useTileState('io');
 const days = computed(() => countDays(burn.burn));
+const enRoute = computed(() => burn.naturalId !== '' && isOnAutomatedRoute(burn.naturalId));
 const nameColspan = computed(() => (io.value ? 6 : 4));
 </script>
 
@@ -31,7 +33,7 @@ const nameColspan = computed(() => (io.value ? 6 : 4));
       </span>
       <span>{{ burn.planetName }}</span>
     </td>
-    <DaysCell :days="days" />
+    <DaysCell :days="days" :en-route="enRoute" />
     <td>
       <div :class="$style.buttons">
         <PrunButton dark inline @click="showBuffer(`BS ${burn.naturalId}`)">BS</PrunButton>
