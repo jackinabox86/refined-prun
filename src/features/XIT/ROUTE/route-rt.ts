@@ -229,8 +229,9 @@ function loadExcess(ticker: string, retain: number): RouteStep {
 }
 
 // A base visit leaves exactly one bill of each input on the base. For each input,
-// unload only that bill amount, then load excess with the bill retained, so cargo
-// for later bases stays on the ship and surplus already on the base rides on.
+// unload up to that bill amount (no minimum, so a ship carrying less does not block),
+// then load excess with the bill retained, so cargo for later bases stays on the ship
+// and surplus already on the base rides on.
 // Outputs are loaded the same way, keeping the base's own use.
 function pushBaseSteps(
   steps: RouteStep[],
@@ -240,7 +241,7 @@ function pushBaseSteps(
 ) {
   for (const ticker of positiveTickers(bill)) {
     const amount = bill?.[ticker] ?? 0;
-    steps.push({ kind: 'unload', ticker, min: units(amount), max: units(amount) });
+    steps.push({ kind: 'unload', ticker, min: nothing, max: units(amount) });
     steps.push(loadExcess(ticker, amount));
   }
   for (const ticker of positiveTickers(loaded)) {

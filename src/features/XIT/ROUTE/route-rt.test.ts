@@ -7,7 +7,7 @@ import {
   subtractMaterials,
 } from '@src/features/XIT/ACT/material-groups/resupply/milk-run';
 import { buildRouteSpec, type RouteBuildInput } from '@src/features/XIT/ROUTE/route-rt';
-import { parseRoutePayload } from '@src/features/XIT/RTACT/route-spec';
+import { parseRoutePayload, type RouteStep } from '@src/features/XIT/RTACT/route-spec';
 
 const here = dirname(fileURLToPath(import.meta.url));
 
@@ -91,12 +91,12 @@ describe('buildRouteSpec', () => {
     ]);
     // Waypoints hold the leg that flies to them; the origin holds the return leg.
     expect(built.spec.stops[0]).toMatchObject({ fuelUsage: 10, reactorUsage: 30, gateway: true });
-    // Each input: unload only the bill amount, then load excess with that bill retained.
+    // Each input: unload up to the bill amount (no minimum), then load excess with that bill retained.
     expect(built.spec.stops[1]?.steps).toEqual([
       {
         kind: 'unload',
         ticker: 'DW',
-        min: { mode: 'units', amount: 4 },
+        min: { mode: 'units', amount: 0 },
         max: { mode: 'units', amount: 4 },
       },
       {
@@ -109,7 +109,7 @@ describe('buildRouteSpec', () => {
       {
         kind: 'unload',
         ticker: 'RAT',
-        min: { mode: 'units', amount: 2 },
+        min: { mode: 'units', amount: 0 },
         max: { mode: 'units', amount: 2 },
       },
       {
@@ -185,9 +185,103 @@ describe('buildRouteSpec', () => {
       if (step.kind !== 'unload') {
         continue;
       }
-      expect(step.min).toEqual(step.max);
-      expect(step.min.mode).toBe('units');
-      expect(step.min.mode === 'units' && step.min.amount).toBe(step.ticker === 'DW' ? 4 : 2);
+      // No minimum, so a ship carrying less than the bill does not block the step.
+      expect(step.min).toEqual({ mode: 'units', amount: 0 });
+      expect(step.max).toEqual({ mode: 'units', amount: step.ticker === 'DW' ? 4 : 2 });
+    }
+  });
+
+  it('leaves the same cargo on the base and ship as unload-all then load with retain', () => {
+    type Hold = Record<string, number>;
+    // Unload moves up to max (all carried for 'all') and blocks below min; load
+    // takes what the base holds above retain. Hold capacity is not modeled.
+    function run(steps: RouteStep[], ship: Hold, base: Hold) {
+      ship = { ...ship };
+      base = { ...base };
+      for (const step of steps) {
+        const t = step.kind === 'load' || step.kind === 'unload' ? step.ticker : '';
+        if (step.kind === 'unload') {
+          const carried = ship[t] ?? 0;
+          const min = step.min.mode === 'units' ? step.min.amount : carried;
+          if (carried < min) {
+            return 'blocked';
+          }
+          const moved = step.max.mode === 'units' ? Math.min(carried, step.max.amount) : carried;
+          ship[t] = carried - moved;
+          base[t] = (base[t] ?? 0) + moved;
+        } else if (step.kind === 'load') {
+          const moved = Math.max(0, (base[t] ?? 0) - (step.retain ?? 0));
+          base[t] = (base[t] ?? 0) - moved;
+          ship[t] = (ship[t] ?? 0) + moved;
+        }
+      }
+      return { ship, base };
+    }
+    const cases: { bill: Hold; ownUse: Hold; ship: Hold; base: Hold }[] = [
+      // Bill below what the ship carries, nothing on the base.
+      { bill: { DW: 4 }, ownUse: {}, ship: { DW: 10 }, base: {} },
+      // Bill above what the ship carries.
+      { bill: { DW: 4 }, ownUse: {}, ship: { DW: 2 }, base: {} },
+      // Base already holds more than the bill; ship carries nothing of it.
+      { bill: { DW: 4 }, ownUse: {}, ship: {}, base: { DW: 7 } },
+      // Several materials with an output and its own use; RAT has no bill (retain 0).
+      {
+        bill: { DW: 4, RAT: 2, SF: 0 },
+        ownUse: { FE: 3 },
+        ship: { DW: 5, RAT: 1, SF: 6 },
+        base: { DW: 1, RAT: 3, FE: 10 },
+      },
+    ];
+    for (const c of cases) {
+      const built = buildRouteSpec({
+        stops: [
+          { kind: 'cx', id: 'ANT' },
+          { kind: 'base', id: 'ZV-307d' },
+        ],
+        loop: true,
+        legs: [{}, {}],
+        bills: [{ id: 'ZV-307d', bill: c.bill }],
+        sourced: {},
+        loadedByStop: new Map([['ZV-307d', { FE: 10 }]]),
+        ownUseByStop: new Map([['ZV-307d', c.ownUse]]),
+        refuelStl: [false, false],
+        refuelFtl: [false, false],
+      });
+      expect(built.ok).toBe(true);
+      if (!built.ok) {
+        return;
+      }
+      const inputs = Object.keys(c.bill)
+        .filter(t => (c.bill[t] ?? 0) > 0)
+        .sort();
+      const previous: RouteStep[] = [
+        ...inputs.map(
+          (ticker): RouteStep => ({
+            kind: 'unload',
+            ticker,
+            min: { mode: 'all' },
+            max: { mode: 'all' },
+          }),
+        ),
+        ...inputs.map(
+          (ticker): RouteStep => ({
+            kind: 'load',
+            ticker,
+            min: { mode: 'units', amount: 0 },
+            max: { mode: 'capacity' },
+            retain: c.bill[ticker],
+          }),
+        ),
+        {
+          kind: 'load',
+          ticker: 'FE',
+          min: { mode: 'units', amount: 0 },
+          max: { mode: 'capacity' },
+          retain: c.ownUse.FE,
+        },
+      ];
+      const steps = built.spec.stops[1]?.steps ?? [];
+      expect(run(steps, c.ship, c.base)).toEqual(run(previous, c.ship, c.base));
     }
   });
 
