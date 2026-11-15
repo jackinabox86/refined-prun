@@ -1,4 +1,7 @@
-import { computeResupplyBill } from '@src/features/XIT/ACT/material-groups/resupply/bill';
+import {
+  computeResupplyBill,
+  consumedOver,
+} from '@src/features/XIT/ACT/material-groups/resupply/bill';
 import {
   addMaterials,
   expectedOutputQty,
@@ -20,6 +23,10 @@ import { sitesStore } from '@src/infrastructure/prun-api/data/sites';
 // A route runs unattended for many cycles, so its bill is pure consumption over
 // the supply days. Stock that happens to be on the base today is not subtracted.
 const resupplyGroup = { type: 'Resupply' as const, useBaseInv: false };
+
+// Workforce consumes a whole day's need at once, so a base always gets at least a
+// full day of workforce supplies, even when the supply days are under 1.
+const MIN_WORKFORCE_DAYS = 1;
 
 export interface RouteStopInput {
   kind: 'cx' | 'base';
@@ -47,7 +54,7 @@ export function routeBaseBills(
     const bill =
       stop.supply !== undefined
         ? { ...stop.supply }
-        : computeResupplyBill(resupplyGroup, stop.id, days);
+        : computeResupplyBill(resupplyGroup, stop.id, days, undefined, MIN_WORKFORCE_DAYS);
     if (bill === undefined) {
       return undefined;
     }
@@ -72,7 +79,7 @@ export function routeBaseBills(
 }
 
 // What each base uses of its own net outputs over the supply days, billed the
-// same way as an input: ceil(days x daily use + 1).
+// same way as an input: ceil(days x daily use + 1), with a full day of workforce need.
 export function ownUseByStop(bases: readonly MilkRunBase[]) {
   const result = new Map<string, Record<string, number>>();
   for (const base of bases) {
@@ -81,7 +88,9 @@ export function ownUseByStop(bases: readonly MilkRunBase[]) {
     for (const [ticker, value] of Object.entries(burn)) {
       const daily = value.input + value.workforce;
       if (value.dailyAmount > 0 && daily > 0) {
-        use[ticker] = Math.ceil(base.days * daily + 1);
+        use[ticker] = Math.ceil(
+          consumedOver(base.days, daily, value.workforce, MIN_WORKFORCE_DAYS) + 1,
+        );
       }
     }
     result.set(base.naturalId, use);
