@@ -91,16 +91,26 @@ describe('buildRouteSpec', () => {
     ]);
     // Waypoints hold the leg that flies to them; the origin holds the return leg.
     expect(built.spec.stops[0]).toMatchObject({ fuelUsage: 10, reactorUsage: 30, gateway: true });
-    // Every input comes off first, then loads back with the bill retained on the base.
+    // Each input: unload only the bill amount, then load excess with that bill retained.
     expect(built.spec.stops[1]?.steps).toEqual([
-      { kind: 'unload', ticker: 'DW', min: { mode: 'all' }, max: { mode: 'all' } },
-      { kind: 'unload', ticker: 'RAT', min: { mode: 'all' }, max: { mode: 'all' } },
+      {
+        kind: 'unload',
+        ticker: 'DW',
+        min: { mode: 'units', amount: 4 },
+        max: { mode: 'units', amount: 4 },
+      },
       {
         kind: 'load',
         ticker: 'DW',
         min: { mode: 'units', amount: 0 },
         max: { mode: 'capacity' },
         retain: 4,
+      },
+      {
+        kind: 'unload',
+        ticker: 'RAT',
+        min: { mode: 'units', amount: 2 },
+        max: { mode: 'units', amount: 2 },
       },
       {
         kind: 'load',
@@ -153,6 +163,32 @@ describe('buildRouteSpec', () => {
       min: { mode: 'all' },
       max: { mode: 'all' },
     });
+  });
+
+  it('unloads only each input bill amount and interleaves unload then load per material', () => {
+    const built = buildRouteSpec(input(true));
+    expect(built.ok).toBe(true);
+    if (!built.ok) {
+      return;
+    }
+    const cargo = (built.spec.stops[1]?.steps ?? []).filter(
+      step => step.kind === 'unload' || step.kind === 'load',
+    );
+    expect(cargo.map(step => [step.kind, step.ticker])).toEqual([
+      ['unload', 'DW'],
+      ['load', 'DW'],
+      ['unload', 'RAT'],
+      ['load', 'RAT'],
+      ['load', 'FE'],
+    ]);
+    for (const step of cargo) {
+      if (step.kind !== 'unload') {
+        continue;
+      }
+      expect(step.min).toEqual(step.max);
+      expect(step.min.mode).toBe('units');
+      expect(step.min.mode === 'units' && step.min.amount).toBe(step.ticker === 'DW' ? 4 : 2);
+    }
   });
 
   it('loads an output stack and retains what the base uses of it itself', () => {
