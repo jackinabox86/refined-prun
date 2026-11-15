@@ -18,6 +18,10 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 export interface OriginDraw {
   time: number;
   need: Record<string, number>;
+  // Id of the saved route that loads it.
+  route?: string;
+  // No ship runs the route, so the departure is planned from now.
+  planned?: boolean;
 }
 
 // Whole-lap length in ms. Undefined when any leg has no known time.
@@ -291,19 +295,28 @@ export function drawTotal(draws: readonly OriginDraw[], until: number) {
   return total;
 }
 
-// Fuel burn varies more than base use, so the stockpile plans 10% more of it.
-export const FUEL_BUFFER = 1.1;
-
-// The same need with SF and FF raised by FUEL_BUFFER, rounded up.
-export function withFuelBuffer(need: Record<string, number>) {
-  const result = { ...need };
-  for (const ticker of ['SF', 'FF']) {
-    const amount = result[ticker];
-    if (amount !== undefined && amount > 0) {
-      result[ticker] = Math.ceil(amount * FUEL_BUFFER);
+// The drawTotal of each route: how many departures it makes before `until`,
+// the average time between them, and what they take.
+export function drawsByRoute(draws: readonly OriginDraw[], until: number) {
+  const byRoute = new Map<string, OriginDraw[]>();
+  for (const draw of draws) {
+    if (draw.time > until) {
+      continue;
     }
+    const key = draw.route ?? '';
+    byRoute.set(key, [...(byRoute.get(key) ?? []), draw]);
   }
-  return result;
+  return [...byRoute].map(([route, list]) => {
+    const times = list.map(x => x.time);
+    const spread = Math.max(...times) - Math.min(...times);
+    return {
+      route,
+      departures: list.length,
+      spacingMs: list.length > 1 ? spread / (list.length - 1) : undefined,
+      planned: list.some(x => x.planned === true),
+      total: drawTotal(list, until),
+    };
+  });
 }
 
 export function daysToMs(days: number) {

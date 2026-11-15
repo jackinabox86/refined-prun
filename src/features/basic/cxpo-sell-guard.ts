@@ -3,7 +3,8 @@ import {
   describeRouteStockDraw,
   routeStockShortfall,
 } from '@src/features/XIT/ROUTE/route-stock-guard';
-import { cxRouteReserve } from '@src/features/XIT/ROUTE/cx-route-reserve';
+import { cxRouteReserveDetail } from '@src/features/XIT/ROUTE/cx-route-reserve';
+import { describeRouteReserve } from '@src/features/XIT/ROUTE/route-reserve';
 import { exchangesStore } from '@src/infrastructure/prun-api/data/exchanges';
 import { L } from '@src/infrastructure/prun-ui/i18n';
 import { showConfirmationOverlay } from '@src/infrastructure/prun-ui/tile-overlay';
@@ -101,7 +102,9 @@ async function overlayInventory(form: HTMLElement, parameter: string | undefined
       return;
     }
     const warehouse = selection.value.trim().toLowerCase() === CX_WAREHOUSE_OPTION;
-    const reserve = cxRouteReserve(Date.now())[order.exchange]?.[order.ticker];
+    const now = Date.now();
+    const detail = cxRouteReserveDetail(now)[order.exchange];
+    const reserve = detail?.held[order.ticker];
     const stock = warehouseAmount(order.exchange, order.ticker);
     const label = warehouse && stock !== undefined ? cxpoInventoryLabel(stock, reserve) : undefined;
     const node = amountNode(valueEl);
@@ -109,6 +112,11 @@ async function overlayInventory(form: HTMLElement, parameter: string | undefined
       return;
     }
     paintInventory(node, label, gameText);
+    if (label === undefined || detail === undefined) {
+      valueEl.removeAttribute('title');
+    } else {
+      valueEl.title = describeRouteReserve(order.ticker, detail.routes, now, detail.end);
+    }
   }
 
   onNodeDisconnectedLazy(form, () => {
@@ -220,5 +228,5 @@ function init() {
 features.add(
   import.meta.url,
   init,
-  'CXPO: Confirms a sell that would draw the CX warehouse below its route reserve, and shows reserved and free stock in the inventory row.',
+  'CXPO: Confirms a sell that would draw the CX warehouse below its route reserve, and shows reserved and free stock in the inventory row, with the routes that hold it on hover.',
 );
