@@ -43,7 +43,7 @@ const migrations: MigrationEntry[] = [
   [
     '05.10.2026 Add route supply settings',
     userData => {
-      userData.settings.routeSupply = { days: 14, red: 3, yellow: 7 };
+      userData.settings.routeSupply = { days: 7, red: 2, yellow: 4 };
     },
   ],
   [
