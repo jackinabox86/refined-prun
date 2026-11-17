@@ -1,59 +1,63 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
-const { routes } = vi.hoisted(() => ({
-  routes: [] as {
-    loop?: boolean;
-    stops: { kind: string; id: string }[];
-  }[],
+vi.mock('@src/infrastructure/prun-api/data/ship-routes', () => ({
+  shipRoutesStore: { all: { value: [] } },
 }));
-
-vi.mock('@src/store/user-data', () => ({
-  userData: { routes },
+vi.mock('@src/infrastructure/prun-api/data/addresses', () => ({
+  getEntityNaturalIdFromAddress: () => undefined,
 }));
 
 import {
   compareEnRouteLast,
   hasRepairsDue,
-  isOnAutomatedRoute,
+  runningRouteStops,
 } from '@src/features/XIT/ROUTE/automated-route-bases';
 
-beforeEach(() => {
-  routes.length = 0;
-});
+function execution(
+  state: PrunApi.ShipRouteExecutionState,
+  repeats: boolean,
+  ids: string[],
+): PrunApi.ShipRouteExecution {
+  return {
+    state,
+    route: { repeats, waypoints: ids.map(id => ({ id })) },
+  } as unknown as PrunApi.ShipRouteExecution;
+}
 
-describe('isOnAutomatedRoute', () => {
-  it('is true for a base stop on a looping route', () => {
-    routes.push({
-      stops: [
-        { kind: 'cx', id: 'AI1' },
-        { kind: 'base', id: 'VH-331a' },
+const byId = (waypoint: PrunApi.ShipRouteWaypoint) => waypoint.id;
+
+describe('runningRouteStops', () => {
+  it('includes every stop of a looping route that is running', () => {
+    for (const state of ['FLYING', 'RUNNING_STEPS', 'WAITING'] as const) {
+      const stops = runningRouteStops([execution(state, true, ['ANT', 'VH-331a'])], byId);
+      expect(stops.has('VH-331a')).toBe(true);
+    }
+  });
+
+  it('excludes a looping route blocked on a step', () => {
+    const stops = runningRouteStops([execution('STEP_BLOCKED', true, ['ANT', 'VH-331a'])], byId);
+    expect(stops.has('VH-331a')).toBe(false);
+  });
+
+  it('excludes a one-way route even while it runs', () => {
+    const stops = runningRouteStops([execution('FLYING', false, ['ANT', 'VH-331a'])], byId);
+    expect(stops.has('VH-331a')).toBe(false);
+  });
+
+  it('keeps a base served by a second, unblocked ship', () => {
+    const stops = runningRouteStops(
+      [
+        execution('STEP_BLOCKED', true, ['ANT', 'VH-331a']),
+        execution('FLYING', true, ['AI1', 'VH-331a']),
       ],
-    });
-    expect(isOnAutomatedRoute('VH-331a')).toBe(true);
+      byId,
+    );
+    expect(stops.has('VH-331a')).toBe(true);
+    expect(stops.has('ANT')).toBe(false);
   });
 
-  it('is true when loop is absent (defaults to automated)', () => {
-    routes.push({ stops: [{ kind: 'base', id: 'OT-580b' }] });
-    expect(isOnAutomatedRoute('OT-580b')).toBe(true);
-  });
-
-  it('is false for a base only on an on-demand route', () => {
-    routes.push({
-      loop: false,
-      stops: [{ kind: 'base', id: 'VH-331a' }],
-    });
-    expect(isOnAutomatedRoute('VH-331a')).toBe(false);
-  });
-
-  it('is false for a CX stop id and for an unknown base', () => {
-    routes.push({
-      stops: [
-        { kind: 'cx', id: 'AI1' },
-        { kind: 'base', id: 'VH-331a' },
-      ],
-    });
-    expect(isOnAutomatedRoute('AI1')).toBe(false);
-    expect(isOnAutomatedRoute('ZZ-999z')).toBe(false);
+  it('is empty without any route execution', () => {
+    expect(runningRouteStops([], byId).size).toBe(0);
   });
 });
 

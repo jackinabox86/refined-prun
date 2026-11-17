@@ -1,27 +1,43 @@
-import { userData } from '@src/store/user-data';
+import { getEntityNaturalIdFromAddress } from '@src/infrastructure/prun-api/data/addresses';
+import { shipRoutesStore } from '@src/infrastructure/prun-api/data/ship-routes';
 
 // Font Awesome solid rocket (U+F135). Same glyph upstream uses in XIT BURN for
 // inbound cargo.
-export const EN_ROUTE_ROCKET = '\uf135';
+export const EN_ROUTE_ROCKET = '';
 
 // Blue used for the inv-item rocket marker and the en-route burn cell.
 export const EN_ROUTE_BLUE = '#088DBF';
 export const EN_ROUTE_BLUE_BG = 'rgba(8, 141, 191, 0.35)';
 
-// A base stop on a looping (automated) shipping route. On-demand routes
-// (loop === false) do not count. CX and other non-base stops are ignored.
-export function isOnAutomatedRoute(naturalId: string) {
-  for (const route of userData.routes) {
-    if (route.loop === false) {
+// Waypoint location ids of every looping game route a ship is running right now
+// without interruption. A one-way route, or one blocked on a step, does not count.
+// Saved ROUTECONFIG routes alone do not count either: only a live execution does.
+export function runningRouteStops(
+  executions: readonly PrunApi.ShipRouteExecution[],
+  waypointId: (waypoint: PrunApi.ShipRouteWaypoint) => string | undefined,
+) {
+  const ids = new Set<string>();
+  for (const execution of executions) {
+    if (!execution.route.repeats || execution.state === 'STEP_BLOCKED') {
       continue;
     }
-    for (const stop of route.stops) {
-      if (stop.kind === 'base' && stop.id === naturalId) {
-        return true;
+    for (const waypoint of execution.route.waypoints) {
+      const id = waypointId(waypoint);
+      if (id !== undefined) {
+        ids.add(id);
       }
     }
   }
-  return false;
+  return ids;
+}
+
+const runningStops = computed(() =>
+  runningRouteStops(shipRoutesStore.all.value, x => getEntityNaturalIdFromAddress(x.destination)),
+);
+
+// A base planet a ship is serving on a running looping route.
+export function isOnAutomatedRoute(naturalId: string) {
+  return runningStops.value.has(naturalId);
 }
 
 // Same floor as daysUntilRepairTarget === 0: age has reached the target.
