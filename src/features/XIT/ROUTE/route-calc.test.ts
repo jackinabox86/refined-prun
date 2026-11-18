@@ -1,11 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import {
-  cumulativeSecondsBeforeStop,
   formatFuelCell,
   fuelCargoLoads,
   legPayloads,
   maxDaysAtStep,
-  minAdjustedBurn,
+  minBurn,
   padLegSeconds,
   planRouteTanks,
   planSegmentTanks,
@@ -26,17 +25,13 @@ describe('padLegSeconds', () => {
   });
 });
 
-describe('minAdjustedBurn', () => {
-  it('subtracts padded flight time after the first leg and keeps the lowest base', () => {
-    const padded = [86400, 43200, 86400];
-    expect(cumulativeSecondsBeforeStop(padded, 0)).toBe(0);
-    expect(cumulativeSecondsBeforeStop(padded, 1)).toBe(0);
-    expect(cumulativeSecondsBeforeStop(padded, 2)).toBe(43200);
-    expect(minAdjustedBurn([10, undefined, 10], padded)).toBe(9.5);
+describe('minBurn', () => {
+  it('keeps the lowest base without subtracting flight time', () => {
+    expect(minBurn([10, undefined, 9.8, 12])).toBe(9.8);
   });
 
   it('returns undefined when no base has a burn figure', () => {
-    expect(minAdjustedBurn([undefined, undefined], [])).toBeUndefined();
+    expect(minBurn([undefined, undefined])).toBeUndefined();
   });
 });
 

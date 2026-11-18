@@ -27,31 +27,12 @@ export function paddedLegSeconds(legs: readonly { ok: boolean; seconds?: number 
   return legs.map(leg => (leg.ok && leg.seconds !== undefined ? padLegSeconds(leg.seconds) : 0));
 }
 
-// Flight time already spent when the ship arrives at this stop. Index 0 is the start.
-// The first leg is not counted, matching BURN: a base's clock already covers the
-// time to reach it from wherever the ship is now.
-export function cumulativeSecondsBeforeStop(paddedLegs: readonly number[], stopIndex: number) {
-  let sum = 0;
-  const last = Math.min(stopIndex, paddedLegs.length);
-  for (let i = 1; i < last; i++) {
-    sum += paddedLegs[i] ?? 0;
-  }
-  return sum;
-}
-
-export function minAdjustedBurn(
-  burnDays: readonly (number | undefined)[],
-  paddedLegs: readonly number[],
-) {
+// Lowest burn days among the route's bases. Undefined when no base has a figure.
+export function minBurn(burnDays: readonly (number | undefined)[]) {
   let min: number | undefined;
-  for (let i = 0; i < burnDays.length; i++) {
-    const days = burnDays[i];
-    if (days === undefined) {
-      continue;
-    }
-    const adjusted = days - cumulativeSecondsBeforeStop(paddedLegs, i) / SECONDS_PER_DAY;
-    if (min === undefined || adjusted < min) {
-      min = adjusted;
+  for (const days of burnDays) {
+    if (days !== undefined && (min === undefined || days < min)) {
+      min = days;
     }
   }
   return min;

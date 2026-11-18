@@ -8,12 +8,7 @@ import { formatBsBurnDays } from '@src/features/XIT/BS/format-bs-burn-days';
 import { burnDaysClass, countDays } from '@src/features/XIT/BURN/utils';
 import { getPlanetRepairAge } from '@src/features/XIT/REP/entries';
 import { presentRepairCell, repairCellClass } from '@src/features/XIT/REP/present-repair-cell';
-import {
-  cumulativeSecondsBeforeStop,
-  minAdjustedBurn,
-  paddedLegSeconds,
-  SECONDS_PER_DAY,
-} from '@src/features/XIT/ROUTE/route-calc';
+import { minBurn } from '@src/features/XIT/ROUTE/route-calc';
 import {
   assignReadiness,
   ensureRouteShip,
@@ -136,7 +131,6 @@ function originLabel(stop: UserData.ShippingRouteStop | undefined) {
 }
 
 function summarize(route: UserData.ShippingRoute, now: number) {
-  const padded = paddedLegSeconds(route.legs ?? []);
   const burnDays = route.stops.map(stop => {
     if (stop.kind !== 'base') {
       return undefined;
@@ -151,7 +145,7 @@ function summarize(route: UserData.ShippingRoute, now: number) {
     }
     return countDays(burn.burn);
   });
-  const burn = minAdjustedBurn(burnDays, padded);
+  const burn = minBurn(burnDays);
   let burnId: string | undefined;
   let lowest = burn;
   if (burn !== undefined) {
@@ -161,8 +155,7 @@ function summarize(route: UserData.ShippingRoute, now: number) {
       if (days === undefined || stop === undefined || stop.kind !== 'base') {
         continue;
       }
-      const adjusted = days - cumulativeSecondsBeforeStop(padded, i) / SECONDS_PER_DAY;
-      if (adjusted === lowest) {
+      if (days === lowest) {
         burnId = stop.id;
         break;
       }
