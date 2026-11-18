@@ -50,9 +50,9 @@ export const initialUserData = deepFreeze({
     },
     // XIT ROUTEBURN Origins: days of route laps RESTOCK buys for, and the countdown colors.
     routeSupply: {
-      days: 14,
-      red: 3,
-      yellow: 7,
+      days: 7,
+      red: 2,
+      yellow: 4,
       // Per exchange code, when its last Route Restock run finished. The route
       // reserve only holds stock for laps due before that time + days.
       restockedAt: {} as Record<string, number>,
