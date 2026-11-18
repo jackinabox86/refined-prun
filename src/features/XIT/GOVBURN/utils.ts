@@ -1,6 +1,8 @@
 const MS_IN_DAY = 24 * 60 * 60 * 1000;
 
 // Days from `now` until the first consumption tick this material cannot pay.
+// An unfunded material still counts down to its next tick: nothing is consumed
+// before then, and GOVBURNACT buys for that tick (upkeepBuyAmount).
 export function materialDays(upkeep: UserData.GovBurnUpkeep, now: number) {
   const ticksPaid = upkeep.amount > 0 ? Math.floor(upkeep.stored / upkeep.amount) : 0;
   const days = (upkeep.nextTick - now) / MS_IN_DAY + ticksPaid * upkeep.duration;
@@ -9,9 +11,9 @@ export function materialDays(upkeep: UserData.GovBurnUpkeep, now: number) {
 
 // Days until the first consumption event among the building's n supplied materials.
 // The supplied set is chosen like GOVBURNACT resupply does (rankSlots: reserve
-// depth first, then own/any contribution recency) — so a 15-day material
-// contributed within its current period counts down to its own nextTick instead
-// of rushing the user onto a shorter-period material.
+// depth first, then own/any contribution recency), so a recently contributed
+// 15-day material keeps its slot instead of pushing the user onto a shorter-period
+// material.
 // Slots with no signal at all (no reserve, no contribution history) count down
 // to the earliest tick among the remaining materials — the first missable
 // consumption event is the first chance to start supplying.
@@ -262,7 +264,7 @@ export function upkeepBuyAmount(upkeep: UserData.GovBurnUpkeep, horizonDays: num
 
 // Aggregated {ticker: amount} bill for one planet: for each building with
 // level > 0 and configured n > 0, buy upkeepBuyAmount for each of the n
-// resolved slot tickers, plus COGC materials when present.
+// resolved slot tickers, plus COGC materials for `cogcDays` when present.
 // `slots` comes from the UI (rankSlots output after the user resolves manual
 // slots); entries with an empty ticker are the caller's bug - assert against them.
 export function planetGovBurnBill(
@@ -270,6 +272,7 @@ export function planetGovBurnBill(
   slotsByBuilding: Record<string, SlotPick[]>,
   horizonDays: number,
   now: number,
+  cogcDays: number,
 ): Record<string, number> {
   const bill: Record<string, number> = {};
   for (const building of planet.buildings) {
@@ -300,7 +303,7 @@ export function planetGovBurnBill(
     }
   }
   if (planet.cogc !== undefined) {
-    for (const [ticker, amount] of Object.entries(cogcBuyAmounts(planet.cogc, horizonDays))) {
+    for (const [ticker, amount] of Object.entries(cogcBuyAmounts(planet.cogc, cogcDays))) {
       bill[ticker] = (bill[ticker] ?? 0) + amount;
     }
   }
@@ -321,17 +324,22 @@ export function cogcDays(cogc: UserData.GovBurnCogc, now: number) {
   return Math.max(0, days);
 }
 
-// Full COGC refills covered by a resupply horizon, at the UI's 5-day increments:
-// 5-10d -> 1, 15-20d -> 2, 25-30d -> 3. General formula is ceil(horizonDays / 10),
-// capped at 3 refills no matter the horizon.
+// Default COGC coverage for a POPI resupply horizon, in days: 5-10 -> 10,
+// 15-20 -> 20, 25-30 -> 30. The COGC control can override this.
+export function suggestedCogcDays(horizonDays: number) {
+  return cogcRefills(horizonDays) * COGC_PERIOD_DAYS;
+}
+
+// Full COGC refills the old horizon mapping would have bought, at the UI's
+// 5-day increments: 5-10d -> 1, 15-20d -> 2, 25-30d -> 3. Capped at 3.
 export function cogcRefills(horizonDays: number) {
   return Math.min(3, Math.max(1, Math.ceil(horizonDays / COGC_PERIOD_DAYS)));
 }
 
-// {ticker: amount} to buy for the horizon's refills: always full refill
-// bills, no credit for the current cycle's paid or partial contributions.
-export function cogcBuyAmounts(cogc: UserData.GovBurnCogc, horizonDays: number) {
-  const refills = cogcRefills(horizonDays);
+// {ticker: amount} to buy for `cogcDays` of coverage (0, 10, 20, or 30):
+// always full refill bills, no credit for the current cycle's contributions.
+export function cogcBuyAmounts(cogc: UserData.GovBurnCogc, cogcDays: number) {
+  const refills = Math.max(0, Math.floor(cogcDays / COGC_PERIOD_DAYS));
   const bill: Record<string, number> = {};
   for (const material of cogc.materials) {
     const amount = refills * material.amount;

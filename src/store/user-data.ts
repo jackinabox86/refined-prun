@@ -134,6 +134,9 @@ export const initialUserData = deepFreeze({
       planets: {} as Record<string, UserData.GovBurnPlanetConfig>,
       slots: {} as Record<string, UserData.GovBurnPlanetSlots>,
       resupplyDays: 30,
+      // GOVBURNACT COGC coverage in days (0, 10, 20, 30). Missing follows
+      // suggestedCogcDays(resupplyDays).
+      cogcDays: undefined as number | undefined,
       // Planet natural id -> force CX buy to ignore warehouse stock, set in GOVBURNACT.
       // Only planets that are turned on appear here.
       planetForceCXBuy: {} as Record<string, boolean>,
