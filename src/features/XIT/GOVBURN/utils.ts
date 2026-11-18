@@ -1,10 +1,29 @@
 const MS_IN_DAY = 24 * 60 * 60 * 1000;
 
 // Days from `now` until the first consumption tick this material cannot pay.
-export function materialDays(upkeep: UserData.GovBurnUpkeep, now: number) {
+// `nextTick` advances whether or not that tick was paid. When stored covers no
+// full tick, the open period counts only if a contribution falls inside
+// [nextTick - duration, nextTick). `lastContribution` is the persisted history
+// time, because the live Contributions tab omits entries older than its window.
+export function materialDays(
+  upkeep: UserData.GovBurnUpkeep,
+  now: number,
+  lastContribution?: number,
+) {
   const ticksPaid = upkeep.amount > 0 ? Math.floor(upkeep.stored / upkeep.amount) : 0;
-  const days = (upkeep.nextTick - now) / MS_IN_DAY + ticksPaid * upkeep.duration;
-  return Math.max(0, days);
+  const openDays = Math.max(0, (upkeep.nextTick - now) / MS_IN_DAY);
+  if (ticksPaid === 0 && !openPeriodPaid(upkeep, lastContribution)) {
+    return 0;
+  }
+  return openDays + ticksPaid * upkeep.duration;
+}
+
+function openPeriodPaid(upkeep: UserData.GovBurnUpkeep, lastContribution: number | undefined) {
+  if (lastContribution === undefined || !(upkeep.duration > 0)) {
+    return false;
+  }
+  const periodStart = upkeep.nextTick - upkeep.duration * MS_IN_DAY;
+  return lastContribution >= periodStart && lastContribution < upkeep.nextTick;
 }
 
 // Days until the first consumption event among the building's n supplied materials.
@@ -44,7 +63,8 @@ export function buildingDays(building: UserData.GovBurnBuilding, n: number, now:
     if (!upkeep) {
       continue;
     }
-    days = Math.min(days, materialDays(upkeep, now));
+    const lastContribution = building.contribHistory?.[slot.ticker]?.any;
+    days = Math.min(days, materialDays(upkeep, now, lastContribution));
   }
   if (hasUnresolved) {
     for (const upkeep of upkeeps) {
@@ -262,7 +282,7 @@ export function upkeepBuyAmount(upkeep: UserData.GovBurnUpkeep, horizonDays: num
 
 // Aggregated {ticker: amount} bill for one planet: for each building with
 // level > 0 and configured n > 0, buy upkeepBuyAmount for each of the n
-// resolved slot tickers, plus COGC materials when present.
+// resolved slot tickers, plus COGC materials for `cogcDays` when present.
 // `slots` comes from the UI (rankSlots output after the user resolves manual
 // slots); entries with an empty ticker are the caller's bug - assert against them.
 export function planetGovBurnBill(
@@ -270,6 +290,7 @@ export function planetGovBurnBill(
   slotsByBuilding: Record<string, SlotPick[]>,
   horizonDays: number,
   now: number,
+  cogcDays: number,
 ): Record<string, number> {
   const bill: Record<string, number> = {};
   for (const building of planet.buildings) {
@@ -300,7 +321,7 @@ export function planetGovBurnBill(
     }
   }
   if (planet.cogc !== undefined) {
-    for (const [ticker, amount] of Object.entries(cogcBuyAmounts(planet.cogc, horizonDays))) {
+    for (const [ticker, amount] of Object.entries(cogcBuyAmounts(planet.cogc, cogcDays))) {
       bill[ticker] = (bill[ticker] ?? 0) + amount;
     }
   }
@@ -321,17 +342,22 @@ export function cogcDays(cogc: UserData.GovBurnCogc, now: number) {
   return Math.max(0, days);
 }
 
-// Full COGC refills covered by a resupply horizon, at the UI's 5-day increments:
-// 5-10d -> 1, 15-20d -> 2, 25-30d -> 3. General formula is ceil(horizonDays / 10),
-// capped at 3 refills no matter the horizon.
+// Default COGC coverage for a POPI resupply horizon, in days: 5-10 -> 10,
+// 15-20 -> 20, 25-30 -> 30. The COGC control can override this.
+export function suggestedCogcDays(horizonDays: number) {
+  return cogcRefills(horizonDays) * COGC_PERIOD_DAYS;
+}
+
+// Full COGC refills the old horizon mapping would have bought, at the UI's
+// 5-day increments: 5-10d -> 1, 15-20d -> 2, 25-30d -> 3. Capped at 3.
 export function cogcRefills(horizonDays: number) {
   return Math.min(3, Math.max(1, Math.ceil(horizonDays / COGC_PERIOD_DAYS)));
 }
 
-// {ticker: amount} to buy for the horizon's refills: always full refill
-// bills, no credit for the current cycle's paid or partial contributions.
-export function cogcBuyAmounts(cogc: UserData.GovBurnCogc, horizonDays: number) {
-  const refills = cogcRefills(horizonDays);
+// {ticker: amount} to buy for `cogcDays` of coverage (0, 10, 20, or 30):
+// always full refill bills, no credit for the current cycle's contributions.
+export function cogcBuyAmounts(cogc: UserData.GovBurnCogc, cogcDays: number) {
+  const refills = Math.max(0, Math.floor(cogcDays / COGC_PERIOD_DAYS));
   const bill: Record<string, number> = {};
   for (const material of cogc.materials) {
     const amount = refills * material.amount;

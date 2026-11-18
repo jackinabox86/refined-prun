@@ -16,9 +16,9 @@ import {
 } from '@src/features/XIT/GOVBURN/govburn-cx-buy';
 import { stagedGovBurn } from '@src/features/XIT/GOVBURN/staged';
 import {
-  cogcRefills,
   planetGovBurnBill,
   resolveSlots,
+  suggestedCogcDays,
   type SlotPick,
 } from '@src/features/XIT/GOVBURN/utils';
 import { useMinBufferHeight } from '@src/hooks/use-min-buffer-height';
@@ -134,6 +134,7 @@ watch(
 );
 
 const dayOptions = ['5', '10', '15', '20', '25', '30'];
+const cogcDayOptions = ['0', '10', '20', '30'];
 
 const resupplyDays = computed({
   get() {
@@ -145,11 +146,29 @@ const resupplyDays = computed({
   },
   set(value: string) {
     const days = Number(value);
-    userData.govburn.config.resupplyDays = Number.isFinite(days) && days > 0 ? days : 30;
+    const horizon = Number.isFinite(days) && days > 0 ? days : 30;
+    userData.govburn.config.resupplyDays = horizon;
+    userData.govburn.config.cogcDays = suggestedCogcDays(horizon);
   },
 });
 
 const horizonDays = computed(() => Number(resupplyDays.value));
+
+const cogcDays = computed({
+  get() {
+    const days = userData.govburn.config.cogcDays;
+    if (typeof days === 'number' && cogcDayOptions.includes(String(days))) {
+      return String(days);
+    }
+    return String(suggestedCogcDays(horizonDays.value));
+  },
+  set(value: string) {
+    const days = Number(value);
+    userData.govburn.config.cogcDays = cogcDayOptions.includes(String(days))
+      ? days
+      : suggestedCogcDays(horizonDays.value);
+  },
+});
 
 const forceCXBuy = computed({
   get() {
@@ -200,7 +219,13 @@ const bill = computed(() => {
   if (planet === undefined || !allResolved.value) {
     return {} as Record<string, number>;
   }
-  return planetGovBurnBill(planet, slots.value, horizonDays.value, timestampEachMinute.value);
+  return planetGovBurnBill(
+    planet,
+    slots.value,
+    horizonDays.value,
+    timestampEachMinute.value,
+    Number(cogcDays.value),
+  );
 });
 
 const billNotEmpty = computed(() => Object.keys(bill.value).length > 0);
@@ -279,6 +304,12 @@ function onExecuteClick() {
           <SelectInput v-model="resupplyDays" :options="dayOptions" />
         </Active>
         <Active
+          v-if="captured?.cogc !== undefined"
+          label="COGC"
+          tooltip="Days of CoGC materials to buy. Changing Days resets this to the previous automatic amount.">
+          <SelectInput v-model="cogcDays" :options="cogcDayOptions" />
+        </Active>
+        <Active
           label="CX Buy"
           tooltip="Ignore stock already in the CX warehouse and try to buy the full bill. Remembered for this planet only.">
           <RadioItem v-model="forceCXBuy">force CX buy</RadioItem>
@@ -313,10 +344,6 @@ function onExecuteClick() {
             </tr>
           </tbody>
         </table>
-
-        <p v-if="captured?.cogc !== undefined" :class="$style.cogcSummary">
-          COGC: {{ cogcRefills(horizonDays) }} refill(s) included
-        </p>
       </div>
       <p v-if="allResolved && !billNotEmpty" :class="$style.summary">
         Reserves already cover {{ horizonDays }} days — nothing to buy.
@@ -376,11 +403,6 @@ function onExecuteClick() {
 
 .summary {
   margin: 0.5rem 0 0.5rem 5px;
-}
-
-.cogcSummary {
-  margin: 0.5rem 0 0;
-  padding-left: 8px;
 }
 
 .actionBar {
