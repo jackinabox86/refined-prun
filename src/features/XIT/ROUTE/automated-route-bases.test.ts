@@ -3,6 +3,12 @@ import { describe, expect, it, vi } from 'vitest';
 vi.mock('@src/infrastructure/prun-api/data/ship-routes', () => ({
   shipRoutesStore: { all: { value: [] } },
 }));
+vi.mock('@src/infrastructure/prun-api/data/exchanges', () => ({
+  exchangesStore: { getNaturalIdFromCode: () => undefined },
+}));
+vi.mock('@src/store/user-data', () => ({
+  userData: { routes: [] },
+}));
 vi.mock('@src/infrastructure/prun-api/data/addresses', () => ({
   getEntityNaturalIdFromAddress: () => undefined,
 }));
@@ -16,48 +22,82 @@ import {
 function execution(
   state: PrunApi.ShipRouteExecutionState,
   repeats: boolean,
+  naturalId: string,
   ids: string[],
 ): PrunApi.ShipRouteExecution {
   return {
     state,
-    route: { repeats, waypoints: ids.map(id => ({ id })) },
+    route: { naturalId, repeats, waypoints: ids.map(id => ({ id })) },
   } as unknown as PrunApi.ShipRouteExecution;
 }
 
+function saved(stops: string[], extra: Partial<UserData.ShippingRoute> = {}) {
+  return {
+    id: 'r',
+    name: 'r',
+    stops: stops.map(id => ({ kind: id.includes('-') ? 'base' : 'cx', id })),
+    ...extra,
+  } as UserData.ShippingRoute;
+}
+
 const byId = (waypoint: PrunApi.ShipRouteWaypoint) => waypoint.id;
+const stopId = (stop: UserData.ShippingRouteStop) => stop.id;
+
+function stops(executions: PrunApi.ShipRouteExecution[], routes: UserData.ShippingRoute[]) {
+  return runningRouteStops(executions, routes, byId, stopId);
+}
 
 describe('runningRouteStops', () => {
-  it('includes every stop of a looping route that is running', () => {
+  it('includes base stops of a looping ROUTECONFIG route that is running', () => {
     for (const state of ['FLYING', 'RUNNING_STEPS', 'WAITING'] as const) {
-      const stops = runningRouteStops([execution(state, true, ['ANT', 'VH-331a'])], byId);
-      expect(stops.has('VH-331a')).toBe(true);
+      const ids = stops(
+        [execution(state, true, 'RT-1', ['ANT', 'VH-331a'])],
+        [saved(['ANT', 'VH-331a'])],
+      );
+      expect(ids.has('VH-331a')).toBe(true);
+      expect(ids.has('ANT')).toBe(false);
     }
   });
 
-  it('excludes a looping route blocked on a step', () => {
-    const stops = runningRouteStops([execution('STEP_BLOCKED', true, ['ANT', 'VH-331a'])], byId);
-    expect(stops.has('VH-331a')).toBe(false);
-  });
-
-  it('excludes a one-way route even while it runs', () => {
-    const stops = runningRouteStops([execution('FLYING', false, ['ANT', 'VH-331a'])], byId);
-    expect(stops.has('VH-331a')).toBe(false);
-  });
-
-  it('keeps a base served by a second, unblocked ship', () => {
-    const stops = runningRouteStops(
-      [
-        execution('STEP_BLOCKED', true, ['ANT', 'VH-331a']),
-        execution('FLYING', true, ['AI1', 'VH-331a']),
-      ],
-      byId,
+  it('matches by stored rtId even when the stops differ', () => {
+    const ids = stops(
+      [execution('FLYING', true, 'RT-1', ['AI1', 'VH-331a'])],
+      [saved(['ANT', 'VH-331a'], { rtId: 'RT-1' })],
     );
-    expect(stops.has('VH-331a')).toBe(true);
-    expect(stops.has('ANT')).toBe(false);
+    expect(ids.has('VH-331a')).toBe(true);
   });
 
-  it('is empty without any route execution', () => {
-    expect(runningRouteStops([], byId).size).toBe(0);
+  it('excludes a running loop made outside ROUTECONFIG', () => {
+    const ids = stops([execution('FLYING', true, 'RT-1', ['ANT', 'VH-331a'])], []);
+    expect(ids.has('VH-331a')).toBe(false);
+  });
+
+  it('excludes a ROUTECONFIG route whose stored game route is a different one', () => {
+    const ids = stops(
+      [execution('FLYING', true, 'RT-2', ['ANT', 'VH-331a'])],
+      [saved(['ANT', 'VH-331a'], { rtId: 'RT-1' })],
+    );
+    expect(ids.has('VH-331a')).toBe(false);
+  });
+
+  it('excludes a looping route blocked on a step', () => {
+    const ids = stops(
+      [execution('STEP_BLOCKED', true, 'RT-1', ['ANT', 'VH-331a'])],
+      [saved(['ANT', 'VH-331a'], { rtId: 'RT-1' })],
+    );
+    expect(ids.has('VH-331a')).toBe(false);
+  });
+
+  it('excludes one-way routes', () => {
+    const ids = stops(
+      [execution('FLYING', false, 'RT-1', ['ANT', 'VH-331a'])],
+      [saved(['ANT', 'VH-331a'], { rtId: 'RT-1', loop: false })],
+    );
+    expect(ids.has('VH-331a')).toBe(false);
+  });
+
+  it('excludes a saved looping route no ship is running', () => {
+    expect(stops([], [saved(['ANT', 'VH-331a'], { rtId: 'RT-1' })]).size).toBe(0);
   });
 });
 
