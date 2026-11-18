@@ -228,19 +228,21 @@ function loadExcess(ticker: string, retain: number): RouteStep {
   return step;
 }
 
-// A base visit leaves exactly one bill of each input on the base. Every input is
-// unloaded first, then loaded back with the bill retained, so the excess (and what
-// later bases need) rides on. Outputs are loaded the same way, keeping the base's own use.
+// A base visit leaves exactly one bill of each input on the base. For each input,
+// unload up to that bill amount (no minimum, so a ship carrying less does not block),
+// then load excess with the bill retained, so cargo for later bases stays on the ship
+// and surplus already on the base rides on.
+// Outputs are loaded the same way, keeping the base's own use.
 function pushBaseSteps(
   steps: RouteStep[],
   bill: Record<string, number> | undefined,
   loaded: Record<string, number> | undefined,
   ownUse: Record<string, number> | undefined,
 ) {
-  const inputs = positiveTickers(bill);
-  pushUnloadAll(steps, inputs);
-  for (const ticker of inputs) {
-    steps.push(loadExcess(ticker, bill?.[ticker] ?? 0));
+  for (const ticker of positiveTickers(bill)) {
+    const amount = bill?.[ticker] ?? 0;
+    steps.push({ kind: 'unload', ticker, min: nothing, max: units(amount) });
+    steps.push(loadExcess(ticker, amount));
   }
   for (const ticker of positiveTickers(loaded)) {
     steps.push(loadExcess(ticker, ownUse?.[ticker] ?? 0));

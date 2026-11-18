@@ -50,6 +50,9 @@ departure refills the fuel one lap burns, with no extra buffer. A loop with shor
 therefore holds far more fuel than its supply days suggest. A saved loop no ship runs is counted
 as departing now. Hover the reserved count in CXPO to see each route's share.
 
+Workforce consumes a whole day's need at once, so a base on supply days always gets at least one
+full day of workforce consumables, even when the supply days are under 1.
+
 ## Stops
 
 ```json

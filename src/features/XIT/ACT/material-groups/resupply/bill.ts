@@ -5,6 +5,17 @@ import { productionStore } from '@src/infrastructure/prun-api/data/production';
 import { storagesStore } from '@src/infrastructure/prun-api/data/storage';
 import type { MaterialFilter } from './config';
 
+// What a material uses over `days`. Workforce eats a whole day's need at once, so
+// with `minWorkforceDays` the workforce share never covers fewer days than that.
+export function consumedOver(
+  days: number,
+  dailyUse: number,
+  workforce: number,
+  minWorkforceDays = 0,
+) {
+  return days * dailyUse + Math.max(0, minWorkforceDays - days) * workforce;
+}
+
 // Computes the resupply material bill for a given planet and day count.
 // Returns undefined when inputs are missing or when the site's burn data is
 // not yet loaded. Kept synchronous so it can be driven reactively from the
@@ -14,6 +25,7 @@ export function computeResupplyBill(
   planet: string | undefined,
   days: number | undefined,
   materialFilter?: MaterialFilter,
+  minWorkforceDays?: number,
 ): Record<string, number> | undefined {
   if (!planet || days === undefined || isNaN(days)) {
     return undefined;
@@ -56,7 +68,7 @@ export function computeResupplyBill(
     if (matBurn.dailyAmount >= 0) {
       continue;
     }
-    const consumed = days * -matBurn.dailyAmount;
+    const consumed = consumedOver(days, -matBurn.dailyAmount, matBurn.workforce, minWorkforceDays);
     const need = Math.max(0, Math.ceil(consumed - matBurn.inventory + 1));
     if (need > 0) {
       bill[ticker] = need;
