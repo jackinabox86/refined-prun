@@ -5,6 +5,7 @@ import {
   parseRouteSpec,
   parseRouteStep,
   routeSummaryLines,
+  isUnloadAllStep,
   stepCommandLabel,
   stepSummary,
 } from './route-spec';
@@ -184,5 +185,31 @@ describe('shipment steps', () => {
     expect(stepCommandLabel({ kind: 'load-shipment' })).toBe('Load shipment');
     expect(stepCommandLabel({ kind: 'unload-shipment' })).toBe('Unload shipment');
     expect(stepSummary({ kind: 'unload-shipment' })).toBe('Unload shipments');
+  });
+});
+
+describe('unload-all step', () => {
+  it('clicks the Unload all command, not the per-material Unload', () => {
+    expect(stepCommandLabel({ kind: 'unload-all' })).toBe('Unload all');
+    expect(stepSummary({ kind: 'unload-all' })).toBe('Unload all carried');
+    expect(isUnloadAllStep({ kind: 'unload-all' })).toBe(true);
+    expect(
+      isUnloadAllStep({ kind: 'unload', ticker: 'DW', min: { mode: 'all' }, max: { mode: 'all' } }),
+    ).toBe(false);
+  });
+
+  it('round-trips through the RTEXEC payload', () => {
+    const payload = parseRoutePayload(
+      JSON.stringify({
+        stops: [
+          { query: 'ANT', steps: [{ kind: 'unload-all' }] },
+          { query: 'BEN', steps: [] },
+        ],
+      }),
+    );
+    expect(payload.ok && payload.spec.stops.map(x => x.steps)).toEqual([
+      [{ kind: 'unload-all' }],
+      [],
+    ]);
   });
 });

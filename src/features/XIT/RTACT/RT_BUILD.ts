@@ -31,6 +31,7 @@ import {
 import {
   editorTitle,
   isShipmentStep,
+  isUnloadAllStep,
   routeSummaryLines,
   shipmentRowText,
   stepSummary,
@@ -367,6 +368,27 @@ async function addStep(
   }
   revealHover(scope);
   await waitFor(() => findLabeled(scope, command), 1500);
+  if (isUnloadAllStep(step)) {
+    // One click adds the step with no editor and no row text this runner knows yet, so
+    // the only signal is that the waypoint's own text changes.
+    const blockBefore = waypointBlock(scope).textContent ?? '';
+    try {
+      await clickControl(scope, command);
+    } catch (err) {
+      fail(err instanceof Error ? err.message : `Could not click ${command}`);
+      return false;
+    }
+    const added = await waitFor(() => {
+      const fresh = findWaypointScope(tile.anchor, needles);
+      return fresh !== undefined && (waypointBlock(fresh).textContent ?? '') !== blockBefore;
+    }, 8000);
+    if (!added) {
+      fail(`Could not find the new ${command} step at ${stop.query}`);
+      return false;
+    }
+    log.info(`Added ${summary} at ${stop.query}`);
+    return true;
+  }
   if (isShipmentStep(step)) {
     // A shipment step has no editor and no SAVE: the click adds it filled in, so the new
     // row's text is the only signal.
