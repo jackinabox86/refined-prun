@@ -4,6 +4,7 @@ import {
   materialDays,
   planetGovBurnBill,
   suggestedCogcDays,
+  upkeepBuyAmount,
 } from '@src/features/XIT/GOVBURN/utils';
 
 const MS_IN_DAY = 24 * 60 * 60 * 1000;
@@ -20,13 +21,9 @@ function upkeep(stored: number, lastTickIn = 6.6) {
 }
 
 describe('materialDays', () => {
-  it('does not count an unpaid 15-day period as remaining days', () => {
-    expect(materialDays(upkeep(0), NOW)).toBe(0);
-  });
-
-  it('does not count a partial contribution toward the next tick', () => {
-    // 2 of 3 IDC stored: the next tick at nextTick cannot be paid.
-    expect(materialDays(upkeep(2), NOW)).toBe(0);
+  it('counts an unfunded 15-day material down to its next tick', () => {
+    expect(materialDays(upkeep(0), NOW)).toBeCloseTo(6.6);
+    expect(materialDays(upkeep(2), NOW)).toBeCloseTo(6.6);
   });
 
   it('still adds full ticks already in reserve', () => {
@@ -38,7 +35,7 @@ describe('materialDays', () => {
   // STR: stored 0 / 10, every 15 days, next in 6 days 5h, Last for "--".
   // OFF: stored 200 / 50, every 5 days, next in 1 day 5h, Last for 20 days.
   const LS_300E_NEXT_TICK = NOW + (6 * 24 + 5) * 3_600_000;
-  it('matches the game for INF @ LS-300e 15-day TUB and STR (reserve "--")', () => {
+  it('INF @ LS-300e 15-day TUB and STR: days to next tick, bought for it', () => {
     const tub = {
       ticker: 'TUB',
       stored: 0,
@@ -47,8 +44,13 @@ describe('materialDays', () => {
       nextTick: LS_300E_NEXT_TICK,
     };
     const str = { ticker: 'STR', stored: 0, amount: 10, duration: 15, nextTick: LS_300E_NEXT_TICK };
-    expect(materialDays(tub, NOW)).toBe(0);
-    expect(materialDays(str, NOW)).toBe(0);
+    expect(materialDays(tub, NOW)).toBeCloseTo(6.21, 1);
+    expect(materialDays(str, NOW)).toBeCloseTo(6.21, 1);
+    // A 30-day GOVBURNACT buys both 15-day ticks inside the horizon (6.2d, 21.2d).
+    expect(upkeepBuyAmount(tub, 30, NOW)).toBe(200);
+    expect(upkeepBuyAmount(str, 30, NOW)).toBe(20);
+    // A 5-day GOVBURNACT still funds the next tick.
+    expect(upkeepBuyAmount(tub, 5, NOW)).toBe(100);
   });
 
   it('matches the game for INF @ LS-300e 5-day OFF (200 stored = 4 ticks)', () => {

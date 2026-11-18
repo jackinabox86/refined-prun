@@ -1,26 +1,19 @@
 const MS_IN_DAY = 24 * 60 * 60 * 1000;
 
 // Days from `now` until the first consumption tick this material cannot pay.
-// `stored` already includes every contribution since the last tick (ticks only
-// consume), and `nextTick` advances whether or not that tick was paid. So a
-// reserve that covers no full tick is unfed now: the game shows its reserve as
-// "--" (verified live: INF @ LS-300e, TUB stored 0 / amount 100 / every 15 days,
-// next tick in 6d 5h). A partial contribution into the open period does not fund
-// the next tick either, so it is not counted.
+// An unfunded material still counts down to its next tick: nothing is consumed
+// before then, and GOVBURNACT buys for that tick (upkeepBuyAmount).
 export function materialDays(upkeep: UserData.GovBurnUpkeep, now: number) {
   const ticksPaid = upkeep.amount > 0 ? Math.floor(upkeep.stored / upkeep.amount) : 0;
-  if (ticksPaid === 0) {
-    return 0;
-  }
-  const openDays = Math.max(0, (upkeep.nextTick - now) / MS_IN_DAY);
-  return openDays + ticksPaid * upkeep.duration;
+  const days = (upkeep.nextTick - now) / MS_IN_DAY + ticksPaid * upkeep.duration;
+  return Math.max(0, days);
 }
 
 // Days until the first consumption event among the building's n supplied materials.
 // The supplied set is chosen like GOVBURNACT resupply does (rankSlots: reserve
 // depth first, then own/any contribution recency), so a recently contributed
 // 15-day material keeps its slot instead of pushing the user onto a shorter-period
-// material. Its days still follow materialDays (unfunded means 0).
+// material.
 // Slots with no signal at all (no reserve, no contribution history) count down
 // to the earliest tick among the remaining materials — the first missable
 // consumption event is the first chance to start supplying.
