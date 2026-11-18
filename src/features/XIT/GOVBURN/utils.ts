@@ -1,36 +1,26 @@
 const MS_IN_DAY = 24 * 60 * 60 * 1000;
 
 // Days from `now` until the first consumption tick this material cannot pay.
-// `nextTick` advances whether or not that tick was paid. When stored covers no
-// full tick, the open period counts only if a contribution falls inside
-// [nextTick - duration, nextTick). `lastContribution` is the persisted history
-// time, because the live Contributions tab omits entries older than its window.
-export function materialDays(
-  upkeep: UserData.GovBurnUpkeep,
-  now: number,
-  lastContribution?: number,
-) {
+// `stored` already includes every contribution since the last tick (ticks only
+// consume), and `nextTick` advances whether or not that tick was paid. So a
+// reserve that covers no full tick is unfed now: the game shows its reserve as
+// "--" (verified live: INF @ LS-300e, TUB stored 0 / amount 100 / every 15 days,
+// next tick in 6d 5h). A partial contribution into the open period does not fund
+// the next tick either, so it is not counted.
+export function materialDays(upkeep: UserData.GovBurnUpkeep, now: number) {
   const ticksPaid = upkeep.amount > 0 ? Math.floor(upkeep.stored / upkeep.amount) : 0;
-  const openDays = Math.max(0, (upkeep.nextTick - now) / MS_IN_DAY);
-  if (ticksPaid === 0 && !openPeriodPaid(upkeep, lastContribution)) {
+  if (ticksPaid === 0) {
     return 0;
   }
+  const openDays = Math.max(0, (upkeep.nextTick - now) / MS_IN_DAY);
   return openDays + ticksPaid * upkeep.duration;
-}
-
-function openPeriodPaid(upkeep: UserData.GovBurnUpkeep, lastContribution: number | undefined) {
-  if (lastContribution === undefined || !(upkeep.duration > 0)) {
-    return false;
-  }
-  const periodStart = upkeep.nextTick - upkeep.duration * MS_IN_DAY;
-  return lastContribution >= periodStart && lastContribution < upkeep.nextTick;
 }
 
 // Days until the first consumption event among the building's n supplied materials.
 // The supplied set is chosen like GOVBURNACT resupply does (rankSlots: reserve
-// depth first, then own/any contribution recency) — so a 15-day material
-// contributed within its current period counts down to its own nextTick instead
-// of rushing the user onto a shorter-period material.
+// depth first, then own/any contribution recency), so a recently contributed
+// 15-day material keeps its slot instead of pushing the user onto a shorter-period
+// material. Its days still follow materialDays (unfunded means 0).
 // Slots with no signal at all (no reserve, no contribution history) count down
 // to the earliest tick among the remaining materials — the first missable
 // consumption event is the first chance to start supplying.
@@ -63,8 +53,7 @@ export function buildingDays(building: UserData.GovBurnBuilding, n: number, now:
     if (!upkeep) {
       continue;
     }
-    const lastContribution = building.contribHistory?.[slot.ticker]?.any;
-    days = Math.min(days, materialDays(upkeep, now, lastContribution));
+    days = Math.min(days, materialDays(upkeep, now));
   }
   if (hasUnresolved) {
     for (const upkeep of upkeeps) {
