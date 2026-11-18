@@ -115,4 +115,11 @@ describe('addStep re-resolves the waypoint and gates SAVE', () => {
       expect(shipment).not.toContain(editorCall);
     }
   });
+
+  it('detects an Unload all step by its row text over the whole route, not the waypoint block', () => {
+    const start = addStep.indexOf('if (isUnloadAllStep(step))');
+    const unloadAll = addStep.slice(start, addStep.indexOf('if (isShipmentStep(step))'));
+    expect(unloadAll).toContain('textCount(tile.anchor, UNLOAD_ALL_ROW_TEXT)');
+    expect(unloadAll).not.toContain('waypointBlock');
+  });
 });

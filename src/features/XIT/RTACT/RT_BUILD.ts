@@ -35,6 +35,7 @@ import {
   routeSummaryLines,
   shipmentRowText,
   stepSummary,
+  UNLOAD_ALL_ROW_TEXT,
   type RouteStep,
   type RouteStop,
 } from '@src/features/XIT/RTACT/route-spec';
@@ -369,19 +370,19 @@ async function addStep(
   revealHover(scope);
   await waitFor(() => findLabeled(scope, command), 1500);
   if (isUnloadAllStep(step)) {
-    // One click adds the step with no editor and no row text this runner knows yet, so
-    // the only signal is that the waypoint's own text changes.
-    const blockBefore = waypointBlock(scope).textContent ?? '';
+    // One click adds the row with no pencil and no editor. Its description is the only
+    // signal, and the row can sit outside the waypoint's block, so count it over the route.
+    const rowsBefore = textCount(tile.anchor, UNLOAD_ALL_ROW_TEXT);
     try {
       await clickControl(scope, command);
     } catch (err) {
       fail(err instanceof Error ? err.message : `Could not click ${command}`);
       return false;
     }
-    const added = await waitFor(() => {
-      const fresh = findWaypointScope(tile.anchor, needles);
-      return fresh !== undefined && (waypointBlock(fresh).textContent ?? '') !== blockBefore;
-    }, 8000);
+    const added = await waitFor(
+      () => textCount(tile.anchor, UNLOAD_ALL_ROW_TEXT) > rowsBefore,
+      8000,
+    );
     if (!added) {
       fail(`Could not find the new ${command} step at ${stop.query}`);
       return false;

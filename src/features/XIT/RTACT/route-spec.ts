@@ -152,6 +152,10 @@ export function shipmentRowText(step: ShipmentStep): string {
     : 'All shipments bound for this waypoint';
 }
 
+// The description the game shows on an Unload all step's row once it is added. The row has
+// no pencil and no editor, so this is the only signal that the step landed.
+export const UNLOAD_ALL_ROW_TEXT = 'All materials in the cargo hold';
+
 // Plain-text step for the RTEXEC preview and log: "Load 120 RAT", "Unload all DW carried".
 export function stepSummary(step: RouteStep): string {
   switch (step.kind) {
