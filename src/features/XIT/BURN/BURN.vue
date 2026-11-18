@@ -18,6 +18,10 @@ import { useXitParameters } from '@src/hooks/use-xit-parameters';
 import { materialsStore } from '@src/infrastructure/prun-api/data/materials';
 import { sitesStore } from '@src/infrastructure/prun-api/data/sites';
 import { countDays, getSortedTickers } from '@src/features/XIT/BURN/utils';
+import {
+  compareEnRouteLast,
+  isOnAutomatedRoute,
+} from '@src/features/XIT/ROUTE/automated-route-bases';
 import InlineFlex from '@src/components/InlineFlex.vue';
 import { findWithQuery } from '@src/utils/find-with-query';
 import { convertToPlanetNaturalId } from '@src/core/planet-natural-id';
@@ -124,6 +128,13 @@ const planetBurn = computed(() => {
   }
 
   filtered.sort((a, b) => {
+    const enRouteOrder = compareEnRouteLast(
+      isOnAutomatedRoute(a.naturalId),
+      isOnAutomatedRoute(b.naturalId),
+    );
+    if (enRouteOrder !== 0) {
+      return enRouteOrder;
+    }
     const daysA = countDays(a.burn);
     const daysB = countDays(b.burn);
     if (daysA !== daysB) {

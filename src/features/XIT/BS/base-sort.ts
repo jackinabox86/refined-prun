@@ -1,3 +1,5 @@
+import { compareEnRouteLast, hasRepairsDue } from '@src/features/XIT/ROUTE/automated-route-bases';
+
 export type SortKey = 'name' | 'burn' | 'repair' | 'proximity';
 export type SortDirection = 'asc' | 'desc';
 
@@ -6,6 +8,8 @@ export interface SortableBase {
   days: number | undefined;
   repairDays: number | undefined;
   repairTarget: number;
+  // On a looping (automated) shipping route. Absent means not.
+  enRoute?: boolean;
 }
 
 // Both factors floor at zero. Past a deadline there is nothing left to count
@@ -74,6 +78,18 @@ export function compareBases(
   compareNames: (left: string, right: string) => number,
 ) {
   const dir = direction === 'asc' ? 1 : -1;
+  // Burn and DYNAMIC: en-route bases sink to the bottom. DYNAMIC lets a base
+  // with repairs due keep its urgency rank instead.
+  if (key === 'burn' || key === 'proximity') {
+    const enRouteOrder = compareEnRouteLast(a.enRoute === true, b.enRoute === true, {
+      repairsDueBreaksThrough: key === 'proximity',
+      aRepairsDue: hasRepairsDue(a.repairDays, a.repairTarget),
+      bRepairsDue: hasRepairsDue(b.repairDays, b.repairTarget),
+    });
+    if (enRouteOrder !== 0) {
+      return enRouteOrder;
+    }
+  }
   if (key === 'burn') {
     const daysA = a.days ?? Infinity;
     const daysB = b.days ?? Infinity;

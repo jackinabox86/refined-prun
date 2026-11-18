@@ -14,6 +14,10 @@ import { useTileState } from '@src/store/user-data-tiles';
 import { getPlanetBurn, getResupplyDays } from '@src/core/burn';
 import { getRepairLeadDays, getRepairThreshold } from '@src/core/buildings';
 import { countDays } from '@src/features/XIT/BURN/utils';
+import {
+  compareEnRouteLast,
+  isOnAutomatedRoute,
+} from '@src/features/XIT/ROUTE/automated-route-bases';
 import { serializeStorage } from '@src/features/XIT/ACT/actions/utils';
 import { allExchangesValue } from '@src/features/XIT/ACT/actions/refuel/utils';
 import { setBufferSize, showBuffer } from '@src/infrastructure/prun-ui/buffers';
@@ -238,6 +242,13 @@ watchEffect(() => {
     .filter(x => !orderedSet.has(x.base.naturalId))
     .map(x => x.base)
     .sort((a, b) => {
+      const enRouteOrder = compareEnRouteLast(
+        isOnAutomatedRoute(a.naturalId),
+        isOnAutomatedRoute(b.naturalId),
+      );
+      if (enRouteOrder !== 0) {
+        return enRouteOrder;
+      }
       const daysA = burnDaysRemaining(a.siteId);
       const daysB = burnDaysRemaining(b.siteId);
       if (daysA !== daysB) {
