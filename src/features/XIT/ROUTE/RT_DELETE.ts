@@ -53,14 +53,11 @@ function headerTexts(view: Element, rtId: string): string[] | undefined {
 }
 
 // Finds the list row for this route by its in-game name, which the list shows for a renamed
-// route, or by its id. Only the game's own view can say the route is gone, and only when the
-// list has routes loaded, so an empty or unread list keeps the config route.
+// route, or by its id. Only the game's own view can say the route is gone. The list has
+// already rendered (listShown), so an empty list means the player has no game routes.
 function resolveTarget(list: PrunTile, view: PrunTile, data: Data): Target {
   const rows = rowCells(listRows(list.anchor));
   if (gameRouteMissing(view.frame.textContent ?? '')) {
-    if (rows.length === 0) {
-      return { kind: 'kept', reason: 'the RT list has no routes loaded to confirm it' };
-    }
     if (routeRowIndices(rows, data.rtId, data.rtId).length > 0) {
       return { kind: 'kept', reason: `${data.rtId} says no route, but the RT list still shows it` };
     }
