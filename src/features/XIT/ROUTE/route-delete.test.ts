@@ -2,9 +2,12 @@ import { describe, expect, it } from 'vitest';
 import {
   deleteConfirmMessage,
   deleteOutcome,
+  gameRouteMissing,
   linkedRtId,
+  routeNameFrom,
+  routeRowIndices,
+  routeRowRemoved,
   rowDeleteIndex,
-  rtListRowIndex,
 } from '@src/features/XIT/ROUTE/route-delete';
 
 describe('linkedRtId', () => {
@@ -37,25 +40,70 @@ describe('deleteConfirmMessage', () => {
   });
 });
 
-describe('rtListRowIndex', () => {
+describe('routeNameFrom', () => {
+  it('reads the custom name beside the id', () => {
+    expect(routeNameFrom(['custom route', 'RT-SQPJ-5847'], 'RT-SQPJ-5847')).toBe('custom route');
+  });
+
+  it('uses the id when the route was never renamed', () => {
+    expect(routeNameFrom(['RT-WTMP-4226'], 'RT-WTMP-4226')).toBe('RT-WTMP-4226');
+  });
+
+  it('is unknown when the id is not shown or several texts could be the name', () => {
+    expect(routeNameFrom(['custom route'], 'RT-SQPJ-5847')).toBeUndefined();
+    expect(routeNameFrom(['a', 'b', 'RT-SQPJ-5847'], 'RT-SQPJ-5847')).toBeUndefined();
+  });
+});
+
+describe('routeRowIndices', () => {
   const rows = [
     ['RT-WTMP-4226', '3', '--', '7 hours ago', 'viewcopydelete'],
-    ['RT-SSSV-8222', '14', '--', '7 hours ago', 'viewcopydelete'],
+    ['custom route', '14', '--', '7 hours ago', 'viewcopydelete'],
   ];
 
-  it('finds the row whose first cell is the id', () => {
-    expect(rtListRowIndex(rows, 'rt-sssv-8222')).toBe(1);
+  it('finds a renamed route by its name, not its id', () => {
+    expect(routeRowIndices(rows, 'RT-SQPJ-5847', 'custom route')).toEqual([1]);
+  });
+
+  it('finds an unrenamed route by its id', () => {
+    expect(routeRowIndices(rows, 'rt-wtmp-4226', 'RT-WTMP-4226')).toEqual([0]);
   });
 
   it('does not match an id inside joined cell text', () => {
-    expect(rtListRowIndex([['deleteRT-SNXV-3853']], 'RT-SNXV-3853')).toBeUndefined();
-    expect(rtListRowIndex([['x', 'RT-SNXV-3853']], 'RT-SNXV-3853')).toBeUndefined();
+    expect(routeRowIndices([['deleteRT-SNXV-3853']], 'RT-SNXV-3853', 'x')).toEqual([]);
+    expect(routeRowIndices([['Other', 'RT-SNXV-3853']], 'RT-SNXV-3853', 'Other')).toEqual([0]);
+    expect(routeRowIndices([['Other', 'RT-SNXV-3853']], 'RT-SNXV-3853', 'RT-SNXV-3853')).toEqual(
+      [],
+    );
   });
 
-  it('does not pick a row when the id is missing or listed twice', () => {
-    expect(rtListRowIndex(rows, 'RT-PNWB-2005')).toBeUndefined();
-    expect(rtListRowIndex([rows[0], rows[0]], 'RT-WTMP-4226')).toBeUndefined();
-    expect(rtListRowIndex(rows, ' ')).toBeUndefined();
+  it('reports every row that could be the route, so a duplicate name is ambiguous', () => {
+    expect(routeRowIndices([rows[1], rows[1]], 'RT-SQPJ-5847', 'custom route')).toEqual([0, 1]);
+    expect(routeRowIndices(rows, 'RT-PNWB-2005', 'Other')).toEqual([]);
+  });
+});
+
+describe('gameRouteMissing', () => {
+  it('reads the game view that says no route has the id', () => {
+    expect(gameRouteMissing('RT RT-SQPJ-5847 RT RTE FLT No route found.')).toBe(true);
+    expect(gameRouteMissing('custom route RT-SQPJ-5847 ADD WAYPOINT')).toBe(false);
+  });
+});
+
+describe('routeRowRemoved', () => {
+  const before = [
+    ['custom route', '14', '--', '7 hours ago', 'viewcopydelete'],
+    ['RT-WTMP-4226', '3', '--', '7 hours ago', 'viewcopydelete'],
+  ];
+
+  it('is removed when one row fewer remains and none still matches', () => {
+    expect(routeRowRemoved(before, [before[1]], 'RT-SQPJ-5847', 'custom route')).toBe(true);
+  });
+
+  it('is not removed while the route is still listed or the count did not drop by one', () => {
+    expect(routeRowRemoved(before, before, 'RT-SQPJ-5847', 'custom route')).toBe(false);
+    expect(routeRowRemoved(before, [], 'RT-SQPJ-5847', 'custom route')).toBe(false);
+    expect(routeRowRemoved(before, [before[0]], 'RT-WTMP-4226', 'custom route')).toBe(false);
   });
 });
 

@@ -20,6 +20,7 @@ import {
   stageRouteAssign,
 } from '@src/features/XIT/ROUTE/route-assign-run';
 import { originRows } from '@src/features/XIT/ROUTE/route-origins';
+import { linkedRtId } from '@src/features/XIT/ROUTE/route-delete';
 import { requestRouteDelete } from '@src/features/XIT/ROUTE/route-delete-run';
 import { createRoute, findRoute } from '@src/features/XIT/ROUTE/routes';
 import { store as planetContextMenu } from '@src/features/XIT/planet-context-menu';
@@ -220,12 +221,17 @@ function summarize(route: UserData.ShippingRoute, now: number) {
   }
 
   const assign = assignReadiness(route);
+  const rtId = linkedRtId(route);
   return {
     id: route.id,
     name: route.name,
     nonLooping: assign.show,
     canAssign: assign.enabled,
     assignTip: assign.tip,
+    rtTip:
+      rtId === undefined
+        ? 'Not linked to a game route. REMOVE deletes only this route.'
+        : `Game route ${rtId}`,
     origin: originLabel(route.stops[0]),
     burn,
     burnId,
@@ -370,7 +376,10 @@ async function onAssign(id: string) {
         <tbody>
           <template v-for="row in section.rows" :key="row.id">
             <tr :class="$style.row">
-              <td :class="[$style.title, $style.nameCell, $style.toggle]" @click="toggle(row.id)">
+              <td
+                :class="[$style.title, $style.nameCell, $style.toggle]"
+                :title="row.rtTip"
+                @click="toggle(row.id)">
                 <span :class="$style.plus">{{ expanded.includes(row.id) ? '-' : '+' }}</span>
                 <span>{{
                   row.origin === undefined ? row.name : `${row.name} (${row.origin})`

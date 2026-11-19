@@ -27,20 +27,55 @@ export function deleteConfirmMessage(input: {
   return lines.join(' ');
 }
 
-// The RT list is Name | Waypoints | Assigned Ships | Created | view copy delete. The
-// id must be a row's whole first cell, and exactly one row may carry it.
-export function rtListRowIndex(rows: readonly (readonly string[])[], rtId: string) {
-  const wanted = rtId.trim().toUpperCase();
-  if (wanted.length === 0) {
+// The RT view names a route with its in-game name, or with its id when it was never
+// renamed. The id must be a whole text on its own, and the name is the one other text
+// beside it. Anything else is unknown (undefined), never a guess.
+export function routeNameFrom(texts: readonly string[], rtId: string): string | undefined {
+  const id = rtId.trim().toUpperCase();
+  const shown = texts.map(text => text.trim()).filter(text => text.length > 0);
+  if (id.length === 0 || !shown.some(text => text.toUpperCase() === id)) {
     return undefined;
   }
+  const others = shown.filter(text => text.toUpperCase() !== id);
+  if (others.length === 0) {
+    return rtId.trim();
+  }
+  return others.length === 1 ? others[0] : undefined;
+}
+
+// The RT list is Name | Waypoints | Assigned Ships | Created | view copy delete. The list
+// shows a renamed route by its name only, so a row matches on its whole Name cell being
+// the route's name or its id. Rows, not the id alone, decide what gets deleted.
+export function routeRowIndices(
+  rows: readonly (readonly string[])[],
+  rtId: string,
+  name: string,
+): number[] {
+  const keys = new Set(
+    [rtId, name].map(text => text.trim().toUpperCase()).filter(text => text.length > 0),
+  );
   const hits: number[] = [];
   for (let index = 0; index < rows.length; index++) {
-    if ((rows[index][0] ?? '').trim().toUpperCase() === wanted) {
+    if (keys.has((rows[index][0] ?? '').trim().toUpperCase())) {
       hits.push(index);
     }
   }
-  return hits.length === 1 ? hits[0] : undefined;
+  return hits;
+}
+
+// The game's own view of the route id says so when no route has that id.
+export function gameRouteMissing(viewText: string): boolean {
+  return /no route found/i.test(viewText);
+}
+
+// Removed means exactly one row fewer and no row still matches the route.
+export function routeRowRemoved(
+  before: readonly (readonly string[])[],
+  after: readonly (readonly string[])[],
+  rtId: string,
+  name: string,
+): boolean {
+  return after.length === before.length - 1 && routeRowIndices(after, rtId, name).length === 0;
 }
 
 // Only a control whose whole label is `delete`. One row has one.

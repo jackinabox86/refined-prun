@@ -1,8 +1,11 @@
 import { act } from '@src/features/XIT/ACT/act-registry';
 import {
   deleteOutcome,
+  gameRouteMissing,
+  routeNameFrom,
+  routeRowIndices,
+  routeRowRemoved,
   rowDeleteIndex,
-  rtListRowIndex,
   type GameDeleteResult,
 } from '@src/features/XIT/ROUTE/route-delete';
 import { removeRoute } from '@src/features/XIT/ROUTE/routes';
@@ -16,6 +19,11 @@ interface Data {
   rtId: string;
 }
 
+type Target =
+  | { kind: 'row'; index: number; name: string }
+  | { kind: 'absent' }
+  | { kind: 'kept'; reason: string };
+
 function listRows(anchor: Element): HTMLTableRowElement[] {
   return Array.from(anchor.querySelectorAll('tbody tr'));
 }
@@ -26,16 +34,56 @@ function rowCells(rows: HTMLTableRowElement[]): string[][] {
   );
 }
 
-// The list header proves the RT list has rendered, so a missing id means the route is gone.
+// The list header proves the RT list has rendered, so an empty list is a real empty list.
 function listShown(anchor: Element): boolean {
   const heads = Array.from(anchor.querySelectorAll('th'), th => (th.textContent ?? '').trim());
   return heads.includes('Waypoints') && heads.includes('Created');
 }
 
-function routeRow(anchor: Element, rtId: string): HTMLTableRowElement | undefined {
-  const rows = listRows(anchor);
-  const index = rtListRowIndex(rowCells(rows), rtId);
-  return index === undefined ? undefined : rows[index];
+// The texts beside the id in the route's own view, which hold its in-game name.
+function headerTexts(view: Element, rtId: string): string[] | undefined {
+  const id = rtId.trim().toUpperCase();
+  const leaf = Array.from(view.querySelectorAll('*')).find(
+    el => el.children.length === 0 && (el.textContent ?? '').trim().toUpperCase() === id,
+  );
+  if (leaf === undefined || leaf.parentElement === null) {
+    return undefined;
+  }
+  return Array.from(leaf.parentElement.children, el => el.textContent ?? '');
+}
+
+// Finds the list row for this route by its in-game name, which the list shows for a renamed
+// route, or by its id. Only the game's own view can say the route is gone, and only when the
+// list has routes loaded, so an empty or unread list keeps the config route.
+function resolveTarget(list: PrunTile, view: PrunTile, data: Data): Target {
+  const rows = rowCells(listRows(list.anchor));
+  if (gameRouteMissing(view.frame.textContent ?? '')) {
+    if (rows.length === 0) {
+      return { kind: 'kept', reason: 'the RT list has no routes loaded to confirm it' };
+    }
+    if (routeRowIndices(rows, data.rtId, data.rtId).length > 0) {
+      return { kind: 'kept', reason: `${data.rtId} says no route, but the RT list still shows it` };
+    }
+    return { kind: 'absent' };
+  }
+  const name = routeNameFrom(headerTexts(view.anchor, data.rtId) ?? [], data.rtId);
+  if (name === undefined) {
+    return { kind: 'kept', reason: `could not read the in-game name of ${data.rtId}` };
+  }
+  if (rows.length === 0) {
+    return { kind: 'kept', reason: 'the RT list has no routes loaded to find it in' };
+  }
+  const hits = routeRowIndices(rows, data.rtId, name);
+  if (hits.length !== 1) {
+    return {
+      kind: 'kept',
+      reason:
+        hits.length === 0
+          ? `${name} (${data.rtId}) is not in the RT list`
+          : `${name} matches ${hits.length} RT list rows`,
+    };
+  }
+  return { kind: 'row', index: hits[0], name };
 }
 
 function rowDeleteButton(row: HTMLTableRowElement): HTMLElement | undefined {
@@ -77,7 +125,16 @@ export const RT_DELETE = act.addActionStep<Data>({
       fail(`The RT list did not load. Nothing was deleted; ${data.name} is kept.`);
       return;
     }
-    await waitFor(() => routeRow(list.anchor, data.rtId) !== undefined, 8000);
+    const view = await requestTile(`RT ${data.rtId}`);
+    if (view === undefined) {
+      return;
+    }
+    await waitFor(
+      () =>
+        gameRouteMissing(view.frame.textContent ?? '') ||
+        headerTexts(view.anchor, data.rtId) !== undefined,
+      8000,
+    );
 
     const finish = (result: GameDeleteResult) => {
       const outcome = deleteOutcome(result, data.name, data.rtId);
@@ -94,12 +151,26 @@ export const RT_DELETE = act.addActionStep<Data>({
       complete();
     };
 
-    if (routeRow(list.anchor, data.rtId) === undefined) {
+    const first = resolveTarget(list, view, data);
+    if (first.kind === 'kept') {
+      finish({ kind: 'kept', reason: first.reason });
+      return;
+    }
+    if (first.kind === 'absent') {
       finish({ kind: 'absent' });
       return;
     }
     await waitAct(`Delete ${data.rtId} in the game?`);
-    const row = routeRow(list.anchor, data.rtId);
+    const target = resolveTarget(list, view, data);
+    if (target.kind !== 'row') {
+      finish({
+        kind: 'kept',
+        reason: target.kind === 'kept' ? target.reason : 'the RT list changed before ACT',
+      });
+      return;
+    }
+    const rowsBefore = rowCells(listRows(list.anchor));
+    const row = listRows(list.anchor)[target.index];
     const button = row === undefined ? undefined : rowDeleteButton(row);
     if (button === undefined) {
       finish({ kind: 'kept', reason: `no delete button on the ${data.rtId} row` });
@@ -110,7 +181,9 @@ export const RT_DELETE = act.addActionStep<Data>({
     const confirmation = () =>
       _$(list.frame, C.ActionConfirmationOverlay.container) as HTMLElement | undefined;
     await waitFor(
-      () => confirmation() !== undefined || routeRow(list.anchor, data.rtId) === undefined,
+      () =>
+        confirmation() !== undefined ||
+        routeRowRemoved(rowsBefore, rowCells(listRows(list.anchor)), data.rtId, target.name),
       2000,
     );
     const overlay = confirmation();
@@ -126,7 +199,8 @@ export const RT_DELETE = act.addActionStep<Data>({
 
     await waitFor(
       () =>
-        routeRow(list.anchor, data.rtId) === undefined || feedbackError(list.frame) !== undefined,
+        routeRowRemoved(rowsBefore, rowCells(listRows(list.anchor)), data.rtId, target.name) ||
+        feedbackError(list.frame) !== undefined,
       8000,
     );
     const error = feedbackError(list.frame);
@@ -134,7 +208,7 @@ export const RT_DELETE = act.addActionStep<Data>({
       finish({ kind: 'kept', reason: error });
       return;
     }
-    if (routeRow(list.anchor, data.rtId) !== undefined) {
+    if (!routeRowRemoved(rowsBefore, rowCells(listRows(list.anchor)), data.rtId, target.name)) {
       finish({ kind: 'kept', reason: 'it is still in the RT list' });
       return;
     }
