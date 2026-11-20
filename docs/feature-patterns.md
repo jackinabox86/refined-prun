@@ -278,6 +278,11 @@ the hold is universal.
   a spacing delay, or to keep a post-open server lookup behind the click even when the tile
   is already open): call `waitAct` first, then `requestTile(cmd, { actGate: false })` so the
   open doesn't cost a second click. `OPEN_SFC` does exactly this.
+- **A package with no actions runs only when it carries extra steps.** The step generator
+  fails an empty package with `No actions were generated`, so a host that hands
+  `ExecuteActionPackage` an empty package plus `extraSteps` (ROUTEBUY with nothing to buy,
+  ROUTEDEL) needs `ActionRunner` to skip generation for it. Without that skip, PREVIEW and
+  EXECUTE both stop before the extra steps.
 - **Steps can self-skip without a click.** Calling `ctx.skip()` and returning before any
   `waitAct` consumes the step silently (logs a SKIP line). Used by `OPEN_POPID` to walk a
   fixed 14-building step list while only present buildings cost a click — a static step
