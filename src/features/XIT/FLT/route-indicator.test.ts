@@ -2,13 +2,17 @@ import { describe, expect, it } from 'vitest';
 import {
   FLT_ROUTE_ACTIVE_COLOR,
   FLT_ROUTE_BLOCKED_COLOR,
+  FLT_ROUTE_FAILED_COLOR,
   getFltRouteIndicatorColor,
+  getFltRouteLabel,
 } from './route-indicator';
 
 describe('XIT FLT route indicator', () => {
-  it('uses the base game colors: orange for a blocked step, green otherwise', () => {
+  it('uses the base game colors: red for BLOCKED, orange for a blocked step, green otherwise', () => {
+    expect(FLT_ROUTE_FAILED_COLOR).toBe('#d9534f');
     expect(FLT_ROUTE_BLOCKED_COLOR).toBe('#f0ad4e');
     expect(FLT_ROUTE_ACTIVE_COLOR).toBe('#5cb85c');
+    expect(getFltRouteIndicatorColor('BLOCKED')).toBe(FLT_ROUTE_FAILED_COLOR);
     expect(getFltRouteIndicatorColor('STEP_BLOCKED')).toBe(FLT_ROUTE_BLOCKED_COLOR);
     expect(getFltRouteIndicatorColor('FLYING')).toBe(FLT_ROUTE_ACTIVE_COLOR);
     expect(getFltRouteIndicatorColor('RUNNING_STEPS')).toBe(FLT_ROUTE_ACTIVE_COLOR);
@@ -16,5 +20,14 @@ describe('XIT FLT route indicator', () => {
 
   it('shows no dot for a ship without a route execution', () => {
     expect(getFltRouteIndicatorColor(undefined)).toBeUndefined();
+  });
+
+  it('labels the route the way ROUTETRACK does', () => {
+    const route = { naturalId: 'RT-KSRV-5070', name: 'Aceland run' } as PrunApi.ShipRoute;
+    expect(getFltRouteLabel(route)).toBe('RT-KSRV-5070 Aceland run');
+    expect(getFltRouteLabel({ naturalId: 'RT-KSRV-5070', name: null } as PrunApi.ShipRoute)).toBe(
+      'RT-KSRV-5070',
+    );
+    expect(getFltRouteLabel(undefined)).toBeUndefined();
   });
 });

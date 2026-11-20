@@ -38,7 +38,7 @@ import {
   shipMatchesLocationFilter,
 } from './location-filter';
 import { fltRepairCommand, fltShipNameCommand } from './ship-commands';
-import { getFltRouteIndicatorColor } from './route-indicator';
+import { getFltRouteIndicatorColor, getFltRouteLabel } from './route-indicator';
 
 type FlightRow = {
   ship: PrunApi.Ship;
@@ -60,6 +60,7 @@ type FlightRow = {
   etaBucket: string;
   cargoState: string;
   routeIndicatorColor: string | undefined;
+  routeLabel: string | undefined;
 };
 
 type MultiOptionFilterGroup = {
@@ -178,6 +179,7 @@ const rawRows = computed<FlightRow[] | undefined>(() => {
       flight?.destination &&
       (exchangesStore.all.value ?? []).some(ex => isSameAddress(ex.address, flight.destination))
     );
+    const route = shipRoutesStore.getByShipId(ship.id);
     const shipClass = getShipClass(ship);
     const conditionBand = getConditionBand(conditionPercentage);
     const etaBucket = getEtaBucket(inFlight, statusSortValue);
@@ -202,7 +204,8 @@ const rawRows = computed<FlightRow[] | undefined>(() => {
       conditionBand,
       etaBucket,
       cargoState,
-      routeIndicatorColor: getFltRouteIndicatorColor(shipRoutesStore.getByShipId(ship.id)?.state),
+      routeIndicatorColor: getFltRouteIndicatorColor(route?.state),
+      routeLabel: getFltRouteLabel(route?.route),
     };
   });
 });
@@ -1245,7 +1248,9 @@ function getCargoState(cargoRatio: number) {
           <span
             v-if="x.routeIndicatorColor"
             :class="$style.routeDot"
-            :style="{ backgroundColor: x.routeIndicatorColor }" />
+            :style="{ backgroundColor: x.routeIndicatorColor }"
+            :data-tooltip="x.routeLabel"
+            data-tooltip-position="top" />
         </component>
 
         <component
