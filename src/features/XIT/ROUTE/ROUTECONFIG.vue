@@ -626,6 +626,9 @@ function removeStop(key: string) {
   current.legs = undefined;
 }
 
+// JAC-142: the Cargo column is hidden for now. Set this to true to show it again.
+const showCargoColumn = false;
+
 // One stop's cargo editor is open at a time. Its fields save on change.
 const cargoKey = ref<string | undefined>(undefined);
 const cargoError = ref('');
@@ -904,7 +907,7 @@ function selectShip(event: Event) {
                 <th>Input</th>
                 <th>Output</th>
                 <th>Fuel</th>
-                <th>Cargo</th>
+                <th v-if="showCargoColumn">Cargo</th>
               </tr>
             </thead>
             <tbody v-for="(stop, index) in rowStops()" :key="stopInstanceKey(stop)">
@@ -925,13 +928,13 @@ function selectShip(event: Event) {
                   </span>
                 </td>
                 <td>{{ fuelText(index) }}</td>
-                <td>
+                <td v-if="showCargoColumn">
                   <PrunButton dark inline @click="toggleCargo(stop)">
                     {{ hasCargo(stop) ? 'EDIT*' : 'EDIT' }}
                   </PrunButton>
                 </td>
               </tr>
-              <tr v-if="cargoKey === stopInstanceKey(stop)">
+              <tr v-if="showCargoColumn && cargoKey === stopInstanceKey(stop)">
                 <td colspan="7" :class="$style.cargo">
                   <label v-if="stop.kind === 'base'" :class="$style.cargoRow">
                     <span>Deliver</span>
