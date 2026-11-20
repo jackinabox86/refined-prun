@@ -32,9 +32,11 @@ import {
 import {
   editorTitle,
   isShipmentStep,
+  isUnloadAllStep,
   routeSummaryLines,
   shipmentRowText,
   stepSummary,
+  UNLOAD_ALL_ROW_TEXT,
   type RouteStep,
   type RouteStop,
 } from '@src/features/XIT/RTACT/route-spec';
@@ -281,22 +283,23 @@ async function saveWaypointFlight(
   await saveEditor(ctx, tile, title);
 }
 
-// SAVE is clicked once. Waiting for the editor to close is a separate phase, so a retry
-// re-checks the close without clicking SAVE again.
+// SAVE is one phase: click SAVE, then wait for the editor to close. The game rejects a SAVE
+// and keeps the editor open, so a retry clicks SAVE again; it edits the step that already
+// exists, so it cannot add a duplicate. If the editor closes after a click, the player saved
+// it in game, which counts as success.
 async function saveEditor(ctx: BuildCtx, tile: PrunTile, title: string) {
+  let clicked = false;
   await retryOn(ctx, tile, async () => {
     const current = findEditor(tile.anchor, title);
     if (current === undefined) {
-      return phaseFailed(`${title} closed before SAVE`);
+      return clicked ? phaseOk(undefined) : phaseFailed(`${title} closed before SAVE`);
     }
     try {
       await clickEditorSave(current);
     } catch (err) {
       return phaseFailed(err instanceof Error ? err.message : `Could not click SAVE on ${title}`);
     }
-    return phaseOk(undefined);
-  });
-  await retryOn(ctx, tile, async () => {
+    clicked = true;
     const closed = await waitFor(() => findEditor(tile.anchor, title) === undefined, 8000);
     return closed ? phaseOk(undefined) : phaseFailed(`${title} is still open after SAVE`);
   });
@@ -357,6 +360,37 @@ async function addStep(
   const command = commandLabel(step);
   const summary = stepSummary(step);
   await waitAct(`Add ${summary} at ${stop.query}?`);
+  if (isUnloadAllStep(step)) {
+    // One click adds the row with no pencil and no editor. Its description is the only
+    // signal, and the row can sit outside the waypoint's block, so count it over the route.
+    let rowsBefore = 0;
+    await retryOn(ctx, tile, async () => {
+      const scope = findWaypointScope(tile.anchor, needles);
+      if (scope === undefined) {
+        return phaseFailed(`Could not find the waypoint for ${stop.query}`);
+      }
+      revealHover(scope);
+      await waitFor(() => findLabeled(scope, command), 1500);
+      rowsBefore = textCount(tile.anchor, UNLOAD_ALL_ROW_TEXT);
+      try {
+        await clickControl(scope, command);
+      } catch (err) {
+        return phaseFailed(err instanceof Error ? err.message : `Could not click ${command}`);
+      }
+      return phaseOk(undefined);
+    });
+    await retryOn(ctx, tile, async () => {
+      const added = await waitFor(
+        () => textCount(tile.anchor, UNLOAD_ALL_ROW_TEXT) > rowsBefore,
+        8000,
+      );
+      return added
+        ? phaseOk(undefined)
+        : phaseFailed(`Could not find the new ${command} step at ${stop.query}`);
+    });
+    log.info(`Added ${summary} at ${stop.query}`);
+    return;
+  }
   if (isShipmentStep(step)) {
     // A shipment step has no editor and no SAVE: the click adds it filled in, so the new
     // row's text is the only signal.

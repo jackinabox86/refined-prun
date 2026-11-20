@@ -117,6 +117,18 @@ describe('addStep re-resolves the waypoint and gates SAVE', () => {
     expect(saveEditor.indexOf('await clickEditorSave')).toBeGreaterThan(-1);
   });
 
+  // SAVE and its close wait share one phase, so a rejected SAVE is clicked again on retry.
+  it('runs SAVE and the close wait in one retry phase', () => {
+    const saveEditor = source.slice(
+      source.indexOf('async function saveEditor'),
+      source.indexOf('async function setRouteLoop'),
+    );
+    expect(saveEditor.split('retryOn(').length - 1).toBe(1);
+    expect(saveEditor.indexOf('await clickEditorSave')).toBeLessThan(
+      saveEditor.indexOf('still open after SAVE'),
+    );
+  });
+
   it('waits for a new step pencil instead of action feedback', () => {
     expect(addStep).not.toContain('waitActionFeedback');
     // The last click is the editable path; the shipment branch above has its own.
@@ -136,5 +148,12 @@ describe('addStep re-resolves the waypoint and gates SAVE', () => {
     for (const editorCall of ['findStepEdit', 'fillStepEditor', 'clickEditorSave', 'waitAct']) {
       expect(shipment).not.toContain(editorCall);
     }
+  });
+
+  it('detects an Unload all step by its row text over the whole route, not the waypoint block', () => {
+    const start = addStep.indexOf('if (isUnloadAllStep(step))');
+    const unloadAll = addStep.slice(start, addStep.indexOf('if (isShipmentStep(step))'));
+    expect(unloadAll).toContain('textCount(tile.anchor, UNLOAD_ALL_ROW_TEXT)');
+    expect(unloadAll).not.toContain('waypointBlock');
   });
 });

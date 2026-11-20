@@ -57,7 +57,6 @@ export interface RouteBuildSegment {
 }
 
 const capacity = { mode: 'capacity' as const };
-const carried = { mode: 'all' as const };
 // Pick up whatever is there: no minimum to wait for, up to what the hold takes.
 const nothing = { mode: 'units' as const, amount: 0 };
 
@@ -206,9 +205,11 @@ function previousSegment(segments: readonly RouteBuildSegment[], index: number) 
   return found;
 }
 
+// One game Unload all covers every material the ship carries. Only added when there is
+// something to drop, so a visit with nothing to unload gets no step.
 function pushUnloadAll(steps: RouteStep[], tickers: readonly string[]) {
-  for (const ticker of tickers) {
-    steps.push({ kind: 'unload', ticker, min: carried, max: carried });
+  if (tickers.length > 0) {
+    steps.push({ kind: 'unload-all' });
   }
 }
 
@@ -349,9 +350,7 @@ export function buildRouteSpec(
     if (returnHome) {
       // No steps.
     } else if (first) {
-      for (const ticker of materials) {
-        steps.push({ kind: 'unload', ticker, min: carried, max: carried });
-      }
+      pushUnloadAll(steps, materials);
       steps.push(refuel('STL'), refuel('FTL'));
       for (const ticker of positiveTickers(departure)) {
         const amount = departure[ticker] ?? 0;
@@ -373,9 +372,7 @@ export function buildRouteSpec(
     }
     // The looping return is the first stop's unload-all, not another copy of the origin.
     if (finalStop && !looping && !returnHome) {
-      for (const ticker of outputs) {
-        steps.push({ kind: 'unload', ticker, min: carried, max: carried });
-      }
+      pushUnloadAll(steps, outputs);
     }
     pushStopSteps(steps, input.stops[i]);
     const stop: RouteStop = { query: searchQuery(input.stops, id), steps };
