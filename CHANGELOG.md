@@ -2,6 +2,25 @@
 
 ## Unreleased
 
+### Added
+
+- `XIT ROUTECONFIG`: DELETE removes a route. A route linked to a game route shows that route's `RT` id next to EXPORT. DELETE BOTH asks first, then deletes the linked game route and any ship running it.
+- `XIT FLT`: A Route column shows a dot for each ship on a route: orange or red when the ship is stopped or blocked on a route step, green otherwise. See route name on mouseover. Turn it off under Columns.
+
+### Changed
+
+- `XIT ROUTEBURN`: REMOVE asks the same confirmation as ROUTECONFIG DELETE, and deletes a linked game route with it.
+- `XIT BURN`, `XIT BS`, `XIT DISPATCH`: A base on a looping automated route shows a blue en-route rocket instead of its burn days, and burn sorts put it last. BS DYNAMIC still ranks such a base when repairs are due.
+- `cxpo-sell-guard`: Hovering a CXPO reserved count lists each route holding that ticker, with its departures, how often it departs, and fuel per departure. A route no ship runs is marked as planned from now.
+- `XIT SET` Route: New installs and upgrades without saved route settings default to Restock days 7 (was 14), yellow 4 (was 7), and red 2 (was 3). Saved values do not change.
+- `XIT ROUTECONFIG`: If SET ROUTE hits a failed step, it pauses there. ACT retries that step only, and finished steps stay done.
+- `XIT ROUTECONFIG`: SET ROUTE empties a ship's hold at an origin with the game's Unload all step.
+- `shpi-rt-button-left`: The RT button sits first in SHPI's context buttons, to the left of LM, SHP, and SFC.
+
+### Fixed
+
+- `XIT FLT`: A ship headed to a gateway (VTX, UPK) opens that gateway's GTW page instead of a broken PLI link.
+
 ## 1.1.11
 
 ### Added
