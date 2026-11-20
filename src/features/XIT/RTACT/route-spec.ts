@@ -53,13 +53,24 @@ export interface ShipmentStep {
   kind: 'load-shipment' | 'unload-shipment';
 }
 
+// The game's Unload all command on a waypoint. It has no ticker and no editor: it unloads
+// everything the ship carries at that waypoint.
+export interface UnloadAllStep {
+  kind: 'unload-all';
+}
+
 // Steps the game opens an editor for after they are added.
 export type EditableStep = LoadStep | UnloadStep | WaitStep | RefuelStep;
 
-export type RouteStep = EditableStep | ShipmentStep;
+export type RouteStep = EditableStep | ShipmentStep | UnloadAllStep;
 
 export function isShipmentStep(step: RouteStep): step is ShipmentStep {
   return step.kind === 'load-shipment' || step.kind === 'unload-shipment';
+}
+
+// Added with one click and no editor, like a shipment step.
+export function isUnloadAllStep(step: RouteStep): step is UnloadAllStep {
+  return step.kind === 'unload-all';
 }
 
 export interface RouteStop {
@@ -129,6 +140,8 @@ export function stepCommandLabel(step: RouteStep): string {
       return 'Load shipment';
     case 'unload-shipment':
       return 'Unload shipment';
+    case 'unload-all':
+      return 'Unload all';
   }
 }
 
@@ -138,6 +151,10 @@ export function shipmentRowText(step: ShipmentStep): string {
     ? 'All shipments bound for a later waypoint'
     : 'All shipments bound for this waypoint';
 }
+
+// The description the game shows on an Unload all step's row once it is added. The row has
+// no pencil and no editor, so this is the only signal that the step landed.
+export const UNLOAD_ALL_ROW_TEXT = 'All materials in the cargo hold';
 
 // Plain-text step for the RTEXEC preview and log: "Load 120 RAT", "Unload all DW carried".
 export function stepSummary(step: RouteStep): string {
@@ -154,6 +171,8 @@ export function stepSummary(step: RouteStep): string {
       return 'Load shipments';
     case 'unload-shipment':
       return 'Unload shipments';
+    case 'unload-all':
+      return 'Unload all carried';
   }
 }
 
@@ -534,6 +553,9 @@ function parsePayloadStep(
   }
   const kind = (step as { kind?: unknown }).kind;
   if (kind === 'load-shipment' || kind === 'unload-shipment') {
+    return { ok: true, step: { kind } };
+  }
+  if (kind === 'unload-all') {
     return { ok: true, step: { kind } };
   }
   if (kind === 'wait') {

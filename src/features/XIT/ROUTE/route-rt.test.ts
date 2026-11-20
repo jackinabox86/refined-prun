@@ -59,9 +59,7 @@ describe('buildRouteSpec', () => {
     expect(built.spec.loop).toBe(true);
     expect(built.spec.stops.map(stop => stop.query)).toEqual(['ANT', 'ZV-307d', 'BEN', 'ZV-759c']);
     expect(built.spec.stops[0]?.steps).toEqual([
-      { kind: 'unload', ticker: 'DW', min: { mode: 'all' }, max: { mode: 'all' } },
-      { kind: 'unload', ticker: 'FE', min: { mode: 'all' }, max: { mode: 'all' } },
-      { kind: 'unload', ticker: 'RAT', min: { mode: 'all' }, max: { mode: 'all' } },
+      { kind: 'unload-all' },
       {
         kind: 'refuel',
         tank: 'STL',
@@ -157,12 +155,22 @@ describe('buildRouteSpec', () => {
       undefined,
     ]);
     const last = built.spec.stops[3]?.steps ?? [];
-    expect(last[last.length - 1]).toEqual({
-      kind: 'unload',
-      ticker: 'FE',
-      min: { mode: 'all' },
-      max: { mode: 'all' },
+    expect(last[last.length - 1]).toEqual({ kind: 'unload-all' });
+  });
+
+  it('adds no unload-all where the ship has nothing to drop', () => {
+    const built = buildRouteSpec({
+      ...input(false),
+      bills: [],
+      loadedByStop: new Map(),
     });
+    expect(built.ok).toBe(true);
+    if (!built.ok) {
+      return;
+    }
+    const kinds = built.spec.stops.flatMap(stop => stop.steps.map(step => step.kind));
+    expect(kinds).not.toContain('unload-all');
+    expect(kinds).not.toContain('unload');
   });
 
   it('unloads only each input bill amount and interleaves unload then load per material', () => {
@@ -417,9 +425,8 @@ describe('buildRouteSpec', () => {
     );
     expect(loads[0]).toEqual(['RAT']);
     expect(loads[2]).toEqual(['DW']);
-    expect(built.spec.stops[2]?.steps.slice(0, 4)).toEqual([
-      { kind: 'unload', ticker: 'DW', min: { mode: 'all' }, max: { mode: 'all' } },
-      { kind: 'unload', ticker: 'FE', min: { mode: 'all' }, max: { mode: 'all' } },
+    expect(built.spec.stops[2]?.steps.slice(0, 3)).toEqual([
+      { kind: 'unload-all' },
       {
         kind: 'refuel',
         tank: 'STL',
