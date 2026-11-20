@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 1.1.12
+
 ### Added
 
 - `XIT ROUTECONFIG`: DELETE removes a route. A route linked to a game route shows that route's `RT` id next to EXPORT. DELETE BOTH asks first, then deletes the linked game route and any ship running it.
