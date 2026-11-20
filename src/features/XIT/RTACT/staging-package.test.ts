@@ -54,6 +54,23 @@ describe('RT_BUILD source order', () => {
     expect(execute).not.toMatch(/clickControl\([^)]*delete/i);
     expect(execute).not.toMatch(/clickControl\([^)]*CANCEL/);
   });
+
+  // A retry after the route id lookup must not click CREATE ROUTE again: that makes a second route.
+  it('clicks CREATE ROUTE in a phase of its own, apart from the route id lookup', () => {
+    const click = execute.indexOf("clickControl(list.anchor, 'CREATE ROUTE')");
+    const lookup = execute.indexOf('const created = await retryOn');
+    const logged = execute.indexOf('log.info(`Created');
+    expect(click).toBeGreaterThan(-1);
+    expect(click).toBeLessThan(lookup);
+    expect(execute.slice(lookup, logged)).not.toContain('clickControl');
+  });
+
+  // A game failure must pause the build for a retry, not end the run. Only the host check
+  // before any tile is opened may still end it.
+  it('ends the run only on the host check, never on a game failure', () => {
+    expect(execute.split('fail(').length - 1).toBe(1);
+    expect(execute).not.toMatch(/\bassert\(/);
+  });
 });
 
 describe('route-dom click path', () => {
@@ -89,10 +106,15 @@ describe('addStep re-resolves the waypoint and gates SAVE', () => {
   it('clicks SAVE only after an ACT gate that follows the fill', () => {
     const fill = addStep.indexOf('await fillStepEditor');
     const gate = addStep.indexOf('await waitAct(`Save ');
-    const save = addStep.indexOf('await clickEditorSave');
+    const save = addStep.indexOf('await saveEditor(ctx, tile, title)');
     expect(fill).toBeGreaterThan(-1);
     expect(fill).toBeLessThan(gate);
     expect(gate).toBeLessThan(save);
+    const saveEditor = source.slice(
+      source.indexOf('async function saveEditor'),
+      source.indexOf('async function setRouteLoop'),
+    );
+    expect(saveEditor.indexOf('await clickEditorSave')).toBeGreaterThan(-1);
   });
 
   it('waits for a new step pencil instead of action feedback', () => {
@@ -110,7 +132,7 @@ describe('addStep re-resolves the waypoint and gates SAVE', () => {
     const shipment = addStep.slice(start, addStep.indexOf('// Count the whole route'));
     expect(start).toBeGreaterThan(addStep.indexOf('await waitAct(`Add '));
     expect(shipment).toContain('await clickControl(scope, command)');
-    expect(shipment).toContain('return true');
+    expect(shipment).toContain('return;');
     for (const editorCall of ['findStepEdit', 'fillStepEditor', 'clickEditorSave', 'waitAct']) {
       expect(shipment).not.toContain(editorCall);
     }
