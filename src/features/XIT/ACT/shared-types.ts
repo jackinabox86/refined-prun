@@ -63,7 +63,12 @@ export interface ActionStepExecuteContext<T> extends ActionRunnerContext<T> {
   waitAct: (status?: string, opts?: { actDelayMs?: number }) => Promise<void>;
   // Status + SKIP/CANCEL only. ACT stays gray until the event or skip settles.
   waitSkipOr: (status: string, event: Promise<void>) => Promise<'skip' | 'ready'>;
-  waitActionFeedback: (tile: PrunTile) => Promise<void>;
+  // Resolves with the game's error message when recoverable is set, so the step can pause and
+  // retry instead of ending the run. Without it, an error ends the run and never returns.
+  waitActionFeedback: (
+    tile: PrunTile,
+    opts?: { recoverable?: boolean },
+  ) => Promise<string | undefined>;
   cacheDescription: () => void;
   complete: () => void;
   skip: (opts?: { silent?: boolean }) => void;

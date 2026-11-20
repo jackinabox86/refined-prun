@@ -228,6 +228,11 @@ this; don't wrap `waitActionFeedback` in a step-local try/catch or the hang come
 The feedback overlay is inserted before its state class is guaranteed to be present, so
 wait for the terminal `ActionFeedback.success` / `ActionFeedback.error` selectors; never
 sample `progress` / `success` / `error` once and treat no match as a terminal result.
+A step that wants to pause and retry instead of ending the run calls
+`waitActionFeedback(tile, { recoverable: true })`, which resolves with the game's error
+message and leaves the overlay for the step to clear. `RT_BUILD` uses it: each game action
+is its own phase, and a failed phase pauses on ACT and re-runs only that phase, so a retry
+never repeats a click that already landed (e.g. CREATE ROUTE, ADD WAYPOINT).
 
 **`ctx.fail()` and `ctx.assert()` unwind `execute()`.** They throw a cancellation
 sentinel. The step machine's catch stops the run and does not log it as a runtime

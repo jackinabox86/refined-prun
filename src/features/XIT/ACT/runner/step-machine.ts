@@ -131,16 +131,20 @@ export class StepMachine {
           await this.waitAct(status, opts);
         },
         waitSkipOr: async (status, event) => await this.waitSkipOr(status, event),
-        waitActionFeedback: async tile => {
+        waitActionFeedback: async (tile, opts) => {
           this.options.onStatusChanged('Waiting for action feedback...');
           const error = await waitActionFeedback(tile);
-          if (error) {
-            log.error(error);
-            log.error(description ?? info.description(next));
-            log.error('Action Package execution failed');
-            this.stop();
-            throw ExecutionStopped;
+          if (!error) {
+            return undefined;
           }
+          if (opts?.recoverable) {
+            return error;
+          }
+          log.error(error);
+          log.error(description ?? info.description(next));
+          log.error('Action Package execution failed');
+          this.stop();
+          throw ExecutionStopped;
         },
         cacheDescription: () => {
           description = info.description(next);
