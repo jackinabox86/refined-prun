@@ -15,7 +15,7 @@ const system = (naturalId: string, name: string): PrunApi.AddressLine => ({
 });
 
 describe('XIT FLT status destination', () => {
-  it('opens GTW for a gateway destination instead of a broken PLI link', () => {
+  it('opens GTW and the gateway inventory for a gateway destination', () => {
     const destination = address([
       system('ZV-307', 'Antares'),
       { type: 'GATEWAY', entity: entity('VTX', 'Vortex Gateway') },
@@ -23,6 +23,7 @@ describe('XIT FLT status destination', () => {
     expect(getFltStatusDestination(destination)).toEqual({
       name: 'Vortex Gateway',
       command: 'GTW VTX',
+      inventoryCommand: 'INV VTX',
     });
   });
 
