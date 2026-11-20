@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, onMounted } from 'vue';
 import { shipsStore } from '@src/infrastructure/prun-api/data/ships';
 import { flightsStore } from '@src/infrastructure/prun-api/data/flights';
 import { storagesStore } from '@src/infrastructure/prun-api/data/storage';
@@ -9,6 +9,8 @@ import { getInvStore } from '@src/core/store-id';
 import { showBuffer } from '@src/infrastructure/prun-ui/buffers';
 import { useTileState } from '@src/store/user-data-tiles';
 import { useXitParameters } from '@src/hooks/use-xit-parameters';
+import { shipRoutesStore } from '@src/infrastructure/prun-api/data/ship-routes';
+import { request } from '@src/infrastructure/prun-api/data/request-hooks';
 import LoadingSpinner from '@src/components/LoadingSpinner.vue';
 import RadioItem from '@src/components/forms/RadioItem.vue';
 import StatusCell from './StatusCell.vue';
@@ -36,6 +38,7 @@ import {
   shipMatchesLocationFilter,
 } from './location-filter';
 import { fltRepairCommand, fltShipNameCommand } from './ship-commands';
+import { getFltRouteIndicatorColor } from './route-indicator';
 
 type FlightRow = {
   ship: PrunApi.Ship;
@@ -56,6 +59,7 @@ type FlightRow = {
   conditionBand: string;
   etaBucket: string;
   cargoState: string;
+  routeIndicatorColor: string | undefined;
 };
 
 type MultiOptionFilterGroup = {
@@ -85,6 +89,12 @@ const cargoStateFilters = useTileState<string[]>('cargoStateFilters', []);
 const etaFilters = useTileState<string[]>('etaFilters', []);
 const $style = useCssModule();
 
+onMounted(() => {
+  if (!shipRoutesStore.fetched.value) {
+    request.shipRoutes();
+  }
+});
+
 const fuelAlertFilter = useTileState<FuelAlertFilter>('fuelAlertFilter', DEFAULTS.fuelAlertFilter);
 const layoutMode = useTileState<LayoutMode>('layoutMode', DEFAULTS.layoutMode);
 
@@ -96,6 +106,7 @@ const showColCargoSize = useTileState('showColCargoSize', DEFAULTS.showColCargoS
 const showColTime = useTileState('showColTime', DEFAULTS.showColTime);
 const showColRepair = useTileState('showColRepair', DEFAULTS.showColRepair);
 const showColFuel = useTileState('showColFuel', DEFAULTS.showColFuel);
+const showColRoute = useTileState('showColRoute', DEFAULTS.showColRoute);
 const showColProblems = useTileState('showColProblems', DEFAULTS.showColProblems);
 const problemFuelThreshold = useTileState<FuelAlertFilter>(
   'problemFuelThreshold',
@@ -191,6 +202,7 @@ const rawRows = computed<FlightRow[] | undefined>(() => {
       conditionBand,
       etaBucket,
       cargoState,
+      routeIndicatorColor: getFltRouteIndicatorColor(shipRoutesStore.getByShipId(ship.id)?.state),
     };
   });
 });
@@ -393,6 +405,9 @@ const gridTemplateColumns = computed(() => {
     cols.push('auto');
   }
   if (showFuelColumn(showColFuel.value)) {
+    cols.push('auto');
+  }
+  if (showColRoute.value) {
     cols.push('auto');
   }
   if (showColProblems.value && hasAnyProblems.value) {
@@ -716,6 +731,7 @@ function clearFilters() {
   showColTime.value = DEFAULTS.showColTime;
   showColRepair.value = DEFAULTS.showColRepair;
   showColFuel.value = DEFAULTS.showColFuel;
+  showColRoute.value = DEFAULTS.showColRoute;
   showColProblems.value = DEFAULTS.showColProblems;
   problemFuelThreshold.value = DEFAULTS.problemFuelThreshold;
 }
@@ -861,6 +877,7 @@ function getCargoState(cargoRatio: number) {
           <RadioItem v-model="showColTime" horizontal>ETA</RadioItem>
           <RadioItem v-model="showColRepair" horizontal>REPAIR</RadioItem>
           <RadioItem v-model="showColFuel" horizontal>FUEL</RadioItem>
+          <RadioItem v-model="showColRoute" horizontal>ROUTE</RadioItem>
           <RadioItem v-model="showColProblems" horizontal>PROBLEMS</RadioItem>
         </div>
       </div>
@@ -1129,6 +1146,12 @@ function getCargoState(cargoRatio: number) {
         </component>
         <component
           :is="headerCellTag"
+          v-if="showColRoute"
+          :class="[$style.headerCell, $style.colRoute]">
+          Route
+        </component>
+        <component
+          :is="headerCellTag"
           v-if="showColProblems && hasAnyProblems"
           :class="[$style.headerCell, $style.colProblems]">
           Problems
@@ -1216,6 +1239,13 @@ function getCargoState(cargoRatio: number) {
                 max="1" />
             </div>
           </div>
+        </component>
+
+        <component :is="cellTag" v-if="showColRoute" :class="[$style.bodyCell, $style.colRoute]">
+          <span
+            v-if="x.routeIndicatorColor"
+            :class="$style.routeDot"
+            :style="{ backgroundColor: x.routeIndicatorColor }" />
         </component>
 
         <component
@@ -1450,6 +1480,18 @@ function getCargoState(cargoRatio: number) {
 .colSize {
   min-width: 50px;
   justify-content: center;
+}
+
+.colRoute {
+  min-width: 30px;
+  justify-content: center;
+}
+
+.routeDot {
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
 }
 
 .row:nth-child(even) > .bodyCell {

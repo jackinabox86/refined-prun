@@ -8,6 +8,7 @@ import { fxosStore } from '@src/infrastructure/prun-api/data/fxos';
 import { blueprintsStore } from '@src/infrastructure/prun-api/data/blueprints';
 import { shipyardsStore } from '@src/infrastructure/prun-api/data/shipyards';
 import { shipyardProjectsStore } from '@src/infrastructure/prun-api/data/shipyard-projects';
+import { shipRoutesStore } from '@src/infrastructure/prun-api/data/ship-routes';
 
 const bs: Set<string> = new Set();
 
@@ -56,4 +57,6 @@ implementRequestHooks({
   blueprints: singleBufferRequest('BLU', () => blueprintsStore.fetched.value),
   shipyards: singleBufferRequest('SHY', () => shipyardsStore.fetched.value),
   shipyardProjects: singleBufferRequest('SHYP', () => shipyardProjectsStore.fetched.value),
+  // The game sends the full route list only when the base FLT or RT opens.
+  shipRoutes: singleBufferRequest('FLT', () => shipRoutesStore.fetched.value),
 });

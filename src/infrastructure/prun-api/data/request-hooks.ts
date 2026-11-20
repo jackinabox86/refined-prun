@@ -12,6 +12,8 @@ interface RequestHooks {
   shipyards(): void;
 
   shipyardProjects(): void;
+
+  shipRoutes(): void;
 }
 
 let hooks: RequestHooks | undefined = undefined;
@@ -47,6 +49,9 @@ export const request = {
   },
   shipyardProjects(): void {
     getHooks().shipyardProjects();
+  },
+  shipRoutes(): void {
+    getHooks().shipRoutes();
   },
 };
 
