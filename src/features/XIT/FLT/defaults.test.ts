@@ -29,6 +29,7 @@ describe('XIT FLT unconfigured defaults', () => {
     expect(DEFAULTS.showColCargo).toBe(true);
     expect(DEFAULTS.showColTime).toBe(true);
     expect(DEFAULTS.showColFuel).toBe(true);
+    expect(DEFAULTS.showColRoute).toBe(true);
     expect(DEFAULTS.showColShipClass).toBe(false);
     expect(DEFAULTS.showColSize).toBe(false);
     expect(DEFAULTS.showColCargoSize).toBe(false);

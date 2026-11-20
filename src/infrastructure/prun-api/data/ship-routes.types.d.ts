@@ -20,7 +20,9 @@ declare namespace PrunApi {
     | 'FLYING'
     | 'RUNNING_STEPS'
     | 'WAITING'
-    | 'STEP_BLOCKED';
+    | 'STEP_BLOCKED'
+    // Route-level block. Named in the game's execution-state strings; live trigger not yet recorded.
+    | 'BLOCKED';
 
   interface ShipRoute {
     id: string;

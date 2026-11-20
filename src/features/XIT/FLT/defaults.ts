@@ -46,6 +46,7 @@ export const DEFAULTS = {
   showColTime: true,
   showColRepair: false,
   showColFuel: true,
+  showColRoute: true,
   showColProblems: false,
   problemFuelThreshold: '50' as FuelAlertFilter,
 };
