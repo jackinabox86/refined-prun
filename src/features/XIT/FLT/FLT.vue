@@ -1005,7 +1005,7 @@ function getCargoState(cargoRatio: number) {
       </div>
 
       <div :class="$style.filterGroup">
-        <div :class="$style.filterTitle">Columns</div>
+        <div :class="$style.filterTitle">Columns (Drag to Reorder)</div>
         <div v-draggable="columnDragBinding" :class="C.ComExOrdersPanel.filter">
           <RadioItem
             v-for="col in pickerColumns"
