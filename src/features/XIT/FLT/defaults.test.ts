@@ -37,10 +37,11 @@ describe('XIT FLT unconfigured defaults', () => {
     expect(DEFAULTS.showColProblems).toBe(false);
   });
 
-  it('uses cargo layout and status descending', () => {
+  it('uses cargo layout and status ascending (soonest ETA first)', () => {
     expect(DEFAULTS.layoutMode).toBe('cargo');
     expect(DEFAULTS.primarySortKey).toBe('status');
-    expect(DEFAULT_SORT_DIRECTION_BY_KEY.status).toBe('desc');
+    expect(DEFAULT_SORT_DIRECTION_BY_KEY.status).toBe('asc');
+    expect(DEFAULT_SORT_DIRECTION_BY_KEY.eta).toBe('asc');
   });
 });
 
