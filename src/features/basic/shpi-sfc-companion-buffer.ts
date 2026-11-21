@@ -16,8 +16,9 @@ function onTileReady(tile: PrunTile) {
         }
         e.preventDefault();
         e.stopPropagation();
-        // SFC lists many flights; give it 50% more height than the SHPI window.
-        void openCompanionBuffer(tile, command, { heightScale: 1.5 });
+        // SFC lists many flights; give it 50% more height than the SHPI window and a
+        // 25% wider pane. The SHPI pane keeps its width.
+        void openCompanionBuffer(tile, command, { heightScale: 1.5, companionWidthScale: 1.25 });
       },
       true,
     );
