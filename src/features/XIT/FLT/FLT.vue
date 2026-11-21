@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { computed, onMounted } from 'vue';
+import { computed, onMounted, watch } from 'vue';
+import { vDraggable } from 'vue-draggable-plus';
 import { shipsStore } from '@src/infrastructure/prun-api/data/ships';
 import { flightsStore } from '@src/infrastructure/prun-api/data/flights';
 import { storagesStore } from '@src/infrastructure/prun-api/data/storage';
@@ -29,6 +30,16 @@ import {
   type SortDirection,
   type SortKey,
 } from './defaults';
+import {
+  DEFAULT_COLUMN_ORDER,
+  FLT_COLUMN_PICKER_LABELS,
+  fullOrderFromPicker,
+  normalizeColumnOrder,
+  pickerOrderFrom,
+  sameColumnOrder,
+  shouldApplyColumnToggle,
+  type FltColumnId,
+} from './column-order';
 import { openRefuelAllExchanges } from './refuel';
 import { FLT_BUTTONS_BUFFER_COMMAND } from './button-colors';
 import {
@@ -109,10 +120,166 @@ const showColRepair = useTileState('showColRepair', DEFAULTS.showColRepair);
 const showColFuel = useTileState('showColFuel', DEFAULTS.showColFuel);
 const showColRoute = useTileState('showColRoute', DEFAULTS.showColRoute);
 const showColProblems = useTileState('showColProblems', DEFAULTS.showColProblems);
+const storedColumnOrder = useTileState<FltColumnId[]>(
+  'columnOrder',
+  DEFAULT_COLUMN_ORDER as FltColumnId[],
+);
+const pickerColumns = ref(pickerOrderFrom(normalizeColumnOrder(storedColumnOrder.value)));
+const columnDragActive = ref(false);
 const problemFuelThreshold = useTileState<FuelAlertFilter>(
   'problemFuelThreshold',
   DEFAULTS.problemFuelThreshold,
 );
+
+watch(
+  storedColumnOrder,
+  value => {
+    const next = pickerOrderFrom(normalizeColumnOrder(value));
+    if (!sameColumnOrder(pickerColumns.value, next)) {
+      pickerColumns.value = next;
+    }
+  },
+  { deep: true },
+);
+
+const columnDragOptions = {
+  animation: 150,
+  onStart: () => {
+    columnDragActive.value = true;
+  },
+  onEnd: () => {
+    storedColumnOrder.value = fullOrderFromPicker(
+      pickerColumns.value,
+      normalizeColumnOrder(storedColumnOrder.value),
+    );
+    // Sortable can synthesize a click after drop; keep toggles suppressed for a tick.
+    setTimeout(() => {
+      columnDragActive.value = false;
+    }, 0);
+  },
+};
+
+// Bind the ref itself so Sortable mutates the live array, not a stale snapshot.
+const columnDragBinding = [pickerColumns, columnDragOptions];
+
+const renderColumnOrder = computed(() =>
+  fullOrderFromPicker(pickerColumns.value, normalizeColumnOrder(storedColumnOrder.value)),
+);
+
+function columnVisibility(col: FltColumnId) {
+  switch (col) {
+    case 'name':
+      return showColName.value;
+    case 'shipClass':
+      return showColShipClass.value;
+    case 'size':
+      return showColSize.value;
+    case 'cargo':
+      return showColCargo.value;
+    case 'cargoSize':
+      return showColCargoSize.value;
+    case 'status':
+      return true;
+    case 'time':
+      return showColTime.value;
+    case 'repair':
+      return showColRepair.value;
+    case 'fuel':
+      return showFuelColumn(showColFuel.value);
+    case 'route':
+      return showColRoute.value;
+    case 'problems':
+      return showColProblems.value && hasAnyProblems.value;
+  }
+}
+
+function isPickerColumnVisible(col: FltColumnId) {
+  switch (col) {
+    case 'name':
+      return showColName.value;
+    case 'shipClass':
+      return showColShipClass.value;
+    case 'size':
+      return showColSize.value;
+    case 'cargo':
+      return showColCargo.value;
+    case 'cargoSize':
+      return showColCargoSize.value;
+    case 'time':
+      return showColTime.value;
+    case 'repair':
+      return showColRepair.value;
+    case 'fuel':
+      return showColFuel.value;
+    case 'route':
+      return showColRoute.value;
+    case 'problems':
+      return showColProblems.value;
+    case 'status':
+      return true;
+  }
+}
+
+function pickerLabel(col: FltColumnId) {
+  if (col === 'status') {
+    return '';
+  }
+  return FLT_COLUMN_PICKER_LABELS[col];
+}
+
+function onColumnToggle(col: FltColumnId, enabled: boolean | undefined) {
+  if (!shouldApplyColumnToggle(columnDragActive.value) || enabled === undefined) {
+    return;
+  }
+  switch (col) {
+    case 'name':
+      showColName.value = enabled;
+      break;
+    case 'shipClass':
+      showColShipClass.value = enabled;
+      break;
+    case 'size':
+      showColSize.value = enabled;
+      break;
+    case 'cargo':
+      showColCargo.value = enabled;
+      break;
+    case 'cargoSize':
+      showColCargoSize.value = enabled;
+      break;
+    case 'time':
+      showColTime.value = enabled;
+      break;
+    case 'repair':
+      showColRepair.value = enabled;
+      break;
+    case 'fuel':
+      showColFuel.value = enabled;
+      break;
+    case 'route':
+      showColRoute.value = enabled;
+      break;
+    case 'problems':
+      showColProblems.value = enabled;
+      break;
+    case 'status':
+      break;
+  }
+}
+
+const orderedVisibleColumns = computed(() =>
+  renderColumnOrder.value.filter(col => columnVisibility(col)),
+);
+
+function columnGridTrack(col: FltColumnId) {
+  if (col === 'cargo' || col === 'cargoSize') {
+    return layoutMode.value === 'cargo' ? '1fr' : 'auto';
+  }
+  if (col === 'time') {
+    return layoutMode.value === 'whitespace' ? '1fr' : 'auto';
+  }
+  return 'auto';
+}
 
 const conditionOptions = ['100-90', '90-80', '80-0'];
 const etaOptions = ['DOCKED', '<1H', '1-6H', '6-12H', '12-24H', '>24H'];
@@ -382,42 +549,9 @@ const hasAnyProblems = computed(() => {
   return source.some(x => x.conditionClass === C.ColoredValue.negative || hasFuelProblem(x));
 });
 
-const gridTemplateColumns = computed(() => {
-  const cols: string[] = [];
-  if (showColName.value) {
-    cols.push('auto');
-  }
-  if (showColShipClass.value) {
-    cols.push('auto');
-  }
-  if (showColSize.value) {
-    cols.push('auto');
-  }
-  if (showColCargo.value) {
-    cols.push(layoutMode.value === 'cargo' ? '1fr' : 'auto');
-  }
-  if (showColCargoSize.value) {
-    cols.push(layoutMode.value === 'cargo' ? '1fr' : 'auto');
-  }
-  // Status is always shown.
-  cols.push('auto');
-  if (showColTime.value) {
-    cols.push(layoutMode.value === 'whitespace' ? '1fr' : 'auto');
-  }
-  if (showColRepair.value) {
-    cols.push('auto');
-  }
-  if (showFuelColumn(showColFuel.value)) {
-    cols.push('auto');
-  }
-  if (showColRoute.value) {
-    cols.push('auto');
-  }
-  if (showColProblems.value && hasAnyProblems.value) {
-    cols.push('auto');
-  }
-  return cols.join(' ');
-});
+const gridTemplateColumns = computed(() =>
+  orderedVisibleColumns.value.map(columnGridTrack).join(' '),
+);
 
 // Legacy mode renders real table elements: `display: table` on divs does not
 // reproduce the column sizing of an actual table.
@@ -736,6 +870,7 @@ function clearFilters() {
   showColFuel.value = DEFAULTS.showColFuel;
   showColRoute.value = DEFAULTS.showColRoute;
   showColProblems.value = DEFAULTS.showColProblems;
+  storedColumnOrder.value = DEFAULT_COLUMN_ORDER as FltColumnId[];
   problemFuelThreshold.value = DEFAULTS.problemFuelThreshold;
 }
 
@@ -871,17 +1006,15 @@ function getCargoState(cargoRatio: number) {
 
       <div :class="$style.filterGroup">
         <div :class="$style.filterTitle">Columns</div>
-        <div :class="C.ComExOrdersPanel.filter">
-          <RadioItem v-model="showColName" horizontal>NAME</RadioItem>
-          <RadioItem v-model="showColShipClass" horizontal>CLASS</RadioItem>
-          <RadioItem v-model="showColSize" horizontal>SIZE</RadioItem>
-          <RadioItem v-model="showColCargo" horizontal>CARGO</RadioItem>
-          <RadioItem v-model="showColCargoSize" horizontal>CARGO/SIZE</RadioItem>
-          <RadioItem v-model="showColTime" horizontal>ETA</RadioItem>
-          <RadioItem v-model="showColRepair" horizontal>REPAIR</RadioItem>
-          <RadioItem v-model="showColFuel" horizontal>FUEL</RadioItem>
-          <RadioItem v-model="showColRoute" horizontal>ROUTE</RadioItem>
-          <RadioItem v-model="showColProblems" horizontal>PROBLEMS</RadioItem>
+        <div v-draggable="columnDragBinding" :class="C.ComExOrdersPanel.filter">
+          <RadioItem
+            v-for="col in pickerColumns"
+            :key="col"
+            :model-value="isPickerColumnVisible(col)"
+            horizontal
+            @update:model-value="onColumnToggle(col, $event)">
+            {{ pickerLabel(col) }}
+          </RadioItem>
         </div>
       </div>
 
@@ -1022,266 +1155,283 @@ function getCargoState(cargoRatio: number) {
     <component :is="tableTag" :class="layoutClass" :style="{ gridTemplateColumns }">
       <!-- Header row -->
       <component :is="rowTag" :class="$style.headerRow">
-        <component
-          :is="headerCellTag"
-          v-if="showColName"
-          :class="[$style.headerCell, $style.sortable]"
-          @click="setSort('name')">
-          Name
-          <span
-            :class="{
-              [$style.sortPrimary]: isPrimarySort('name'),
-              [$style.sortSecondary]: isSecondarySort('name'),
-            }">
-            {{ getSortIndicator('name') }}
-          </span>
-        </component>
-        <component
-          :is="headerCellTag"
-          v-if="showColShipClass"
-          :class="[$style.headerCell, $style.sortable, $style.colShipClass]"
-          @click="setSort('shipClass')">
-          Class
-          <span
-            :class="{
-              [$style.sortPrimary]: isPrimarySort('shipClass'),
-              [$style.sortSecondary]: isSecondarySort('shipClass'),
-            }">
-            {{ getSortIndicator('shipClass') }}
-          </span>
-        </component>
-        <component
-          :is="headerCellTag"
-          v-if="showColSize"
-          :class="[$style.headerCell, $style.sortable, $style.colSize]"
-          @click="setSort('size')">
-          Size
-          <span
-            :class="{
-              [$style.sortPrimary]: isPrimarySort('size'),
-              [$style.sortSecondary]: isSecondarySort('size'),
-            }">
-            {{ getSortIndicator('size') }}
-          </span>
-        </component>
-        <component
-          :is="headerCellTag"
-          v-if="showColCargo"
-          :class="[$style.headerCell, $style.sortable]"
-          @click="setSort('cargo')">
-          Cargo
-          <span
-            :class="{
-              [$style.sortPrimary]: isPrimarySort('cargo'),
-              [$style.sortSecondary]: isSecondarySort('cargo'),
-            }">
-            {{ getSortIndicator('cargo') }}
-          </span>
-        </component>
-        <component
-          :is="headerCellTag"
-          v-if="showColCargoSize"
-          :class="[$style.headerCell, $style.sortable]"
-          @click="setSort('cargo')">
-          Cargo/Size
-          <span
-            :class="{
-              [$style.sortPrimary]: isPrimarySort('cargo'),
-              [$style.sortSecondary]: isSecondarySort('cargo'),
-            }">
-            {{ getSortIndicator('cargo') }}
-          </span>
-        </component>
-        <component
-          :is="headerCellTag"
-          :class="[$style.headerCell, $style.sortable, $style.colStatus]"
-          @click="setSort('status')">
-          Status
-          <span
-            :class="{
-              [$style.sortPrimary]: isPrimarySort('status'),
-              [$style.sortSecondary]: isSecondarySort('status'),
-            }">
-            {{ getSortIndicator('status') }}
-          </span>
-        </component>
-        <component
-          :is="headerCellTag"
-          v-if="showColTime"
-          :class="[$style.headerCell, $style.sortable, $style.colTime]"
-          @click="setSort('eta')">
-          ETA
-          <span
-            :class="{
-              [$style.sortPrimary]: isPrimarySort('eta'),
-              [$style.sortSecondary]: isSecondarySort('eta'),
-            }">
-            {{ getSortIndicator('eta') }}
-          </span>
-        </component>
-        <component
-          :is="headerCellTag"
-          v-if="showColRepair"
-          :class="[$style.headerCell, $style.sortable, $style.colRepair]"
-          @click="setSort('repair')">
-          Repair
-          <span
-            :class="{
-              [$style.sortPrimary]: isPrimarySort('repair'),
-              [$style.sortSecondary]: isSecondarySort('repair'),
-            }">
-            {{ getSortIndicator('repair') }}
-          </span>
-        </component>
-        <component
-          :is="headerCellTag"
-          v-if="showFuelColumn(showColFuel)"
-          :class="[$style.headerCell, $style.colFuel]">
-          <FuelHeaderButton @refuel="openRefuelAllExchanges">
+        <template v-for="col in orderedVisibleColumns" :key="`h-${col}`">
+          <component
+            :is="headerCellTag"
+            v-if="col === 'name'"
+            :class="[$style.headerCell, $style.sortable]"
+            @click="setSort('name')">
+            Name
             <span
               :class="{
-                [$style.sortPrimary]: isPrimarySort('fuel'),
-                [$style.sortSecondary]: isSecondarySort('fuel'),
+                [$style.sortPrimary]: isPrimarySort('name'),
+                [$style.sortSecondary]: isSecondarySort('name'),
               }">
-              {{ getSortIndicator('fuel') }}
+              {{ getSortIndicator('name') }}
             </span>
-          </FuelHeaderButton>
-        </component>
-        <component
-          :is="headerCellTag"
-          v-if="showColRoute"
-          :class="[$style.headerCell, $style.colRoute]">
-          Route
-        </component>
-        <component
-          :is="headerCellTag"
-          v-if="showColProblems && hasAnyProblems"
-          :class="[$style.headerCell, $style.colProblems]">
-          Problems
-        </component>
+          </component>
+          <component
+            :is="headerCellTag"
+            v-else-if="col === 'shipClass'"
+            :class="[$style.headerCell, $style.sortable, $style.colShipClass]"
+            @click="setSort('shipClass')">
+            Class
+            <span
+              :class="{
+                [$style.sortPrimary]: isPrimarySort('shipClass'),
+                [$style.sortSecondary]: isSecondarySort('shipClass'),
+              }">
+              {{ getSortIndicator('shipClass') }}
+            </span>
+          </component>
+          <component
+            :is="headerCellTag"
+            v-else-if="col === 'size'"
+            :class="[$style.headerCell, $style.sortable, $style.colSize]"
+            @click="setSort('size')">
+            Size
+            <span
+              :class="{
+                [$style.sortPrimary]: isPrimarySort('size'),
+                [$style.sortSecondary]: isSecondarySort('size'),
+              }">
+              {{ getSortIndicator('size') }}
+            </span>
+          </component>
+          <component
+            :is="headerCellTag"
+            v-else-if="col === 'cargo'"
+            :class="[$style.headerCell, $style.sortable]"
+            @click="setSort('cargo')">
+            Cargo
+            <span
+              :class="{
+                [$style.sortPrimary]: isPrimarySort('cargo'),
+                [$style.sortSecondary]: isSecondarySort('cargo'),
+              }">
+              {{ getSortIndicator('cargo') }}
+            </span>
+          </component>
+          <component
+            :is="headerCellTag"
+            v-else-if="col === 'cargoSize'"
+            :class="[$style.headerCell, $style.sortable]"
+            @click="setSort('cargo')">
+            Cargo/Size
+            <span
+              :class="{
+                [$style.sortPrimary]: isPrimarySort('cargo'),
+                [$style.sortSecondary]: isSecondarySort('cargo'),
+              }">
+              {{ getSortIndicator('cargo') }}
+            </span>
+          </component>
+          <component
+            :is="headerCellTag"
+            v-else-if="col === 'status'"
+            :class="[$style.headerCell, $style.sortable, $style.colStatus]"
+            @click="setSort('status')">
+            Status
+            <span
+              :class="{
+                [$style.sortPrimary]: isPrimarySort('status'),
+                [$style.sortSecondary]: isSecondarySort('status'),
+              }">
+              {{ getSortIndicator('status') }}
+            </span>
+          </component>
+          <component
+            :is="headerCellTag"
+            v-else-if="col === 'time'"
+            :class="[$style.headerCell, $style.sortable, $style.colTime]"
+            @click="setSort('eta')">
+            ETA
+            <span
+              :class="{
+                [$style.sortPrimary]: isPrimarySort('eta'),
+                [$style.sortSecondary]: isSecondarySort('eta'),
+              }">
+              {{ getSortIndicator('eta') }}
+            </span>
+          </component>
+          <component
+            :is="headerCellTag"
+            v-else-if="col === 'repair'"
+            :class="[$style.headerCell, $style.sortable, $style.colRepair]"
+            @click="setSort('repair')">
+            Repair
+            <span
+              :class="{
+                [$style.sortPrimary]: isPrimarySort('repair'),
+                [$style.sortSecondary]: isSecondarySort('repair'),
+              }">
+              {{ getSortIndicator('repair') }}
+            </span>
+          </component>
+          <component
+            :is="headerCellTag"
+            v-else-if="col === 'fuel'"
+            :class="[$style.headerCell, $style.colFuel]">
+            <FuelHeaderButton @refuel="openRefuelAllExchanges">
+              <span
+                :class="{
+                  [$style.sortPrimary]: isPrimarySort('fuel'),
+                  [$style.sortSecondary]: isSecondarySort('fuel'),
+                }">
+                {{ getSortIndicator('fuel') }}
+              </span>
+            </FuelHeaderButton>
+          </component>
+          <component
+            :is="headerCellTag"
+            v-else-if="col === 'route'"
+            :class="[$style.headerCell, $style.colRoute]">
+            Route
+          </component>
+          <component
+            :is="headerCellTag"
+            v-else-if="col === 'problems'"
+            :class="[$style.headerCell, $style.colProblems]">
+            Problems
+          </component>
+        </template>
       </component>
 
       <!-- Body rows -->
       <component :is="rowTag" v-for="x in rows" :key="x.ship.id" :class="$style.row">
-        <component :is="cellTag" v-if="showColName" :class="[$style.bodyCell]">
-          <span :class="C.Link.link" @click="showBuffer(fltShipNameCommand(x.ship.registration))">
-            {{ x.ship.name || x.ship.registration }}
-          </span>
-        </component>
+        <template v-for="col in orderedVisibleColumns" :key="`${x.ship.id}-${col}`">
+          <component :is="cellTag" v-if="col === 'name'" :class="[$style.bodyCell]">
+            <span :class="C.Link.link" @click="showBuffer(fltShipNameCommand(x.ship.registration))">
+              {{ x.ship.name || x.ship.registration }}
+            </span>
+          </component>
 
-        <component
-          :is="cellTag"
-          v-if="showColShipClass"
-          :class="[$style.bodyCell, $style.colShipClass]">
-          <span :class="C.Link.link" @click.stop="showBuffer(`SFC ${x.ship.registration}`)">
-            {{ x.shipClass }}
-          </span>
-        </component>
+          <component
+            :is="cellTag"
+            v-else-if="col === 'shipClass'"
+            :class="[$style.bodyCell, $style.colShipClass]">
+            <span :class="C.Link.link" @click.stop="showBuffer(`SFC ${x.ship.registration}`)">
+              {{ x.shipClass }}
+            </span>
+          </component>
 
-        <component
-          :is="cellTag"
-          v-if="showColSize"
-          :class="[$style.bodyCell, $style.colSize, C.ShipStore.pointer]"
-          @click="showBuffer(`SHPI ${x.ship.registration}`)">
-          {{ x.cargoSizeText }}
-        </component>
-
-        <component :is="cellTag" v-if="showColCargo" :class="[$style.bodyCell, $style.cargoCell]">
-          <FleetCargoBar :ship-id="x.ship.id" tall />
-        </component>
-
-        <component
-          :is="cellTag"
-          v-if="showColCargoSize"
-          :class="[$style.bodyCell, $style.cargoCombinedCell]">
-          <FleetCargoBar :ship-id="x.ship.id" />
-          <div
-            :class="[C.ShipStore.pointer, C.ShipStore.store, $style.cargoCombinedSize]"
+          <component
+            :is="cellTag"
+            v-else-if="col === 'size'"
+            :class="[$style.bodyCell, $style.colSize, C.ShipStore.pointer]"
             @click="showBuffer(`SHPI ${x.ship.registration}`)">
             {{ x.cargoSizeText }}
-          </div>
-        </component>
+          </component>
 
-        <component :is="cellTag" :class="[$style.bodyCell, $style.colStatus]">
-          <StatusCell :ship-id="x.ship.id" />
-        </component>
+          <component
+            :is="cellTag"
+            v-else-if="col === 'cargo'"
+            :class="[$style.bodyCell, $style.cargoCell]">
+            <FleetCargoBar :ship-id="x.ship.id" tall />
+          </component>
 
-        <component :is="cellTag" v-if="showColTime" :class="[$style.bodyCell, $style.colTime]">
-          <TimeCell :ship-id="x.ship.id" />
-        </component>
-
-        <component
-          :is="cellTag"
-          v-if="showColRepair"
-          :class="[$style.bodyCell, $style.colRepair, C.ShipStore.pointer]"
-          @click.stop="showBuffer(fltRepairCommand(x.ship.registration))">
-          <span :class="x.conditionClass">{{ x.conditionText }}</span>
-        </component>
-
-        <component
-          :is="cellTag"
-          v-if="showFuelColumn(showColFuel)"
-          :class="[$style.bodyCell, $style.colFuel]">
-          <div
-            :class="[C.ShipFuel.container, C.ShipFuel.pointer, $style.fuelBars]"
-            @click="onFuel(x.ship.registration)">
-            <div :class="C.ProgressBar.container">
-              <progress
-                :class="[C.ProgressBar.primary, C.ProgressBar.progress]"
-                :value="x.stlFuelRatio ?? 0"
-                max="1" />
+          <component
+            :is="cellTag"
+            v-else-if="col === 'cargoSize'"
+            :class="[$style.bodyCell, $style.cargoCombinedCell]">
+            <FleetCargoBar :ship-id="x.ship.id" />
+            <div
+              :class="[C.ShipStore.pointer, C.ShipStore.store, $style.cargoCombinedSize]"
+              @click="showBuffer(`SHPI ${x.ship.registration}`)">
+              {{ x.cargoSizeText }}
             </div>
-            <div :class="C.ProgressBar.container">
-              <progress
-                :class="[
-                  C.ProgressBar.secondary,
-                  C.ProgressBar.progress,
-                  !x.isFtlCapable ? C.ProgressBar.warning : undefined,
-                ]"
-                :value="x.ftlFuelRatio ?? 0"
-                max="1" />
-            </div>
-          </div>
-        </component>
+          </component>
 
-        <component :is="cellTag" v-if="showColRoute" :class="[$style.bodyCell, $style.colRoute]">
-          <span
-            v-if="x.routeIndicatorColor"
-            :class="$style.routeDot"
-            :style="{ backgroundColor: x.routeIndicatorColor }"
-            :data-tooltip="x.routeLabel"
-            data-tooltip-position="top" />
-        </component>
+          <component
+            :is="cellTag"
+            v-else-if="col === 'status'"
+            :class="[$style.bodyCell, $style.colStatus]">
+            <StatusCell :ship-id="x.ship.id" />
+          </component>
 
-        <component
-          :is="cellTag"
-          v-if="showColProblems && hasAnyProblems"
-          :class="[$style.bodyCell, $style.colProblems]">
-          <span v-if="x.conditionClass === C.ColoredValue.negative" :class="x.conditionClass">
-            {{ x.conditionText }}
-          </span>
-          <div
-            v-if="hasFuelProblem(x)"
-            :class="[C.ShipFuel.container, C.ShipFuel.pointer, $style.fuelBars]"
-            @click="onFuel(x.ship.registration)">
-            <div v-if="hasStlFuelProblem(x)" :class="C.ProgressBar.container">
-              <progress
-                :class="[C.ProgressBar.primary, C.ProgressBar.progress]"
-                :value="x.stlFuelRatio ?? 0"
-                max="1" />
+          <component
+            :is="cellTag"
+            v-else-if="col === 'time'"
+            :class="[$style.bodyCell, $style.colTime]">
+            <TimeCell :ship-id="x.ship.id" />
+          </component>
+
+          <component
+            :is="cellTag"
+            v-else-if="col === 'repair'"
+            :class="[$style.bodyCell, $style.colRepair, C.ShipStore.pointer]"
+            @click.stop="showBuffer(fltRepairCommand(x.ship.registration))">
+            <span :class="x.conditionClass">{{ x.conditionText }}</span>
+          </component>
+
+          <component
+            :is="cellTag"
+            v-else-if="col === 'fuel'"
+            :class="[$style.bodyCell, $style.colFuel]">
+            <div
+              :class="[C.ShipFuel.container, C.ShipFuel.pointer, $style.fuelBars]"
+              @click="onFuel(x.ship.registration)">
+              <div :class="C.ProgressBar.container">
+                <progress
+                  :class="[C.ProgressBar.primary, C.ProgressBar.progress]"
+                  :value="x.stlFuelRatio ?? 0"
+                  max="1" />
+              </div>
+              <div :class="C.ProgressBar.container">
+                <progress
+                  :class="[
+                    C.ProgressBar.secondary,
+                    C.ProgressBar.progress,
+                    !x.isFtlCapable ? C.ProgressBar.warning : undefined,
+                  ]"
+                  :value="x.ftlFuelRatio ?? 0"
+                  max="1" />
+              </div>
             </div>
-            <div v-if="hasFtlFuelProblem(x)" :class="C.ProgressBar.container">
-              <progress
-                :class="[
-                  C.ProgressBar.secondary,
-                  C.ProgressBar.progress,
-                  !x.isFtlCapable ? C.ProgressBar.warning : undefined,
-                ]"
-                :value="x.ftlFuelRatio ?? 0"
-                max="1" />
+          </component>
+
+          <component
+            :is="cellTag"
+            v-else-if="col === 'route'"
+            :class="[$style.bodyCell, $style.colRoute]">
+            <span
+              v-if="x.routeIndicatorColor"
+              :class="$style.routeDot"
+              :style="{ backgroundColor: x.routeIndicatorColor }"
+              :data-tooltip="x.routeLabel"
+              data-tooltip-position="top" />
+          </component>
+
+          <component
+            :is="cellTag"
+            v-else-if="col === 'problems'"
+            :class="[$style.bodyCell, $style.colProblems]">
+            <span v-if="x.conditionClass === C.ColoredValue.negative" :class="x.conditionClass">
+              {{ x.conditionText }}
+            </span>
+            <div
+              v-if="hasFuelProblem(x)"
+              :class="[C.ShipFuel.container, C.ShipFuel.pointer, $style.fuelBars]"
+              @click="onFuel(x.ship.registration)">
+              <div v-if="hasStlFuelProblem(x)" :class="C.ProgressBar.container">
+                <progress
+                  :class="[C.ProgressBar.primary, C.ProgressBar.progress]"
+                  :value="x.stlFuelRatio ?? 0"
+                  max="1" />
+              </div>
+              <div v-if="hasFtlFuelProblem(x)" :class="C.ProgressBar.container">
+                <progress
+                  :class="[
+                    C.ProgressBar.secondary,
+                    C.ProgressBar.progress,
+                    !x.isFtlCapable ? C.ProgressBar.warning : undefined,
+                  ]"
+                  :value="x.ftlFuelRatio ?? 0"
+                  max="1" />
+              </div>
             </div>
-          </div>
-        </component>
+          </component>
+        </template>
       </component>
     </component>
   </div>

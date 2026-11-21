@@ -16,7 +16,7 @@ describe('XIT FLT ship commands', () => {
   });
 
   it('leaves the other row commands on SFC, SHPI, and SHPF', () => {
-    const nameCell = flt.slice(flt.indexOf('v-if="showColName"'), flt.indexOf('showColShipClass'));
+    const nameCell = flt.slice(flt.indexOf("col === 'name'"), flt.indexOf("col === 'shipClass'"));
     expect(nameCell).not.toContain('SFC');
     expect(flt.match(/showBuffer\(`SFC \$\{x\.ship\.registration\}`\)/g)).toHaveLength(1);
     expect(flt).toContain('showBuffer(`SHPI ${x.ship.registration}`)');
