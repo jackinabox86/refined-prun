@@ -508,7 +508,10 @@ value back explicitly (`input.value = String(clamped)`) after updating the store
 `openCompanionBuffer(tile, command)` in `src/infrastructure/prun-ui/companion-buffer.ts`
 splits the tile's window (widening a floating window by 450px first) and loads `command`
 into the sibling pane. Get the tile inside a Vue component via `useTile()`. Used by the
-POPI details shift-click feature and GOVBURN's planet view.
+POPI details shift-click feature, GOVBURN's planet view, and SHPI's shift-click SFC
+context item (same gesture as the SHPI INV / WAR buttons). Only intercept when
+`canOpenCompanion(tile)` is true so a docked screen tile still gets the game's plain
+click.
 
 ### Planet names and the right-click planet menu
 
