@@ -4,6 +4,7 @@ import RadioItem from '@src/components/forms/RadioItem.vue';
 import {
   BurnValues,
   clampNearZeroDailyAmount,
+  getInboundShips,
   getPlanetBurn,
   MaterialBurn,
   PlanetBurn,
@@ -98,8 +99,9 @@ const inf = useTileState('inf');
 const prod = useTileState('prod');
 const wf = useTileState('wf');
 const io = useTileState('io');
+const excludeInbound = useTileState('excludeInbound');
 
-function filterBurn(burn: BurnValues): BurnValues {
+function filterBurn(burn: BurnValues, naturalId: string): BurnValues {
   const filtered: BurnValues = {};
   for (const ticker of Object.keys(burn)) {
     const mat = burn[ticker];
@@ -108,7 +110,16 @@ function filterBurn(burn: BurnValues): BurnValues {
     if (!(hasProd && prod.value) && !(hasWf && wf.value)) {
       continue;
     }
-    filtered[ticker] = mat;
+    if (excludeInbound.value.includes(naturalId)) {
+      const remaining = mat.inventory + mat.remainingAllocation;
+      filtered[ticker] = {
+        ...mat,
+        inboundInventory: 0,
+        daysLeft: mat.dailyAmount >= 0 ? Number.POSITIVE_INFINITY : remaining / -mat.dailyAmount,
+      };
+    } else {
+      filtered[ticker] = mat;
+    }
   }
   return filtered;
 }
@@ -122,7 +133,11 @@ const planetBurn = computed(() => {
     .filter(x => x !== overall)
     .map(getPlanetBurn)
     .filter(x => x !== undefined)
-    .map(x => ({ ...x, burn: filterBurn(x.burn) }));
+    .map(x => ({
+      ...x,
+      burn: filterBurn(x.burn, x.naturalId),
+      hasInboundShips: getInboundShips(x.naturalId).length > 0,
+    }));
   if (filtered.length <= 1) {
     return filtered;
   }
@@ -154,6 +169,7 @@ const planetBurn = computed(() => {
         dailyAmount: 0,
         remainingAllocation: 0,
         inventory: 0,
+        inboundInventory: 0,
         daysLeft: 0,
         type: 'output',
       };
@@ -162,6 +178,7 @@ const planetBurn = computed(() => {
       overallBurn[ticker].workforce += mat.workforce;
       overallBurn[ticker].remainingAllocation += mat.remainingAllocation;
       overallBurn[ticker].inventory += mat.inventory;
+      overallBurn[ticker].inboundInventory += mat.inboundInventory;
     }
   }
 
@@ -171,11 +188,17 @@ const planetBurn = computed(() => {
     // per-planet value, so it has to clamp the residue itself. Cross-planet cancellation
     // is exactly where a residue-sized net rate comes from.
     mat.dailyAmount = clampNearZeroDailyAmount(mat.output - mat.input - mat.workforce);
-    const remaining = mat.inventory + mat.remainingAllocation;
+    const remaining = mat.inventory + mat.inboundInventory + mat.remainingAllocation;
     mat.daysLeft = mat.dailyAmount >= 0 ? Number.POSITIVE_INFINITY : remaining / -mat.dailyAmount;
   }
 
-  const overallSection = { burn: overallBurn, planetName: 'Overall', naturalId: '', storeId: '' };
+  const overallSection = {
+    hasInboundShips: filtered.some(x => x.hasInboundShips),
+    burn: filterBurn(overallBurn, ''),
+    planetName: 'Overall',
+    naturalId: '',
+    storeId: '',
+  };
 
   if (queryResult.value.overallOnly) {
     return [overallSection];
@@ -192,6 +215,7 @@ const fakeBurn: MaterialBurn = {
   daysLeft: 10,
   remainingAllocation: 0,
   inventory: 100000,
+  inboundInventory: 0,
   type: 'input',
   input: 100000,
   output: 100000,
@@ -227,7 +251,7 @@ function formatBurnTable(burns: PlanetBurn[]) {
       const mat = planet.burn[material.ticker];
       const days = mat.dailyAmount >= 0 ? '' : Math.floor(mat.daysLeft).toString();
       const burn = round(mat.dailyAmount);
-      const inv = mat.inventory + mat.remainingAllocation;
+      const inv = mat.inventory + mat.inboundInventory + mat.remainingAllocation;
       const need =
         mat.dailyAmount >= 0 || mat.daysLeft > resupply
           ? 0
@@ -296,7 +320,7 @@ function copyBurnTable() {
               Inv
               <Tooltip
                 position="right"
-                tooltip="How much of a material the inventory still has. Fractional amount
+                tooltip="Stock at the base plus cargo on inbound ships when enabled. Fractional amount
                  represents the leftover materials since the last workforce consumption event." />
             </InlineFlex>
           </th>
@@ -330,6 +354,7 @@ function copyBurnTable() {
         v-for="burn in planetBurn"
         :key="burn.planetName"
         :can-minimize="planetBurn.length > 1"
+        :has-inbound-ships="burn.hasInboundShips"
         :burn="burn" />
     </table>
   </template>

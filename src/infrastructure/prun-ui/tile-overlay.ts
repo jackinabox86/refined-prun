@@ -1,6 +1,7 @@
 import Overlay from '@src/components/Overlay.vue';
 import ActionConfirmationOverlay from '@src/components/ActionConfirmationOverlay.vue';
 import ActionFeedbackError from '@src/components/ActionFeedbackError.vue';
+import ActionFeedbackProgress from '@src/components/ActionFeedbackProgress.vue';
 
 export function showTileOverlay<T extends Component>(
   baseElementOrEvent: Element | Event,
@@ -96,6 +97,24 @@ export function showErrorOverlay(baseElementOrEvent: Element | Event, message: s
     onClose: () => fragmentApp.unmount(),
   });
   fragmentApp.appendTo(container);
+}
+
+export function showProgressOverlay(baseElementOrEvent: Element | Event) {
+  const container = findMountContainer(baseElementOrEvent);
+  if (!container) {
+    return () => {};
+  }
+  const fragmentApp = createFragmentApp(ActionFeedbackProgress);
+  fragmentApp.appendTo(container);
+
+  let dismissed = false;
+  return () => {
+    if (dismissed) {
+      return;
+    }
+    dismissed = true;
+    fragmentApp.unmount();
+  };
 }
 
 function findMountContainer(baseElementOrEvent: Element | Event) {

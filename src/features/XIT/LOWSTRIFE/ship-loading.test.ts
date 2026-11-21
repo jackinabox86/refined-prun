@@ -33,6 +33,7 @@ function mat(dailyAmount: number, inventory: number, type: MaterialBurn['type'])
     dailyAmount,
     remainingAllocation: 0,
     inventory,
+    inboundInventory: 0,
     daysLeft: 0,
     type,
   };
@@ -259,6 +260,7 @@ describe('DW fill', () => {
           dailyAmount: 1823,
           remainingAllocation: 0,
           inventory: 1201,
+          inboundInventory: 0,
           daysLeft: 0,
           type: 'workforce',
         },

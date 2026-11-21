@@ -147,7 +147,6 @@ const barAlarmReason = computed(() =>
 );
 
 const pickupAlarm = computed(() => getPickupAlarm(siteId));
-const rocket = '\u{1F680}';
 
 const warehouse = computed(() => warehousesStore.getByEntityNaturalId(naturalId));
 const warehouseStore = computed(() =>
@@ -235,7 +234,7 @@ function onCmdsClick() {
           :class="[C.ProgressBar.progress, $style.pickupBox, C.Workforces.daysSupplied]"
           :data-tooltip="pickupAlarm.reason"
           data-tooltip-position="top">
-          <span>{{ rocket }}</span>
+          <span :class="fa.solid">{{ EN_ROUTE_ROCKET }}</span>
         </div>
       </div>
     </td>
