@@ -52,16 +52,16 @@ describe('XIT FLT fuel header', () => {
     expect(showBuffer).toHaveBeenCalledWith('XIT REFUELACT');
   });
 
-  it('keeps the fuel column gated in the template, grid, and body', () => {
+  it('keeps the fuel column gated in visibility, header, and body', () => {
     expect(showFuelColumn(true)).toBe(true);
     expect(showFuelColumn(false)).toBe(false);
 
     const flt = productSource('FLT.vue');
     const header = productSource('FuelHeaderButton.vue');
 
-    expect(flt.match(/showFuelColumn\(/g)?.length).toBe(3);
-    expect(flt).toContain('if (showFuelColumn(showColFuel.value))');
-    expect(flt.match(/v-if="showFuelColumn\(showColFuel\)"/g)?.length).toBe(2);
+    expect(flt).toContain('return showFuelColumn(showColFuel.value)');
+    expect(flt).toContain('v-else-if="col === \'fuel\'"');
+    expect(flt.match(/v-else-if="col === 'fuel'"/g)?.length).toBe(2);
     expect(flt).toContain('@refuel="openRefuelAllExchanges"');
     expect(flt).not.toMatch(/>\s*REFUEL\s*</);
     expect(flt).toMatch(/colProblems[\s\S]*?>\s*Problems\s*</);
