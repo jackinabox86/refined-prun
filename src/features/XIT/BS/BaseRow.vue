@@ -5,7 +5,7 @@ import InvBar from '@src/features/XIT/BS/InvBar.vue';
 import MaterialList from '@src/features/XIT/BURN/MaterialList.vue';
 import { burnCellBufferCommand, toggleExpandedBurn } from '@src/features/XIT/BS/burn-cell-click';
 import { showBuffer } from '@src/infrastructure/prun-ui/buffers';
-import { getPlanetBurn } from '@src/core/burn';
+import { getInboundShips, getPlanetBurn } from '@src/core/burn';
 import { burnDaysClass, countDays } from '@src/features/XIT/BURN/utils';
 import { formatBsBurnDays } from '@src/features/XIT/BS/format-bs-burn-days';
 import {
@@ -77,6 +77,9 @@ function onBurnDaysClick(e: MouseEvent) {
 }
 
 const enRoute = computed(() => isOnAutomatedRoute(naturalId));
+// A ship in flight here swaps the days number for a rocket; the number moves
+// to the tooltip. The background keeps its days colour.
+const hasInboundShips = computed(() => getInboundShips(naturalId).length > 0);
 
 const burnBgClass = computed(() => {
   if (enRoute.value) {
@@ -191,6 +194,14 @@ function onCmdsClick() {
           v-if="enRoute"
           :class="[fa.solid, $style.statusNum]"
           :style="{ color: EN_ROUTE_BLUE }"
+          @click="onBurnDaysClick"
+          >{{ EN_ROUTE_ROCKET }}</span
+        >
+        <span
+          v-else-if="hasInboundShips"
+          :class="[fa.solid, $style.statusNum]"
+          :data-tooltip="`${daysText ?? '-'} days. Ship inbound.`"
+          data-tooltip-position="top"
           @click="onBurnDaysClick"
           >{{ EN_ROUTE_ROCKET }}</span
         >
