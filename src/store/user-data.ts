@@ -28,7 +28,7 @@ export const initialUserData = deepFreeze({
       yellow: 7,
       resupply: 16,
       // XIT BS Days: one decimal under 10 days. Off keeps the whole-number display.
-      decimalDays: false,
+      decimalDays: true,
       planetResupply: {} as Record<string, number>,
       // Planet natural id -> ship-size label from core/ship-sizes.
       planetPickup: {} as Record<string, string>,
