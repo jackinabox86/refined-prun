@@ -19,7 +19,7 @@ export const FLT_REFUEL_BUFFER_COMMAND = 'XIT REFUELACT';
 export const DEFAULT_SORT_DIRECTION_BY_KEY: Record<SortKey, SortDirection> = {
   name: 'none',
   cargo: 'none',
-  status: 'desc',
+  status: 'asc',
   eta: 'asc',
   fuel: 'none',
   none: 'none',

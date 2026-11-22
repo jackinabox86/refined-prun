@@ -106,6 +106,16 @@ XIT panels with filter toggles use `C.ComExOrdersPanel.filter` as the container 
 
 Each option's `active` state is a computed read of the same `selected` ref, so setting one option re-evaluates the others to `false` automatically — no manual "clear the others" step needed. Clicking the active option again clears `selected` (shows everything).
 
+### Reorderable column pickers
+
+When a filter bar should both toggle columns and drag-reorder them (XIT FLT Columns):
+
+- Persist order with `useTileState` (per buffer; docked tiles keep it, floating numeric ids stay ephemeral — see "Tile state is ephemeral for floating buffers").
+- Drive the chip list with `vue-draggable-plus` (`v-draggable`), not hand-rolled HTML5 drag — the live harness cannot exercise the latter.
+- Keep a local `ref` copy of the picker order for Sortable to mutate; write back to tile state in `onEnd` (same idea as DISPATCH `orderedIds` / `baseOrder`).
+- Bind chips with `:model-value` + `@update:model-value`, not `v-model`, and gate the handler so a drag never toggles (`shouldApplyColumnToggle` / `columnDragActive`).
+- Render the table header and body by iterating the ordered visible columns so legacy `table` layout and CSS grid stay in sync.
+
 ---
 
 ## Adding an XIT Command
