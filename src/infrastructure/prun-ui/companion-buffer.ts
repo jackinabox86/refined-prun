@@ -26,7 +26,14 @@ export function canOpenCompanion(tile: PrunTile) {
   );
 }
 
-export async function openCompanionBuffer(tile: PrunTile, command: string) {
+// The heightScale option multiplies the floating window's height when it is split, for
+// companions that need more vertical room than the original buffer. companionWidthScale
+// widens only the companion pane; the original buffer keeps its width.
+export async function openCompanionBuffer(
+  tile: PrunTile,
+  command: string,
+  options?: { heightScale?: number; companionWidthScale?: number },
+) {
   if (tile.container.classList.contains(C.Node.child)) {
     await setSiblingCommand(tile, command);
     return;
@@ -36,9 +43,15 @@ export async function openCompanionBuffer(tile: PrunTile, command: string) {
     return;
   }
 
-  const [companionWidth, companionHeight] = commandSize(command);
+  const [baseCompanionWidth, companionHeight] = commandSize(command);
+  const companionWidth = Math.round(baseCompanionWidth * (options?.companionWidthScale ?? 1));
   const [width, height] = windowSize(tile);
-  setBufferSize(tile.id, width + companionWidth, Math.max(height, companionHeight));
+  const heightScale = options?.heightScale ?? 1;
+  setBufferSize(
+    tile.id,
+    width + companionWidth,
+    Math.round(Math.max(height, companionHeight) * heightScale),
+  );
 
   const children = await splitTile(tile);
   if (children === undefined) {
