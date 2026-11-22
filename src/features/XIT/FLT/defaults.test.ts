@@ -99,6 +99,23 @@ describe('XIT FLT route indicator placement', () => {
     expect(timeCell).toContain('width: 0.7em');
     expect(timeCell).toContain('height: 0.7em');
   });
+
+  it('shows red or orange route problems in the PROBLEMS column, not green active routes', () => {
+    const flt = productSource('FLT.vue');
+    const indicator = productSource('route-indicator.ts');
+
+    expect(flt).toContain('getFltRouteProblemColor');
+    expect(flt).toContain('isFltRouteProblem');
+    expect(flt).toContain('routeProblemDot');
+    expect(flt).toContain('hasRouteProblem');
+    expect(flt).toMatch(
+      /hasAnyProblems[\s\S]*hasFuelProblem\(x\) \|\|[\s\S]*hasRouteProblem\(x\.ship\.id\)/,
+    );
+    // PROBLEMS must not reuse the ETA green path — only problem colors.
+    expect(flt).not.toContain('getFltRouteIndicatorColor');
+    expect(indicator).toContain("state === 'BLOCKED' || state === 'STEP_BLOCKED'");
+    expect(indicator).toContain('getFltRouteProblemColor');
+  });
 });
 
 describe('XIT FLT undocked buffer size', () => {

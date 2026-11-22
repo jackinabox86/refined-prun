@@ -49,6 +49,11 @@ import {
   shipMatchesLocationFilter,
 } from './location-filter';
 import { fltRepairCommand, fltShipNameCommand } from './ship-commands';
+import {
+  getFltRouteProblemColor,
+  getFltRouteProblemTooltip,
+  isFltRouteProblem,
+} from './route-indicator';
 
 type FlightRow = {
   ship: PrunApi.Ship;
@@ -528,12 +533,34 @@ function hasFtlFuelProblem(row: FlightRow): boolean {
   return threshold < 1 && (row.ftlFuelRatio ?? 1) < threshold;
 }
 
+function routeExecution(shipId: string) {
+  return shipRoutesStore.getByShipId(shipId);
+}
+
+function hasRouteProblem(shipId: string) {
+  return isFltRouteProblem(routeExecution(shipId)?.state);
+}
+
+function routeProblemColor(shipId: string) {
+  return getFltRouteProblemColor(routeExecution(shipId)?.state);
+}
+
+function routeProblemLabel(shipId: string) {
+  const execution = routeExecution(shipId);
+  return getFltRouteProblemTooltip(execution?.state, execution?.route);
+}
+
 const hasAnyProblems = computed(() => {
   const source = rows.value;
   if (!source) {
     return false;
   }
-  return source.some(x => x.conditionClass === C.ColoredValue.negative || hasFuelProblem(x));
+  return source.some(
+    x =>
+      x.conditionClass === C.ColoredValue.negative ||
+      hasFuelProblem(x) ||
+      hasRouteProblem(x.ship.id),
+  );
 });
 
 const gridTemplateColumns = computed(() =>
@@ -1374,6 +1401,12 @@ function getCargoState(cargoRatio: number) {
             :is="cellTag"
             v-else-if="col === 'problems'"
             :class="[$style.bodyCell, $style.colProblems]">
+            <span
+              v-if="routeProblemColor(x.ship.id)"
+              :class="$style.routeProblemDot"
+              :style="{ backgroundColor: routeProblemColor(x.ship.id) }"
+              :data-tooltip="routeProblemLabel(x.ship.id)"
+              data-tooltip-position="top" />
             <span v-if="x.conditionClass === C.ColoredValue.negative" :class="x.conditionClass">
               {{ x.conditionText }}
             </span>
@@ -1598,6 +1631,14 @@ function getCargoState(cargoRatio: number) {
   flex-direction: column;
   justify-content: center;
   gap: 2px;
+}
+
+.routeProblemDot {
+  display: inline-block;
+  width: 0.7em;
+  height: 0.7em;
+  border-radius: 50%;
+  flex-shrink: 0;
 }
 
 .colSize {

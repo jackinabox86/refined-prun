@@ -5,6 +5,9 @@ import {
   FLT_ROUTE_FAILED_COLOR,
   getFltRouteIndicatorColor,
   getFltRouteLabel,
+  getFltRouteProblemColor,
+  getFltRouteProblemTooltip,
+  isFltRouteProblem,
 } from './route-indicator';
 
 describe('XIT FLT route indicator', () => {
@@ -20,6 +23,32 @@ describe('XIT FLT route indicator', () => {
 
   it('shows no dot for a ship without a route execution', () => {
     expect(getFltRouteIndicatorColor(undefined)).toBeUndefined();
+  });
+
+  it('treats only BLOCKED and STEP_BLOCKED as PROBLEMS-column route problems', () => {
+    expect(isFltRouteProblem('BLOCKED')).toBe(true);
+    expect(isFltRouteProblem('STEP_BLOCKED')).toBe(true);
+    expect(isFltRouteProblem('FLYING')).toBe(false);
+    expect(isFltRouteProblem('RUNNING_STEPS')).toBe(false);
+    expect(isFltRouteProblem('WAITING')).toBe(false);
+    expect(isFltRouteProblem(undefined)).toBe(false);
+    expect(getFltRouteProblemColor('BLOCKED')).toBe(FLT_ROUTE_FAILED_COLOR);
+    expect(getFltRouteProblemColor('STEP_BLOCKED')).toBe(FLT_ROUTE_BLOCKED_COLOR);
+    expect(getFltRouteProblemColor('FLYING')).toBeUndefined();
+    expect(getFltRouteProblemColor('RUNNING_STEPS')).toBeUndefined();
+    expect(getFltRouteProblemColor(undefined)).toBeUndefined();
+  });
+
+  it('says what the route problem is in the PROBLEMS tooltip', () => {
+    const route = { naturalId: 'RT-KSRV-5070', name: 'Aceland run' } as PrunApi.ShipRoute;
+    expect(getFltRouteProblemTooltip('BLOCKED', route)).toBe(
+      'Route blocked: RT-KSRV-5070 Aceland run',
+    );
+    expect(getFltRouteProblemTooltip('STEP_BLOCKED', route)).toBe(
+      'Route step blocked: RT-KSRV-5070 Aceland run',
+    );
+    expect(getFltRouteProblemTooltip('STEP_BLOCKED', undefined)).toBe('Route step blocked');
+    expect(getFltRouteProblemTooltip('FLYING', route)).toBeUndefined();
   });
 
   it('labels the route the way ROUTETRACK does', () => {
