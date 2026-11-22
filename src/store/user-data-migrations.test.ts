@@ -215,7 +215,7 @@ describe('XIT BS decimal burn days migration', () => {
     expect(userData.settings.burn.red).toBe(4);
   });
 
-  it('ships off for a fresh install', () => {
-    expect(initialUserData.settings.burn.decimalDays).toBe(false);
+  it('ships on for a fresh install', () => {
+    expect(initialUserData.settings.burn.decimalDays).toBe(true);
   });
 });

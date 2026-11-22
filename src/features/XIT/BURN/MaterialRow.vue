@@ -17,7 +17,7 @@ const { alwaysVisible, burn, material, naturalId } = defineProps<{
 
 const production = computed(() => burn.dailyAmount);
 const invAmount = computed(() => {
-  const amount = burn.inventory + burn.remainingAllocation;
+  const amount = burn.inventory + burn.inboundInventory + burn.remainingAllocation;
   // Truncate, don't round, so the shown amount never exceeds what you hold.
   if (amount >= 100) {
     return trunc0(amount);
@@ -93,8 +93,11 @@ const needAmt = computed(() => computeNeed(burn, getResupplyDays(naturalId)));
       <MaterialIcon size="inline-table" :ticker="material.ticker" />
     </td>
     <td>
-      <span>
+      <span
+        :class="$style.tooltipReset"
+        :data-tooltip="burn.inboundInventory > 0 ? 'Includes items in inbound ships' : undefined">
         {{ invWhole }}<span :class="$style.fraction">{{ invFraction }}</span>
+        <template v-if="burn.inboundInventory > 0">*</template>
       </span>
     </td>
     <template v-if="io">
@@ -129,5 +132,9 @@ const needAmt = computed(() => computeNeed(burn, getResupplyDays(naturalId)));
 
 .fraction {
   color: #999;
+}
+
+.tooltipReset {
+  padding: 0;
 }
 </style>

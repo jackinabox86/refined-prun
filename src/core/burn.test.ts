@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { calculatePlanetBurn, clampNearZeroDailyAmount } from '@src/core/burn';
+import { calculatePlanetBurn, clampNearZeroDailyAmount, computeNeed } from '@src/core/burn';
 
 // Reproduces the daysLeft formula both calculatePlanetBurn and the XIT BURN "Overall"
 // row use, so the assertions below are about the number a player actually sees.
@@ -126,6 +126,23 @@ function workforce(level: string, needs: PrunApi.Need[]): PrunApi.Workforce {
 }
 
 describe('calculatePlanetBurn', () => {
+  it('keeps inbound cargo separate while including it in days left and resupply needs', () => {
+    const store = (amount: number) =>
+      ({ items: [{ quantity: { material: material('RAT'), amount } }] }) as PrunApi.Store;
+    const burn = calculatePlanetBurn(
+      undefined,
+      [workforce('PIONEER', [need('RAT', 10, 5)])],
+      [store(10)],
+      [store(20), store(30)],
+    );
+
+    expect(burn.RAT.inventory).toBe(10);
+    expect(burn.RAT.inboundInventory).toBe(50);
+    expect(burn.RAT.remainingAllocation).toBe(5);
+    expect(burn.RAT.daysLeft).toBe(6.5);
+    expect(computeNeed(burn.RAT, 10)).toBe(35);
+  });
+
   it('does not report 0 days left for a material whose production and consumption cancel', () => {
     // 0.3 produced against 0.1 + 0.2 consumed: the same value, one ULP apart.
     const burn = calculatePlanetBurn(
@@ -150,6 +167,7 @@ describe('calculatePlanetBurn', () => {
     );
 
     expect(burn.DW.dailyAmount).toBe(-12.5);
+    expect(burn.DW.inboundInventory).toBe(0);
     expect(burn.DW.daysLeft).toBe(20);
   });
 

@@ -17,6 +17,7 @@ function burn(values: Partial<MaterialBurn>): MaterialBurn {
     dailyAmount: 0,
     remainingAllocation: 0,
     inventory: 0,
+    inboundInventory: 0,
     daysLeft: 0,
     type: 'input',
     ...values,

@@ -69,14 +69,16 @@ export function lowstrifeRole(mat: MaterialBurn): LowstrifeRole {
 
 function materialLoad(mat: MaterialBurn, consumableDays: number, inputDays: number) {
   const role = lowstrifeRole(mat);
+  // Cargo already on inbound ships covers part of the need, as before the inventory split.
+  const inventory = mat.inventory + mat.inboundInventory;
   if (role !== 'both') {
     return loadAmount(
       mat.dailyAmount,
-      mat.inventory,
+      inventory,
       role === 'consumable' ? consumableDays : inputDays,
     );
   }
-  const need = mat.workforce * consumableDays + mat.input * inputDays - mat.inventory;
+  const need = mat.workforce * consumableDays + mat.input * inputDays - inventory;
   return need > 0 ? Math.ceil(need) + 1 : 0;
 }
 

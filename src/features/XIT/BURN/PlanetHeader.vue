@@ -4,21 +4,36 @@ import { showBuffer } from '@src/infrastructure/prun-ui/buffers';
 import PrunButton from '@src/components/PrunButton.vue';
 import { PlanetBurn } from '@src/core/burn';
 import { countDays } from '@src/features/XIT/BURN/utils';
-import { isOnAutomatedRoute } from '@src/features/XIT/ROUTE/automated-route-bases';
+import { EN_ROUTE_ROCKET, isOnAutomatedRoute } from '@src/features/XIT/ROUTE/automated-route-bases';
 import { store as planetContextMenu } from '@src/features/XIT/planet-context-menu';
 import { useTileState } from '@src/features/XIT/BURN/tile-state';
+import fa from '@src/utils/font-awesome.module.css';
 
 const { burn } = defineProps<{
   burn: PlanetBurn;
+  hasInboundShips: boolean;
   hasMinimize?: boolean;
   minimized?: boolean;
   onClick: () => void;
 }>();
 
 const io = useTileState('io');
+const excludeInbound = useTileState('excludeInbound');
+const includesInbound = computed(() => !excludeInbound.value.includes(burn.naturalId));
+const inboundTooltip = computed(() =>
+  includesInbound.value
+    ? 'Includes inbound cargo. Click to exclude it.'
+    : 'Excludes inbound cargo. Click to include it.',
+);
 const days = computed(() => countDays(burn.burn));
 const enRoute = computed(() => burn.naturalId !== '' && isOnAutomatedRoute(burn.naturalId));
 const nameColspan = computed(() => (io.value ? 6 : 4));
+
+function toggleInbound() {
+  excludeInbound.value = includesInbound.value
+    ? [...excludeInbound.value, burn.naturalId]
+    : excludeInbound.value.filter(x => x !== burn.naturalId);
+}
 </script>
 
 <template>
@@ -32,6 +47,16 @@ const nameColspan = computed(() => (io.value ? 6 : 4));
         {{ minimized ? '+' : '-' }}
       </span>
       <span>{{ burn.planetName }}</span>
+      <button
+        v-if="hasInboundShips"
+        type="button"
+        :class="[fa.solid, $style.inbound, { [$style.inboundExcluded]: !includesInbound }]"
+        :data-tooltip="inboundTooltip"
+        :aria-label="inboundTooltip"
+        :aria-pressed="includesInbound"
+        @click.stop="toggleInbound">
+        {{ EN_ROUTE_ROCKET }}
+      </button>
     </td>
     <DaysCell :days="days" :en-route="enRoute" />
     <td>
@@ -63,6 +88,21 @@ const nameColspan = computed(() => (io.value ? 6 : 4));
   display: inline-block;
   width: 26px;
   text-align: center;
+}
+
+.inbound {
+  float: right;
+  border: 0;
+  padding: 0;
+  background: none;
+  color: inherit;
+  cursor: pointer;
+  font-size: 12px;
+  line-height: inherit;
+}
+
+.inboundExcluded {
+  color: #666;
 }
 
 .buttons {
