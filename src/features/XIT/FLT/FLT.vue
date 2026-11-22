@@ -49,7 +49,6 @@ import {
   shipMatchesLocationFilter,
 } from './location-filter';
 import { fltRepairCommand, fltShipNameCommand } from './ship-commands';
-import { getFltRouteIndicatorColor, getFltRouteLabel } from './route-indicator';
 
 type FlightRow = {
   ship: PrunApi.Ship;
@@ -70,8 +69,6 @@ type FlightRow = {
   conditionBand: string;
   etaBucket: string;
   cargoState: string;
-  routeIndicatorColor: string | undefined;
-  routeLabel: string | undefined;
 };
 
 type MultiOptionFilterGroup = {
@@ -118,7 +115,7 @@ const showColCargoSize = useTileState('showColCargoSize', DEFAULTS.showColCargoS
 const showColTime = useTileState('showColTime', DEFAULTS.showColTime);
 const showColRepair = useTileState('showColRepair', DEFAULTS.showColRepair);
 const showColFuel = useTileState('showColFuel', DEFAULTS.showColFuel);
-const showColRoute = useTileState('showColRoute', DEFAULTS.showColRoute);
+// Older buffers may still persist a removed Route-column toggle key; unused keys are ignored.
 const showColProblems = useTileState('showColProblems', DEFAULTS.showColProblems);
 const storedColumnOrder = useTileState<FltColumnId[]>(
   'columnOrder',
@@ -186,8 +183,6 @@ function columnVisibility(col: FltColumnId) {
       return showColRepair.value;
     case 'fuel':
       return showFuelColumn(showColFuel.value);
-    case 'route':
-      return showColRoute.value;
     case 'problems':
       return showColProblems.value && hasAnyProblems.value;
   }
@@ -211,8 +206,6 @@ function isPickerColumnVisible(col: FltColumnId) {
       return showColRepair.value;
     case 'fuel':
       return showColFuel.value;
-    case 'route':
-      return showColRoute.value;
     case 'problems':
       return showColProblems.value;
     case 'status':
@@ -255,9 +248,6 @@ function onColumnToggle(col: FltColumnId, enabled: boolean | undefined) {
       break;
     case 'fuel':
       showColFuel.value = enabled;
-      break;
-    case 'route':
-      showColRoute.value = enabled;
       break;
     case 'problems':
       showColProblems.value = enabled;
@@ -346,7 +336,6 @@ const rawRows = computed<FlightRow[] | undefined>(() => {
       flight?.destination &&
       (exchangesStore.all.value ?? []).some(ex => isSameAddress(ex.address, flight.destination))
     );
-    const route = shipRoutesStore.getByShipId(ship.id);
     const shipClass = getShipClass(ship);
     const conditionBand = getConditionBand(conditionPercentage);
     const etaBucket = getEtaBucket(inFlight, statusSortValue);
@@ -371,8 +360,6 @@ const rawRows = computed<FlightRow[] | undefined>(() => {
       conditionBand,
       etaBucket,
       cargoState,
-      routeIndicatorColor: getFltRouteIndicatorColor(route?.state),
-      routeLabel: getFltRouteLabel(route?.route),
     };
   });
 });
@@ -868,7 +855,6 @@ function clearFilters() {
   showColTime.value = DEFAULTS.showColTime;
   showColRepair.value = DEFAULTS.showColRepair;
   showColFuel.value = DEFAULTS.showColFuel;
-  showColRoute.value = DEFAULTS.showColRoute;
   showColProblems.value = DEFAULTS.showColProblems;
   storedColumnOrder.value = DEFAULT_COLUMN_ORDER as FltColumnId[];
   problemFuelThreshold.value = DEFAULTS.problemFuelThreshold;
@@ -1284,12 +1270,6 @@ function getCargoState(cargoRatio: number) {
           </component>
           <component
             :is="headerCellTag"
-            v-else-if="col === 'route'"
-            :class="[$style.headerCell, $style.colRoute]">
-            Route
-          </component>
-          <component
-            :is="headerCellTag"
             v-else-if="col === 'problems'"
             :class="[$style.headerCell, $style.colProblems]">
             Problems
@@ -1388,18 +1368,6 @@ function getCargoState(cargoRatio: number) {
                   max="1" />
               </div>
             </div>
-          </component>
-
-          <component
-            :is="cellTag"
-            v-else-if="col === 'route'"
-            :class="[$style.bodyCell, $style.colRoute]">
-            <span
-              v-if="x.routeIndicatorColor"
-              :class="$style.routeDot"
-              :style="{ backgroundColor: x.routeIndicatorColor }"
-              :data-tooltip="x.routeLabel"
-              data-tooltip-position="top" />
           </component>
 
           <component
@@ -1635,18 +1603,6 @@ function getCargoState(cargoRatio: number) {
 .colSize {
   min-width: 50px;
   justify-content: center;
-}
-
-.colRoute {
-  min-width: 30px;
-  justify-content: center;
-}
-
-.routeDot {
-  display: inline-block;
-  width: 9px;
-  height: 9px;
-  border-radius: 50%;
 }
 
 .row:nth-child(even) > .bodyCell {

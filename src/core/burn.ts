@@ -18,6 +18,7 @@ export interface MaterialBurn {
   dailyAmount: number;
   remainingAllocation: number;
   inventory: number;
+  inboundInventory: number;
   daysLeft: number;
   type: 'input' | 'output' | 'workforce';
 }
@@ -67,13 +68,12 @@ function createBurnBySiteId(
 
           const naturalId = getEntityNaturalIdFromAddress(site.address);
           const inboundStores = getInboundShipStores(naturalId);
-          const combinedStorage = [...(storage ?? []), ...inboundStores];
 
           return {
             storeId: storage?.[0]?.id,
             planetName: getEntityNameFromAddress(site.address),
             naturalId,
-            burn: calculatePlanetBurn(production, workforce, combinedStorage),
+            burn: calculatePlanetBurn(production, workforce, storage, inboundStores),
           } as PlanetBurn;
         }),
       );
@@ -172,6 +172,7 @@ export function calculatePlanetBurn(
   production: PrunApi.ProductionLine[] | undefined,
   workforces: PrunApi.Workforce[] | undefined,
   storage: PrunApi.Store[] | undefined,
+  inboundStorage?: PrunApi.Store[],
 ) {
   const burnValues: BurnValues = {};
 
@@ -184,6 +185,7 @@ export function calculatePlanetBurn(
       dailyAmount: 0,
       remainingAllocation: 0,
       inventory: 0,
+      inboundInventory: 0,
       daysLeft: 0,
       type: 'output',
     };
@@ -227,8 +229,14 @@ export function calculatePlanetBurn(
     }
   }
 
-  if (storage) {
-    for (const inventory of storage) {
+  addInventory(storage, 'inventory');
+  addInventory(inboundStorage, 'inboundInventory');
+
+  function addInventory(
+    stores: PrunApi.Store[] | undefined,
+    field: 'inventory' | 'inboundInventory',
+  ) {
+    for (const inventory of stores ?? []) {
       for (const item of inventory.items) {
         const quantity = item.quantity;
         if (!quantity) {
@@ -238,7 +246,7 @@ export function calculatePlanetBurn(
         if (materialBurn === undefined) {
           continue;
         }
-        materialBurn.inventory += quantity.amount;
+        materialBurn[field] += quantity.amount;
       }
     }
   }
@@ -256,7 +264,7 @@ export function calculatePlanetBurn(
       mat.type = 'input';
     }
     mat.dailyAmount = clampNearZeroDailyAmount(mat.dailyAmount);
-    const inv = mat.remainingAllocation + mat.inventory;
+    const inv = mat.remainingAllocation + mat.inventory + mat.inboundInventory;
     mat.daysLeft = mat.dailyAmount >= 0 ? Number.POSITIVE_INFINITY : inv / -mat.dailyAmount;
   }
 

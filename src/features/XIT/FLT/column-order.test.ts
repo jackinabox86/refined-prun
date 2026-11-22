@@ -29,15 +29,13 @@ describe('XIT FLT column order', () => {
       'status',
       'time',
       'repair',
-      'route',
       'problems',
     ]);
   });
 
-  it('drops unknown ids and duplicates while preserving relative order', () => {
+  it('drops unknown ids (including the removed route column) and duplicates', () => {
     expect(normalizeColumnOrder(['name', 'bogus', 'name', 'route'])).toEqual([
       'name',
-      'route',
       'shipClass',
       'size',
       'cargo',
@@ -63,7 +61,6 @@ describe('XIT FLT column order', () => {
       'cargoSize',
       'repair',
       'fuel',
-      'route',
       'problems',
     ] as const;
     expect(fullOrderFromPicker(moved, [...DEFAULT_COLUMN_ORDER])).toEqual([
@@ -76,7 +73,6 @@ describe('XIT FLT column order', () => {
       'cargoSize',
       'repair',
       'fuel',
-      'route',
       'problems',
     ]);
   });

@@ -8,7 +8,6 @@ export const FLT_COLUMN_IDS = [
   'time',
   'repair',
   'fuel',
-  'route',
   'problems',
 ] as const;
 
@@ -29,7 +28,6 @@ export const FLT_COLUMN_PICKER_LABELS: Record<Exclude<FltColumnId, 'status'>, st
   time: 'ETA',
   repair: 'REPAIR',
   fuel: 'FUEL',
-  route: 'ROUTE',
   problems: 'PROBLEMS',
 };
 

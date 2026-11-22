@@ -29,7 +29,6 @@ describe('XIT FLT unconfigured defaults', () => {
     expect(DEFAULTS.showColCargo).toBe(true);
     expect(DEFAULTS.showColTime).toBe(true);
     expect(DEFAULTS.showColFuel).toBe(true);
-    expect(DEFAULTS.showColRoute).toBe(true);
     expect(DEFAULTS.showColShipClass).toBe(false);
     expect(DEFAULTS.showColSize).toBe(false);
     expect(DEFAULTS.showColCargoSize).toBe(false);
@@ -79,6 +78,26 @@ describe('XIT FLT fuel header', () => {
     expect(header).not.toContain('font-size: 12px');
     expect(header).toMatch(/<PrunButton[^>]*@click\.stop="emit\('refuel'\)"/);
     expect(header).not.toMatch(/>\s*REFUEL\s*</);
+  });
+});
+
+describe('XIT FLT route indicator placement', () => {
+  it('puts the route dot in TimeCell and drops the Route column', () => {
+    const flt = productSource('FLT.vue');
+    const timeCell = productSource('TimeCell.vue');
+
+    expect(flt).not.toContain('showColRoute');
+    expect(flt).not.toMatch(/>\s*ROUTE\s*</);
+    expect(flt).not.toContain('colRoute');
+    expect(flt).not.toContain('routeDot');
+    expect(flt).toContain('request.shipRoutes()');
+
+    expect(timeCell).toContain('getFltRouteIndicatorColor');
+    expect(timeCell).toContain('getFltRouteLabel');
+    expect(timeCell).toContain('routeDot');
+    expect(timeCell).toContain('countdownRow');
+    expect(timeCell).toContain('width: 0.7em');
+    expect(timeCell).toContain('height: 0.7em');
   });
 });
 

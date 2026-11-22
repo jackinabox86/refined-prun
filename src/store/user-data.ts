@@ -6,7 +6,7 @@ export const initialUserData = deepFreeze({
   tileState: {} as Record<string, UserData.TileState | undefined>,
   settings: {
     mode: undefined as 'BASIC' | 'FULL' | undefined,
-    disabled: ['oog-burn-inflight-inventory', 'oog-cxpo-quick-price', 'act-auto-close'] as string[],
+    disabled: ['oog-cxpo-quick-price', 'act-auto-close'] as string[],
     time: 'DEFAULT' as UserData.TimeFormat,
     defaultChartType: 'SMOOTH' as UserData.ExchangeChartType,
     currency: {
@@ -28,7 +28,7 @@ export const initialUserData = deepFreeze({
       yellow: 7,
       resupply: 16,
       // XIT BS Days: one decimal under 10 days. Off keeps the whole-number display.
-      decimalDays: false,
+      decimalDays: true,
       planetResupply: {} as Record<string, number>,
       // Planet natural id -> ship-size label from core/ship-sizes.
       planetPickup: {} as Record<string, string>,
