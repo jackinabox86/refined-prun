@@ -19,6 +19,20 @@ export function getFltRouteIndicatorColor(
   return state === 'STEP_BLOCKED' ? FLT_ROUTE_BLOCKED_COLOR : FLT_ROUTE_ACTIVE_COLOR;
 }
 
+// PROBLEMS only cares about stopped routes. Green (active) stays in the ETA cell.
+export function isFltRouteProblem(state: PrunApi.ShipRouteExecutionState | undefined): boolean {
+  return state === 'BLOCKED' || state === 'STEP_BLOCKED';
+}
+
+export function getFltRouteProblemColor(
+  state: PrunApi.ShipRouteExecutionState | undefined,
+): string | undefined {
+  if (!isFltRouteProblem(state)) {
+    return undefined;
+  }
+  return getFltRouteIndicatorColor(state);
+}
+
 // Same label ROUTETRACK uses: the route's natural id, then its name when it has one.
 export function getFltRouteLabel(route: PrunApi.ShipRoute | undefined): string | undefined {
   if (route === undefined) {
