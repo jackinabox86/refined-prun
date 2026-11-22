@@ -40,3 +40,16 @@ export function getFltRouteLabel(route: PrunApi.ShipRoute | undefined): string |
   }
   return route.name ? `${route.naturalId} ${route.name}` : route.naturalId;
 }
+
+// PROBLEMS tooltip: what the route problem is, then the route it belongs to.
+export function getFltRouteProblemTooltip(
+  state: PrunApi.ShipRouteExecutionState | undefined,
+  route: PrunApi.ShipRoute | undefined,
+): string | undefined {
+  if (!isFltRouteProblem(state)) {
+    return undefined;
+  }
+  const reason = state === 'BLOCKED' ? 'Route blocked' : 'Route step blocked';
+  const label = getFltRouteLabel(route);
+  return label ? `${reason}: ${label}` : reason;
+}

@@ -6,6 +6,7 @@ import {
   getFltRouteIndicatorColor,
   getFltRouteLabel,
   getFltRouteProblemColor,
+  getFltRouteProblemTooltip,
   isFltRouteProblem,
 } from './route-indicator';
 
@@ -36,6 +37,18 @@ describe('XIT FLT route indicator', () => {
     expect(getFltRouteProblemColor('FLYING')).toBeUndefined();
     expect(getFltRouteProblemColor('RUNNING_STEPS')).toBeUndefined();
     expect(getFltRouteProblemColor(undefined)).toBeUndefined();
+  });
+
+  it('says what the route problem is in the PROBLEMS tooltip', () => {
+    const route = { naturalId: 'RT-KSRV-5070', name: 'Aceland run' } as PrunApi.ShipRoute;
+    expect(getFltRouteProblemTooltip('BLOCKED', route)).toBe(
+      'Route blocked: RT-KSRV-5070 Aceland run',
+    );
+    expect(getFltRouteProblemTooltip('STEP_BLOCKED', route)).toBe(
+      'Route step blocked: RT-KSRV-5070 Aceland run',
+    );
+    expect(getFltRouteProblemTooltip('STEP_BLOCKED', undefined)).toBe('Route step blocked');
+    expect(getFltRouteProblemTooltip('FLYING', route)).toBeUndefined();
   });
 
   it('labels the route the way ROUTETRACK does', () => {

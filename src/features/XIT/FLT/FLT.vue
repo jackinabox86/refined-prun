@@ -49,7 +49,11 @@ import {
   shipMatchesLocationFilter,
 } from './location-filter';
 import { fltRepairCommand, fltShipNameCommand } from './ship-commands';
-import { getFltRouteLabel, getFltRouteProblemColor, isFltRouteProblem } from './route-indicator';
+import {
+  getFltRouteProblemColor,
+  getFltRouteProblemTooltip,
+  isFltRouteProblem,
+} from './route-indicator';
 
 type FlightRow = {
   ship: PrunApi.Ship;
@@ -542,7 +546,8 @@ function routeProblemColor(shipId: string) {
 }
 
 function routeProblemLabel(shipId: string) {
-  return getFltRouteLabel(routeExecution(shipId)?.route);
+  const execution = routeExecution(shipId);
+  return getFltRouteProblemTooltip(execution?.state, execution?.route);
 }
 
 const hasAnyProblems = computed(() => {
