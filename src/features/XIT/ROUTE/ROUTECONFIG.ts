@@ -6,5 +6,5 @@ xit.add({
   description: 'Order commodity exchanges and bases into a shipping route.',
   optionalParameters: 'Route Id',
   component: () => ROUTECONFIG,
-  bufferSize: [980, 520],
+  bufferSize: [800, 600],
 });
