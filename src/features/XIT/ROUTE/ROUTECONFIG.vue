@@ -904,7 +904,7 @@ function selectShip(event: Event) {
                 <th>Input</th>
                 <th>Output</th>
                 <th>Fuel</th>
-                <th>Cargo</th>
+                <th>Advanced</th>
               </tr>
             </thead>
             <tbody v-for="(stop, index) in rowStops()" :key="stopInstanceKey(stop)">
@@ -926,8 +926,12 @@ function selectShip(event: Event) {
                 </td>
                 <td>{{ fuelText(index) }}</td>
                 <td>
-                  <PrunButton dark inline @click="toggleCargo(stop)">
-                    {{ hasCargo(stop) ? 'EDIT*' : 'EDIT' }}
+                  <PrunButton
+                    dark
+                    inline
+                    title="In-development, use at own risk"
+                    @click="toggleCargo(stop)">
+                    {{ hasCargo(stop) ? 'ADVANCED*' : 'ADVANCED' }}
                   </PrunButton>
                 </td>
               </tr>
