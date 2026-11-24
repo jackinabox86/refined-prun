@@ -904,7 +904,7 @@ function selectShip(event: Event) {
                 <th>Input</th>
                 <th>Output</th>
                 <th>Fuel</th>
-                <th>Cargo</th>
+                <th :class="$style.fit">Advanced</th>
               </tr>
             </thead>
             <tbody v-for="(stop, index) in rowStops()" :key="stopInstanceKey(stop)">
@@ -925,9 +925,13 @@ function selectShip(event: Event) {
                   </span>
                 </td>
                 <td>{{ fuelText(index) }}</td>
-                <td>
-                  <PrunButton dark inline @click="toggleCargo(stop)">
-                    {{ hasCargo(stop) ? 'EDIT*' : 'EDIT' }}
+                <td :class="$style.fit">
+                  <PrunButton
+                    dark
+                    inline
+                    title="In-development, use at own risk"
+                    @click="toggleCargo(stop)">
+                    {{ hasCargo(stop) ? 'ADVANCED*' : 'ADVANCED' }}
                   </PrunButton>
                 </td>
               </tr>
@@ -1111,6 +1115,12 @@ function selectShip(event: Event) {
 
 .load {
   padding: 2px 4px;
+}
+
+/* Shrink the Advanced column to its button; the table's other columns take the rest. */
+.table th.fit,
+.table td.fit {
+  width: 1%;
 }
 
 .table td.cargo {

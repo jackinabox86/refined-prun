@@ -96,8 +96,8 @@ choose the materials and units yourself:
 - The delivery is per visit. Supply days no longer change it, though they still size the base's
   output pickups.
 
-In ROUTECONFIG, press **EDIT** on a stop and type the delivery as `RAT 120, DW 80`, or `none`.
-Clear the field to go back to supply days. **EDIT\*** marks a stop with its own settings.
+In ROUTECONFIG, press **ADVANCED** on a stop and type the delivery as `RAT 120, DW 80`, or `none`.
+Clear the field to go back to supply days. **ADVANCED\*** marks a stop with its own settings.
 
 ## Stop steps
 
@@ -132,7 +132,7 @@ in the order listed. The route `wait` comes last, at the final stop.
 Stop steps are outside the plan. The cargo check, FIT, ROUTEBUY and Restock do not count them,
 so leave room in the hold for them. The game takes whole numbers for wait amounts.
 
-In ROUTECONFIG, press **EDIT** on a stop and type the steps on one line, separated by `|`:
+In ROUTECONFIG, press **ADVANCED** on a stop and type the steps on one line, separated by `|`:
 `unload ALO all all | load DW 0 capacity retain 20`.
 
 ### Contract shipments
