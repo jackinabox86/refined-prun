@@ -12,7 +12,7 @@
 ### Changed
 
 - `XIT FLT`: The route status dot sits in the ETA cell instead of its own Route column. The Route column and its Columns toggle are gone. A blocked or step-blocked route also shows that dot in PROBLEMS (red or orange), with the problem named on mouseover.
-- `XIT ROUTECONFIG`: The Cargo column is now Advanced; its buttons read ADVANCED.
+- `XIT ROUTECONFIG`: The Cargo column is now Advanced; its buttons read ADVANCED. Custom edits there are still in alpha — use them cautiously.
 
 ## 1.1.12
 
