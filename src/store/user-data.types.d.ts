@@ -280,6 +280,9 @@ declare namespace UserData {
     // A base's delivery, ticker -> units, used in place of the supply-days bill.
     // Absent means the bill comes from supply days.
     supply?: Record<string, number>;
+    // Same All / Workforce / Production filter as XIT DISPATCH. Absent means All.
+    // Bases only; ignored on a set delivery.
+    materialFilter?: 'All' | 'Workforce' | 'Production';
     // Extra steps run at this stop after the planned ones, in the XIT RTACT text
     // syntax ("load RAT 0 capacity retain 120"). Not part of the load plan.
     steps?: string[];

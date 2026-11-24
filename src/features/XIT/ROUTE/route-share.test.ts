@@ -110,10 +110,33 @@ describe('route import', () => {
     expect(result.route.stops[3]).toEqual(json.stops[3]);
   });
 
+  it('carries a non-All materials filter and drops All', () => {
+    const route = saved();
+    route.stops[1] = { ...deimos, materialFilter: 'Workforce' };
+    route.stops[3] = { ...phobos, materialFilter: 'All' };
+    const json = exportRoute(route);
+    expect(json.stops[1]).toEqual({ ...deimos, materialFilter: 'Workforce' });
+    expect(json.stops[3]).toEqual(phobos);
+    const result = importRoute(JSON.stringify(json));
+    if (!result.ok) {
+      throw new Error(result.error);
+    }
+    expect(result.route.stops[1]).toEqual({ ...deimos, materialFilter: 'Workforce' });
+    expect(result.route.stops[3]).toEqual(phobos);
+  });
+
   it.each([
     [
       '{"stops":[{"kind":"cx","id":"AI1","supply":{"RAT":5}}]}',
       'Stop 1 (AI1): supply is for bases only. Use steps on an exchange.',
+    ],
+    [
+      '{"stops":[{"kind":"cx","id":"AI1","materialFilter":"Workforce"}]}',
+      'Stop 1 (AI1): materialFilter is for bases only.',
+    ],
+    [
+      '{"stops":[{"kind":"base","id":"ZV-759c","materialFilter":"Nope"}]}',
+      'Stop 1 (ZV-759c): materialFilter must be All, Workforce, or Production.',
     ],
     [
       '{"stops":[{"kind":"base","id":"ZV-759c","supply":{"RAT":1.5}}]}',

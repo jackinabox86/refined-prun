@@ -1,7 +1,10 @@
+import type { MaterialFilter } from '@src/features/XIT/ACT/material-groups/resupply/config';
 import { snapDays } from '@src/features/XIT/ROUTE/route-calc';
 import { checkSupply, parseStopSteps } from '@src/features/XIT/ROUTE/route-cargo';
 import { repeatOriginKey, stopIdentity } from '@src/features/XIT/ROUTE/route-stops';
 import type { WaitUnit } from '@src/features/XIT/RTACT/route-spec';
+
+const MATERIAL_FILTERS: readonly MaterialFilter[] = ['All', 'Workforce', 'Production'];
 
 // The shareable JSON for one ROUTECONFIG route. Stops are natural ids (AI1, ZV-759c), so a
 // route moves between players. Flight times and the game route id stay behind: they belong
@@ -25,6 +28,7 @@ export interface RouteShareStop {
   kind: 'cx' | 'base';
   id: string;
   supply?: Record<string, number>;
+  materialFilter?: MaterialFilter;
   steps?: string[];
 }
 
@@ -61,6 +65,9 @@ function exportStop(stop: UserData.ShippingRouteStop): RouteShareStop {
   const shared: RouteShareStop = { kind: stop.kind, id: stop.id };
   if (stop.supply !== undefined) {
     shared.supply = { ...stop.supply };
+  }
+  if (stop.materialFilter !== undefined && stop.materialFilter !== 'All') {
+    shared.materialFilter = stop.materialFilter;
   }
   if (stop.steps !== undefined && stop.steps.length > 0) {
     shared.steps = [...stop.steps];
@@ -179,7 +186,7 @@ function importStops(value: unknown): UserData.ShippingRouteStop[] | string {
   return stops;
 }
 
-// Fills the stop's supply and steps. Returns an error, or undefined when they are fine.
+// Fills the stop's supply, materials filter, and steps. Returns an error, or undefined when they are fine.
 function importStopCargo(
   entry: Record<string, unknown>,
   stop: UserData.ShippingRouteStop,
@@ -194,6 +201,20 @@ function importStopCargo(
       return `Stop ${place} (${stop.id}): ${supply.error}.`;
     }
     stop.supply = supply.supply;
+  }
+  if (entry.materialFilter !== undefined) {
+    if (stop.kind !== 'base') {
+      return `Stop ${place} (${stop.id}): materialFilter is for bases only.`;
+    }
+    if (
+      typeof entry.materialFilter !== 'string' ||
+      !MATERIAL_FILTERS.includes(entry.materialFilter as MaterialFilter)
+    ) {
+      return `Stop ${place} (${stop.id}): materialFilter must be All, Workforce, or Production.`;
+    }
+    if (entry.materialFilter !== 'All') {
+      stop.materialFilter = entry.materialFilter as MaterialFilter;
+    }
   }
   if (entry.steps !== undefined) {
     if (!Array.isArray(entry.steps) || entry.steps.some(x => typeof x !== 'string')) {

@@ -2,6 +2,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import '@src/utils/dayjs';
 // The module graph reaches shell/config, which reads `document` at import time.
 vi.mock('@src/infrastructure/shell/config', () => ({ default: {} }));
+import * as resupplyBill from '@src/features/XIT/ACT/material-groups/resupply/bill';
+import * as burn from '@src/core/burn';
 import {
   checkSupply,
   formatSupply,
@@ -100,6 +102,42 @@ describe('set delivery in the load plan', () => {
     // The planner adds fuel to its own copy, not to the saved delivery.
     expect(stops[1]!.supply).toEqual({ RAT: 120 });
     expect(routeBaseBills([stops[0]!, { kind: 'base', id: 'ZV-759c' }], 7, [])).toBeUndefined();
+  });
+});
+
+describe('per-base materials filter', () => {
+  it('passes each base materialFilter into computeResupplyBill, and omits it when absent', () => {
+    dispatch({ type: 'SITE_SITES', data: { sites: [site('site-1', 'ZV-759c')] } });
+    vi.spyOn(burn, 'getPlanetBurn').mockReturnValue({
+      storeId: 'store-1',
+      planetName: 'ZV-759c',
+      naturalId: 'ZV-759c',
+      burn: {},
+    });
+    const spy = vi.spyOn(resupplyBill, 'computeResupplyBill').mockReturnValue({ RAT: 5 });
+
+    const workforce = routeBaseBills(
+      [{ kind: 'base', id: 'ZV-759c', materialFilter: 'Workforce' }],
+      3,
+      [],
+    );
+    expect(workforce?.map(x => x.bill)).toEqual([{ RAT: 5 }]);
+    expect(spy).toHaveBeenCalledWith(expect.anything(), 'ZV-759c', 3, 'Workforce', 1);
+
+    spy.mockClear();
+    const absent = routeBaseBills([{ kind: 'base', id: 'ZV-759c' }], 3, []);
+    expect(absent?.map(x => x.bill)).toEqual([{ RAT: 5 }]);
+    expect(spy).toHaveBeenCalledWith(expect.anything(), 'ZV-759c', 3, undefined, 1);
+
+    // Set deliveries skip the filter path entirely.
+    spy.mockClear();
+    const setDelivery = routeBaseBills(
+      [{ kind: 'base', id: 'ZV-759c', supply: { DW: 9 }, materialFilter: 'Production' }],
+      3,
+      [],
+    );
+    expect(setDelivery?.map(x => x.bill)).toEqual([{ DW: 9 }]);
+    expect(spy).not.toHaveBeenCalled();
   });
 });
 

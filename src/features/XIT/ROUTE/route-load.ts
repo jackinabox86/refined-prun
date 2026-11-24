@@ -2,6 +2,7 @@ import {
   computeResupplyBill,
   consumedOver,
 } from '@src/features/XIT/ACT/material-groups/resupply/bill';
+import type { MaterialFilter } from '@src/features/XIT/ACT/material-groups/resupply/config';
 import {
   addMaterials,
   expectedOutputQty,
@@ -32,6 +33,8 @@ export interface RouteStopInput {
   kind: 'cx' | 'base';
   id: string;
   supply?: Record<string, number>;
+  // Absent means All, same default as XIT DISPATCH.
+  materialFilter?: MaterialFilter;
 }
 
 // Undefined means a base is missing burn data, same gate as DISPATCH fit.
@@ -51,10 +54,17 @@ export function routeBaseBills(
       continue;
     }
     // A set delivery stands in for the supply-days bill, so it needs no burn data.
+    // Supply-days bills reuse DISPATCH's All / Workforce / Production filter.
     const bill =
       stop.supply !== undefined
         ? { ...stop.supply }
-        : computeResupplyBill(resupplyGroup, stop.id, days, undefined, MIN_WORKFORCE_DAYS);
+        : computeResupplyBill(
+            resupplyGroup,
+            stop.id,
+            days,
+            stop.materialFilter,
+            MIN_WORKFORCE_DAYS,
+          );
     if (bill === undefined) {
       return undefined;
     }
