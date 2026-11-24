@@ -916,8 +916,8 @@ function selectShip(event: Event) {
             <thead>
               <tr>
                 <GripHeaderCell />
+                <th :class="$style.remove" />
                 <th>Stop</th>
-                <th />
                 <th>Materials</th>
                 <th>Input</th>
                 <th>Output</th>
@@ -928,10 +928,10 @@ function selectShip(event: Event) {
             <tbody v-for="(stop, index) in rowStops()" :key="stopInstanceKey(stop)">
               <tr>
                 <GripCell />
-                <td>{{ labelFor(stop) }}</td>
-                <td>
+                <td :class="$style.remove">
                   <PrunButton dark inline @click="removeStop(stopInstanceKey(stop))">×</PrunButton>
                 </td>
+                <td>{{ labelFor(stop) }}</td>
                 <td :class="$style.materialsCell">
                   <div v-if="stop.kind === 'base'" :class="[C.forms.input, $style.materialsWrap]">
                     <SelectInput
@@ -1142,6 +1142,19 @@ function selectShip(event: Event) {
 
 .load {
   padding: 2px 4px;
+}
+
+/* Shrink the remove column to its button so the wide columns keep the space. */
+.table th.remove,
+.table td.remove {
+  width: 1%;
+  padding: 0;
+}
+
+.table td.remove > * {
+  margin: 0;
+  padding: 0 3px;
+  min-width: 0;
 }
 
 /* Shrink the Advanced column to its button; the table's other columns take the rest. */
