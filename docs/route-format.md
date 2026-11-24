@@ -61,12 +61,13 @@ full day of workforce consumables, even when the supply days are under 1.
 { "kind": "base", "id": "ZV-759c", "supply": { "RAT": 120 }, "steps": ["unload ALO all all"] }
 ```
 
-| Field    | Type                | Meaning                                                                                                                 |
-| -------- | ------------------- | ----------------------------------------------------------------------------------------------------------------------- |
-| `kind`   | `"cx"` or `"base"`  | A commodity exchange or a planet.                                                                                       |
-| `id`     | string              | Exchange code (`AI1`, `NC1`) or planet natural id (`ZV-759c`). Exchange codes are upper-cased; planet ids keep their case. |
-| `supply` | object, bases only  | A set delivery in place of the supply-days bill. See [Set deliveries](#set-deliveries).                                 |
-| `steps`  | list of strings     | Extra steps at this stop. See [Stop steps](#stop-steps).                                                                |
+| Field            | Type                                   | Meaning                                                                                                                 |
+| ---------------- | -------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| `kind`           | `"cx"` or `"base"`                     | A commodity exchange or a planet.                                                                                       |
+| `id`             | string                                 | Exchange code (`AI1`, `NC1`) or planet natural id (`ZV-759c`). Exchange codes are upper-cased; planet ids keep their case. |
+| `supply`         | object, bases only                     | A set delivery in place of the supply-days bill. See [Set deliveries](#set-deliveries).                                 |
+| `materialFilter` | `"Workforce"` or `"Production"`, bases | Same All / Workforce / Production filter as XIT DISPATCH. Omitted means All. Ignored when `supply` is set.              |
+| `steps`          | list of strings                        | Extra steps at this stop. See [Stop steps](#stop-steps).                                                                |
 
 Rules:
 

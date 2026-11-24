@@ -4,6 +4,8 @@ import GripHeaderCell from '@src/components/grip/GripHeaderCell.vue';
 import { grip } from '@src/components/grip';
 import PrunButton from '@src/components/PrunButton.vue';
 import RadioItem from '@src/components/forms/RadioItem.vue';
+import SelectInput from '@src/components/forms/SelectInput.vue';
+import type { MaterialFilter } from '@src/features/XIT/ACT/material-groups/resupply/config';
 import { billTotals } from '@src/features/XIT/DISPATCH/utils';
 import {
   departureBill,
@@ -634,6 +636,21 @@ function hasCargo(stop: UserData.ShippingRouteStop) {
   return stop.supply !== undefined || (stop.steps?.length ?? 0) > 0;
 }
 
+// Same labels and values as XIT DISPATCH's Materials dropdown.
+const materialFilterOptions: MaterialFilter[] = ['All', 'Workforce', 'Production'];
+
+function materialFilterOf(stop: UserData.ShippingRouteStop): MaterialFilter {
+  return stop.materialFilter ?? 'All';
+}
+
+function setMaterialFilter(stop: UserData.ShippingRouteStop, value: string) {
+  if (value !== 'All' && value !== 'Workforce' && value !== 'Production') {
+    return;
+  }
+  // Absent means All, so drop the field when the player picks the default.
+  stop.materialFilter = value === 'All' ? undefined : value;
+}
+
 function toggleCargo(stop: UserData.ShippingRouteStop) {
   const key = stopInstanceKey(stop);
   cargoKey.value = cargoKey.value === key ? undefined : key;
@@ -899,8 +916,9 @@ function selectShip(event: Event) {
             <thead>
               <tr>
                 <GripHeaderCell />
+                <th :class="$style.remove" />
                 <th>Stop</th>
-                <th />
+                <th>Materials</th>
                 <th>Input</th>
                 <th>Output</th>
                 <th>Fuel</th>
@@ -910,9 +928,17 @@ function selectShip(event: Event) {
             <tbody v-for="(stop, index) in rowStops()" :key="stopInstanceKey(stop)">
               <tr>
                 <GripCell />
-                <td>{{ labelFor(stop) }}</td>
-                <td>
+                <td :class="$style.remove">
                   <PrunButton dark inline @click="removeStop(stopInstanceKey(stop))">×</PrunButton>
+                </td>
+                <td>{{ labelFor(stop) }}</td>
+                <td :class="$style.materialsCell">
+                  <div v-if="stop.kind === 'base'" :class="[C.forms.input, $style.materialsWrap]">
+                    <SelectInput
+                      :model-value="materialFilterOf(stop)"
+                      :options="materialFilterOptions"
+                      @update:model-value="setMaterialFilter(stop, $event)" />
+                  </div>
                 </td>
                 <td>
                   <span :class="[inputOver(stop, index) && C.Workforces.daysMissing, $style.load]">
@@ -937,7 +963,7 @@ function selectShip(event: Event) {
                 </td>
               </tr>
               <tr v-if="cargoKey === stopInstanceKey(stop)">
-                <td colspan="7" :class="$style.cargo">
+                <td colspan="8" :class="$style.cargo">
                   <label v-if="stop.kind === 'base'" :class="$style.cargoRow">
                     <span>Deliver</span>
                     <input
@@ -1118,10 +1144,46 @@ function selectShip(event: Event) {
   padding: 2px 4px;
 }
 
+/* Shrink the remove column to its button so the wide columns keep the space. */
+.table th.remove,
+.table td.remove {
+  width: 1%;
+  padding: 0;
+}
+
+.table td.remove > * {
+  margin: 0;
+  padding: 0 3px;
+  min-width: 0;
+}
+
 /* Shrink the Advanced column to its button; the table's other columns take the rest. */
 .table th.fit,
 .table td.fit {
   width: 1%;
+}
+
+.materialsCell {
+  width: 0;
+  white-space: nowrap;
+  padding: 0 2px;
+  vertical-align: middle;
+}
+
+/* Match DISPATCH's Materials column width so the same three labels fit. */
+.materialsWrap {
+  width: 90px;
+  margin: 0;
+  padding: 0;
+}
+
+.materialsWrap :global(div) {
+  width: 90px;
+  margin: 0;
+}
+
+.materialsWrap :global(select) {
+  width: 100%;
 }
 
 .table td.cargo {
