@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 1.1.13
+
 ### Added
 
 - `XIT CONTS` / `XIT CONTC`: Fulfillable conditions are clickable to fulfill (opens CONT). CONTC shows a fulfill column when any condition can be fulfilled.
