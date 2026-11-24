@@ -929,7 +929,8 @@ function selectShip(event: Event) {
                   <PrunButton
                     dark
                     inline
-                    title="In-development, use at own risk"
+                    data-tooltip="In-development, use at own risk"
+                    data-tooltip-position="bottom"
                     @click="toggleCargo(stop)">
                     {{ hasCargo(stop) ? 'ADVANCED*' : 'ADVANCED' }}
                   </PrunButton>

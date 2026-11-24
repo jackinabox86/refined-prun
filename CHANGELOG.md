@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+### Added
+
+- `XIT CONTS` / `XIT CONTC`: Fulfillable conditions are clickable to fulfill (opens CONT). CONTC shows a fulfill column when any condition can be fulfilled.
+- `XIT BURN` / `XIT BS`: Planet headers and BS burn days show a rocket when a ship is inbound. In BURN, click the rocket to exclude or include that cargo; Inv amounts that include inbound cargo show `*`. Counting inbound cargo still needs `oog-burn-inflight-inventory`.
+- `shpi-sfc-companion-buffer`: Shift-click SFC in SHPI opens that ship's SFC in a companion buffer, like INV and WAR.
+- `XIT FLT`: Drag Columns chips to reorder the table for that buffer. Docked buffers keep the order.
+
+### Changed
+
+- `XIT FLT`: The route status dot sits in the ETA cell instead of its own Route column. The Route column and its Columns toggle are gone. A blocked or step-blocked route also shows that dot in PROBLEMS (red or orange), with the problem named on mouseover.
+- `XIT ROUTECONFIG`: The Cargo column is now Advanced; its buttons read ADVANCED.
+
 ## 1.1.12
 
 ### Added
