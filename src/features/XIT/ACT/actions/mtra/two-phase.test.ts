@@ -37,7 +37,7 @@ describe('empty DISPATCH ship package', () => {
     const dispatch = readFileSync(join(here, '../../../DISPATCH/DISPATCH.vue'), 'utf8');
     expect(dispatch).toContain('buildDispatchShipPackage');
     expect(dispatch).toContain('if (shipPkg.loadGroup !== undefined)');
-    expect(dispatch).not.toMatch(/groups\.push\(\{\s*type: 'Manual',\s*name: loadName/s);
+    expect(dispatch).not.toMatch(/groups\.push\(\{\s*type: 'Manual',\s*name: loadName/);
 
     const mtra = readFileSync(join(here, 'mtra.ts'), 'utf8');
     const sfcOnly = mtra.indexOf('data.sfcOnly === true');
