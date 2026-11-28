@@ -1661,7 +1661,7 @@ Three traps, all hit while truncating ship names in XIT DISPATCH:
 
 A base stores assigned ships in `ships`, in drop order, at most two. Older tile state has `ship` and no `ships`; copy it once when `ships` is missing, and do not rewrite a row whose `ships` array is already present. Dropping a third ship or a duplicate does nothing. Each chip has its own clear control. The assign cell stays 84px (`.shipAssigned` / `.shipPlaceholder`); names truncate inside it so a couple of characters still show beside each x.
 
-Resupply and repair for that base fill the first ship, then spill. Fit on a two-ship base uses the combined free capacity of both holds. Both ships get an SFC when the dispatch runs, including a second ship whose portion is empty. A ship shared across bases still uses the milk-run planner; a two-ship base contributes only its portion of the bill to each ship. Earlier rows claim capacity first, so one hold is not packed twice at CX departure.
+Resupply and repair for that base fill the first ship, then spill. Fit on a two-ship base uses the combined free capacity of both holds. Both ships get an SFC when the dispatch runs, including a second ship whose portion is empty. That empty ship gets one SFC-only action and no Manual load group: an empty group fails the whole package before any ship is sent. A ship shared across bases still uses the milk-run planner; a two-ship base contributes only its portion of the bill to each ship. Earlier rows claim capacity first, so one hold is not packed twice at CX departure.
 
 ### Alignment Belongs to the Column, Not the Layout Mode
 

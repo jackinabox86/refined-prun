@@ -52,7 +52,7 @@ import {
   measureBill,
   portionCarriesRepair,
 } from '@src/features/XIT/DISPATCH/two-ships';
-import { buildTwoPhaseMtraActions } from '@src/features/XIT/ACT/actions/mtra/two-phase';
+import { buildDispatchShipPackage } from '@src/features/XIT/ACT/actions/mtra/two-phase';
 import {
   MilkRunResult,
   pickupGroupName,
@@ -736,9 +736,8 @@ function execute() {
   const mtraActions: UserData.ActionData[] = [];
   const finishActions: UserData.ActionData[] = [];
 
-  // Two-phase MTRA per ship: transfers first, then finish (offload, agent, SFC)
-  // so cargo moves complete before any ship leaves. Both assigned ships are
-  // sent, including one whose portion is empty.
+  // Transfers first, then finish (offload, agent, SFC) so cargo moves complete
+  // before any ship leaves. An empty portion gets SFC only: no Manual load group.
   const pushShipMtra = (stops: ShipWork[]) => {
     const first = stops[0]!;
     const dispatchShip = first.dispatchShip;
@@ -781,12 +780,6 @@ function execute() {
       }
     }
 
-    groups.push({
-      type: 'Manual',
-      name: loadName,
-      materials: materials ?? {},
-    });
-
     const carrying = stops.filter(x => Object.keys(x.materials).length > 0);
     const offloadGroups = carrying.filter(x => x.config.offloadJson).map(x => x.groupName);
     const agentGroups = carrying.filter(x => x.config.agent).map(x => x.groupName);
@@ -794,21 +787,26 @@ function execute() {
       .filter(x => portionCarriesRepair(x.materials, x.repairBill))
       .map(x => x.groupName);
 
-    const { load, finish } = buildTwoPhaseMtraActions({
+    const shipPkg = buildDispatchShipPackage({
       loadName,
-      finishName: `Offload ${shipName}`,
-      group: loadName,
+      shipName,
       origin,
       dest,
       sfcDestination:
         stops.find(x => Object.keys(x.materials).length > 0)?.naturalId ?? first.naturalId,
+      materials: materials ?? {},
       offloadGroups,
       agentGroups,
       repairGroups,
       pickupGroups: pickupSourceNames,
     });
-    mtraActions.push(load);
-    finishActions.push(finish);
+    if (shipPkg.loadGroup !== undefined) {
+      groups.push(shipPkg.loadGroup);
+    }
+    if (shipPkg.load !== undefined) {
+      mtraActions.push(shipPkg.load);
+    }
+    finishActions.push(shipPkg.finish);
   };
 
   for (const stops of multiShipGroups) {

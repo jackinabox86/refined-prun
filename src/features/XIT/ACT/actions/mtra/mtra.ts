@@ -24,6 +24,9 @@ act.addAction<Config>({
   type: 'MTRA',
   shortDescription: 'Transfer materials between storages at the same location',
   description: (action, config) => {
+    if (action.sfcOnly === true) {
+      return action.sfcDestination ? `Open SFC to ${action.sfcDestination}` : 'Open SFC';
+    }
     if (!action.group || !action.origin || !action.dest) {
       return '--';
     }
@@ -57,10 +60,31 @@ act.addAction<Config>({
       ctx;
     const assert: AssertFn = ctx.assert;
 
+    // Empty DISPATCH ship: SFC only. Do not look up a group — there isn't one,
+    // and an empty Manual group fails the whole package.
+    if (data.sfcOnly === true) {
+      const serializedDest = data.dest === configurableValue ? config?.destination : data.dest;
+      const destMaybe = deserializeStorage(serializedDest);
+      assert(destMaybe, 'Invalid destination');
+      if (destMaybe.type === 'SHIP_STORE' && shouldEmitAutoSfc(data, config, packageName)) {
+        emitStep(
+          OPEN_SFC({
+            shipId: destMaybe.addressableId,
+            destination: data.sfcDestination,
+          }),
+        );
+      }
+      return;
+    }
+
     // Assert-narrowed locals (rebound so nested helpers keep the non-undefined type).
+    // A finish action may have no load group when the CX bill was empty but a
+    // pickup or offload list still has to run.
     const materialsMaybe = await getMaterialGroup(data.group);
-    assert(materialsMaybe, 'Invalid material group');
-    const materials = materialsMaybe;
+    if (materialsMaybe === undefined) {
+      assert(data.finishOnly === true, 'Invalid material group');
+    }
+    const materials = materialsMaybe ?? {};
 
     const serializedOrigin = data.origin === configurableValue ? config?.origin : data.origin;
     const originMaybe = deserializeStorage(serializedOrigin);
