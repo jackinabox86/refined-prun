@@ -24,6 +24,11 @@ import { shipsStore } from '@src/infrastructure/prun-api/data/ships';
 import { fixed0 } from '@src/utils/format';
 import type { MaterialFilter } from '@src/features/XIT/ACT/material-groups/resupply/config';
 import { DispatchBaseConfig, billTotals } from '@src/features/XIT/DISPATCH/utils';
+import {
+  assignDroppedShip,
+  assignedShipIds,
+  removeAssignedShip,
+} from '@src/features/XIT/DISPATCH/two-ships';
 import fa from '@src/utils/font-awesome.module.css';
 
 const {
@@ -56,7 +61,7 @@ const emit = defineEmits<{
 
 const materialFilterOptions: MaterialFilter[] = ['All', 'Workforce', 'Production'];
 
-const canFit = computed(() => !!config.ship);
+const canFit = computed(() => assignedShipIds(config).length > 0);
 
 const burn = computed(() => getPlanetBurn(siteId));
 const days = computed(() => (burn.value ? countDays(burn.value.burn) : undefined));
@@ -126,10 +131,14 @@ const loadText = computed(() => {
   return peakOverflow ? `${text} *` : text;
 });
 
-const assignedShip = computed(() => (config.ship ? shipsStore.getById(config.ship) : undefined));
-
-const shipLabel = computed(
-  () => assignedShip.value?.name ?? assignedShip.value?.registration ?? config.ship,
+const assignedShips = computed(() =>
+  assignedShipIds(config).map(id => {
+    const ship = shipsStore.getById(id);
+    return {
+      id,
+      label: ship?.name ?? ship?.registration ?? id,
+    };
+  }),
 );
 
 const dragOver = ref(false);
@@ -166,11 +175,18 @@ function onDrop(event: DragEvent) {
   // Mutating state during drop unmounts the drag source before dragend fires,
   // freezing the drag ghost at the drop point. Defer past the drag operation.
   setTimeout(() => {
-    config.ship = shipId;
+    const current = assignedShipIds(config);
+    const next = assignDroppedShip(current, shipId);
+    if (next.length === current.length && next.every((id, i) => id === current[i])) {
+      return;
+    }
+    config.ships = next;
+    config.ship = undefined;
   }, 0);
 }
 
-function clearShip() {
+function clearShip(shipId: string) {
+  config.ships = removeAssignedShip(assignedShipIds(config), shipId);
   config.ship = undefined;
 }
 </script>
@@ -183,12 +199,20 @@ function clearShip() {
       @dragover="onDragOver"
       @dragleave="onDragLeave"
       @drop="onDrop">
-      <template v-if="config.ship && shipLabel">
-        <div :class="$style.shipAssigned">
-          <PrunButton primary inline :class="$style.shipButton">
-            <span :class="$style.shipLabel">{{ shipLabel }}</span>
-          </PrunButton>
-          <PrunButton dark inline :class="$style.clearButton" @click="clearShip">×</PrunButton>
+      <template v-if="assignedShips.length > 0">
+        <div :class="[$style.shipAssigned, assignedShips.length > 1 && $style.shipAssignedTight]">
+          <div
+            v-for="ship in assignedShips"
+            :key="ship.id"
+            :class="$style.shipChip"
+            :data-tooltip="ship.label">
+            <PrunButton primary inline :class="$style.shipButton">
+              <span :class="$style.shipLabel">{{ ship.label }}</span>
+            </PrunButton>
+            <PrunButton dark inline :class="$style.clearButton" @click="clearShip(ship.id)"
+              >×</PrunButton
+            >
+          </div>
         </div>
       </template>
       <div v-else :class="$style.shipPlaceholder" />
@@ -391,17 +415,36 @@ function clearShip() {
 }
 
 .shipAssigned {
-  display: inline-flex;
+  display: flex;
   align-items: center;
   gap: 2px;
   width: 84px;
   box-sizing: border-box;
 }
 
+.shipChip {
+  display: flex;
+  align-items: center;
+  flex: 1 1 0;
+  min-width: 0;
+  gap: 1px;
+}
+
 .shipButton {
-  flex: 1;
+  flex: 1 1 auto;
   min-width: 0;
   overflow: hidden;
+}
+
+/* Two chips share the same 84px. Tighten the clear control so a couple of
+   name characters still fit beside each x. */
+.shipAssignedTight .clearButton {
+  width: 14px;
+}
+
+.shipAssignedTight .shipButton {
+  padding-left: 2px;
+  padding-right: 2px;
 }
 
 /* Same reason as ShipPool's .shipLabel: a <button> clips at its padding box,

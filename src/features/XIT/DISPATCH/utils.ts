@@ -17,6 +17,7 @@ import {
   planMilkRun,
 } from '@src/features/XIT/ACT/material-groups/resupply/milk-run';
 import type { MaterialFilter } from '@src/features/XIT/ACT/material-groups/resupply/config';
+import { assignedShipIds } from '@src/features/XIT/DISPATCH/two-ships';
 import { fixed0 } from '@src/utils/format';
 
 export interface DispatchBaseConfig {
@@ -29,6 +30,8 @@ export interface DispatchBaseConfig {
   cxBuy: boolean;
   offloadJson: boolean;
   agent: boolean;
+  // Drop order, at most two. Older tile state has `ship` and no `ships`.
+  ships?: string[];
   ship?: string;
 }
 
@@ -274,8 +277,13 @@ export function fitDaysForShip(
   shipId: string,
   bases: { naturalId: string; config: DispatchBaseConfig; site: PrunApi.Site }[],
   cargoStore: PrunApi.Store,
+  reserved?: { weight: number; volume: number },
 ): number | undefined {
-  const sharing = bases.filter(x => x.config.ship === shipId);
+  // A two-ship base contributes only its portion, reserved by the caller.
+  const sharing = bases.filter(x => {
+    const ids = assignedShipIds(x.config);
+    return ids.length === 1 && ids[0] === shipId;
+  });
 
   let repairWeight = 0;
   let repairVolume = 0;
@@ -289,8 +297,10 @@ export function fitDaysForShip(
     repairVolume += totals.volume;
   }
 
-  const freeWeight = cargoStore.weightCapacity - cargoStore.weightLoad - repairWeight;
-  const freeVolume = cargoStore.volumeCapacity - cargoStore.volumeLoad - repairVolume;
+  const freeWeight =
+    cargoStore.weightCapacity - cargoStore.weightLoad - repairWeight - (reserved?.weight ?? 0);
+  const freeVolume =
+    cargoStore.volumeCapacity - cargoStore.volumeLoad - repairVolume - (reserved?.volume ?? 0);
   if (freeWeight < 0 || freeVolume < 0) {
     return 0;
   }

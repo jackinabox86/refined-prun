@@ -1,27 +1,28 @@
 <script setup lang="ts">
 import PrunButton from '@src/components/PrunButton.vue';
 import type { DispatchBaseConfig, DispatchShip } from '@src/features/XIT/DISPATCH/utils';
+import { assignedShipIds } from '@src/features/XIT/DISPATCH/two-ships';
 
 const { ships, baseConfigs } = defineProps<{
   ships: DispatchShip[];
   baseConfigs: Record<string, DispatchBaseConfig>;
 }>();
 
-const assignedShipIds = computed(() => {
+const assignedIds = computed(() => {
   const ids = new Set<string>();
   for (const config of Object.values(baseConfigs)) {
-    if (config.ship) {
-      ids.add(config.ship);
+    for (const id of assignedShipIds(config)) {
+      ids.add(id);
     }
   }
   return ids;
 });
 
 const unassigned = computed(() =>
-  ships.filter(x => !assignedShipIds.value.has(x.ship.id)).sort(byShipLabel),
+  ships.filter(x => !assignedIds.value.has(x.ship.id)).sort(byShipLabel),
 );
 const assigned = computed(() =>
-  ships.filter(x => assignedShipIds.value.has(x.ship.id)).sort(byShipLabel),
+  ships.filter(x => assignedIds.value.has(x.ship.id)).sort(byShipLabel),
 );
 
 function shipLabel(entry: DispatchShip) {
