@@ -37,11 +37,22 @@ import {
   fitDaysForShip,
   formatMilkRunOverflow,
   getShipsAtCX,
+  materialSizeOf,
   mergeBills,
   planBasesMilkRun,
   regroupByShip,
 } from '@src/features/XIT/DISPATCH/utils';
-import { buildTwoPhaseMtraActions } from '@src/features/XIT/ACT/actions/mtra/two-phase';
+import { computeRepairBill } from '@src/features/XIT/ACT/material-groups/repair/bill';
+import {
+  CargoBudget,
+  allocateDispatchBills,
+  assignedShipIds,
+  dispatchGroupName,
+  fitDaysInBudgets,
+  measureBill,
+  portionCarriesRepair,
+} from '@src/features/XIT/DISPATCH/two-ships';
+import { buildDispatchShipPackage } from '@src/features/XIT/ACT/actions/mtra/two-phase';
 import {
   MilkRunResult,
   pickupGroupName,
@@ -81,6 +92,7 @@ function createBaseConfig(naturalId: string): DispatchBaseConfig {
     cxBuy: true,
     offloadJson: false,
     agent: false,
+    ships: [],
   };
 }
 
@@ -125,11 +137,17 @@ watchEffect(() => {
       continue;
     }
     let patched = existing;
+    // One-shot: older rows stored a single `ship`. Rewriting every run would
+    // loop, so only fill `ships` while it is missing.
+    if (!Array.isArray(existing.ships)) {
+      patched = { ...patched, ships: existing.ship ? [existing.ship] : [] };
+      delete patched.ship;
+    }
     if (
-      existing.materialFilter === undefined ||
-      existing.cxBuy === undefined ||
-      existing.offloadJson === undefined ||
-      existing.agent === undefined
+      patched.materialFilter === undefined ||
+      patched.cxBuy === undefined ||
+      patched.offloadJson === undefined ||
+      patched.agent === undefined
     ) {
       patched = {
         ...patched,
@@ -263,13 +281,14 @@ watchEffect(() => {
   }
 });
 
-// Assignment map used to auto-group rows sharing a ship. Only depends on
-// each config's .ship, so it re-runs solely on ship (re)assignment.
+// Groups a row with its first ship. A second ship does not move the row;
+// it still receives its own spill load when the dispatch runs.
 const shipAssignments = computed(() => {
   const map = new Map<string, string>();
   for (const row of rows.value) {
-    if (row.config?.ship) {
-      map.set(row.base.naturalId, row.config.ship);
+    const first = assignedShipIds(row.config)[0];
+    if (first !== undefined) {
+      map.set(row.base.naturalId, first);
     }
   }
   return map;
@@ -320,7 +339,40 @@ const cxShipById = computed(() => {
 });
 
 // Per-ship milk-run plan (sourcing + route peak). Shared by the row display,
-// the overload warning, and execute().
+// the overload warning, and execute(). Portions, not full bills: a two-ship
+// base fills the first ship and spills the rest onto the second.
+const allocation = computed(() => {
+  const ships = new Map<string, CargoBudget>();
+  for (const [id, entry] of cxShipById.value) {
+    const store = entry.cargoStore;
+    if (!store || !entry.warehouseStore) {
+      continue;
+    }
+    ships.set(id, {
+      freeWeight: store.weightCapacity - store.weightLoad,
+      freeVolume: store.volumeCapacity - store.volumeLoad,
+    });
+  }
+  const list: { naturalId: string; shipIds: string[]; bill: Record<string, number> }[] = [];
+  for (const id of orderedIds.value) {
+    const row = rowById.value.get(id);
+    if (!row) {
+      continue;
+    }
+    const { base, config } = row;
+    const shipIds = assignedShipIds(config);
+    if (shipIds.length === 0 || (!config.resupply && !config.repair)) {
+      continue;
+    }
+    const bill = billByBase.value.get(base.naturalId);
+    if (!bill || Object.keys(bill).length === 0) {
+      continue;
+    }
+    list.push({ naturalId: base.naturalId, shipIds, bill });
+  }
+  return allocateDispatchBills(list, ships, materialSizeOf);
+});
+
 const milkRunByShip = computed(() => {
   const byShip = new Map<
     string,
@@ -328,36 +380,34 @@ const milkRunByShip = computed(() => {
   >();
   for (const id of orderedIds.value) {
     const row = rowById.value.get(id);
-    if (!row) {
+    const byPortion = allocation.value.portions.get(id);
+    if (!row || !byPortion) {
       continue;
     }
-    const { base, config } = row;
-    if (!config.ship || (!config.resupply && !config.repair)) {
-      continue;
+    for (const [shipId, materials] of byPortion) {
+      if (Object.keys(materials).length === 0) {
+        continue;
+      }
+      let list = byShip.get(shipId);
+      if (!list) {
+        list = [];
+        byShip.set(shipId, list);
+      }
+      list.push({
+        naturalId: row.base.naturalId,
+        site: row.base.site,
+        days: row.config.days,
+        bill: materials,
+      });
     }
-    const bill = billByBase.value.get(base.naturalId);
-    if (!bill || Object.keys(bill).length === 0) {
-      continue;
-    }
-    let list = byShip.get(config.ship);
-    if (!list) {
-      list = [];
-      byShip.set(config.ship, list);
-    }
-    list.push({
-      naturalId: base.naturalId,
-      site: base.site,
-      days: config.days,
-      bill,
-    });
   }
   const map = new Map<string, MilkRunResult>();
-  for (const [shipId, bases] of byShip) {
+  for (const [shipId, stops] of byShip) {
     const store = cxShipById.value.get(shipId)?.cargoStore;
     if (!store) {
       continue;
     }
-    const plan = planBasesMilkRun(bases, store);
+    const plan = planBasesMilkRun(stops, store);
     if (plan) {
       map.set(shipId, plan);
     }
@@ -375,6 +425,13 @@ const overloadedShips = computed(() => {
   return result;
 });
 
+function baseHasLeftover(naturalId: string) {
+  const left = allocation.value.leftover.get(naturalId);
+  return left !== undefined && Object.keys(left).length > 0;
+}
+
+const hasUnallocated = computed(() => orderedIds.value.some(id => baseHasLeftover(id)));
+
 const overflowByStop = computed(() => {
   const map = new Map<string, string>();
   for (const [shipId, plan] of milkRunByShip.value) {
@@ -385,7 +442,9 @@ const overflowByStop = computed(() => {
         continue;
       }
       const stopLabel = rowById.value.get(overflow.stopId)?.base.planetName ?? overflow.stopId;
-      map.set(overflow.stopId, formatMilkRunOverflow(overflow, shipLabel, stopLabel));
+      const text = formatMilkRunOverflow(overflow, shipLabel, stopLabel);
+      const prev = map.get(overflow.stopId);
+      map.set(overflow.stopId, prev ? `${prev} ${text}` : text);
     }
   }
   return map;
@@ -395,7 +454,14 @@ const pickupByStop = computed(() => {
   const map = new Map<string, { weight: number; volume: number }>();
   for (const [, plan] of milkRunByShip.value) {
     for (const [stopId, loaded] of plan.loadedByStop) {
-      map.set(stopId, billTotals(loaded));
+      const totals = billTotals(loaded);
+      const prev = map.get(stopId);
+      map.set(
+        stopId,
+        prev
+          ? { weight: prev.weight + totals.weight, volume: prev.volume + totals.volume }
+          : totals,
+      );
     }
   }
   return map;
@@ -408,7 +474,10 @@ const hasAssignedShip = computed(() => {
   }
   for (const base of list) {
     const config = baseConfigs.value[base.naturalId];
-    if (config?.ship && cxShipById.value.has(config.ship)) {
+    if (config === undefined) {
+      continue;
+    }
+    if (assignedShipIds(config).some(id => cxShipById.value.has(id))) {
       return true;
     }
   }
@@ -419,10 +488,10 @@ const executeTooltip = computed(() => {
   if (!hasAssignedShip.value) {
     return 'Assign a ship to at least one base first';
   }
-  if (overloadedShips.value.size === 0) {
-    return undefined;
-  }
   const parts: string[] = [];
+  if (hasUnallocated.value) {
+    parts.push('Assigned ships cannot hold every resupply and repair material');
+  }
   for (const [shipId, plan] of milkRunByShip.value) {
     if (!plan.firstOverflow) {
       continue;
@@ -433,150 +502,244 @@ const executeTooltip = computed(() => {
     const stopLabel = stopId ? (rowById.value.get(stopId)?.base.planetName ?? stopId) : undefined;
     parts.push(formatMilkRunOverflow(plan.firstOverflow, shipLabel, stopLabel));
   }
-  return parts.join(' ') || 'A ship is loaded above its capacity';
+  if (parts.length === 0) {
+    return undefined;
+  }
+  return parts.join(' ');
 });
 
-interface IncludedBase {
-  naturalId: string;
-  planetName: string;
-  site: PrunApi.Site;
-  config: DispatchBaseConfig;
-  dispatchShip: DispatchShip;
+function rowOverloaded(id: string) {
+  const config = rowById.value.get(id)?.config;
+  if (!config) {
+    return false;
+  }
+  if (baseHasLeftover(id)) {
+    return true;
+  }
+  return assignedShipIds(config).some(shipId => overloadedShips.value.has(shipId));
 }
 
-const includedBases = computed(() => {
-  // Dispatch LIST order (user-reorderable), not sites order.
-  const result: IncludedBase[] = [];
+// Capacity still free for this base after earlier rows have claimed it.
+function budgetForFit(shipId: string, naturalId: string): CargoBudget | undefined {
+  const entry = cxShipById.value.get(shipId);
+  const store = entry?.cargoStore;
+  if (!store || !entry?.warehouseStore) {
+    return undefined;
+  }
+  let freeWeight = store.weightCapacity - store.weightLoad;
+  let freeVolume = store.volumeCapacity - store.volumeLoad;
+  for (const id of orderedIds.value) {
+    if (id === naturalId) {
+      break;
+    }
+    const earlier = rowById.value.get(id);
+    if (!earlier || !assignedShipIds(earlier.config).includes(shipId)) {
+      continue;
+    }
+    const shipIds = assignedShipIds(earlier.config);
+    const claimed =
+      shipIds.length === 1
+        ? billByBase.value.get(id)
+        : allocation.value.portions.get(id)?.get(shipId);
+    if (!claimed) {
+      continue;
+    }
+    const totals = measureBill(claimed, materialSizeOf);
+    freeWeight -= totals.weight;
+    freeVolume -= totals.volume;
+  }
+  return {
+    freeWeight: Math.max(0, freeWeight),
+    freeVolume: Math.max(0, freeVolume),
+  };
+}
+
+function reservedTwoShipLoad(shipId: string) {
+  let weight = 0;
+  let volume = 0;
+  for (const [baseId, byShip] of allocation.value.portions) {
+    const row = rowById.value.get(baseId);
+    if (!row || assignedShipIds(row.config).length < 2) {
+      continue;
+    }
+    const portion = byShip.get(shipId);
+    if (!portion) {
+      continue;
+    }
+    const totals = measureBill(portion, materialSizeOf);
+    weight += totals.weight;
+    volume += totals.volume;
+  }
+  return { weight, volume };
+}
+
+function fitBase(naturalId: string) {
+  const row = rowById.value.get(naturalId);
+  if (!row) {
+    return;
+  }
+  const { config, base } = row;
+  const ids = assignedShipIds(config);
+  if (ids.length === 0) {
+    return;
+  }
+
+  if (ids.length >= 2) {
+    if (!config.resupply) {
+      return;
+    }
+    const budgets: CargoBudget[] = [];
+    for (const shipId of ids) {
+      const budget = budgetForFit(shipId, naturalId);
+      if (!budget) {
+        return;
+      }
+      budgets.push(budget);
+    }
+    const days = fitDaysInBudgets(
+      budgets,
+      days => combinedBaseBill(naturalId, { ...config, days }, base.site),
+      materialSizeOf,
+    );
+    if (days === undefined) {
+      return;
+    }
+    config.days = days;
+    return;
+  }
+
+  const shipId = ids[0]!;
+  const dispatchShip = cxShipById.value.get(shipId);
+  if (!dispatchShip?.cargoStore) {
+    return;
+  }
+
+  const sharingBases = orderedIds.value.flatMap(id => {
+    const sharing = rowById.value.get(id);
+    return sharing
+      ? [{ naturalId: sharing.base.naturalId, config: sharing.config, site: sharing.base.site }]
+      : [];
+  });
+
+  const days = fitDaysForShip(
+    shipId,
+    sharingBases,
+    dispatchShip.cargoStore,
+    reservedTwoShipLoad(shipId),
+  );
+  if (days === undefined) {
+    return;
+  }
+
+  for (const sharing of sharingBases) {
+    const sharingIds = assignedShipIds(sharing.config);
+    if (sharingIds.length === 1 && sharingIds[0] === shipId && sharing.config.resupply) {
+      sharing.config.days = days;
+    }
+  }
+}
+
+interface ShipWork {
+  naturalId: string;
+  config: DispatchBaseConfig;
+  dispatchShip: DispatchShip;
+  materials: Record<string, number>;
+  groupName: string;
+  repairBill?: Record<string, number>;
+}
+
+function execute() {
+  if (overloadedShips.value.size > 0 || hasUnallocated.value) {
+    return;
+  }
+
+  const groups: UserData.MaterialGroupData[] = [];
+  const cxBuyActions: UserData.ActionData[] = [];
+  const exchangeBills = new Map<string, Record<string, number>>();
+  const byShip = new Map<string, ShipWork[]>();
+  const usedGroupNames = new Set<string>();
+
   for (const id of orderedIds.value) {
     const row = rowById.value.get(id);
     if (!row) {
       continue;
     }
     const { base, config } = row;
-    if (!config.ship || (!config.resupply && !config.repair)) {
+    const shipIds = assignedShipIds(config);
+    if (shipIds.length === 0 || (!config.resupply && !config.repair)) {
       continue;
     }
-    const dispatchShip = cxShipById.value.get(config.ship);
-    if (!dispatchShip?.warehouseStore || !dispatchShip.cargoStore) {
-      continue;
-    }
-    result.push({
-      naturalId: base.naturalId,
-      planetName: base.planetName,
-      site: base.site,
-      config,
-      dispatchShip,
-    });
-  }
-  return result;
-});
-
-function fitBase(naturalId: string) {
-  const config = baseConfigs.value[naturalId];
-  if (!config?.ship) {
-    return;
-  }
-  const dispatchShip = cxShipById.value.get(config.ship);
-  if (!dispatchShip?.cargoStore) {
-    return;
-  }
-
-  const sharingBases = orderedIds.value.flatMap(id => {
-    const row = rowById.value.get(id);
-    return row ? [{ naturalId: row.base.naturalId, config: row.config, site: row.base.site }] : [];
-  });
-
-  const days = fitDaysForShip(config.ship, sharingBases, dispatchShip.cargoStore);
-  if (days === undefined) {
-    return;
-  }
-
-  for (const base of sharingBases) {
-    if (base.config.ship === config.ship && base.config.resupply) {
-      base.config.days = days;
-    }
-  }
-}
-
-function execute() {
-  if (includedBases.value.length === 0) {
-    return;
-  }
-  if (overloadedShips.value.size > 0) {
-    return;
-  }
-
-  // Group names are player-facing (status lines, offload package labels); planet stays
-  // a natural id because it feeds SFC/BRA tile commands.
-  const groupNameOf = (base: IncludedBase) => base.planetName || base.naturalId;
-
-  const groups: UserData.MaterialGroupData[] = [];
-  const cxBuyActions: UserData.ActionData[] = [];
-
-  // Per-exchange aggregate of bills for bases with cxBuy on.
-  const exchangeBills = new Map<string, Record<string, number>>();
-  // Bases that actually stage (non-empty bill), in list order.
-  const stagedBases: IncludedBase[] = [];
-
-  for (const base of includedBases.value) {
-    const { naturalId, config, dispatchShip } = base;
-    const bill = billByBase.value.get(naturalId);
+    const bill = billByBase.value.get(base.naturalId);
     if (!bill || Object.keys(bill).length === 0) {
       continue;
     }
+    const byPortion = allocation.value.portions.get(base.naturalId);
+    const repairBill = config.repair
+      ? computeRepairBill(base.site, config.repThreshold, config.repAdvance)
+      : undefined;
+    const planetLabel = base.planetName || base.naturalId;
 
-    stagedBases.push(base);
-
-    groups.push({
-      type: 'Manual',
-      name: groupNameOf(base),
-      planet: naturalId,
-      materials: bill,
-    });
-
-    if (config.cxBuy) {
-      const code = dispatchShip.exchangeCode;
-      exchangeBills.set(code, mergeBills(exchangeBills.get(code), bill)!);
+    for (const shipId of shipIds) {
+      const dispatchShip = cxShipById.value.get(shipId);
+      if (!dispatchShip?.warehouseStore || !dispatchShip.cargoStore) {
+        continue;
+      }
+      const materials = { ...(byPortion?.get(shipId) ?? {}) };
+      const shipLabel = dispatchShip.ship.name ?? dispatchShip.ship.registration;
+      let groupName = dispatchGroupName(planetLabel, shipLabel, shipIds.length);
+      if (usedGroupNames.has(groupName)) {
+        groupName = dispatchGroupName(planetLabel, dispatchShip.ship.registration, shipIds.length);
+      }
+      usedGroupNames.add(groupName);
+      if (Object.keys(materials).length > 0) {
+        groups.push({
+          type: 'Manual',
+          name: groupName,
+          planet: base.naturalId,
+          materials,
+        });
+        if (config.cxBuy) {
+          const code = dispatchShip.exchangeCode;
+          exchangeBills.set(code, mergeBills(exchangeBills.get(code), materials)!);
+        }
+      }
+      let list = byShip.get(shipId);
+      if (!list) {
+        list = [];
+        byShip.set(shipId, list);
+      }
+      list.push({
+        naturalId: base.naturalId,
+        config,
+        dispatchShip,
+        materials,
+        groupName,
+        repairBill,
+      });
     }
   }
 
-  if (stagedBases.length === 0) {
+  if (byShip.size === 0) {
     return;
   }
 
-  // Group by ship, preserving list order within each group and insertion
-  // order of first-seen ships.
-  const byShip = new Map<string, IncludedBase[]>();
-  for (const base of stagedBases) {
-    const shipId = base.config.ship!;
-    let list = byShip.get(shipId);
-    if (!list) {
-      list = [];
-      byShip.set(shipId, list);
-    }
-    list.push(base);
-  }
-
-  // Multi-base ships first (order of each ship's first base in the list),
-  // then single-base ships.
-  const multiShipGroups: IncludedBase[][] = [];
-  const singleShipBases: IncludedBase[] = [];
-  for (const shipBases of byShip.values()) {
-    if (shipBases.length >= 2) {
-      multiShipGroups.push(shipBases);
+  const multiShipGroups: ShipWork[][] = [];
+  const singleShipStops: ShipWork[][] = [];
+  for (const stops of byShip.values()) {
+    if (stops.length >= 2) {
+      multiShipGroups.push(stops);
     } else {
-      singleShipBases.push(shipBases[0]!);
+      singleShipStops.push(stops);
     }
   }
 
   const mtraActions: UserData.ActionData[] = [];
   const finishActions: UserData.ActionData[] = [];
 
-  // Two-phase MTRA per ship: transfer actions first (all ships), then finish
-  // actions (offload JSONs, agent posts, SFC) so cargo moves complete before
-  // any ship's SFC. One material group per ship (sum of base bills).
-  const pushShipMtra = (shipBases: IncludedBase[]) => {
-    const first = shipBases[0]!;
+  // Transfers first, then finish (offload, agent, SFC) so cargo moves complete
+  // before any ship leaves. An empty portion gets SFC only: no Manual load group.
+  const pushShipMtra = (stops: ShipWork[]) => {
+    const first = stops[0]!;
     const dispatchShip = first.dispatchShip;
     const shipName = dispatchShip.ship.name ?? dispatchShip.ship.registration;
     const loadName = `Load ${shipName}`;
@@ -584,30 +747,28 @@ function execute() {
     const dest = serializeStorage(dispatchShip.cargoStore!);
 
     let materials: Record<string, number> | undefined;
-    for (const base of shipBases) {
-      const group = groups.find(x => x.name === groupNameOf(base));
-      materials = mergeBills(materials, group?.materials);
+    for (const stop of stops) {
+      materials = mergeBills(materials, stop.materials);
     }
 
     const pickupSourceNames: string[] = [];
-    const plan = milkRunByShip.value.get(first.config.ship!);
+    const plan = milkRunByShip.value.get(dispatchShip.ship.id);
     if (plan) {
       materials = subtractMaterials(materials ?? {}, plan.sourced);
-      for (const base of shipBases) {
-        const pickup = plan.pickupsByStop.get(base.naturalId);
+      for (const stop of stops) {
+        const pickup = plan.pickupsByStop.get(stop.naturalId);
         if (!pickup || Object.keys(pickup).length === 0) {
           continue;
         }
-        const sourceName = groupNameOf(base);
         groups.push({
           type: 'Manual',
-          name: pickupGroupName(sourceName),
+          name: pickupGroupName(stop.groupName),
           materials: pickup,
         });
-        pickupSourceNames.push(sourceName);
+        pickupSourceNames.push(stop.groupName);
       }
       for (const [consumerId, sourced] of plan.sourcedByConsumer) {
-        const consumer = shipBases.find(x => x.naturalId === consumerId);
+        const consumer = stops.find(x => x.naturalId === consumerId);
         if (!consumer?.config.cxBuy) {
           continue;
         }
@@ -619,39 +780,40 @@ function execute() {
       }
     }
 
-    groups.push({
-      type: 'Manual',
-      name: loadName,
-      materials: materials!,
-    });
+    const carrying = stops.filter(x => Object.keys(x.materials).length > 0);
+    const offloadGroups = carrying.filter(x => x.config.offloadJson).map(x => x.groupName);
+    const agentGroups = carrying.filter(x => x.config.agent).map(x => x.groupName);
+    const repairGroups = carrying
+      .filter(x => portionCarriesRepair(x.materials, x.repairBill))
+      .map(x => x.groupName);
 
-    // Offload = JSON print; agent = post to agent channel (chain ids for 2+ stops).
-    const offloadGroups = shipBases.filter(x => x.config.offloadJson).map(groupNameOf);
-    const agentGroups = shipBases.filter(x => x.config.agent).map(groupNameOf);
-    const repairGroups = shipBases.filter(x => x.config.repair).map(groupNameOf);
-
-    const { load, finish } = buildTwoPhaseMtraActions({
+    const shipPkg = buildDispatchShipPackage({
       loadName,
-      finishName: `Offload ${shipName}`,
-      group: loadName,
+      shipName,
       origin,
       dest,
-      sfcDestination: first.naturalId,
+      sfcDestination:
+        stops.find(x => Object.keys(x.materials).length > 0)?.naturalId ?? first.naturalId,
+      materials: materials ?? {},
       offloadGroups,
       agentGroups,
       repairGroups,
       pickupGroups: pickupSourceNames,
     });
-    mtraActions.push(load);
-    finishActions.push(finish);
+    if (shipPkg.loadGroup !== undefined) {
+      groups.push(shipPkg.loadGroup);
+    }
+    if (shipPkg.load !== undefined) {
+      mtraActions.push(shipPkg.load);
+    }
+    finishActions.push(shipPkg.finish);
   };
 
-  for (const shipBases of multiShipGroups) {
-    pushShipMtra(shipBases);
+  for (const stops of multiShipGroups) {
+    pushShipMtra(stops);
   }
-
-  for (const base of singleShipBases) {
-    pushShipMtra([base]);
+  for (const stops of singleShipStops) {
+    pushShipMtra(stops);
   }
 
   for (const [code, materials] of exchangeBills) {
@@ -698,7 +860,6 @@ function execute() {
   };
   showBuffer('XIT DISPATCHACT');
 }
-
 function reset() {
   baseConfigs.value = {};
   baseOrder.value = [];
@@ -725,7 +886,7 @@ function reset() {
       <PrunButton
         primary
         :class="$style.executeButton"
-        :disabled="overloadedShips.size > 0"
+        :disabled="overloadedShips.size > 0 || hasUnallocated"
         :data-tooltip="executeTooltip"
         @click="execute">
         EXECUTE
@@ -760,9 +921,7 @@ function reset() {
               :planet-name="rowById.get(id)!.base.planetName"
               :config="rowById.get(id)!.config"
               :bill="billByBase.get(id)"
-              :overloaded="
-                !!rowById.get(id)!.config.ship && overloadedShips.has(rowById.get(id)!.config.ship!)
-              "
+              :overloaded="rowOverloaded(id)"
               :peak-overflow="overflowByStop.has(id)"
               :overflow-tooltip="overflowByStop.get(id)"
               :pickup-weight="pickupByStop.get(id)?.weight"

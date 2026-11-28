@@ -121,6 +121,8 @@ declare namespace UserData {
     // MTRA specific
     postToAgent?: boolean;
     noSfc?: boolean;
+    // Empty DISPATCH ship: open SFC and do not look up a material group.
+    sfcOnly?: boolean;
     sfcDestination?: string;
     printOffloadJson?: boolean;
     offloadGroups?: string[];
